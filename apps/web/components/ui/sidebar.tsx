@@ -203,6 +203,7 @@ function SidebarProvider({
       }
 
       // This sets the cookie to keep the sidebar state.
+      // biome-ignore lint/suspicious/noDocumentCookie: shadcn sidebar persistence; the Cookie Store API is missing in the supported WebKit (Safari <= 15.6).
       document.cookie = `sidebar_state=${openState}; path=/; max-age=${60 * 60 * 24 * 7}`
       try {
         window.localStorage.setItem(SIDEBAR_STORAGE_KEY, openState ? "true" : "false")
@@ -294,7 +295,7 @@ function SidebarProvider({
                     "--sidebar-width": "17.96875rem",
                     "--sidebar-width-icon": "3rem",
                     ...style,
-                  } as React.CSSProperties
+                  }
                 }
                 className={cn(
                   "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
@@ -527,7 +528,7 @@ function Sidebar({
             style={
               {
                 "--sidebar-width": "17.96875rem",
-              } as React.CSSProperties
+              }
             }
             side={side}
             onPointerEnter={onPointerEnter}
@@ -1020,7 +1021,7 @@ function SidebarMenuSkeleton({
         style={
           {
             "--skeleton-width": textWidth,
-          } as React.CSSProperties
+          }
         }
       />
     </div>

@@ -24,13 +24,6 @@ func TestPublicAuthErrorContracts(t *testing.T) {
 			wantCode:    "auth.account_locked",
 			wantMessage: "account is temporarily locked, try again later",
 		},
-		{
-			name:        "authorization code required",
-			code:        ErrAuthorizationCodeRequired.Code(),
-			message:     ErrAuthorizationCodeRequired.Message(),
-			wantCode:    "auth.authorization_code_required",
-			wantMessage: "authorization code is required",
-		},
 	}
 
 	for _, test := range tests {

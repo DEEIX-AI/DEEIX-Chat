@@ -30,15 +30,18 @@ import { cn } from "@/lib/utils";
 import type {
   AdminLLMModelDisplayGroupDTO,
   AdminLLMModelVendorDTO,
-} from "@/features/admin/api/llm.types";
-import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
-import { ModelIconField } from "@/features/admin/components/sections/models/model-icon-field";
+} from "@/features/admin/api/llm-types";
+import { AdminBulkConfirmDialog } from "@/features/admin/components/shared/bulk-confirm-dialog";
+import { ModelIconField } from "@/features/admin/components/sections/models/models-icon-field";
 import {
   type PresentationTab,
-  useAdminPresentationEditor,
-} from "@/features/admin/hooks/use-admin-presentation-editor";
-import { ModelIcon } from "@/shared/components/model-icon";
-import { resolveModelIconURL } from "@/shared/lib/model-identity";
+  useAdminModelsPresentationEditor,
+} from "@/features/admin/hooks/use-admin-models-presentation-editor";
+import { ModelIcon, resolveModelIconURL } from "@/entities/model";
+import { isOneOf } from "@/shared/lib/type-guards";
+
+const PRESENTATION_TABS = ["vendors", "groups"] as const satisfies readonly PresentationTab[];
+const isPresentationTab = isOneOf(PRESENTATION_TABS);
 
 function InputHelp({ help }: { help: string }) {
   return (
@@ -119,13 +122,13 @@ function DialogLayerTransition({
     if (!activeLayer) {
       return;
     }
-    // Dialog 首次打开带缩放动画；offsetHeight 使用布局高度，避免把 zoom-in-95
-    // 的视觉缩放误当成真实高度，导致初次打开时底部操作栏被裁掉。
+    // The Dialog plays a zoom animation on first open; offsetHeight uses layout height so the zoom-in-95
+    // visual scale isn't mistaken for the real height, which would clip the footer actions on first open.
     const nextHeight = activeLayer.offsetHeight;
     setHeight((current) => current === nextHeight ? current : nextHeight);
   }, [editorOpen]);
 
-  // 两层保持挂载并分别测量，外框才能在列表层与编辑层之间执行真实的高度插值。
+  // Keep both layers mounted and measure each, so the frame can truly interpolate height between the list and edit layers.
   React.useLayoutEffect(() => {
     measureActiveLayer();
     if (typeof ResizeObserver === "undefined") {
@@ -207,7 +210,7 @@ export function ModelPresentationDialog({
     toggleEditorModel,
     saveEditor,
     confirmDelete,
-  } = useAdminPresentationEditor({ onChanged, onClose });
+  } = useAdminModelsPresentationEditor({ onChanged, onClose });
   const keyInputID = React.useId();
   const nameInputID = React.useId();
   const iconInputID = React.useId();
@@ -408,7 +411,8 @@ export function ModelPresentationDialog({
                 <Tabs
                   value={tab}
                   onValueChange={(value) => {
-                    const nextTab = value as PresentationTab;
+                    if (!isPresentationTab(value)) return;
+                    const nextTab = value;
                     setTab(nextTab);
                     if (nextTab === "groups" && catalogModels === null && !modelsLoading) {
                       void loadCatalogModels();

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { fetchFileExtract } from "@/shared/api/file";
-import type { FileExtractDTO, FileObjectDTO } from "@/shared/api/file.types";
+import type { FileExtractDTO, FileObjectDTO } from "@/shared/api/file-types";
 
 type FileExtractState =
   | {

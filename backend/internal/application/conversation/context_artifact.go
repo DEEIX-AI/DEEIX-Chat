@@ -240,6 +240,7 @@ func buildPromptContextArtifacts(input promptContextArtifactInput) []domainconve
 				"query":       strings.TrimSpace(input.Query),
 				"file_id":     strings.TrimSpace(chunk.FileID),
 				"chunk_index": chunk.ChunkIndex,
+				"modality":    chunk.Modality,
 				"score":       chunk.Score,
 			}),
 		})

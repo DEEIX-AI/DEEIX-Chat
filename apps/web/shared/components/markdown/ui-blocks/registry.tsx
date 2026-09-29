@@ -2,8 +2,8 @@
 
 import * as React from "react";
 
-import type { UIComponentDTO } from "@/shared/api/ui-components.types";
-import { createRegistry, type UIBlockDefinition, type UIBlockRegistry } from "./block";
+import type { UIComponentDTO } from "@/shared/api/ui-components-types";
+import { createRegistry, type RegisteredUIBlock, registerUIBlock, type UIBlockRegistry } from "./block";
 import { calculatorDefinition } from "./calculator";
 import { cardGridDefinition } from "./card-grid";
 import { chartDefinition } from "./chart";
@@ -22,18 +22,18 @@ import { UIBlockFrame } from "./ui-block-frame";
 // Builtin catalog. internal/domain/uicomponent.Builtin() seeds the same
 // name@version pairs into ui_components; the backend owns prompt text, this
 // side owns validation and rendering.
-export const BUILTIN_UI_BLOCKS = [
-  cardGridDefinition,
-  statGridDefinition,
-  chartDefinition,
-  functionPlotDefinition,
-  dataTableDefinition,
-  ganttDefinition,
-  diffDefinition,
-  calculatorDefinition,
-  decisionTreeDefinition,
-  quizDefinition,
-] as unknown as readonly UIBlockDefinition[];
+export const BUILTIN_UI_BLOCKS: readonly RegisteredUIBlock[] = [
+  registerUIBlock(cardGridDefinition),
+  registerUIBlock(statGridDefinition),
+  registerUIBlock(chartDefinition),
+  registerUIBlock(functionPlotDefinition),
+  registerUIBlock(dataTableDefinition),
+  registerUIBlock(ganttDefinition),
+  registerUIBlock(diffDefinition),
+  registerUIBlock(calculatorDefinition),
+  registerUIBlock(decisionTreeDefinition),
+  registerUIBlock(quizDefinition),
+];
 
 export const builtinUIBlockRegistry = createRegistry(BUILTIN_UI_BLOCKS);
 
@@ -46,7 +46,7 @@ export function useUIBlockRegistry(): UIBlockRegistry {
 // Builds a registry from the visible catalog: builtin rows dispatch to the
 // React implementations, sandbox rows wrap their HTML source in an iframe.
 export function createCatalogRegistry(components: readonly UIComponentDTO[]): UIBlockRegistry {
-  const definitions: UIBlockDefinition[] = [];
+  const definitions: RegisteredUIBlock[] = [];
   for (const component of components) {
     if (!component.enabled) {
       continue;
@@ -67,15 +67,15 @@ function SandboxSkeleton() {
   return <UIBlockFrame className="h-24 animate-pulse bg-muted/30" />;
 }
 
-function sandboxDefinition(component: UIComponentDTO): UIBlockDefinition {
-  return {
+function sandboxDefinition(component: UIComponentDTO): RegisteredUIBlock {
+  return registerUIBlock<unknown>({
     name: component.name,
     version: component.version,
     schema: schemaFromJSONSchema(component.propsSchema) ?? s.any(),
     Component: SandboxComponent,
     Skeleton: SandboxSkeleton,
     sandbox: { source: component.rendererSource, title: component.description || component.name },
-  };
+  });
 }
 
 export function UIBlockRegistryProvider({ components, children }: { components: readonly UIComponentDTO[] | null; children: React.ReactNode }) {

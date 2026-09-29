@@ -1,4 +1,4 @@
-package db
+package postgres
 
 import (
 	"fmt"
@@ -10,14 +10,14 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/schema"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/vectorutil"
-	"gorm.io/driver/postgres"
+	gormpostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )
 
 // New 初始化 PostgreSQL 连接并执行迁移与种子数据。
 func New(cfg config.Config) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(cfg.PostgresDSN), newGORMConfig(cfg))
+	db, err := gorm.Open(gormpostgres.Open(cfg.PostgresDSN), newGORMConfig(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,6 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 		"billing_model_prices":           "平台模型按量单价配置表",
 		"billing_usage_ledgers":          "按量用量账本表",
 		"audit_logs":                     "可追溯审计日志表",
-		"system_events":                  "后台系统事件表",
 		"system_announcements":           "站点公告表",
 		"announcement_user_states":       "用户公告展示状态表",
 		"prompt_presets":                 "内置与用户自定义预制提示词表",

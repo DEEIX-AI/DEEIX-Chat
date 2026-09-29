@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 )
 
 func TestNewMigratesAndSeedsSQLite(t *testing.T) {
@@ -27,14 +27,14 @@ func TestNewMigratesAndSeedsSQLite(t *testing.T) {
 		defer sqlDB.Close()
 	}
 
-	if !db.Migrator().HasTable(&model.User{}) {
+	if !db.Migrator().HasTable(&models.User{}) {
 		t.Fatal("expected users table to be migrated")
 	}
 	if !db.Migrator().HasTable("file_chunk_vectors") {
 		t.Fatal("expected sqlite vector tables to be migrated")
 	}
 	var planCount int64
-	if err := db.Model(&model.BillingPlan{}).Count(&planCount).Error; err != nil {
+	if err := db.Model(&models.BillingPlan{}).Count(&planCount).Error; err != nil {
 		t.Fatalf("count billing plans: %v", err)
 	}
 	if planCount == 0 {

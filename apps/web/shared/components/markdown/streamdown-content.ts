@@ -1,3 +1,5 @@
+import { isRecord } from "@/shared/lib/type-guards";
+
 export type RenderSegment =
   | {
       type: "markdown";
@@ -31,8 +33,8 @@ export function normalizeContent(input: unknown): string {
     return input.map((item) => normalizeContent(item)).filter(Boolean).join("\n");
   }
 
-  if (typeof input === "object") {
-    const maybeRecord = input as Record<string, unknown>;
+  if (isRecord(input)) {
+    const maybeRecord = input;
     const textValue = maybeRecord.content ?? maybeRecord.text ?? maybeRecord.message;
     if (typeof textValue === "string") {
       return textValue;

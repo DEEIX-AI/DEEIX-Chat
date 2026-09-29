@@ -10,6 +10,8 @@ use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
+use crate::paths;
+
 /// `bundle.externalBin` without the `binaries/` prefix and target triple.
 const SIDECAR_PROGRAM: &str = "deeix-chat-server";
 const READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -47,7 +49,7 @@ impl<E: std::fmt::Display> From<E> for SidecarError {
 }
 
 pub fn data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, SidecarError> {
-    let dir = app.path().app_data_dir()?.join(LOCAL_DATA_DIR);
+    let dir = paths::data_dir(app).join(LOCAL_DATA_DIR);
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
 }
@@ -111,11 +113,18 @@ pub fn stop_blocking<R: Runtime>(app: &AppHandle<R>) {
 
 async fn spawn<R: Runtime>(app: &AppHandle<R>) -> Result<Running, SidecarError> {
     let dir = data_dir(app)?;
-    let (mut events, child) = app
-        .shell()
-        .sidecar(SIDECAR_PROGRAM)?
-        .args(["--local", "--data-dir", &dir.to_string_lossy()])
-        .spawn()?;
+    let mut command = app.shell().sidecar(SIDECAR_PROGRAM)?.args([
+        "--local",
+        "--data-dir",
+        &dir.to_string_lossy(),
+    ]);
+    // Portable: the server's temp files (uploads, PDF rendering) stay in the
+    // app folder too. Go's os.TempDir reads TMP/TEMP on Windows, TMPDIR elsewhere.
+    if let Some(tmp) = paths::tmp_dir(app) {
+        std::fs::create_dir_all(&tmp)?;
+        command = command.envs([("TMP", &tmp), ("TEMP", &tmp), ("TMPDIR", &tmp)]);
+    }
+    let (mut events, child) = command.spawn()?;
 
     let handoff = match wait_ready(&mut events).await {
         Ok(handoff) => handoff,

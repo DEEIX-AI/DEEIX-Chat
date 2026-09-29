@@ -3,7 +3,7 @@ import type { PendingAttachment } from "@/features/chat/types/chat-runtime";
 import type {
   MessageProcessTraceDTO,
   TraceBlockDTO,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 
 export function toPendingAttachments(message: ChatAreaMessage | null | undefined): PendingAttachment[] {
   if (!message?.attachments || message.attachments.length === 0) {
@@ -113,7 +113,7 @@ type SnapshotThinkEvent = {
   endedAt?: string;
 };
 
-// 实时快照里的思考事件不带正文；用上一份快照或数据库加载的轨迹补全正文与结束时间，避免整体替换时丢失。
+// Thinking events in live snapshots carry no body; fill body and end time from the previous snapshot or DB-loaded trace so they aren't lost on full replacement.
 export function mergeProcessTraceSnapshot<T extends { events?: SnapshotThinkEvent[] }>(
   previous: T | undefined,
   next: T | undefined,

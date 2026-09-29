@@ -6,9 +6,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// PostgresPaddedExpression returns a trusted SQL expression that pads a vector
-// to MaxDimensions without rewriting the stored value. Callers must only pass
-// internal column expressions, never user-controlled input.
+// PostgresPaddedExpression 返回可信的 SQL 表达式，将向量填充
+// 至 MaxDimensions 而不改写存储值。调用方只能传入
+// 内部列表达式，绝不能传入用户可控的输入。
 func PostgresPaddedExpression(expression string) string {
 	return fmt.Sprintf(
 		`(CASE WHEN vector_dims(%[1]s) = %[2]d THEN %[1]s::vector(%[2]d) ELSE ((%[1]s)::real[] || array_fill(0::real, ARRAY[%[2]d - vector_dims(%[1]s)]))::vector(%[2]d) END)`,
@@ -17,8 +17,8 @@ func PostgresPaddedExpression(expression string) string {
 	)
 }
 
-// PostgresIndexExpression returns the fixed-width halfvec expression used by
-// both the HNSW index definition and candidate queries.
+// PostgresIndexExpression 返回 HNSW 索引定义与候选查询
+// 共用的定宽 halfvec 表达式。
 func PostgresIndexExpression(expression string) string {
 	return fmt.Sprintf(
 		`subvector(%s, 1, %d)::halfvec(%d)`,
@@ -28,7 +28,7 @@ func PostgresIndexExpression(expression string) string {
 	)
 }
 
-// ConfigurePostgresCandidateSearch enables filtered HNSW scans for the current transaction.
+// ConfigurePostgresCandidateSearch 为当前事务启用过滤式 HNSW 扫描。
 func ConfigurePostgresCandidateSearch(tx *gorm.DB) error {
 	if err := tx.Exec(`SET LOCAL hnsw.iterative_scan = strict_order`).Error; err != nil {
 		return err

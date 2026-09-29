@@ -85,9 +85,9 @@ func normalizeFallbackContextWindow(value int) int {
 	return value
 }
 
-// containsModelPattern tolerates cosmetic separators while preserving model
-// identity and numeric versions. For example, gpt-4.1 and gpt_4_1 match, but
-// gpt-4.10 does not; claude-sonnet-4.5 and 4.6 remain distinct.
+// containsModelPattern 容忍装饰性分隔符，同时保留模型
+// 身份与数字版本。例如 gpt-4.1 与 gpt_4_1 匹配，但
+// gpt-4.10 不匹配；claude-sonnet-4.5 与 4.6 保持区分。
 func containsModelPattern(code string, pattern string) bool {
 	if code == "" || pattern == "" {
 		return false
@@ -148,8 +148,8 @@ func modelIdentifierSignature(value string) []string {
 			flushLetters()
 			digits.WriteRune(character)
 		default:
-			// Cosmetic separators may join words, but they delimit numeric
-			// version components so 4.1 never collapses into 41.
+			// 装饰性分隔符可连接单词，但会切分数字版本分量，
+			// 确保 4.1 永远不会被合并为 41。
 			flushDigits()
 		}
 	}

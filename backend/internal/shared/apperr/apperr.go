@@ -60,8 +60,8 @@ func Code(err error) string {
 	return ""
 }
 
-// MessageOr returns the public message from the first typed error in err's
-// chain, or fallback when the chain contains no typed application error.
+// MessageOr 返回 err 链中第一个类型化错误的对外文案；
+// 若链中不含类型化应用错误，则返回 fallback。
 func MessageOr(err error, fallback string) string {
 	if target, ok := Find(err); ok {
 		return target.Message()

@@ -4,5 +4,16 @@
   "installing": "Downloading update…",
   "installed": "Version {version} is installed",
   "relaunch": "Relaunch",
-  "installFailed": "Update failed: {message}"
+  "installFailed": "Update failed: {message}",
+  "download": "Download",
+  "openFailed": "Could not open the download page: {message}",
+  "distribution": {
+    "edition": "Edition: {kind}",
+    "kinds": {
+      "installer": "Installer",
+      "msi": "MSI (managed)",
+      "portable": "Portable"
+    },
+    "managed": "Some settings are managed by your organization"
+  }
 }

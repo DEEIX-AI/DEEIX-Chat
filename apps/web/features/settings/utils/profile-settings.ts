@@ -1,5 +1,5 @@
 import type { ProfileDraft } from "@/features/settings/types/settings";
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { UserDTO } from "@/shared/api/auth-types";
 import { normalizeTrimmedString } from "@/shared/lib/string";
 
 export function createDraftFromUser(user?: UserDTO | null): ProfileDraft {

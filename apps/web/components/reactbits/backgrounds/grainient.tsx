@@ -3,7 +3,7 @@
 import { Mesh, Program, Renderer, Triangle } from "ogl";
 import * as React from "react";
 
-interface GrainientProps {
+type GrainientProps = {
   timeSpeed?: number;
   colorBalance?: number;
   warpStrength?: number;
@@ -27,7 +27,7 @@ interface GrainientProps {
   color2?: string;
   color3?: string;
   className?: string;
-}
+};
 
 const hexToRgb = (hex: string): [number, number, number] => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);

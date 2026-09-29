@@ -10,7 +10,7 @@ type auditWriter interface {
 	Write(ctx context.Context, input appaudit.WriteInput)
 }
 
-// ReviewAuditInput contains request metadata for a privileged retained-content read.
+// ReviewAuditInput 包含特权读取保留内容时的请求元数据。
 type ReviewAuditInput struct {
 	ActorUserID uint
 	RequestID   string
@@ -21,7 +21,7 @@ type ReviewAuditInput struct {
 	Detail      any
 }
 
-// RecordReviewAudit records which administrator viewed retained moderation content.
+// RecordReviewAudit 记录查看保留审核内容的管理员。
 func (s *Service) RecordReviewAudit(ctx context.Context, input ReviewAuditInput) {
 	if s == nil || s.auditWriter == nil {
 		return

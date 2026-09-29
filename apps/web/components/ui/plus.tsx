@@ -6,10 +6,10 @@ import { forwardRef, useImperativeHandle, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-export interface PlusIconHandle {
+export type PlusIconHandle = {
   startAnimation: () => void;
   stopAnimation: () => void;
-}
+};
 
 interface PlusIconProps extends HTMLAttributes<HTMLDivElement> {
   animate?: "default" | false;

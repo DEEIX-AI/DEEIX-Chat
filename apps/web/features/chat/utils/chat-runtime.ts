@@ -1,5 +1,6 @@
-import type { UpstreamDebugInfo } from "@/shared/api/conversation.types";
+import type { UpstreamDebugInfo } from "@/shared/api/conversation-types";
 import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
+import { isRecord, parseJSON } from "@/shared/lib/type-guards";
 
 const DEFAULT_MAX_FILES_PER_MESSAGE = 10;
 const ZH_DETAIL_PREFIX = "\u8be6\u60c5\uff1a";
@@ -73,10 +74,10 @@ export function isUpstreamStreamingDebugBody(value: string | null | undefined): 
 }
 
 export function resolveErrorDetails(error: unknown): UpstreamDebugInfo | undefined {
-  if (!error || typeof error !== "object" || !("details" in error)) {
+  if (!isRecord(error)) {
     return undefined;
   }
-  const details = (error as { details?: unknown }).details;
+  const details = error.details;
   return isUpstreamDebugInfo(details) ? details : undefined;
 }
 
@@ -125,12 +126,7 @@ function extractStructuredErrorReason(body: string): string {
   if (isUpstreamStreamingDebugBody(raw)) {
     return extractSSEErrorReason(raw);
   }
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return extractJSONErrorReason(parsed);
-  } catch {
-    return "";
-  }
+  return extractJSONErrorReason(parseJSON(raw));
 }
 
 function extractSSEErrorReason(body: string): string {
@@ -141,43 +137,29 @@ function extractSSEErrorReason(body: string): string {
     .map((line) => line.slice("data:".length).trim())
     .filter((line) => line && line !== "[DONE]");
   for (const payload of payloads) {
-    try {
-      const reason = extractJSONErrorReason(JSON.parse(payload) as unknown);
-      if (reason) {
-        return reason;
-      }
-    } catch {
-      // Ignore malformed stream chunks; the full body remains available in the response tab.
+    // Malformed stream chunks parse to undefined and are skipped; the full body remains available in the response tab.
+    const reason = extractJSONErrorReason(parseJSON(payload));
+    if (reason) {
+      return reason;
     }
   }
   return "";
 }
 
 function extractJSONErrorReason(value: unknown): string {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return "";
   }
-  const root = value as Record<string, unknown>;
-  const error =
-    root.error && typeof root.error === "object" && !Array.isArray(root.error)
-      ? (root.error as Record<string, unknown>)
-      : undefined;
+  const root = value;
+  const error = isRecord(root.error) ? root.error : undefined;
   for (const candidate of [error?.message, root.message, error?.code, root.code]) {
     if (typeof candidate === "string" && candidate.trim()) {
       return candidate.trim();
     }
   }
-  const response =
-    root.response && typeof root.response === "object" && !Array.isArray(root.response)
-      ? (root.response as Record<string, unknown>)
-      : undefined;
-  return response ? extractJSONErrorReason(response) : "";
+  return isRecord(root.response) ? extractJSONErrorReason(root.response) : "";
 }
 
 function isUpstreamDebugInfo(value: unknown): value is UpstreamDebugInfo {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-  const candidate = value as UpstreamDebugInfo;
-  return typeof candidate.request === "object" || typeof candidate.response === "object";
+  return isRecord(value) && (typeof value.request === "object" || typeof value.response === "object");
 }

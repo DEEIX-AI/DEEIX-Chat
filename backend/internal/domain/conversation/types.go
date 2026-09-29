@@ -176,6 +176,7 @@ type MessageKnowledgeSource struct {
 	ChunkIndex int
 	Score      float32
 	Preview    string
+	Modality   string
 }
 
 // Message 表示会话消息。
@@ -355,13 +356,21 @@ type FileObjectProcessing struct {
 }
 
 // FileChunk 表示文件分片。
+// FileChunkModality 标识分片向量来自何种输入。
+const (
+	FileChunkModalityText  = "text"
+	FileChunkModalityImage = "image"
+)
+
 type FileChunk struct {
-	ID                 uint
-	FileObjID          uint
-	UserID             uint
-	ChunkIndex         int
-	PageNum            int
-	CharOffset         int
+	ID         uint
+	FileObjID  uint
+	UserID     uint
+	ChunkIndex int
+	PageNum    int
+	CharOffset int
+	// Modality 为 image 时向量由文件原图计算，Content 是可选的 OCR 文本，仅用于全文检索与展示。
+	Modality           string
 	Content            string
 	TokenCount         int
 	EmbeddingSignature string
@@ -589,6 +598,7 @@ type RAGChunk struct {
 	FileName   string
 	FileID     string
 	ChunkIndex int
+	Modality   string
 	Score      float32
 }
 

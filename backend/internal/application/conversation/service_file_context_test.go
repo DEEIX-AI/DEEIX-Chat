@@ -18,7 +18,7 @@ import (
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstorage"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
@@ -38,11 +38,11 @@ func TestFileContextPlanRAGObjectsPreservesFileRevision(t *testing.T) {
 }
 
 type conversationTestStoreProvider struct {
-	store objectstore.Store
+	store objectstorage.Store
 	opens int
 }
 
-func (p *conversationTestStoreProvider) Open(context.Context) (objectstore.Store, error) {
+func (p *conversationTestStoreProvider) Open(context.Context) (objectstorage.Store, error) {
 	p.opens++
 	return p.store, nil
 }
@@ -161,12 +161,12 @@ func TestConversationImageRefsPreferRecentImagesWithinBudget(t *testing.T) {
 }
 
 func TestInjectConversationImageContextKeepsOwnershipAndUsesCache(t *testing.T) {
-	store := objectstore.NewLocal(t.TempDir())
+	store := objectstorage.NewLocal(t.TempDir())
 	for key, data := range map[string][]byte{
 		"images/one": []byte("image-one"),
 		"images/two": []byte("image-two"),
 	} {
-		if _, err := store.Put(t.Context(), key, bytes.NewReader(data), objectstore.PutOptions{ContentType: "image/png"}); err != nil {
+		if _, err := store.Put(t.Context(), key, bytes.NewReader(data), objectstorage.PutOptions{ContentType: "image/png"}); err != nil {
 			t.Fatalf("put test image %s: %v", key, err)
 		}
 	}

@@ -1,4 +1,4 @@
-package cache
+package redis
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	"github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v8"
 )
 
 // ragCachePayload 是 RAG 缓存的序列化格式，仅限 infra 层使用。
@@ -25,6 +25,7 @@ type ragCacheChunk struct {
 	FileName   string  `json:"file_name"`
 	FileID     string  `json:"file_id"`
 	ChunkIndex int     `json:"chunk_index"`
+	Modality   string  `json:"modality,omitempty"`
 	Score      float32 `json:"score"`
 }
 
@@ -50,7 +51,7 @@ type fileQueueConfig struct {
 	queue  repository.FileProcessingQueue
 }
 
-var claimGenerationStreamScript = redis.NewScript(`
+var claimGenerationStreamScript = goredis.NewScript(`
 local current_execution = redis.call("GET", KEYS[1])
 if current_execution then
 	if current_execution == ARGV[1]
@@ -83,7 +84,7 @@ return 1
 `)
 
 // appendGenerationStreamEventScript 原子维护执行权隔离、事件序号、有界回放和恢复快照。
-var appendGenerationStreamEventScript = redis.NewScript(`
+var appendGenerationStreamEventScript = goredis.NewScript(`
 if redis.call("GET", KEYS[1]) ~= ARGV[10] then
 	return {"0"}
 end
@@ -153,7 +154,7 @@ end
 return {"1", id, tostring(seq)}
 `)
 
-var appendActiveGenerationEventScript = redis.NewScript(`
+var appendActiveGenerationEventScript = goredis.NewScript(`
 local seq = redis.call("INCR", KEYS[1])
 local id = redis.call(
 	"XADD",
@@ -168,7 +169,7 @@ redis.call("PEXPIRE", KEYS[2], ARGV[3])
 return {id, tostring(seq)}
 `)
 
-var getGenerationStreamUpstreamThinkSnapshotScript = redis.NewScript(`
+var getGenerationStreamUpstreamThinkSnapshotScript = goredis.NewScript(`
 if redis.call("EXISTS", KEYS[1]) == 0 or redis.call("EXISTS", KEYS[2]) == 0 then
 	return {"0"}
 end
@@ -181,7 +182,7 @@ return {
 }
 `)
 
-var renewFileProcessingLeaseScript = redis.NewScript(`
+var renewFileProcessingLeaseScript = goredis.NewScript(`
 local pending = redis.call("XPENDING", KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
 if #pending == 0 or pending[1][2] ~= ARGV[2] then
 	return 0
@@ -190,7 +191,7 @@ redis.call("XCLAIM", KEYS[1], ARGV[1], ARGV[2], 0, ARGV[3], "JUSTID")
 return 1
 `)
 
-var settleFileProcessingMessageScript = redis.NewScript(`
+var settleFileProcessingMessageScript = goredis.NewScript(`
 local pending = redis.call("XPENDING", KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
 if #pending == 0 or pending[1][2] ~= ARGV[2] then
 	return 0
@@ -200,7 +201,7 @@ redis.call("XDEL", KEYS[1], ARGV[3])
 return 1
 `)
 
-var requeueFileProcessingMessageScript = redis.NewScript(`
+var requeueFileProcessingMessageScript = goredis.NewScript(`
 local pending = redis.call("XPENDING", KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
 if #pending == 0 or pending[1][2] ~= ARGV[2] then
 	return 0
@@ -220,7 +221,7 @@ redis.call("XDEL", KEYS[1], ARGV[3])
 return 1
 `)
 
-var deadLetterFileProcessingMessageScript = redis.NewScript(`
+var deadLetterFileProcessingMessageScript = goredis.NewScript(`
 local pending = redis.call("XPENDING", KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
 if #pending == 0 or pending[1][2] ~= ARGV[2] then
 	return 0
@@ -240,7 +241,7 @@ redis.call("XDEL", KEYS[1], ARGV[3])
 return 1
 `)
 
-var renewGenerationStreamLeaseScript = redis.NewScript(`
+var renewGenerationStreamLeaseScript = goredis.NewScript(`
 if redis.call("GET", KEYS[1]) ~= ARGV[1]
 	or redis.call("GET", KEYS[2]) ~= ARGV[2]
 	or redis.call("GET", KEYS[3]) ~= ARGV[3] then
@@ -254,7 +255,7 @@ redis.call("PEXPIRE", KEYS[4], ARGV[8])
 return 1
 `)
 
-var requestGenerationStreamCancelScript = redis.NewScript(`
+var requestGenerationStreamCancelScript = goredis.NewScript(`
 if redis.call("GET", KEYS[1]) ~= ARGV[1] or redis.call("EXISTS", KEYS[2]) == 0 then
 	return 0
 end
@@ -262,7 +263,7 @@ redis.call("SET", KEYS[3], "1", "PX", ARGV[2])
 return 1
 `)
 
-var completeGenerationStreamScript = redis.NewScript(`
+var completeGenerationStreamScript = goredis.NewScript(`
 if redis.call("GET", KEYS[2]) ~= ARGV[2] or redis.call("GET", KEYS[4]) ~= ARGV[4] then
 	return 0
 end
@@ -280,7 +281,7 @@ end
 return 1
 `)
 
-var abandonGenerationStreamScript = redis.NewScript(`
+var abandonGenerationStreamScript = goredis.NewScript(`
 if redis.call("GET", KEYS[1]) ~= ARGV[1] or redis.call("GET", KEYS[2]) ~= ARGV[2] then
 	return 0
 end
@@ -289,7 +290,7 @@ redis.call("DEL", KEYS[1], KEYS[2], KEYS[4], KEYS[5], KEYS[6], KEYS[7], KEYS[8],
 return 1
 `)
 
-var resetGenerationStreamEventsScript = redis.NewScript(`
+var resetGenerationStreamEventsScript = goredis.NewScript(`
 if redis.call("GET", KEYS[1]) ~= ARGV[1] then
 	return 0
 end
@@ -299,11 +300,11 @@ return 1
 
 // conversationCache 实现 repository.ConversationCacheRepository。
 type conversationCache struct {
-	client *redis.Client
+	client *goredis.Client
 }
 
 // NewConversationCache 创建 ConversationCacheRepository 实现。
-func NewConversationCache(client *redis.Client) repository.ConversationCacheRepository {
+func NewConversationCache(client *goredis.Client) repository.ConversationCacheRepository {
 	return &conversationCache{client: client}
 }
 
@@ -338,7 +339,7 @@ func (c *conversationCache) EnqueueFileProcessing(ctx context.Context, userID ui
 	if strings.TrimSpace(lastError) != "" {
 		values["last_error"] = truncateStr(lastError, 255)
 	}
-	_, err := c.client.XAdd(ctx, &redis.XAddArgs{
+	_, err := c.client.XAdd(ctx, &goredis.XAddArgs{
 		Stream: fileProcessingStreamName,
 		Values: values,
 	}).Result()
@@ -362,7 +363,7 @@ func (c *conversationCache) EnqueueFileEmbedding(
 	if c.client == nil {
 		return nil
 	}
-	_, err := c.client.XAdd(ctx, &redis.XAddArgs{
+	_, err := c.client.XAdd(ctx, &goredis.XAddArgs{
 		Stream: fileEmbeddingStreamName,
 		Values: map[string]any{
 			"user_id":             userID,
@@ -393,7 +394,7 @@ func (c *conversationCache) claimTimedOutFileMessages(
 	if c.client == nil {
 		return nil, nil
 	}
-	pending, err := c.client.XPendingExt(ctx, &redis.XPendingExtArgs{
+	pending, err := c.client.XPendingExt(ctx, &goredis.XPendingExtArgs{
 		Stream: queue.stream,
 		Group:  queue.group,
 		Idle:   fileProcessingMinIdle,
@@ -402,7 +403,7 @@ func (c *conversationCache) claimTimedOutFileMessages(
 		Count:  1,
 	}).Result()
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
+		if errors.Is(err, goredis.Nil) {
 			return nil, nil
 		}
 		return nil, err
@@ -420,7 +421,7 @@ func (c *conversationCache) claimTimedOutFileMessages(
 	if len(messageIDs) == 0 {
 		return nil, nil
 	}
-	claimed, err := c.client.XClaim(ctx, &redis.XClaimArgs{
+	claimed, err := c.client.XClaim(ctx, &goredis.XClaimArgs{
 		Stream:   queue.stream,
 		Group:    queue.group,
 		Consumer: consumerName,
@@ -428,7 +429,7 @@ func (c *conversationCache) claimTimedOutFileMessages(
 		Messages: messageIDs,
 	}).Result()
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
+		if errors.Is(err, goredis.Nil) {
 			return nil, nil
 		}
 		return nil, err
@@ -453,7 +454,7 @@ func (c *conversationCache) readFileMessages(
 	if c.client == nil {
 		return nil, nil
 	}
-	streams, err := c.client.XReadGroup(ctx, &redis.XReadGroupArgs{
+	streams, err := c.client.XReadGroup(ctx, &goredis.XReadGroupArgs{
 		Group:    queue.group,
 		Consumer: consumerName,
 		Streams:  []string{queue.stream, ">"},
@@ -461,7 +462,7 @@ func (c *conversationCache) readFileMessages(
 		Block:    5 * time.Second,
 	}).Result()
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
+		if errors.Is(err, goredis.Nil) {
 			return nil, nil
 		}
 		return nil, err
@@ -480,7 +481,7 @@ func (c *conversationCache) readFileMessages(
 func (c *conversationCache) decodeFileProcessingMessages(
 	ctx context.Context,
 	consumerName string,
-	messages []redis.XMessage,
+	messages []goredis.XMessage,
 	reclaimed bool,
 	queue fileQueueConfig,
 ) ([]repository.FileProcessingMessage, error) {
@@ -504,7 +505,7 @@ func (c *conversationCache) decodeFileProcessingMessages(
 	return parsedMessages, nil
 }
 
-func parseFileProcessingMessage(msg redis.XMessage) (repository.FileProcessingMessage, error) {
+func parseFileProcessingMessage(msg goredis.XMessage) (repository.FileProcessingMessage, error) {
 	kind := strings.TrimSpace(getOptionalStringVal(msg.Values, "kind"))
 	if kind != "" && kind != repository.FileProcessingKindEmbedding {
 		return repository.FileProcessingMessage{}, fmt.Errorf("invalid processing kind %q", kind)
@@ -550,7 +551,7 @@ func parseFileProcessingMessage(msg redis.XMessage) (repository.FileProcessingMe
 func (c *conversationCache) deadLetterInvalidFileProcessingMessage(
 	ctx context.Context,
 	consumerName string,
-	message redis.XMessage,
+	message goredis.XMessage,
 	parseErr error,
 	queue fileQueueConfig,
 ) (bool, error) {
@@ -688,7 +689,7 @@ func redisQueueForMessage(message repository.FileProcessingMessage) fileQueueCon
 }
 
 func fileProcessingScriptResult(result any, err error) (bool, error) {
-	if errors.Is(err, redis.Nil) {
+	if errors.Is(err, goredis.Nil) {
 		return false, nil
 	}
 	if err != nil {
@@ -722,6 +723,7 @@ func (c *conversationCache) GetRAGCache(ctx context.Context, key string) ([]doma
 			FileName:   c.FileName,
 			FileID:     c.FileID,
 			ChunkIndex: c.ChunkIndex,
+			Modality:   c.Modality,
 			Score:      c.Score,
 		})
 	}
@@ -740,6 +742,7 @@ func (c *conversationCache) SetRAGCache(ctx context.Context, key string, chunks 
 			FileName:   ch.FileName,
 			FileID:     ch.FileID,
 			ChunkIndex: ch.ChunkIndex,
+			Modality:   ch.Modality,
 			Score:      ch.Score,
 		})
 	}
@@ -810,7 +813,7 @@ func (c *conversationCache) GetGenerationStreamOwner(ctx context.Context, runID 
 	}
 	raw, err := c.client.Get(ctx, generationStreamOwnerKey(runID)).Result()
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
+		if errors.Is(err, goredis.Nil) {
 			return 0, false, nil
 		}
 		return 0, false, err
@@ -939,9 +942,9 @@ func (c *conversationCache) IsGenerationStreamActive(ctx context.Context, runID 
 	return count > 0, nil
 }
 
-// ListActiveGenerationStreams returns the user's active runs from a compact
-// Redis index. Expired leases and entries reassigned to another user are
-// removed opportunistically.
+// ListActiveGenerationStreams 从精简的 Redis 索引返回用户的活跃 run。
+// 已过期的租约以及被重新分配给其他用户的条目
+// 会被顺带清理。
 func (c *conversationCache) ListActiveGenerationStreams(ctx context.Context, userID uint) ([]repository.ActiveGenerationStream, error) {
 	if c.client == nil || userID == 0 {
 		return []repository.ActiveGenerationStream{}, nil
@@ -950,7 +953,7 @@ func (c *conversationCache) ListActiveGenerationStreams(ctx context.Context, use
 	now := time.Now().UnixMilli()
 	pipe := c.client.Pipeline()
 	pipe.ZRemRangeByScore(ctx, indexKey, "-inf", strconv.FormatInt(now, 10))
-	activeCmd := pipe.ZRangeByScore(ctx, indexKey, &redis.ZRangeBy{
+	activeCmd := pipe.ZRangeByScore(ctx, indexKey, &goredis.ZRangeBy{
 		Min: strconv.FormatInt(now+1, 10),
 		Max: "+inf",
 	})
@@ -1224,7 +1227,7 @@ func (c *conversationCache) ListGenerationStreamEvents(ctx context.Context, runI
 	}
 	items, err := c.client.XRevRangeN(ctx, generationStreamEventsKey(runID), "+", "-", limit).Result()
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
+		if errors.Is(err, goredis.Nil) {
 			return nil, nil
 		}
 		return nil, err
@@ -1249,13 +1252,13 @@ func (c *conversationCache) ReadGenerationStreamEvents(ctx context.Context, runI
 	if limit <= 0 {
 		limit = 128
 	}
-	streams, err := c.client.XRead(ctx, &redis.XReadArgs{
+	streams, err := c.client.XRead(ctx, &goredis.XReadArgs{
 		Streams: []string{generationStreamEventsKey(runID), afterID},
 		Count:   limit,
 		Block:   block,
 	}).Result()
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
+		if errors.Is(err, goredis.Nil) {
 			return nil, nil
 		}
 		return nil, err
@@ -1277,7 +1280,7 @@ func (c *conversationCache) ResetGenerationStreamEvents(ctx context.Context, lea
 	if lease.RunID == "" || lease.ExecutionID == "" {
 		return false, nil
 	}
-	// Keep seq key so subsequent appends stay monotonic for reconnect cursors.
+	// 保留 seq key，使后续追加对重连游标保持单调递增。
 	reset, err := resetGenerationStreamEventsScript.Run(ctx, c.client, []string{
 		generationStreamActiveKey(lease.RunID),
 		generationStreamEventsKey(lease.RunID),
@@ -1292,7 +1295,7 @@ func (c *conversationCache) ResetGenerationStreamEvents(ctx context.Context, lea
 	return reset == 1, nil
 }
 
-func parseGenerationStreamMessages(items []redis.XMessage) []repository.GenerationStreamMessage {
+func parseGenerationStreamMessages(items []goredis.XMessage) []repository.GenerationStreamMessage {
 	results := make([]repository.GenerationStreamMessage, 0, len(items))
 	for _, item := range items {
 		payload := strings.TrimSpace(getStringVal(item.Values["payload"]))

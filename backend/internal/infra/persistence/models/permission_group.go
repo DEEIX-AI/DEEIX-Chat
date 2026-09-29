@@ -1,4 +1,4 @@
-package model
+package models
 
 // PermissionGroup 权限组主数据，控制平台模型的访问范围与计费倍率。
 type PermissionGroup struct {

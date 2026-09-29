@@ -1,12 +1,10 @@
 import type { LucideIcon } from "lucide-react";
-import type {
-  FileFilterKey,
-} from "@/shared/lib/file-display";
+import type { FileFilterKey } from "@/entities/file";
 
 export type {
   FileFilterKey,
   FilePreviewKind,
-} from "@/shared/lib/file-display";
+} from "@/entities/file";
 
 export type FileFilterValue = Exclude<FileFilterKey, "all">;
 

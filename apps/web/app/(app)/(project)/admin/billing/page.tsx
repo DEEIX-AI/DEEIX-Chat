@@ -1,5 +1,5 @@
-import { AdminBillingPage } from "@/features/admin/components/sections/billing/admin-billing";
+import { AdminBillingPage } from "@/features/admin";
 
-export default function AdminBillingRoute() {
+export default function Page() {
   return <AdminBillingPage />;
 }

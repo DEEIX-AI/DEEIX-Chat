@@ -262,7 +262,7 @@ type SendMessageResult struct {
 	LatencyMS       int64
 	DurationSeconds int64
 	StartedAt       time.Time
-	// Moderation is set when a soft-moderation barrier ran; Blocked means withdrawn.
+	// 执行了软审核屏障时设置 Moderation；Blocked 表示已撤回。
 	Moderation            *MessageModerationOutcome
 	postBillingCompaction *postBillingCompactionTask
 }

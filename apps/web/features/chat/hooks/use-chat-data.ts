@@ -6,7 +6,7 @@ import { buildMediaImagePreviewMarkdown } from "@/features/chat/model/media-imag
 import { mergeProcessTraceSnapshot } from "@/features/chat/model/message-submit";
 import { upsertLiveUpstreamThinkTrace } from "@/features/chat/model/upstream-think-store";
 import { cancelMessageGeneration, listMessagesPage, resumeMessageGenerationStream } from "@/shared/api/conversation";
-import type { MessageDTO } from "@/shared/api/conversation.types";
+import type { MessageDTO } from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
 const MESSAGE_PAGE_SIZE = 100;
@@ -60,7 +60,7 @@ export function useChatData(
   const pendingAssistantContentRef = React.useRef("");
   const resumedTextByRunRef = React.useRef<Record<string, string>>({});
   const activeResumeStreamRef = React.useRef<ActiveResumeStream | null>(null);
-  // 恢复游标只在对应的可见内容仍被保留时有效，两者必须同步清理。
+  // The resume cursor is only valid while its visible content is retained; both must be cleared together.
   const clearResumeCheckpoint = React.useCallback((runID: string) => {
     const normalizedRunID = runID.trim();
     if (!normalizedRunID) {
@@ -126,7 +126,7 @@ export function useChatData(
 
         setState((prev) => {
           const firstTailMessageID = data.results[0]?.id ?? 0;
-          // 只有已加载过额外历史页时才保留旧区间，避免普通 reload 无限累积 tail 消息。
+          // Keep the old range only if extra history pages were loaded, so ordinary reloads don't accumulate tail messages indefinitely.
           const loadedOlderMessages =
             isConversationSwitch ||
             firstTailMessageID <= 0 ||
@@ -285,7 +285,7 @@ export function useChatData(
   }, [conversationID, state.conversationPublicID, state.messages]);
 
   const pendingRunID = pendingAssistant?.runID?.trim() || "";
-  // revision 仅用于重新读取可变 Set；effect 只依赖当前 pending run 的实际活动状态。
+  // revision only forces re-reading the mutable Set; the effect depends only on the current pending run's actual activity.
   const pendingRunIsActive = React.useMemo(
     () => Boolean(pendingRunID && activeGenerationRunsRef?.current.has(pendingRunID)),
     [activeGenerationRunsRef, activeGenerationRunsRevision, pendingRunID],

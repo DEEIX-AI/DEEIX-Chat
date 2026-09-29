@@ -16,22 +16,22 @@ import (
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstorage"
 )
 
 const moderationFinalizationTimeout = 65 * time.Second
 
-// MessageModerationOutcome is the soft-moderation end state for a turn.
-// Nil means moderation was not required (policy off / no coordinator).
+// MessageModerationOutcome 是一轮对话的软审核最终状态。
+// nil 表示无需审核（策略关闭 / 无协调器）。
 type MessageModerationOutcome struct {
 	Blocked    bool
 	EventID    string
 	Direction  string
 	Categories []string
-	// State is the moderation target: passed | failed_open | blocked. Known blocks may
-	// converge durably through the moderation compensation loop.
+	// State 是审核目标状态：passed | failed_open | blocked。已知拦截可能
+	// 通过审核补偿循环持久地收敛。
 	State string
-	// TerminalEmitted is true when moderation_blocked was already pushed to the stream.
+	// 当 moderation_blocked 已推送到流时，TerminalEmitted 为 true。
 	TerminalEmitted bool
 }
 
@@ -44,12 +44,12 @@ type completeModerationAfterSuccessInput struct {
 	ReuseUserMessage bool
 }
 
-// IsModerationBlocked reports whether the turn was blocked after a safety check.
+// IsModerationBlocked 报告该轮次是否在安全检查后被拦截。
 func (r *SendMessageResult) IsModerationBlocked() bool {
 	return r != nil && r.Moderation != nil && r.Moderation.Blocked
 }
 
-// ModerationTerminalEmitted reports whether moderation_blocked already went out on the stream.
+// ModerationTerminalEmitted 报告 moderation_blocked 是否已在流上发出。
 func (r *SendMessageResult) ModerationTerminalEmitted() bool {
 	return r != nil && r.Moderation != nil && r.Moderation.TerminalEmitted
 }
@@ -96,7 +96,7 @@ func moderationLiveEmitter(
 	}
 }
 
-// SetModerationService injects the optional content moderation orchestrator.
+// SetModerationService 注入可选的内容审核编排器。
 func (s *Service) SetModerationService(svc *appcm.Service) {
 	s.moderationSvc = svc
 	if svc == nil {
@@ -118,8 +118,8 @@ func (s *Service) SetModerationService(svc *appcm.Service) {
 		}
 	})
 	svc.SetOnBlocked(func(ctx context.Context, runID string, _ appcm.BlockInfo) {
-		// Drop retained deltas/media so reconnect cannot replay withdrawn content.
-		// The following emit of moderation_blocked re-seeds a safe terminal event.
+		// 丢弃保留的增量/媒体，使重连无法重放已撤回的内容。
+		// 随后发出的 moderation_blocked 会重新写入一个安全的终态事件。
 		s.resetGenerationStreamEvents(ctx, runID)
 	})
 	svc.SetImageLoader(s.loadImageForModeration)
@@ -127,8 +127,8 @@ func (s *Service) SetModerationService(svc *appcm.Service) {
 	svc.SetFileAccessController(&moderationFileAccessAdapter{service: s})
 }
 
-// startModerationRun begins per-turn moderation when policy is enabled.
-// Live events use the existing OnEvent path (set by HTTP handlers) — no side channel.
+// startModerationRun 在策略启用时开始单轮审核。
+// 实时事件使用现有的 OnEvent 路径（由 HTTP handler 设置）——无旁路通道。
 func (s *Service) startModerationRun(
 	ctx context.Context,
 	input SendMessageInput,
@@ -165,9 +165,9 @@ func (s *Service) startModerationRun(
 	return coord
 }
 
-// completeModerationAfterSuccess runs the post-generation barrier.
-// On block it mutates result into a blocked snapshot and sets result.Moderation.
-// Callers branch on result.IsModerationBlocked(); embed only runs on pass/fail-open.
+// completeModerationAfterSuccess 执行生成后屏障。
+// 拦截时将 result 改写为拦截快照并设置 result.Moderation。
+// 调用方依据 result.IsModerationBlocked() 分支；仅在通过/fail-open 时执行向量化。
 func (s *Service) completeModerationAfterSuccess(ctx context.Context, input completeModerationAfterSuccessInput) {
 	if input.Coordinator == nil || input.Result == nil {
 		return
@@ -177,7 +177,7 @@ func (s *Service) completeModerationAfterSuccess(ctx context.Context, input comp
 	if input.Result.IsModerationBlocked() {
 		return
 	}
-	// Pass / fail-open: embed now (persist path skipped embed while barrier was active).
+	// 通过 / fail-open：立即向量化（屏障活动期间持久化路径跳过了向量化）。
 	if input.ReuseUserMessage {
 		s.embedMessagePairAsync(ctx, input.EmbedInput, nil, &input.Result.AssistantMessage)
 	} else {
@@ -185,8 +185,8 @@ func (s *Service) completeModerationAfterSuccess(ctx context.Context, input comp
 	}
 }
 
-// completeModerationAfterInterruption moderates content that was already visible
-// and retained after a cancel or upstream failure, without embedding a partial reply.
+// completeModerationAfterInterruption 审核在取消或上游失败后
+// 已可见并被保留的内容，且不对部分回复进行向量化。
 func (s *Service) completeModerationAfterInterruption(
 	ctx context.Context,
 	coord *appcm.RunCoordinator,
@@ -200,7 +200,7 @@ func (s *Service) completeModerationAfterInterruption(
 	applyBarrierOutcome(result, barrier)
 }
 
-// completeModerationAfterFailure continues input-only checks (no output moderation).
+// completeModerationAfterFailure 继续执行仅输入检查（不审核输出）。
 func (s *Service) completeModerationAfterFailure(
 	ctx context.Context,
 	coord *appcm.RunCoordinator,
@@ -262,7 +262,7 @@ func applyBlockedSnapshot(result *SendMessageResult, block appcm.BlockInfo, term
 	}
 }
 
-// applyBlockedRunFields copies soft-block outcome onto a conversation run for finalize/upsert.
+// applyBlockedRunFields 将软拦截结果复制到会话运行上，用于 finalize/upsert。
 func applyBlockedRunFields(run *model.Run, result *SendMessageResult) {
 	if run == nil || result == nil || !result.IsModerationBlocked() {
 		return
@@ -277,7 +277,7 @@ func applyBlockedRunFields(run *model.Run, result *SendMessageResult) {
 	}
 }
 
-// applyModerationRunState copies non-blocked barrier state onto the run for upsert.
+// applyModerationRunState 将非拦截的屏障状态复制到运行上，用于 upsert。
 func applyModerationRunState(run *model.Run, result *SendMessageResult) {
 	if run == nil || result == nil || result.Moderation == nil {
 		return
@@ -382,7 +382,7 @@ type stringError string
 func (e stringError) Error() string { return string(e) }
 func errString(s string) error      { return stringError(s) }
 
-// loadOutputImagesForModeration loads final assistant image attachments for output checks.
+// loadOutputImagesForModeration 加载最终助手图片附件，用于输出检查。
 func (s *Service) loadOutputImagesForModeration(ctx context.Context, coord *appcm.RunCoordinator, userID uint, attachmentsJSON string) []appcm.OutputImageSource {
 	refs := parseAttachmentSnapshotRefs(attachmentsJSON)
 	if len(refs) == 0 {
@@ -451,7 +451,7 @@ func (a *moderationObjectStoreAdapter) Put(ctx context.Context, path string, dat
 	if err != nil {
 		return err
 	}
-	_, err = store.Put(ctx, path, bytes.NewReader(data), objectstore.PutOptions{ContentType: contentType})
+	_, err = store.Put(ctx, path, bytes.NewReader(data), objectstorage.PutOptions{ContentType: contentType})
 	return err
 }
 
@@ -476,7 +476,7 @@ func (a *moderationObjectStoreAdapter) Delete(ctx context.Context, path string) 
 	return store.Delete(ctx, path)
 }
 
-func (a *moderationObjectStoreAdapter) open(ctx context.Context) (objectstore.Store, error) {
+func (a *moderationObjectStoreAdapter) open(ctx context.Context) (objectstorage.Store, error) {
 	if a == nil || a.service == nil || a.service.storeProvider == nil {
 		return nil, appstorage.ErrProviderNotConfigured
 	}
@@ -561,7 +561,7 @@ func (a *moderationFileAccessAdapter) RetryBlockedGeneratedFileDeletes(ctx conte
 	return deleted, cleanupErr
 }
 
-// filterBlockedMessages excludes blocked messages from model context.
+// filterBlockedMessages 从模型上下文中排除被拦截的消息。
 func filterBlockedMessages(messages []model.Message) []model.Message {
 	if len(messages) == 0 {
 		return messages

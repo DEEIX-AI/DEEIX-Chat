@@ -5,7 +5,7 @@ import * as React from "react";
 import { type FeaturePolicy, getFeaturePolicy } from "@/shared/api/settings";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
-const DEFAULT_FEATURE_POLICY: FeaturePolicy = { knowledgeBaseEnabled: true };
+const DEFAULT_FEATURE_POLICY: FeaturePolicy = { knowledgeBaseEnabled: true, processTraceEnabled: true };
 
 let cachedFeaturePolicy: FeaturePolicy | null = null;
 let inflightFeaturePolicy: Promise<void> | null = null;
@@ -16,7 +16,7 @@ function setCachedFeaturePolicy(policy: FeaturePolicy) {
   for (const listener of featurePolicyListeners) listener();
 }
 
-/** 管理端修改功能开关成功后调用，让当前标签页内的消费方立即生效。 */
+/** Call after the admin successfully changes feature toggles so consumers in the current tab take effect immediately. */
 export function overrideFeaturePolicy(patch: Partial<FeaturePolicy>) {
   setCachedFeaturePolicy({ ...(cachedFeaturePolicy ?? DEFAULT_FEATURE_POLICY), ...patch });
 }
@@ -29,9 +29,10 @@ function loadFeaturePolicy(): Promise<void> {
         setCachedFeaturePolicy(DEFAULT_FEATURE_POLICY);
         return;
       }
-      setCachedFeaturePolicy(await getFeaturePolicy(token));
+      // Fields added after a deployment may be absent from an older server; unknown means enabled.
+      setCachedFeaturePolicy({ ...DEFAULT_FEATURE_POLICY, ...(await getFeaturePolicy(token)) });
     } catch {
-      // 拉取失败按默认全部开启处理（fail-open），避免误伤正常部署或阻塞路由守卫。
+      // On fetch failure, treat everything as enabled (fail-open) to avoid breaking healthy deployments or blocking route guards.
       setCachedFeaturePolicy(DEFAULT_FEATURE_POLICY);
     } finally {
       inflightFeaturePolicy = null;
@@ -50,8 +51,8 @@ function getFeaturePolicySnapshot(): FeaturePolicy | null {
 }
 
 /**
- * 读取后台功能开关策略（会话级缓存，首次挂载时拉取一次，缓存更新时全量通知）。
- * 加载完成前返回默认全开，`loaded` 用于需要等待确定结果的场景（如路由守卫）。
+ * Reads the admin feature toggle policy (session-level cache, fetched once on first mount, all subscribers notified on cache update).
+ * Returns all-enabled defaults until loaded; `loaded` is for cases that must wait for a definitive result (e.g. route guards).
  */
 export function useFeaturePolicy(): FeaturePolicy & { loaded: boolean } {
   const policy = React.useSyncExternalStore(

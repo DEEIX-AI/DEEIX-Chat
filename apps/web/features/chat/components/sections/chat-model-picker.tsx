@@ -14,18 +14,19 @@ import {
   resolveDesktopModelMenuListMaxHeight,
 } from "./chat-model-picker-layout";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
-import { ModelIcon } from "@/shared/components/model-icon";
+import { ModelIcon, resolveModelIconURL, resolveModelIdentity, resolveModelPresentationGroup } from "@/entities/model";
 import {
+  type BillingDisplayCurrency,
+  type BillingDisplayLabels,
+  type BillingDisplayOptions,
   cacheWritePricingLabel,
   cacheWritePricingNote,
   formatBillingDisplayUnitPriceFromUSD,
+  formatRateMultiplier,
   resolveCacheWritePricingUSD,
-} from "@/shared/lib/billing-display";
-import type { BillingDisplayCurrency, BillingDisplayLabels, BillingDisplayOptions } from "@/shared/lib/billing-display";
-import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
-import { resolveModelPresentationGroup } from "@/shared/lib/model-presentation";
+  resolveCurrentSchedulePeriod,
+} from "@/entities/billing";
 import { cn } from "@/lib/utils";
-import { formatRateMultiplier, resolveCurrentSchedulePeriod } from "@/shared/model/schedule-pricing";
 
 type ChatModelPickerProps = {
   modelOptions: ChatModelOption[];
@@ -762,7 +763,6 @@ export function ChatModelPicker({
   }, [activeDesktopGroupKey]);
 
   return (
-    <>
       <div className="min-w-0 max-w-[min(320px,100%)] shrink">
         <Popover open={open} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>
@@ -889,7 +889,7 @@ export function ChatModelPicker({
                     style={{
                       top: desktopSubmenuTop,
                       width: desktopSubmenuWidth,
-                    } as React.CSSProperties}
+                    }}
                     className={cn(
                       "absolute flex max-h-[calc(100dvh-3rem)] flex-col overflow-hidden rounded-xl border-[0.5px] border-border bg-popover p-1.5 shadow-xs",
                       desktopSubmenuSide === "right" ? "left-[calc(100%+0.5rem)]" : "right-[calc(100%+0.5rem)]",
@@ -979,6 +979,5 @@ export function ChatModelPicker({
         </PopoverContent>
       </Popover>
       </div>
-    </>
   );
 }

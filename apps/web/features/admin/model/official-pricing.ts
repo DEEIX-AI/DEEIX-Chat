@@ -1,4 +1,4 @@
-import type { AdminOfficialPricingCatalogItemDTO, UpsertAdminModelPricingRequest } from "@/features/admin/api/billing.types";
+import type { AdminOfficialPricingCatalogItemDTO, UpsertAdminModelPricingRequest } from "@/features/admin/api/billing-types";
 import {
   parseTieredPricingJSON,
   type BillingModelPricingRow,

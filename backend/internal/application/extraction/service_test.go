@@ -7,7 +7,7 @@ import (
 
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
+	extractionport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extraction"
 )
 
 func TestStoredExtractionRequiresObjectStoreProvider(t *testing.T) {
@@ -19,7 +19,7 @@ func TestStoredExtractionRequiresObjectStoreProvider(t *testing.T) {
 
 type documentExtractorStub struct{}
 
-func (documentExtractorStub) ExtractText(context.Context, extractport.DocumentRequest) (string, error) {
+func (documentExtractorStub) ExtractText(context.Context, extractionport.DocumentRequest) (string, error) {
 	return "", nil
 }
 

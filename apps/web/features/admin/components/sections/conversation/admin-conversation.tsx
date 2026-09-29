@@ -3,7 +3,6 @@
 import { CircleHelp, Download, Save } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,22 +16,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { exportAllConversations, getAdminReferenceData, listAdminSettings, patchAdminSettings } from "@/features/admin/api";
 import { ConversationPromptPresetsSection } from "@/features/admin/components/sections/conversation/conversation-prompt-presets";
+import { useAdminConversationExport } from "@/features/admin/hooks/use-admin-conversation-export";
+import { useAdminConversationSettings } from "@/features/admin/hooks/use-admin-conversation-settings";
 import {
   buildConversationSettingsFields,
   CONVERSATION_DEFAULT_MODEL_SYSTEM,
   CONVERSATION_TASK_MODEL_FOLLOW,
   type ConversationSettingsField,
   fieldID,
-  flattenConversationSettings,
   resolveVisibleConversationFields,
   toEditorField,
 } from "@/features/admin/model/conversation-settings";
-import { buildTaskModelOptions } from "@/features/admin/model/task-model-options";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import type { PatchSettingItem } from "@/shared/api/settings.types";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
   SettingsFieldInset,
   SettingsFieldItem,
@@ -42,17 +37,9 @@ import {
   SettingsSection,
   SettingsSectionSeparator,
 } from "@/shared/components/settings-layout";
-import { downloadBlob, readExportManifest } from "@/shared/lib/export-download";
-import {
-  HARD_DENIED_MODEL_OPTION_PATHS,
-  MODEL_OPTION_POLICY_PROTOCOL_LABELS,
-  MODEL_OPTION_POLICY_PROTOCOLS,
-  type ModelOptionRuleMap,
-  parseModelOptionRuleMap,
-  uniqueModelOptionPaths,
-} from "@/shared/lib/model-option-policy";
-import { SettingsFieldEditor } from "../shared/settings-runtime-panel";
-import { type ModelOption, TaskModelField } from "../shared/task-model-field";
+import { HARD_DENIED_MODEL_OPTION_PATHS, MODEL_OPTION_POLICY_PROTOCOL_LABELS, MODEL_OPTION_POLICY_PROTOCOLS, type ModelOptionRuleMap, parseModelOptionRuleMap, uniqueModelOptionPaths } from "@/entities/model";
+import { SettingsFieldEditor } from "../../shared/settings-runtime-panel";
+import { TaskModelField } from "../../shared/task-model-field";
 
 function isModelOptionPolicyField(field: ConversationSettingsField): boolean {
   return field.section === "optionPassthrough";
@@ -372,128 +359,22 @@ function ModelOptionPolicyGuideButton({ t }: { t: (key: string) => string }) {
     </Dialog>
   );
 }
-export function AdminConversationSettingsPage() {
+export function AdminConversationPage() {
   const t = useTranslations("adminConversation");
   const commonT = useTranslations("common");
   const conversationSettingsFields = React.useMemo(() => buildConversationSettingsFields(t), [t]);
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
-  const [settingsMap, setSettingsMap] = React.useState<Record<string, string>>({});
-  const [savedMap, setSavedMap] = React.useState<Record<string, string>>({});
-  const [taskModelOptions, setTaskModelOptions] = React.useState<ModelOption[]>(() =>
-    buildTaskModelOptions({
-      models: [],
-      followLabel: t("taskModel.follow"),
-      followValue: CONVERSATION_TASK_MODEL_FOLLOW,
-    }),
-  );
-  const [defaultModelOptions, setDefaultModelOptions] = React.useState<ModelOption[]>(() =>
-    buildTaskModelOptions({
-      models: [],
-      followLabel: t("defaultModel.systemRecommended"),
-      followValue: CONVERSATION_DEFAULT_MODEL_SYSTEM,
-    }),
-  );
-  const [exporting, setExporting] = React.useState(false);
-
-  const handleExportConversations = React.useCallback(async () => {
-    setExporting(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) return;
-      const { blob, fileName } = await exportAllConversations(token);
-      const manifest = await readExportManifest(blob);
-      downloadBlob(blob, fileName);
-      if (manifest && (!manifest.complete || (manifest.failed ?? 0) > 0)) {
-        toast.warning(t("dataExport.partial", { exported: manifest.exported ?? 0, failed: manifest.failed ?? 0 }));
-      } else if (manifest) {
-        toast.success(t("dataExport.success", { count: manifest.exported ?? 0 }));
-      }
-    } catch {
-      toast.error(t("dataExport.failed"));
-    } finally {
-      setExporting(false);
-    }
-  }, [t]);
-
-  const loadSettings = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-        return;
-      }
-      const [grouped, referenceData] = await Promise.all([
-        listAdminSettings(token),
-        getAdminReferenceData(token).catch((): null => null),
-      ]);
-      const nextModelOptions = buildTaskModelOptions({
-        models: referenceData?.models ?? [],
-        followLabel: t("taskModel.follow"),
-        followValue: CONVERSATION_TASK_MODEL_FOLLOW,
-      });
-      const nextDefaultModelOptions = buildTaskModelOptions({
-        models: referenceData?.models ?? [],
-        followLabel: t("defaultModel.systemRecommended"),
-        followValue: CONVERSATION_DEFAULT_MODEL_SYSTEM,
-      });
-      const flattened = flattenConversationSettings(grouped);
-      setTaskModelOptions(nextModelOptions);
-      setDefaultModelOptions(nextDefaultModelOptions);
-      setSettingsMap(flattened);
-      setSavedMap(flattened);
-    } catch (error) {
-      toast.error(t("toast.loadFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  React.useEffect(() => {
-    void loadSettings();
-  }, [loadSettings]);
-
-  const dirtyFieldIDs = React.useMemo(() => {
-    const result = new Set<string>();
-    for (const field of conversationSettingsFields) {
-      const id = fieldID(field);
-      if ((settingsMap[id] ?? "") !== (savedMap[id] ?? "")) {
-        result.add(id);
-      }
-    }
-    return result;
-  }, [conversationSettingsFields, savedMap, settingsMap]);
-
-  const handleSave = React.useCallback(async (fields: ConversationSettingsField[]) => {
-    const items: PatchSettingItem[] = fields
-      .filter((field) => dirtyFieldIDs.has(fieldID(field)))
-      .map((field) => ({
-        namespace: field.namespace,
-        key: field.key,
-        value: settingsMap[fieldID(field)] ?? "",
-      }));
-    if (items.length === 0) {
-      return;
-    }
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-        return;
-      }
-      const grouped = await patchAdminSettings(token, { items });
-      const flattened = flattenConversationSettings(grouped);
-      setSettingsMap(flattened);
-      setSavedMap(flattened);
-      toast.success(t("toast.updated"));
-    } catch (error) {
-      toast.error(t("toast.saveFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
-  }, [dirtyFieldIDs, settingsMap, t]);
+  const {
+    loading,
+    saving,
+    settingsMap,
+    setSettingsMap,
+    savedMap,
+    taskModelOptions,
+    defaultModelOptions,
+    dirtyFieldIDs,
+    handleSave,
+  } = useAdminConversationSettings(conversationSettingsFields);
+  const { exporting, handleExportConversations } = useAdminConversationExport();
 
   const visibleConversationSettingsFields = React.useMemo(
     () => resolveVisibleConversationFields(conversationSettingsFields, settingsMap),

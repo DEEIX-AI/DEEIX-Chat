@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import { Pencil, Trash2, Plus } from "lucide-react";
 
@@ -26,9 +25,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { ChatContentWidth } from "@/shared/model/chat-content-width";
+import type { ChatContentWidth } from "@/entities/user-settings";
 import { useSettingsAppearancePersistence } from "@/features/settings/hooks/use-settings-appearance-persistence";
 import { useSettingsChat } from "@/features/settings/hooks/use-settings-chat";
+import { useSettingsPreferenceMemories } from "@/features/settings/hooks/use-settings-preference-memories";
 import {
   type ChatFontOption,
   type ChatFontWeightOption,
@@ -37,12 +37,16 @@ import {
   writeChatFontPreference,
   writeChatFontWeightPreference,
 } from "@/features/settings/utils/chat-font";
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { listUserMemories, upsertUserMemory, deleteUserMemory } from "@/shared/api/memory";
-import type { UserMemoryDTO } from "@/shared/api/memory.types";
+import type { UserMemoryDTO } from "@/shared/api/memory-types";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { ModelSelect, type ModelSelectOption } from "@/shared/components/model-select";
+import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
+import {
+  ModelSelect,
+  type ModelSelectOption,
+  parseKindsJSON,
+  resolveModelOptionIconUrl,
+  resolveModelOptionLabel,
+} from "@/entities/model";
 import {
   SettingsFieldList,
   SettingsFieldRow,
@@ -50,8 +54,6 @@ import {
   SettingsSection,
   SettingsSectionSeparator,
 } from "@/shared/components/settings-layout";
-import { resolveModelOptionIconUrl, resolveModelOptionLabel } from "@/shared/lib/model-option-display";
-import { parseKindsJSON } from "@/shared/model/llm-schema";
 import { platformModifierLabel, platformSendShortcut } from "@/shared/lib/platform-shortcuts";
 import type { SendShortcut } from "@/features/settings/types/settings";
 import { ChatDisplayAppearance } from "./chat-display-appearance";
@@ -267,89 +269,26 @@ function AddPreferenceDialog({
 
 function PreferenceMemorySection() {
   const t = useTranslations("settings.chatPage.memory");
-  const resolveErrorMessage = useLocalizedErrorMessage();
-  const [items, setItems] = React.useState<UserMemoryDTO[]>([]);
-  const [loadingMems, setLoadingMems] = React.useState(true);
+  const {
+    items,
+    loading: loadingMems,
+    adding,
+    addPreference,
+    editPreference: handleEdit,
+    deletePreference: handleDelete,
+  } = useSettingsPreferenceMemories();
   const [addKey, setAddKey] = React.useState("");
   const [addValue, setAddValue] = React.useState("");
-  const [adding, setAdding] = React.useState(false);
   const [addDialogOpen, setAddDialogOpen] = React.useState(false);
 
-  React.useEffect(() => {
-    void (async () => {
-      setLoadingMems(true);
-      try {
-        const token = await resolveAccessToken();
-        if (!token) return;
-        const all = await listUserMemories(token);
-        setItems(all.filter((m) => m.scope === "preference"));
-      } catch {
-        // ignore
-      } finally {
-        setLoadingMems(false);
-      }
-    })();
-  }, []);
-
-  const handleAdd = React.useCallback(async () => {
-    const key = addKey.trim();
-    const value = addValue.trim();
-    if (!key || !value) return;
-    setAdding(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) return;
-      await upsertUserMemory(token, key, value, "preference");
-      setItems((prev) => {
-        const exists = prev.find((m) => m.memoryKey === key);
-        if (exists) {
-          return prev.map((m) => m.memoryKey === key ? { ...m, value } : m);
-        }
-        return [{
-          id: Date.now(),
-          userID: 0,
-          memoryKey: key,
-          value,
-          scope: "preference",
-          updatedBy: "user",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }, ...prev];
-      });
+  const handleAdd = React.useCallback(
+    () => addPreference(addKey, addValue, () => {
       setAddKey("");
       setAddValue("");
       setAddDialogOpen(false);
-      toast.success(t("added"));
-    } catch (error) {
-      toast.error(t("addFailed"), { description: resolveErrorMessage(error) });
-    } finally {
-      setAdding(false);
-    }
-  }, [addKey, addValue, resolveErrorMessage, t]);
-
-  const handleEdit = React.useCallback(async (memoryKey: string, value: string) => {
-    try {
-      const token = await resolveAccessToken();
-      if (!token) return;
-      await upsertUserMemory(token, memoryKey, value, "preference");
-      setItems((prev) => prev.map((m) => m.memoryKey === memoryKey ? { ...m, value } : m));
-      toast.success(t("updated"));
-    } catch (error) {
-      toast.error(t("updateFailed"), { description: resolveErrorMessage(error) });
-    }
-  }, [resolveErrorMessage, t]);
-
-  const handleDelete = React.useCallback(async (memoryKey: string) => {
-    try {
-      const token = await resolveAccessToken();
-      if (!token) return;
-      await deleteUserMemory(token, memoryKey);
-      setItems((prev) => prev.filter((m) => m.memoryKey !== memoryKey));
-      toast.success(t("deleted"));
-    } catch (error) {
-      toast.error(t("deleteFailed"), { description: resolveErrorMessage(error) });
-    }
-  }, [resolveErrorMessage, t]);
+    }),
+    [addKey, addPreference, addValue],
+  );
 
   const preferenceCount = items.length;
   const atLimit = preferenceCount >= MAX_PREFERENCES;
@@ -432,6 +371,7 @@ export function SettingsChat() {
     handleDefaultModel,
   } = useSettingsChat();
   const billingEnabled = billingMode !== "self";
+  const { processTraceEnabled } = useFeaturePolicy();
   const chatFont = useChatFontPreference();
   const chatFontWeight = useChatFontWeightPreference();
   const persistAppearancePreferences = useSettingsAppearancePersistence();
@@ -670,6 +610,21 @@ export function SettingsChat() {
             </SettingsFieldRow>
           </div>
 
+          {processTraceEnabled ? (
+            <div className="pt-4">
+              <SettingsFieldRow
+                title={t("display.processTraceTitle")}
+                description={t("display.processTraceDescription")}
+              >
+                <Switch
+                  checked={settings.showProcessTrace}
+                  onCheckedChange={handleBool("chat.show_process_trace")}
+                  disabled={loading}
+                  aria-label={t("display.processTraceTitle")}
+                />
+              </SettingsFieldRow>
+            </div>
+          ) : null}
           <div className="pt-4">
             <SettingsFieldRow
               title={t("display.modelTitle")}
@@ -715,7 +670,7 @@ export function SettingsChat() {
           <div className="pt-4">
             <SettingsFieldRow
               title={t("display.costTitle")}
-              description={billingEnabled ? t("display.costDescription") : t("display.costDescriptionSelfMode")}
+              description={t("display.costDescription")}
             >
               <Switch
                 checked={billingEnabled && settings.showBillingCost}
@@ -725,6 +680,7 @@ export function SettingsChat() {
               />
             </SettingsFieldRow>
           </div>
+
 
           <div className="pt-4">
             <ChatDisplayAppearance

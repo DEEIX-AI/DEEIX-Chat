@@ -36,6 +36,7 @@
     "invalidCredentials": "Invalid username or password.",
     "invalidCurrentPassword": "The current password is incorrect.",
     "invalidEmail": "Invalid email address.",
+    "invalidLocalGrant": "The local sign-in grant is invalid or has already been used. Please restart the app and try again.",
     "invalidPassword": "Password must be at least 8 characters and not digits only.",
     "invalidPkce": "Invalid sign-in verification parameters. Sign in again.",
     "invalidRedirectUri": "Invalid callback URL.",
@@ -370,8 +371,6 @@
     "invalidModelOrder": "Invalid model order.",
     "invalidModelVendor": "Invalid model vendor.",
     "invalidOverwriteCustomizedMetadata": "Invalid metadata overwrite option.",
-    "invalidPage": "Invalid page number.",
-    "invalidPagesize": "Invalid page size.",
     "invalidPromptPreset": "Invalid prompt preset.",
     "invalidRunIds": "Invalid run IDs.",
     "invalidSkill": "Invalid skill.",
@@ -532,5 +531,19 @@
     "configRequired": "A complete service configuration and at least one policy category are required when content moderation is enabled.",
     "probeFailed": "Content moderation connection test failed.",
     "eventNotFound": "Content moderation event not found."
+  },
+  "feature": {
+    "disabled": "This feature is not available on this server.",
+    "byFeature": {
+      "multiUser": "This server has a single account; user and group management are not available.",
+      "registration": "Registration is not available on this server.",
+      "identityProviders": "Third-party sign-in is not available on this server.",
+      "accountSecurity": "Password, email, two-factor and session management are not available on this server.",
+      "announcements": "Announcements are not available on this server.",
+      "billingGating": "Plans, balances and payments are not available on this server.",
+      "usageMetering": "Usage metering is not available on this server.",
+      "contentModeration": "Content moderation is not available on this server.",
+      "sharing": "Public sharing is not available on this server."
+    }
   }
 }

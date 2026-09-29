@@ -1,13 +1,16 @@
 package conversation
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
+)
 
 // RegisterRoutes 注册会话域路由。
-func (m *Module) RegisterRoutes(authRequired *gin.RouterGroup) {
+func (m *Module) RegisterRoutes(authRequired *gin.RouterGroup, gate middleware.FeatureGate) {
 	authRequired.POST("/conversations", m.Handler.CreateConversation)
 	authRequired.GET("/conversations", m.Handler.ListConversations)
 	authRequired.GET("/conversations/search", m.Handler.SearchConversations)
-	authRequired.POST("/conversations/shares/revoke", m.Handler.RevokeConversationShares)
 	authRequired.GET("/conversations/default-model-candidate", m.Handler.GetConversationDefaultModelCandidate)
 	authRequired.GET("/conversation-projects", m.Handler.ListConversationProjects)
 	authRequired.POST("/conversation-projects", m.Handler.CreateConversationProject)
@@ -25,11 +28,13 @@ func (m *Module) RegisterRoutes(authRequired *gin.RouterGroup) {
 	authRequired.PATCH("/conversations/:id/archive", m.Handler.SetConversationArchive)
 	authRequired.PATCH("/conversations/:id/project", m.Handler.SetConversationProject)
 	authRequired.DELETE("/conversations/:id", m.Handler.DeleteConversation)
-	authRequired.GET("/conversations/:id/share", m.Handler.GetConversationShare)
-	authRequired.POST("/conversations/:id/share", m.Handler.CreateConversationShare)
-	authRequired.DELETE("/conversations/:id/share", m.Handler.RevokeConversationShare)
-	authRequired.POST("/conversations/:id/share/regenerate", m.Handler.RegenerateConversationShare)
-	authRequired.POST("/shared-conversations/:share_id/clone", m.Handler.CloneSharedConversation)
+	sharing := authRequired.Group("", gate.Require("sharing"))
+	sharing.POST("/conversations/shares/revoke", m.Handler.RevokeConversationShares)
+	sharing.GET("/conversations/:id/share", m.Handler.GetConversationShare)
+	sharing.POST("/conversations/:id/share", m.Handler.CreateConversationShare)
+	sharing.DELETE("/conversations/:id/share", m.Handler.RevokeConversationShare)
+	sharing.POST("/conversations/:id/share/regenerate", m.Handler.RegenerateConversationShare)
+	sharing.POST("/shared-conversations/:share_id/clone", m.Handler.CloneSharedConversation)
 	authRequired.GET("/conversations/:id/messages", m.Handler.ListMessages)
 	authRequired.GET("/conversations/:id/messages/preview", m.Handler.ListConversationPreviewMessages)
 	authRequired.GET("/conversations/:id/runs", m.Handler.ListConversationRuns)
@@ -63,7 +68,8 @@ func (m *Module) RegisterRoutes(authRequired *gin.RouterGroup) {
 }
 
 // RegisterPublicRoutes 注册不需要登录的会话公开路由。
-func (m *Module) RegisterPublicRoutes(public *gin.RouterGroup) {
-	public.GET("/shared-conversations/:share_id", m.Handler.GetPublicSharedConversation)
-	public.GET("/shared-conversations/:share_id/files/:file_id/content", m.Handler.GetPublicSharedFileContent)
+func (m *Module) RegisterPublicRoutes(public *gin.RouterGroup, gate middleware.FeatureGate) {
+	sharing := public.Group("", gate.Require("sharing"))
+	sharing.GET("/shared-conversations/:share_id", m.Handler.GetPublicSharedConversation)
+	sharing.GET("/shared-conversations/:share_id/files/:file_id/content", m.Handler.GetPublicSharedFileContent)
 }

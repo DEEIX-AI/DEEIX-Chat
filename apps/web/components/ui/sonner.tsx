@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
-import { useToastPosition } from "@/features/settings/utils/toast-position"
+import { useToastPosition } from "@/shared/lib/toast-position"
 import { useTheme } from "@/shared/components/theme-provider"
 
 const Toaster = ({ ...props }: ToasterProps) => {
@@ -18,7 +18,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={theme}
       position={position}
       className="toaster group"
       icons={{
@@ -34,7 +34,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
-        } as React.CSSProperties
+        }
       }
       {...props}
     />

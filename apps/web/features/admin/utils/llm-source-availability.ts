@@ -1,7 +1,7 @@
 import type {
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMStatus,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 
 export function isAdminLLMSourceAvailable(
   source: AdminLLMModelUpstreamSourceDTO,

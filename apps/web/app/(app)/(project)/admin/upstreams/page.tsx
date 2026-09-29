@@ -1,5 +1,5 @@
-import { AdminUpstreamsPage } from "@/features/admin/components/sections/upstreams/admin-upstreams";
+import { AdminUpstreamsPage } from "@/features/admin";
 
-export default function AdminUpstreamsRoutePage() {
+export default function Page() {
   return <AdminUpstreamsPage />;
 }

@@ -5,6 +5,7 @@ import * as React from "react";
 import { useTheme } from "@/shared/components/theme-provider";
 import { captureHTMLVisualThemeSnapshot, type HTMLVisualThemeSnapshot } from "@/shared/lib/html-visual-theme";
 import { SANDBOX_IFRAME_PERMISSIONS, sandboxDocumentHead } from "@/shared/lib/sandbox-document";
+import { isFiniteNumber, isRecord } from "@/shared/lib/type-guards";
 import type { UIBlockRenderProps } from "./block";
 
 const HOST_MESSAGE_SOURCE = "deeix-ui-block-host";
@@ -16,7 +17,7 @@ type HostMessage =
   | { source: typeof HOST_MESSAGE_SOURCE; type: "props"; props: unknown }
   | { source: typeof HOST_MESSAGE_SOURCE; type: "theme"; variables: HTMLVisualThemeSnapshot["variables"]; colorScheme: string };
 
-type FrameMessage = { source: typeof FRAME_MESSAGE_SOURCE; type: "ready" } | { source: typeof FRAME_MESSAGE_SOURCE; type: "resize"; height: number };
+// Frame → host messages: { source, type: "ready" } and { source, type: "resize", height }.
 
 // Injected before the component source. Exposes window.deeix with the P1 subset
 // (props and theme in, resize out). emit/setState arrive with actions in P2.
@@ -90,17 +91,18 @@ export function SandboxComponent({ id, props, definition }: UIBlockRenderProps<u
   }, []);
 
   React.useEffect(() => {
-    const handle = (event: MessageEvent<FrameMessage>) => {
+    // The frame runs model-authored code, so its messages are narrowed field by field.
+    const handle = (event: MessageEvent<unknown>) => {
       if (event.source !== frameRef.current?.contentWindow) {
         return;
       }
       const data = event.data;
-      if (!data || data.source !== FRAME_MESSAGE_SOURCE) {
+      if (!isRecord(data) || data.source !== FRAME_MESSAGE_SOURCE) {
         return;
       }
       if (data.type === "ready") {
         setReady(true);
-      } else if (data.type === "resize" && Number.isFinite(data.height)) {
+      } else if (data.type === "resize" && isFiniteNumber(data.height)) {
         setHeight(Math.min(MAX_FRAME_HEIGHT, Math.max(MIN_FRAME_HEIGHT, data.height)));
       }
     };

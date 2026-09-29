@@ -5,8 +5,8 @@ import * as React from "react";
 const SCREENSHOT_PREVIEW_CLOSE_DELAY_MS = 220;
 
 /**
- * 截图预览对话框的开合状态：有预览时自动打开；
- * 关闭时先收起对话框，延迟释放预览资源，避免退场动画期间图片闪烁。
+ * Open state of the screenshot preview dialog: opens automatically when a preview exists;
+ * on close, the dialog collapses first and the preview is released later, avoiding image flicker during the exit animation.
  */
 export function useChatScreenshotPreview({
   preview,

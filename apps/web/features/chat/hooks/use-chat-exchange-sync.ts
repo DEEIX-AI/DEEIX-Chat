@@ -6,7 +6,7 @@ import { collectSettledExchanges } from "@/features/chat/model/message-submit-ex
 import type { PendingExchangeMap } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage } from "@/features/chat/types/messages";
 
-// 本地乐观 exchange 与服务端消息对账:清理已落库或已在其他会话完成的记录,并把临时分支选择替换为服务端 ID。
+// Reconcile local optimistic exchanges with server messages: drop records already persisted or completed in another conversation, and replace temporary branch selections with server IDs.
 export function useChatExchangeSync({
   conversationScopeKey,
   pendingExchanges,

@@ -17,10 +17,9 @@ import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import type { FileObjectDTO } from "@/shared/api/file.types";
+import type { FileObjectDTO } from "@/shared/api/file-types";
 import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel";
-import { resolveFileIcon } from "@/shared/lib/file-display";
-import { canManuallyVectorizeFile, isVectorIndexOutdated } from "@/shared/lib/file-processing";
+import { canManuallyVectorizeFile, isVectorIndexOutdated, resolveFileIcon } from "@/entities/file";
 
 type SidebarListProps = {
   items: FileObjectDTO[];

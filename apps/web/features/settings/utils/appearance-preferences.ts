@@ -18,6 +18,7 @@ import {
   THEME_PRESETS,
   type ThemePreset,
 } from "@/shared/model/theme";
+import { isOneOf, isRecord, parseJSON } from "@/shared/lib/type-guards";
 
 export type AppearancePreferences = {
   preset: ThemePreset;
@@ -28,42 +29,32 @@ export type AppearancePreferences = {
 
 export type AppearancePreferencePatch = Partial<AppearancePreferences>;
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isThemePreset(value: unknown): value is ThemePreset {
-  return typeof value === "string" && (THEME_PRESETS as readonly string[]).includes(value);
-}
+const isThemePreset = isOneOf(THEME_PRESETS);
 
 export function parseAppearancePreferences(raw: string | null | undefined): AppearancePreferencePatch {
   if (!raw) {
     return {};
   }
 
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!isPlainObject(parsed)) {
-      return {};
-    }
-
-    const result: AppearancePreferencePatch = {};
-    if (isThemePreset(parsed.preset)) {
-      result.preset = parsed.preset;
-    }
-    if (isChatFontOption(parsed.chatFont)) {
-      result.chatFont = parsed.chatFont;
-    }
-    if (isChatFontWeightOption(parsed.chatFontWeight)) {
-      result.chatFontWeight = parsed.chatFontWeight;
-    }
-    if (isFontSizeOption(parsed.fontSize)) {
-      result.fontSize = parsed.fontSize;
-    }
-    return result;
-  } catch {
+  const parsed = parseJSON(raw);
+  if (!isRecord(parsed)) {
     return {};
   }
+
+  const result: AppearancePreferencePatch = {};
+  if (isThemePreset(parsed.preset)) {
+    result.preset = parsed.preset;
+  }
+  if (isChatFontOption(parsed.chatFont)) {
+    result.chatFont = parsed.chatFont;
+  }
+  if (isChatFontWeightOption(parsed.chatFontWeight)) {
+    result.chatFontWeight = parsed.chatFontWeight;
+  }
+  if (isFontSizeOption(parsed.fontSize)) {
+    result.fontSize = parsed.fontSize;
+  }
+  return result;
 }
 
 export function readLocalAppearancePreferences(): AppearancePreferences {

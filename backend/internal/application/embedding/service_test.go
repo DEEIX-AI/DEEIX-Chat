@@ -13,6 +13,7 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	infraembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
+	portembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	"go.uber.org/zap"
@@ -770,4 +771,53 @@ func (r *reindexRepo) ListFilesForReindex(_ context.Context, limit int, afterID 
 		}
 	}
 	return results, nil
+}
+
+func TestShouldTriggerIncludesImagesWhenProtocolEmbedsImages(t *testing.T) {
+	service := newTestService(config.Config{
+		RAGEnabled:             true,
+		EmbeddingEnabled:       true,
+		EmbedTriggerOnUpload:   true,
+		RAGModel:               "gemini-embedding-2",
+		EmbeddingHost:          "http://127.0.0.1:8081",
+		EmbeddingProtocol:      config.EmbeddingProtocolGemini,
+		ExtractImageOCREnabled: false,
+	}, nil, nil, nil, nil)
+
+	fileObj := domainconversation.FileObject{
+		FileID:       "file_1",
+		FileName:     "photo.png",
+		MimeType:     "image/png",
+		FileCategory: "image",
+		StoragePath:  "uploads/photo.png",
+		Status:       "active",
+	}
+	if !service.ShouldTrigger(fileObj) {
+		t.Fatal("expected image embedding when the protocol supports image inputs")
+	}
+	fileObj.MimeType = "image/bmp"
+	fileObj.DetectedMIME = "image/bmp"
+	if service.ShouldTrigger(fileObj) {
+		t.Fatal("expected formats the multimodal endpoints reject to stay unsupported")
+	}
+}
+
+func TestSplitEmbeddingBatchesRespectsCountAndImageBytes(t *testing.T) {
+	inputs := []portembedding.Input{
+		{Kind: portembedding.InputText, Text: "a"},
+		{Kind: portembedding.InputText, Text: "b"},
+		{Kind: portembedding.InputImage, Data: make([]byte, maxImageBatchBytes-1)},
+		{Kind: portembedding.InputImage, Data: make([]byte, 2)},
+		{Kind: portembedding.InputText, Text: "c"},
+	}
+	batches := splitEmbeddingBatches(inputs, 2)
+	if len(batches) != 3 {
+		t.Fatalf("expected 3 batches, got %d", len(batches))
+	}
+	if len(batches[0]) != 2 || len(batches[1]) != 1 || len(batches[2]) != 2 {
+		t.Fatalf("unexpected batch sizes: %d/%d/%d", len(batches[0]), len(batches[1]), len(batches[2]))
+	}
+	if batches[1][0].Kind != portembedding.InputImage || batches[2][0].Kind != portembedding.InputImage {
+		t.Fatalf("large image should open its own batch, next image should start the following one")
+	}
 }

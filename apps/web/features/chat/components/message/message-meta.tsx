@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
-import { toast } from "sonner";
 
 import { Brush } from "@/components/animate-ui/icons/brush";
 import { Check } from "@/components/animate-ui/icons/check";
@@ -40,16 +39,16 @@ import {
   formatDurationMS,
 } from "@/features/chat/model/duration";
 import { useChatElapsedDurationMS } from "@/features/chat/hooks/use-chat-elapsed-duration";
+import { useChatMemoryPin } from "@/features/chat/hooks/use-chat-memory-pin";
 import { type BillingSnapshot, parseBillingSnapshot } from "@/features/chat/model/billing-snapshot";
 import { resolvePersistedPublicID } from "@/features/chat/model/message-submit";
 import type { ChatBillingCost, ChatMessageBranchNavigator } from "@/features/chat/types/messages";
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { cn } from "@/lib/utils";
-import { upsertUserMemory } from "@/shared/api/memory";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { usePointerInteraction } from "@/shared/hooks/use-pointer-interaction";
-import type { BillingDisplayCurrency, BillingDisplayLabels, BillingDisplayOptions } from "@/shared/lib/billing-display";
 import {
+  type BillingDisplayCurrency,
+  type BillingDisplayLabels,
+  type BillingDisplayOptions,
   billingRateMultiplierNote,
   billingScheduleNote,
   cacheWriteBillingLabel,
@@ -57,7 +56,7 @@ import {
   formatBillingDisplayCompactAmountFromUSD,
   formatBillingDisplayPreciseAmountFromUSD,
   formatBillingDisplayUnitPriceFromUSD,
-} from "@/shared/lib/billing-display";
+} from "@/entities/billing";
 
 const META_ACTION_BUTTON_CLASSNAME =
   "text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
@@ -400,6 +399,7 @@ export function UserMessageMeta({
 
   return (
     <MetaContainer align="end" alwaysVisible={alwaysVisible}>
+      {item.editedAt ? <EditedBadge messageRole="user" /> : null}
       <MessageTimestamp timestamp={timestamp} />
       {!readOnly ? (
         <div className="flex items-center">
@@ -430,7 +430,7 @@ export function UserMessageMeta({
               <Copy strokeWidth={1.8} animateOnHover="default" />
             )}
           </MetaIconButton>
-          {/* 根消息（parentPublicID 为空）后端禁止删除，前端直接不展示入口。 */}
+          {/* The backend forbids deleting the root message (empty parentPublicID), so the UI doesn't show the entry at all. */}
           {onDelete && hasPersistedMessage && item.parentPublicID ? (
             <DeleteMessageButton
               disabled={messagePending}
@@ -488,7 +488,8 @@ function TokenMetric({ label, value, icon }: { label: string; value: number; ico
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-flex items-center gap-0.5" aria-label={label}>
+        <span className="inline-flex items-center gap-0.5">
+          <span className="sr-only">{label}</span>
           {icon}
           {value.toLocaleString()}
         </span>
@@ -516,8 +517,8 @@ function LatencyBadge({ item }: { item: ChatMetaMessage }) {
       <TooltipTrigger asChild>
         <span
           className="ml-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] leading-3.5 font-mono text-muted-foreground/70 bg-muted/30 select-none whitespace-nowrap"
-          aria-label={isLive ? t("generationDuration") : t("totalDuration")}
         >
+          <span className="sr-only">{isLive ? t("generationDuration") : t("totalDuration")}</span>
           {isLive ? (
             <ClockArrowUp className="size-3" strokeWidth={1.4} />
           ) : (
@@ -531,20 +532,20 @@ function LatencyBadge({ item }: { item: ChatMetaMessage }) {
   );
 }
 
-function EditedBadge() {
+function EditedBadge({ messageRole = "assistant" }: { messageRole?: "user" | "assistant" }) {
   const t = useTranslations("chat.messages");
   const label = t("replyEditedDisclaimer");
-  const tooltip = t("replyEditedTooltip");
+  const tooltip = t(messageRole === "user" ? "userEditedTooltip" : "replyEditedTooltip");
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span
           className="ml-0.5 inline-flex items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 text-[10px] leading-3.5 text-muted-foreground/70 select-none whitespace-nowrap"
-          aria-label={tooltip}
         >
           <FilePenLine className="size-3" strokeWidth={1.4} />
           {label}
+          <span className="sr-only">{tooltip}</span>
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-64">{tooltip}</TooltipContent>
@@ -564,8 +565,8 @@ function ModelBadge({ label }: { label: string }) {
       <TooltipTrigger asChild>
         <span
           className="ml-0.5 inline-flex max-w-48 items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] leading-3.5 text-muted-foreground/70 select-none whitespace-nowrap"
-          aria-label={t("model")}
         >
+          <span className="sr-only">{t("model")}</span>
           <Cpu className="size-3 shrink-0" strokeWidth={1.4} />
           <span className="truncate">{normalized}</span>
         </span>
@@ -716,7 +717,7 @@ type BillingServiceItemEntry = {
   billedNanousd: number;
 };
 
-// billingServiceItemEntries 提取快照中的服务项（如 MCP 工具按次计费），保证明细行与总额对得上。
+// billingServiceItemEntries extracts service items from the snapshot (e.g. per-call MCP tool billing) so line items add up to the total.
 function billingServiceItemEntries(snapshot: BillingSnapshot): BillingServiceItemEntry[] {
   const items = Array.isArray(snapshot.service_items) ? snapshot.service_items : [];
   const entries: BillingServiceItemEntry[] = [];
@@ -755,9 +756,9 @@ function billingTooltipLines(item: ChatMetaMessage, labels: BillingMetaLabels, b
   const pricingMode = snapshot.pricing_mode === "call" || snapshot.pricing_mode === "duration" || snapshot.pricing_mode === "tiered" ? snapshot.pricing_mode : "token";
   const serviceEntries = billingServiceItemEntries(snapshot);
   const serviceLines = billingServiceItemLines(serviceEntries, labels, billingDisplay);
-  // 工具服务项与模型计费之间用分隔线隔开。
+  // Separate tool service items from model billing with a divider.
   const serviceSection: BillingTooltipLine[] = serviceLines.length > 0 ? [{ type: "divider" }, ...serviceLines] : [];
-  // 免费模型也可能因 MCP 等服务项产生费用，只有整单为 0 才按免费展示。
+  // Free models can still incur charges from service items like MCP; only show as free when the whole bill is 0.
   const freeOfCharge = snapshot.is_free_model === true && !(cost.billedNanousd > 0);
   const totalLine = freeOfCharge
     ? formatTotalLine(`${formatTooltipBillingCost(0, billingDisplay)} (${labels.freeModelNoBilling})`, labels)
@@ -865,9 +866,9 @@ function BillingCostBadge({ item, billingDisplay }: { item: ChatMetaMessage; bil
       <TooltipTrigger asChild>
         <span
           tabIndex={0}
-          aria-label={t("billingCost")}
           className="ml-0.5 inline-flex cursor-default items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] leading-3.5 text-muted-foreground/70 select-none whitespace-nowrap outline-none focus-visible:bg-muted/50 focus-visible:ring-0"
         >
+          <span className="sr-only">{t("billingCost")}</span>
           {freeModel ? (
             <TicketSlash className="size-3" strokeWidth={1.4} />
           ) : (
@@ -933,34 +934,20 @@ function TieredBillingTable({ line }: { line: Extract<BillingTooltipLine, { type
 
 function QuickMemoryPin({ disabled }: { disabled?: boolean }) {
   const t = useTranslations("chat.messages");
-  const resolveErrorMessage = useLocalizedErrorMessage();
   const [open, setOpen] = React.useState(false);
   const [key, setKey] = React.useState("");
   const [value, setValue] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
+  const { saving, savePreference } = useChatMemoryPin();
 
-  const handleSave = React.useCallback(async () => {
-    const trimmedKey = key.trim();
-    const trimmedValue = value.trim();
-    if (!trimmedKey || !trimmedValue) return;
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("authTokenMissing"));
-        return;
-      }
-      await upsertUserMemory(token, trimmedKey, trimmedValue, "preference");
-      toast.success(t("memorySaved"), { description: t("memorySavedDescription") });
-      setKey("");
-      setValue("");
-      setOpen(false);
-    } catch (error) {
-      toast.error(t("memorySaveFailed"), { description: resolveErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
-  }, [key, resolveErrorMessage, t, value]);
+  const handleSave = React.useCallback(
+    () =>
+      savePreference(key, value, () => {
+        setKey("");
+        setValue("");
+        setOpen(false);
+      }),
+    [key, savePreference, value],
+  );
 
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent) => {
@@ -1079,7 +1066,7 @@ export function AssistantMessageMeta({
   const canEdit = Boolean(canRetry && !busy && onEdit);
   const canContinue = Boolean(canRetry && !busy && item.status === "interrupted");
   const canFork = Boolean(canRetry && onFork);
-  // 根消息（parentPublicID 为空）后端禁止删除，前端直接不展示入口。
+  // The backend forbids deleting the root message (empty parentPublicID), so the UI doesn't show the entry at all.
   const canDelete = Boolean(canRetry && !busy && onDelete && item.parentPublicID);
   const canShowBranchNavigator = Boolean(showBranchNavigator && item.branchNavigator);
   const hasTokenUsage = Boolean(

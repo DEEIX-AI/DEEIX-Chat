@@ -2,7 +2,13 @@
 
 import { useTranslations } from "next-intl";
 
-import { formatBytes, formatDateTime } from "@/shared/lib/file-display";
+import {
+  formatBytes,
+  formatDateTime,
+  resolveEmbedStatusLabel,
+  resolveExtractStatusLabel,
+  resolveFileProcessingBadge,
+} from "@/entities/file";
 import {
   Drawer,
   DrawerContent,
@@ -12,8 +18,7 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { resolveEmbedStatusLabel, resolveExtractStatusLabel, resolveFileProcessingBadge } from "@/shared/lib/file-processing";
-import type { FileObjectDTO } from "@/shared/api/file.types";
+import type { FileObjectDTO } from "@/shared/api/file-types";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 
 type ContentMetaProps = {

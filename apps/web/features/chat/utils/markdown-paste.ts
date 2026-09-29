@@ -3,6 +3,7 @@ import { gfm } from "turndown-plugin-gfm";
 
 import { escapeStructuralMarkdown } from "@/features/chat/utils/markdown-escape";
 import { CODE_BLOCK_PLAIN_TEXT_MIME } from "@/shared/lib/clipboard";
+import { isRecord } from "@/shared/lib/type-guards";
 
 type ClipboardMarkdownPaste = {
   block: boolean;
@@ -72,8 +73,8 @@ function resolveVSCodeCodePaste(clipboardData: DataTransfer): ClipboardMarkdownP
   }
 
   try {
-    const metadata = JSON.parse(rawMetadata) as { mode?: unknown; version?: unknown };
-    if (metadata.version !== 1 || typeof metadata.mode !== "string") {
+    const metadata: unknown = JSON.parse(rawMetadata);
+    if (!isRecord(metadata) || metadata.version !== 1 || typeof metadata.mode !== "string") {
       return null;
     }
 

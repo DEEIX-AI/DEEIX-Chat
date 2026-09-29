@@ -3,7 +3,6 @@
 import * as React from "react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,56 +48,35 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePagination, TableToolbar, type TableToolbarFilter } from "@/components/ui/table-tools";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { invalidateAdminReferenceDataCache } from "@/features/admin/api/reference-data";
-import { listAllAdminPages } from "@/features/admin/api/shared";
-import { listAdminIdentityProviders } from "@/features/admin/api/auth";
-import { listAdminLLMModels, listAdminLLMUpstreams } from "@/features/admin/api/llm";
-import { listAdminUsers } from "@/features/admin/api/accounts";
+import { useAdminGroupsCreate } from "@/features/admin/hooks/use-admin-groups-create";
+import { useAdminGroupsEditor } from "@/features/admin/hooks/use-admin-groups-editor";
+import { useAdminGroups } from "@/features/admin/hooks/use-admin-groups";
 import { resolveProtocolLabel, sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
 import { ADAPTER_LABELS } from "@/features/admin/types/llm";
-import type { AdminLLMModelDTO, AdminLLMUpstreamView } from "@/features/admin/api/llm.types";
-import type { AdminUserDTO } from "@/features/admin/api/admin.types";
-import type { IdentityProviderDTO } from "@/shared/api/auth.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin-types";
 import { cn } from "@/lib/utils";
-import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
-import { GroupAccessPickerDialog } from "@/features/admin/components/sections/groups/group-access-picker-dialog";
-import { ModelAccessRulesPanel } from "@/features/admin/components/sections/groups/model-access-rules-panel";
-import { useAdminModelPresentation } from "@/features/admin/hooks/use-admin-model-presentation";
-import {
-  createPermissionGroup,
-  deletePermissionGroup,
-  listGroupModels,
-  listGroupUsers,
-  listPermissionGroups,
-  setGroupModels,
-  setGroupUsers,
-  updatePermissionGroup,
-  type PermissionGroup,
-  type PermissionGroupModelRule,
-} from "@/features/admin/api/permission-groups";
+import { parseProtocolsJSON } from "@/entities/model";
+import { isString, parseJSON } from "@/shared/lib/type-guards";
+import { GroupAccessPickerDialog } from "@/features/admin/components/sections/groups/groups-access-picker-dialog";
+import { ModelAccessRulesPanel } from "@/features/admin/components/sections/groups/groups-model-access-rules-panel";
+import { useAdminModelsPresentation } from "@/features/admin/hooks/use-admin-models-presentation";
+import type { PermissionGroup } from "@/features/admin/api/permission-groups";
 
-const GROUP_PICKER_PAGE_SIZE_DEFAULT = 25;
 const GROUPS_PAGE_SIZE_DEFAULT = 25;
 
 function parseStringArrayJSON(raw: string): string[] {
   if (!raw.trim()) {
     return [];
   }
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed
-      .filter((item): item is string => typeof item === "string")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  } catch {
+  const parsed = parseJSON(raw);
+  if (!Array.isArray(parsed)) {
     return [];
   }
+  return parsed
+    .filter(isString)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function useSubscriptionStatusLabel() {
@@ -154,62 +132,14 @@ function resolveUserSubscriptionLabel(
 
 export function AdminGroupsPage() {
   const t = useTranslations("adminGroups");
-  const [groups, setGroups] = React.useState<PermissionGroup[]>([]);
   const [query, setQueryState] = React.useState("");
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSizeState] = React.useState(GROUPS_PAGE_SIZE_DEFAULT);
-  const [loading, setLoading] = React.useState(true);
-
+  const { groups, loading, loadGroups, deletePending, deleteGroup } = useAdminGroups();
   const [createOpen, setCreateOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<PermissionGroup | null>(null);
   const [deleting, setDeleting] = React.useState<PermissionGroup | null>(null);
   const stableDeleting = useDialogSnapshot(deleting);
-  const [deletePending, setDeletePending] = React.useState(false);
-
-  const fetchGroups = React.useCallback(async () => {
-    const token = await resolveAccessToken();
-    return listPermissionGroups(token);
-  }, []);
-
-  const loadGroups = React.useCallback(async (options: { showLoading?: boolean } = {}) => {
-    const showLoading = options.showLoading ?? true;
-    if (showLoading) {
-      setLoading(true);
-    }
-    try {
-      setGroups(await fetchGroups());
-    } catch (error) {
-      toast.error(resolveAdminErrorMessage(error, t("loadFailed")));
-    } finally {
-      if (showLoading) {
-        setLoading(false);
-      }
-    }
-  }, [fetchGroups, t]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const list = await fetchGroups();
-        if (cancelled) {
-          return;
-        }
-        setGroups(list);
-      } catch (error) {
-        if (!cancelled) {
-          toast.error(resolveAdminErrorMessage(error, t("loadFailed")));
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchGroups, t]);
 
   const setQuery = React.useCallback((value: string) => {
     setQueryState(value);
@@ -246,30 +176,15 @@ export function AdminGroupsPage() {
 
   const handleDelete = React.useCallback(async (event?: React.MouseEvent<HTMLButtonElement>) => {
     event?.preventDefault();
-    if (!deleting || deletePending) {
+    if (!deleting) {
       return;
     }
     const deletedGroupID = deleting.id;
-    setDeletePending(true);
-    try {
-      const token = await resolveAccessToken();
-      const result = await deletePermissionGroup(token, deletedGroupID);
-      toast.success(t("deletedWithSummary", {
-        models: result.summary.manualModelCount ?? 0,
-        rules: result.summary.ruleCount ?? 0,
-        users: result.summary.manualUserCount ?? 0,
-      }));
-      invalidateAdminReferenceDataCache();
-      setGroups((current) => current.filter((group) => group.id !== deletedGroupID));
+    await deleteGroup(deleting, () => {
       setEditing((current) => (current?.id === deletedGroupID ? null : current));
       setDeleting(null);
-      void loadGroups({ showLoading: false });
-    } catch (error) {
-      toast.error(resolveAdminErrorMessage(error, t("saveFailed")));
-    } finally {
-      setDeletePending(false);
-    }
-  }, [deletePending, deleting, loadGroups, t]);
+    });
+  }, [deleteGroup, deleting]);
 
   return (
     <div className="space-y-3 pb-10">
@@ -462,7 +377,7 @@ function CreateGroupDialog({
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [rateMultiplier, setRateMultiplier] = React.useState("1");
-  const [saving, setSaving] = React.useState(false);
+  const { saving, createGroup } = useAdminGroupsCreate({ onOpenChange, onCreated });
 
   React.useEffect(() => {
     if (open) {
@@ -474,22 +389,8 @@ function CreateGroupDialog({
 
   const handleCreate = React.useCallback<React.FormEventHandler<HTMLFormElement>>(async (event) => {
     event.preventDefault();
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      const parsed = parseFloat(rateMultiplier);
-      const rateMultiplierPercent =
-        Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) : 100;
-      await createPermissionGroup(token, { name, description, rateMultiplierPercent });
-      toast.success(t("created"));
-      onOpenChange(false);
-      await onCreated();
-    } catch (error) {
-      toast.error(resolveAdminErrorMessage(error, t("saveFailed")));
-    } finally {
-      setSaving(false);
-    }
-  }, [description, name, rateMultiplier, onCreated, onOpenChange, t]);
+    await createGroup({ name, description, rateMultiplier });
+  }, [createGroup, description, name, rateMultiplier]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -570,352 +471,71 @@ function GroupEditSheet({
 }) {
   const t = useTranslations("adminGroups");
   const resolveSubscriptionStatusLabel = useSubscriptionStatusLabel();
-  const modelPresentation = useAdminModelPresentation();
-  const [name, setName] = React.useState("");
-  const [description, setDescription] = React.useState("");
-  const [rateMultiplier, setRateMultiplier] = React.useState("1");
-  const [modelIDs, setModelIDs] = React.useState<Set<number>>(new Set());
-  const [modelRules, setModelRules] = React.useState<PermissionGroupModelRule[]>([]);
-  const [userIDs, setUserIDs] = React.useState<Set<number>>(new Set());
-  const [selectionLoading, setSelectionLoading] = React.useState(false);
-  const [selectionLoaded, setSelectionLoaded] = React.useState(false);
-  const [modelRows, setModelRows] = React.useState<AdminLLMModelDTO[]>([]);
-  const [modelTotal, setModelTotal] = React.useState(0);
-  const [modelPage, setModelPage] = React.useState(1);
-  const [modelPageSize, setModelPageSizeState] = React.useState(GROUP_PICKER_PAGE_SIZE_DEFAULT);
-  const [modelQuery, setModelQuery] = React.useState("");
-  const [modelUpstreamOptions, setModelUpstreamOptions] = React.useState<AdminLLMUpstreamView[]>([]);
-  const [modelUpstreamFilter, setModelUpstreamFilter] = React.useState("");
-  const [modelVendorFilter, setModelVendorFilter] = React.useState("");
-  const [modelProtocolFilter, setModelProtocolFilter] = React.useState("");
-  const [modelReloadKey, setModelReloadKey] = React.useState(0);
-  const [modelLoading, setModelLoading] = React.useState(false);
-  const [modelBulkLoading, setModelBulkLoading] = React.useState(false);
-  const [userRows, setUserRows] = React.useState<AdminUserDTO[]>([]);
-  const [userTotal, setUserTotal] = React.useState(0);
-  const [userPage, setUserPage] = React.useState(1);
-  const [userPageSize, setUserPageSizeState] = React.useState(GROUP_PICKER_PAGE_SIZE_DEFAULT);
-  const [userQuery, setUserQuery] = React.useState("");
-  const [userSubscriptionFilter, setUserSubscriptionFilter] = React.useState("");
-  const [userIdentityFilter, setUserIdentityFilter] = React.useState("");
-  const [userIdentityProviderOptions, setUserIdentityProviderOptions] = React.useState<IdentityProviderDTO[]>([]);
-  const [userReloadKey, setUserReloadKey] = React.useState(0);
-  const [userLoading, setUserLoading] = React.useState(false);
-  const [userBulkLoading, setUserBulkLoading] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
+  const modelPresentation = useAdminModelsPresentation();
+  const {
+    name,
+    setName,
+    description,
+    setDescription,
+    rateMultiplier,
+    setRateMultiplier,
+    modelIDs,
+    setModelIDs,
+    modelRules,
+    setModelRules,
+    userIDs,
+    setUserIDs,
+    selectionLoading,
+    selectionLoaded,
+    modelRows,
+    modelTotal,
+    modelPage,
+    setModelPage,
+    modelPageSize,
+    modelQuery,
+    modelUpstreamOptions,
+    modelUpstreamFilter,
+    modelVendorFilter,
+    modelProtocolFilter,
+    modelLoading,
+    modelBulkLoading,
+    userRows,
+    userTotal,
+    userPage,
+    setUserPage,
+    userPageSize,
+    userQuery,
+    userSubscriptionFilter,
+    userIdentityFilter,
+    userIdentityProviderOptions,
+    userLoading,
+    userBulkLoading,
+    saving,
+    handleModelQueryChange,
+    handleModelUpstreamFilterChange,
+    handleModelVendorFilterChange,
+    handleModelProtocolFilterChange,
+    handleUserQueryChange,
+    handleUserSubscriptionFilterChange,
+    handleUserIdentityFilterChange,
+    handleModelPageSizeChange,
+    handleUserPageSizeChange,
+    refreshModels,
+    refreshUsers,
+    selectAllModels,
+    selectAllUsers,
+    clearModelSelection,
+    clearUserSelection,
+    handleSave,
+  } = useAdminGroupsEditor({ group, onOpenChange, onSaved });
   const [accessDialog, setAccessDialog] = React.useState<"models" | "users" | null>(null);
   const stableGroup = useDialogSnapshot(group);
 
   React.useEffect(() => {
     if (!group) {
-      setSelectionLoading(false);
-      setModelLoading(false);
-      setModelBulkLoading(false);
-      setUserLoading(false);
-      setUserBulkLoading(false);
       setAccessDialog(null);
-      return;
     }
-    setName(group.name);
-    setDescription(group.description);
-    setRateMultiplier(String((group.rateMultiplierPercent || 100) / 100));
-    setSelectionLoading(true);
-    setSelectionLoaded(false);
-    setModelRules([]);
-    setModelRows([]);
-    setModelTotal(0);
-    setModelPage(1);
-    setModelPageSizeState(GROUP_PICKER_PAGE_SIZE_DEFAULT);
-    setModelQuery("");
-    setModelUpstreamOptions([]);
-    setModelUpstreamFilter("");
-    setModelVendorFilter("");
-    setModelProtocolFilter("");
-    setModelReloadKey(0);
-    setUserRows([]);
-    setUserTotal(0);
-    setUserPage(1);
-    setUserPageSizeState(GROUP_PICKER_PAGE_SIZE_DEFAULT);
-    setUserQuery("");
-    setUserSubscriptionFilter("");
-    setUserIdentityFilter("");
-    setUserIdentityProviderOptions([]);
-    setUserReloadKey(0);
-    let cancelled = false;
-    (async () => {
-      try {
-        const token = await resolveAccessToken();
-        const [selectedModels, selectedUsers, upstreams, identityProviderPage] = await Promise.all([
-          listGroupModels(token, group.id),
-          group.isDefault ? Promise.resolve([]) : listGroupUsers(token, group.id),
-          listAllAdminPages((options) =>
-            listAdminLLMUpstreams(token, {
-              ...options,
-              status: "active",
-              sort: "name_asc",
-            }),
-          ),
-          listAdminIdentityProviders(token),
-        ]);
-        if (!cancelled) {
-          setModelIDs(new Set(selectedModels.modelIDs));
-          setModelRules(selectedModels.rules);
-          setUserIDs(new Set(selectedUsers));
-          setModelUpstreamOptions(upstreams);
-          setUserIdentityProviderOptions(identityProviderPage.results);
-          setSelectionLoaded(true);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          toast.error(resolveAdminErrorMessage(error, t("loadFailed")));
-        }
-      } finally {
-        if (!cancelled) {
-          setSelectionLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [group, t]);
-
-  React.useEffect(() => {
-    if (!group) {
-      return;
-    }
-    let cancelled = false;
-    setModelLoading(true);
-    (async () => {
-      try {
-        const token = await resolveAccessToken();
-        const page = await listAdminLLMModels(token, {
-          page: modelPage,
-          pageSize: modelPageSize,
-          query: modelQuery.trim(),
-          upstream: modelUpstreamFilter,
-          vendor: modelVendorFilter,
-          protocol: modelProtocolFilter,
-        });
-        if (!cancelled) {
-          setModelRows(page.results);
-          setModelTotal(page.total);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          toast.error(resolveAdminErrorMessage(error, t("loadFailed")));
-        }
-      } finally {
-        if (!cancelled) {
-          setModelLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    group,
-    modelPage,
-    modelPageSize,
-    modelQuery,
-    modelReloadKey,
-    modelUpstreamFilter,
-    modelVendorFilter,
-    modelProtocolFilter,
-    t,
-  ]);
-
-  React.useEffect(() => {
-    if (!group) {
-      return;
-    }
-    if (group.isDefault) {
-      setUserRows([]);
-      setUserTotal(group.userCount ?? 0);
-      setUserLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setUserLoading(true);
-    (async () => {
-      try {
-        const token = await resolveAccessToken();
-        const page = await listAdminUsers(token, {
-          page: userPage,
-          pageSize: userPageSize,
-          query: userQuery.trim(),
-          subscriptionStatus: userSubscriptionFilter,
-          identityProvider: userIdentityFilter,
-        });
-        if (!cancelled) {
-          setUserRows(page.results);
-          setUserTotal(page.total);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          toast.error(resolveAdminErrorMessage(error, t("loadFailed")));
-        }
-      } finally {
-        if (!cancelled) {
-          setUserLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [group, t, userIdentityFilter, userPage, userPageSize, userQuery, userReloadKey, userSubscriptionFilter]);
-
-  const handleModelQueryChange = React.useCallback((value: string) => {
-    setModelQuery(value);
-    setModelPage(1);
-  }, []);
-
-  const handleModelUpstreamFilterChange = React.useCallback((value: string) => {
-    setModelUpstreamFilter(value);
-    setModelPage(1);
-  }, []);
-
-  const handleModelVendorFilterChange = React.useCallback((value: string) => {
-    setModelVendorFilter(value);
-    setModelPage(1);
-  }, []);
-
-  const handleModelProtocolFilterChange = React.useCallback((value: string) => {
-    setModelProtocolFilter(value);
-    setModelPage(1);
-  }, []);
-
-  const handleUserQueryChange = React.useCallback((value: string) => {
-    setUserQuery(value);
-    setUserPage(1);
-  }, []);
-
-  const handleUserSubscriptionFilterChange = React.useCallback((value: string) => {
-    setUserSubscriptionFilter(value);
-    setUserPage(1);
-  }, []);
-
-  const handleUserIdentityFilterChange = React.useCallback((value: string) => {
-    setUserIdentityFilter(value);
-    setUserPage(1);
-  }, []);
-
-  const handleModelPageSizeChange = React.useCallback((value: number) => {
-    setModelPageSizeState(value);
-    setModelPage(1);
-  }, []);
-
-  const handleUserPageSizeChange = React.useCallback((value: number) => {
-    setUserPageSizeState(value);
-    setUserPage(1);
-  }, []);
-
-  const refreshModels = React.useCallback(() => {
-    setModelReloadKey((current) => current + 1);
-  }, []);
-
-  const refreshUsers = React.useCallback(() => {
-    setUserReloadKey((current) => current + 1);
-  }, []);
-
-  const selectAllModels = React.useCallback(async () => {
-    setModelBulkLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      const rows = await listAllAdminPages((options) =>
-        listAdminLLMModels(token, {
-          ...options,
-          query: modelQuery.trim(),
-          upstream: modelUpstreamFilter,
-          vendor: modelVendorFilter,
-          protocol: modelProtocolFilter,
-        }),
-      );
-      setModelIDs((current) => {
-        const next = new Set(current);
-        rows.forEach((model) => {
-          next.add(model.id);
-        });
-        return next;
-      });
-    } catch (error) {
-      toast.error(resolveAdminErrorMessage(error, t("loadFailed")));
-    } finally {
-      setModelBulkLoading(false);
-    }
-  }, [modelProtocolFilter, modelQuery, modelUpstreamFilter, modelVendorFilter, t]);
-
-  const selectAllUsers = React.useCallback(async () => {
-    setUserBulkLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      const rows = await listAllAdminPages((options) =>
-        listAdminUsers(token, {
-          ...options,
-          query: userQuery.trim(),
-          subscriptionStatus: userSubscriptionFilter,
-          identityProvider: userIdentityFilter,
-        }),
-      );
-      setUserIDs((current) => {
-        const next = new Set(current);
-        rows.forEach((user) => {
-          next.add(user.id);
-        });
-        return next;
-      });
-    } catch (error) {
-      toast.error(resolveAdminErrorMessage(error, t("loadFailed")));
-    } finally {
-      setUserBulkLoading(false);
-    }
-  }, [t, userIdentityFilter, userQuery, userSubscriptionFilter]);
-
-  const clearModelSelection = React.useCallback(() => {
-    setModelIDs(new Set());
-  }, []);
-
-  const clearUserSelection = React.useCallback(() => {
-    setUserIDs(new Set());
-  }, []);
-
-  const handleSave = React.useCallback(async () => {
-    if (!group) {
-      return;
-    }
-    setSaving(true);
-    let shouldRefreshGroups = false;
-    let shouldInvalidateReferenceData = false;
-    try {
-      const token = await resolveAccessToken();
-      const parsed = parseFloat(rateMultiplier);
-      const rateMultiplierPercent =
-        Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) : 100;
-      await updatePermissionGroup(token, group.id, { name, description, rateMultiplierPercent });
-      shouldRefreshGroups = true;
-      await setGroupModels(token, group.id, Array.from(modelIDs), modelRules);
-      shouldInvalidateReferenceData = true;
-      if (!group.isDefault) {
-        await setGroupUsers(token, group.id, Array.from(userIDs));
-      }
-      toast.success(t("saved"));
-      invalidateAdminReferenceDataCache();
-      onOpenChange(false);
-      await onSaved();
-    } catch (error) {
-      if (shouldInvalidateReferenceData) {
-        invalidateAdminReferenceDataCache();
-      }
-      if (shouldRefreshGroups) {
-        void onSaved();
-      }
-      toast.error(resolveAdminErrorMessage(error, t("saveFailed")));
-    } finally {
-      setSaving(false);
-    }
-  }, [description, group, modelIDs, modelRules, name, rateMultiplier, onOpenChange, onSaved, t, userIDs]);
+  }, [group]);
 
   const modelItems = React.useMemo(
     () =>

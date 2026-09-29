@@ -267,10 +267,10 @@ func (s *Service) MaybeCompactConversation(
 	return snapshot, nil
 }
 
-// ContextBudgetExceeded reports whether the active branch has crossed the
-// effective input budget of the selected model. Callers use this as a hard
-// preflight guard; ordinary proactive compaction still follows the configured
-// turn/token trigger and may run asynchronously after a successful response.
+// ContextBudgetExceeded 报告活动分支是否已超过所选模型的
+// 有效输入预算。调用方将其用作硬性
+// 预检保护；常规的主动压缩仍遵循配置的
+// 轮次/token 触发条件，并可能在成功响应后异步执行。
 func (s *Service) ContextBudgetExceeded(input MaybeCompactConversationInput) bool {
 	if s == nil || len(input.Messages) == 0 {
 		return false
@@ -288,9 +288,9 @@ func (s *Service) ContextBudgetExceeded(input MaybeCompactConversationInput) boo
 	))
 }
 
-// ShouldCompactConversation performs the cheap trigger check without writing a
-// snapshot. It is used to avoid scheduling background work (and showing a
-// pending UI state) when neither the configured turn cap nor token cap applies.
+// ShouldCompactConversation 执行低成本的触发检查，不写入
+// 快照。用于在配置的轮次上限与 token 上限均不适用时，
+// 避免调度后台任务（以及显示待处理的 UI 状态）。
 func (s *Service) ShouldCompactConversation(input MaybeCompactConversationInput) bool {
 	if s == nil {
 		return false
@@ -299,9 +299,9 @@ func (s *Service) ShouldCompactConversation(input MaybeCompactConversationInput)
 	return ok
 }
 
-// resolveCompactionDecision is the single trigger/planning path shared by the
-// pre-check and the writer. This prevents the pending UI state, strategy and
-// actual snapshot boundary from drifting as model-aware thresholds evolve.
+// resolveCompactionDecision 是预检与写入方共享的唯一
+// 触发/规划路径。这可防止待处理 UI 状态、策略与
+// 实际快照边界随模型感知阈值演进而产生偏差。
 func resolveCompactionDecision(cfg config.Config, input MaybeCompactConversationInput) (compactionDecision, bool) {
 	if !cfg.ContextCompactEnabled || len(input.Messages) == 0 {
 		return compactionDecision{}, false

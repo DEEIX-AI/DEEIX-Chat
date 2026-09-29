@@ -342,7 +342,7 @@ MinerU 可在设置中选择处理的文件类型；云端 MinerU 支持 `.doc/.
 
 OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract OCR、Paddle OCR、腾讯云 OCR、阿里云 OCR、Mistral OCR 与 LLM OCR。服务地址、鉴权密钥和超时时间按具体引擎配置。
 
-用户文件存储配额由运行时设置 `storage:user_storage_quota_bytes` 管理。后台 `/admin/chat-files` 页面中的 `storage:max_upload_file_bytes`、`storage:user_storage_quota_bytes`、`file:image_max_bytes`、`file:doc_max_bytes` 和 `file:file_full_context_max_bytes` 统一按 MB 输入，设置值在 API、数据库和运行时内部统一按字节保存与计算；值为 `0` 表示不限制。非零时，上传、分享克隆和文件复用链路都会按用户维度校验并同步最新配额。前端 `/files` 页支持单个删除和批量删除，后端会在删除后释放对应配额。
+用户文件存储配额由运行时设置 `storage:user_storage_quota_bytes` 管理。后台 `/admin/files` 页面中的 `storage:max_upload_file_bytes`、`storage:user_storage_quota_bytes`、`file:image_max_bytes`、`file:doc_max_bytes` 和 `file:file_full_context_max_bytes` 统一按 MB 输入，设置值在 API、数据库和运行时内部统一按字节保存与计算；值为 `0` 表示不限制。非零时，上传、分享克隆和文件复用链路都会按用户维度校验并同步最新配额。前端 `/files` 页支持单个删除和批量删除，后端会在删除后释放对应配额。
 
 ## 知识库
 

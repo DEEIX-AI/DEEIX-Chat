@@ -1,3 +1,4 @@
+import { isRecord } from "@/shared/lib/type-guards";
 import { type Schema, s } from "./schema";
 
 // Converts the JSON Schema subset custom components declare into the internal
@@ -21,10 +22,10 @@ export function schemaFromJSONSchema(raw: string): Schema | null {
 const MAX_DEPTH = 8;
 
 function convert(node: unknown, depth: number): Schema | null {
-  if (typeof node !== "object" || node === null || Array.isArray(node) || depth > MAX_DEPTH) {
+  if (!isRecord(node) || depth > MAX_DEPTH) {
     return null;
   }
-  const schema = node as Record<string, unknown>;
+  const schema = node;
   // anyOf / oneOf map onto the validator's union; unsupported branches are dropped.
   const union = Array.isArray(schema.anyOf) ? schema.anyOf : Array.isArray(schema.oneOf) ? schema.oneOf : undefined;
   if (union) {
@@ -48,7 +49,7 @@ function convert(node: unknown, depth: number): Schema | null {
       return s.array(items, minItems !== undefined ? { minItems } : undefined);
     }
     case "object": {
-      const properties = typeof schema.properties === "object" && schema.properties !== null ? (schema.properties as Record<string, unknown>) : {};
+      const properties = isRecord(schema.properties) ? schema.properties : {};
       const fields: Record<string, Schema> = {};
       for (const [key, value] of Object.entries(properties)) {
         const converted = convert(value, depth + 1);

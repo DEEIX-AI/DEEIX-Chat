@@ -84,7 +84,7 @@ function hasSVGDocumentRoot(code: string): boolean {
   return SVG_ROOT_RE.test(code.slice(cursor));
 }
 
-// 未标注语言的围栏在渲染层会被归一化为纯文本语言,这些语言下按内容嗅探 HTML/SVG 预览能力。
+// Fences without a language are normalized to plain text at render time; for these languages, sniff content for HTML/SVG preview support.
 const CONTENT_SNIFF_LANGUAGES = ["", "text", "txt", "plaintext", "plain", "markdown"];
 
 export function resolveArtifactPreviewKind(language: string, code: string): ArtifactPreviewKind | null {

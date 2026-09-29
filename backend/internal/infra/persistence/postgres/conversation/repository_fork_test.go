@@ -8,7 +8,7 @@ import (
 	"time"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
@@ -17,35 +17,35 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	source := model.Conversation{
+	source := models.Conversation{
 		UserID: 1, PublicID: "conv_source", Title: "Source", LabelsJSON: "[]",
 		SessionKey: "session_source", MessageCount: 2, Status: "active",
 	}
 	if err := db.Create(&source).Error; err != nil {
 		t.Fatalf("create source conversation: %v", err)
 	}
-	root := model.Message{
+	root := models.Message{
 		ConversationID: source.ID, UserID: 1, PublicID: "msg_source_root",
 		Role: "user", ContentType: "text", Content: "root", BranchReason: "default", Status: "success",
 	}
 	if err := db.Create(&root).Error; err != nil {
 		t.Fatalf("create source root: %v", err)
 	}
-	leaf := model.Message{
+	leaf := models.Message{
 		ConversationID: source.ID, UserID: 1, PublicID: "msg_source_leaf", ParentMessageID: &root.ID,
 		Role: "assistant", ContentType: "text", Content: "leaf", BranchReason: "default", Status: "success",
 	}
 	if err := db.Create(&leaf).Error; err != nil {
 		t.Fatalf("create source leaf: %v", err)
 	}
-	files := []model.FileObject{
+	files := []models.FileObject{
 		{FileID: "file_active", UserID: 1, FileName: "current.png", MimeType: "image/png", SizeBytes: 20, SHA256: "active-sha", StoragePath: "objects/active", Status: "active"},
 		{FileID: "file_deleted", UserID: 1, FileName: "deleted.png", MimeType: "image/png", SizeBytes: 30, SHA256: "deleted-sha", StoragePath: "objects/deleted", Status: "deleted"},
 	}
 	if err := db.Create(&files).Error; err != nil {
 		t.Fatalf("create file objects: %v", err)
 	}
-	sourceAttachments := []model.Attachment{
+	sourceAttachments := []models.Attachment{
 		{
 			ConversationID: source.ID, MessageID: root.ID, UserID: 1, FileID: files[0].FileID,
 			Kind: "image", FileName: "original.png", MimeType: "image/png", FileSize: 10,
@@ -64,9 +64,9 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 	traceEndedAt := traceStartedAt.Add(1250 * time.Millisecond)
 	sourceToolOutput := `{"content":[{"type":"text","text":"## 文件内容\n\n- 第一项\n- 第二项"}]}`
 	sourceToolPayload := `{"tool_calls":[{"tool_call_id":"call_1","name":"read_file","status":"completed","output_preview":"## 文件内容 - 第一项 - 第二项"}]}`
-	sourceTraceEvents := []model.ChatRunEvent{
+	sourceTraceEvents := []models.ChatRunEvent{
 		{
-			BaseModel: model.BaseModel{CreatedAt: traceStartedAt, UpdatedAt: traceEndedAt},
+			BaseModel: models.BaseModel{CreatedAt: traceStartedAt, UpdatedAt: traceEndedAt},
 			MessageID: leaf.ID, ConversationID: source.ID, UserID: 1, RunID: "run_source_leaf",
 			EventScope: chatRunEventScopeTraceBlock, EventID: "trace_context", EventType: "context",
 			Phase: "process", Stage: "process", Status: "completed", Title: "上下文规划",
@@ -74,7 +74,7 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 			StartedAt: traceStartedAt, EndedAt: &traceEndedAt,
 		},
 		{
-			BaseModel: model.BaseModel{CreatedAt: traceStartedAt, UpdatedAt: traceEndedAt},
+			BaseModel: models.BaseModel{CreatedAt: traceStartedAt, UpdatedAt: traceEndedAt},
 			MessageID: leaf.ID, ConversationID: source.ID, UserID: 1, RunID: "run_source_leaf",
 			EventScope: chatRunEventScopeTraceEvent, EventID: "reasoning_1", EventType: "reasoning",
 			Phase: "upstream_think", Stage: "think", RoundID: "round_1", Status: "completed",
@@ -82,7 +82,7 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 			StartedAt: traceStartedAt, EndedAt: &traceEndedAt,
 		},
 		{
-			BaseModel: model.BaseModel{CreatedAt: traceStartedAt, UpdatedAt: traceEndedAt},
+			BaseModel: models.BaseModel{CreatedAt: traceStartedAt, UpdatedAt: traceEndedAt},
 			MessageID: leaf.ID, ConversationID: source.ID, UserID: 1, RunID: "run_source_leaf",
 			EventScope: chatRunEventScopeTraceEvent, EventID: "tool_1", EventType: "tool",
 			Phase: "tools", Stage: "tool", RoundID: "round_1", ParentEventID: "reasoning_1", Status: "completed",
@@ -92,7 +92,7 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 			StartedAt: traceStartedAt, EndedAt: &traceEndedAt,
 		},
 		{
-			BaseModel: model.BaseModel{CreatedAt: traceStartedAt, UpdatedAt: traceEndedAt},
+			BaseModel: models.BaseModel{CreatedAt: traceStartedAt, UpdatedAt: traceEndedAt},
 			MessageID: leaf.ID, ConversationID: source.ID, UserID: 1, RunID: "run_source_leaf",
 			EventScope: chatRunEventScopeToolCall, EventID: "call_1", EventType: "tool_call",
 			Phase: "tools", Stage: "tool", Status: "completed", Seq: 4,
@@ -130,7 +130,7 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 		t.Fatalf("target conversation = %+v, want persisted two-message fork", target)
 	}
 
-	var targetMessages []model.Message
+	var targetMessages []models.Message
 	if err := db.Where("conversation_id = ?", target.ID).Order("id ASC").Find(&targetMessages).Error; err != nil {
 		t.Fatalf("load target messages: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 		t.Fatalf("fork leaf run ID = %q, want no executable source run", targetMessages[1].RunID)
 	}
 
-	var targetTraceEvents []model.ChatRunEvent
+	var targetTraceEvents []models.ChatRunEvent
 	if err := db.Where("conversation_id = ?", target.ID).Order("seq ASC, id ASC").Find(&targetTraceEvents).Error; err != nil {
 		t.Fatalf("load target trace events: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 		t.Fatalf("forked tool detail = %+v, want copied raw result", forkedToolDetail)
 	}
 
-	var targetAttachments []model.Attachment
+	var targetAttachments []models.Attachment
 	if err := db.Where("conversation_id = ?", target.ID).Find(&targetAttachments).Error; err != nil {
 		t.Fatalf("load target attachments: %v", err)
 	}
@@ -237,14 +237,14 @@ func TestCreateForkedConversationCommitsCompleteFork(t *testing.T) {
 	}
 
 	var sourceMessageCount int64
-	if err := db.Model(&model.Message{}).Where("conversation_id = ?", source.ID).Count(&sourceMessageCount).Error; err != nil {
+	if err := db.Model(&models.Message{}).Where("conversation_id = ?", source.ID).Count(&sourceMessageCount).Error; err != nil {
 		t.Fatalf("count source messages: %v", err)
 	}
 	if sourceMessageCount != 2 {
 		t.Fatalf("source message count = %d, want 2", sourceMessageCount)
 	}
 	var sourceTraceCount int64
-	if err := db.Model(&model.ChatRunEvent{}).Where("conversation_id = ?", source.ID).Count(&sourceTraceCount).Error; err != nil {
+	if err := db.Model(&models.ChatRunEvent{}).Where("conversation_id = ?", source.ID).Count(&sourceTraceCount).Error; err != nil {
 		t.Fatalf("count source trace events: %v", err)
 	}
 	if sourceTraceCount != int64(len(sourceTraceEvents)) {
@@ -257,21 +257,21 @@ func TestCreateForkedConversationRollsBackPartialWrites(t *testing.T) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	source := model.Conversation{
+	source := models.Conversation{
 		UserID: 1, PublicID: "conv_source_rollback", LabelsJSON: "[]",
 		SessionKey: "session_source_rollback", MessageCount: 2, Status: "active",
 	}
 	if err := db.Create(&source).Error; err != nil {
 		t.Fatalf("create source conversation: %v", err)
 	}
-	root := model.Message{
+	root := models.Message{
 		ConversationID: source.ID, UserID: 1, PublicID: "msg_rollback_root",
 		Role: "user", ContentType: "text", BranchReason: "default", Status: "success",
 	}
 	if err := db.Create(&root).Error; err != nil {
 		t.Fatalf("create source root: %v", err)
 	}
-	leaf := model.Message{
+	leaf := models.Message{
 		ConversationID: source.ID, UserID: 1, PublicID: "msg_rollback_leaf", ParentMessageID: &root.ID,
 		Role: "assistant", ContentType: "text", BranchReason: "default", Status: "success",
 	}
@@ -300,14 +300,14 @@ func TestCreateForkedConversationRollsBackPartialWrites(t *testing.T) {
 	}
 
 	var conversationCount int64
-	if err := db.Model(&model.Conversation{}).Where("public_id = ?", target.PublicID).Count(&conversationCount).Error; err != nil {
+	if err := db.Model(&models.Conversation{}).Where("public_id = ?", target.PublicID).Count(&conversationCount).Error; err != nil {
 		t.Fatalf("count rolled back conversation: %v", err)
 	}
 	if conversationCount != 0 {
 		t.Fatalf("rolled back conversation count = %d, want 0", conversationCount)
 	}
 	var messageCount int64
-	if err := db.Model(&model.Message{}).Where("public_id = ?", duplicatePublicID).Count(&messageCount).Error; err != nil {
+	if err := db.Model(&models.Message{}).Where("public_id = ?", duplicatePublicID).Count(&messageCount).Error; err != nil {
 		t.Fatalf("count rolled back messages: %v", err)
 	}
 	if messageCount != 0 {
@@ -320,14 +320,14 @@ func TestCreateForkedConversationRejectsMessageOutsideSourceConversation(t *test
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	conversations := []model.Conversation{
+	conversations := []models.Conversation{
 		{UserID: 1, PublicID: "conv_source_scope", SessionKey: "session_source_scope", Status: "active"},
 		{UserID: 1, PublicID: "conv_other_scope", SessionKey: "session_other_scope", Status: "active"},
 	}
 	if err := db.Create(&conversations).Error; err != nil {
 		t.Fatalf("create source conversations: %v", err)
 	}
-	foreignMessage := model.Message{
+	foreignMessage := models.Message{
 		ConversationID: conversations[1].ID, UserID: 1, PublicID: "msg_other_scope",
 		Role: "user", ContentType: "text", BranchReason: "default", Status: "success",
 	}
@@ -353,7 +353,7 @@ func TestCreateForkedConversationRejectsMessageOutsideSourceConversation(t *test
 	}
 
 	var targetCount int64
-	if err := db.Model(&model.Conversation{}).Where("public_id = ?", target.PublicID).Count(&targetCount).Error; err != nil {
+	if err := db.Model(&models.Conversation{}).Where("public_id = ?", target.PublicID).Count(&targetCount).Error; err != nil {
 		t.Fatalf("count rejected target: %v", err)
 	}
 	if targetCount != 0 {

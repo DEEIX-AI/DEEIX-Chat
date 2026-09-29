@@ -10,8 +10,8 @@ import {
 import type { PendingAttachment } from "@/features/chat/types/chat-runtime";
 
 /**
- * 排队消息的状态存储与用户操作：删除（重链后续消息的父子关系）、编辑内容、
- * 标记为当前生成结束后优先发送；同时维护派发中/已结算等去重集合。
+ * State store and user actions for queued messages: delete (relinking parents of subsequent messages), edit content,
+ * mark to send first after the current generation; also maintains dedupe sets such as dispatching/settled.
  */
 export function useChatSubmissionQueue({
   releaseAttachments,

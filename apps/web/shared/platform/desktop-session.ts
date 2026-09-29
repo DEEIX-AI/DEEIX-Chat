@@ -3,7 +3,7 @@
 // Desktop session bootstrap: connects the shared session snapshot and the API
 // client to the Tauri shell. No-op in browsers.
 
-import type { LoginData } from "@/shared/api/auth.types";
+import type { LoginData } from "@/shared/api/auth-types";
 import { registerRuntimeApiBaseURLResolver } from "@/shared/api/http-client";
 import { registerSessionClearedHandler, writeSessionSnapshot } from "@/shared/auth/session";
 import { isDesktopApp } from "@/shared/platform";

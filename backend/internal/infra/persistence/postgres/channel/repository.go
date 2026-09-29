@@ -73,7 +73,7 @@ func (r *Repo) UpdateUpstream(ctx context.Context, upstreamID uint, input reposi
 		return nil
 	}
 	result := r.db.WithContext(ctx).
-		Model(&model.LLMUpstream{}).
+		Model(&models.LLMUpstream{}).
 		Where("id = ?", upstreamID).
 		Updates(updates)
 	if result.Error != nil {
@@ -137,7 +137,7 @@ func upstreamUpdates(input repository.UpdateChannelUpstreamInput) map[string]any
 
 // GetUpstreamByID 按 ID 获取上游。
 func (r *Repo) GetUpstreamByID(ctx context.Context, upstreamID uint) (*domainchannel.Upstream, error) {
-	var item model.LLMUpstream
+	var item models.LLMUpstream
 	if err := r.db.WithContext(ctx).Where("id = ?", upstreamID).First(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUpstreamNotFound
@@ -153,7 +153,7 @@ func (r *Repo) ListUpstreams(ctx context.Context, input repository.ListChannelUp
 	items := make([]UpstreamListRow, 0)
 	var total int64
 
-	query := applyUpstreamListFilters(r.db.WithContext(ctx).Model(&model.LLMUpstream{}), input)
+	query := applyUpstreamListFilters(r.db.WithContext(ctx).Model(&models.LLMUpstream{}), input)
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
 	}
@@ -252,7 +252,7 @@ func (r *Repo) CreateModel(ctx context.Context, item *domainchannel.PlatformMode
 		if entity.SortOrder == 0 {
 			var maxSortOrder int
 			if err := tx.
-				Model(&model.LLMPlatformModel{}).
+				Model(&models.LLMPlatformModel{}).
 				Select("COALESCE(MAX(sort_order), 0)").
 				Scan(&maxSortOrder).Error; err != nil {
 				return dberror.Translate(err)
@@ -334,7 +334,7 @@ func (r *Repo) UpdateModel(ctx context.Context, modelID uint, input repository.U
 		if err := lockModelPresentationReferences(tx, vendor, displayGroupID); err != nil {
 			return err
 		}
-		result := tx.Model(&model.LLMPlatformModel{}).
+		result := tx.Model(&models.LLMPlatformModel{}).
 			Where("id = ?", modelID).
 			Updates(updates)
 		if result.Error != nil {
@@ -353,7 +353,7 @@ func (r *Repo) ReorderModels(ctx context.Context, orderedModelIDs []uint) error 
 		return repository.ErrInvalidInput
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var existingRows []model.LLMPlatformModel
+		var existingRows []models.LLMPlatformModel
 		if err := tx.
 			Select("id").
 			Where("id IN ?", orderedModelIDs).
@@ -379,7 +379,7 @@ func (r *Repo) ReorderModels(ctx context.Context, orderedModelIDs []uint) error 
 		for index, modelID := range orderedModelIDs {
 			sortOrder := (index + 1) * 100
 			if err := tx.
-				Model(&model.LLMPlatformModel{}).
+				Model(&models.LLMPlatformModel{}).
 				Where("id = ?", modelID).
 				Update("sort_order", sortOrder).Error; err != nil {
 				return dberror.Translate(err)
@@ -391,7 +391,7 @@ func (r *Repo) ReorderModels(ctx context.Context, orderedModelIDs []uint) error 
 
 // GetModelByID 按 ID 获取平台模型。
 func (r *Repo) GetModelByID(ctx context.Context, modelID uint) (*domainchannel.PlatformModel, error) {
-	var item model.LLMPlatformModel
+	var item models.LLMPlatformModel
 	if err := r.db.WithContext(ctx).Where("id = ?", modelID).First(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrModelNotFound
@@ -404,7 +404,7 @@ func (r *Repo) GetModelByID(ctx context.Context, modelID uint) (*domainchannel.P
 
 // GetModelByName 按平台模型名获取平台模型。
 func (r *Repo) GetModelByName(ctx context.Context, platformModelName string) (*domainchannel.PlatformModel, error) {
-	var item model.LLMPlatformModel
+	var item models.LLMPlatformModel
 	if err := r.db.WithContext(ctx).
 		Where("name = ?", strings.TrimSpace(platformModelName)).
 		First(&item).Error; err != nil {
@@ -419,7 +419,7 @@ func (r *Repo) GetModelByName(ctx context.Context, platformModelName string) (*d
 
 // GetActiveModelByName 按平台模型名获取启用平台模型。
 func (r *Repo) GetActiveModelByName(ctx context.Context, platformModelName string) (*domainchannel.PlatformModel, error) {
-	var item model.LLMPlatformModel
+	var item models.LLMPlatformModel
 	if err := r.db.WithContext(ctx).
 		Where("name = ? AND status = ?", strings.TrimSpace(platformModelName), "active").
 		First(&item).Error; err != nil {
@@ -753,7 +753,7 @@ func (r *Repo) UpsertUpstreamModel(ctx context.Context, item *domainchannel.Upst
 	if entity.UpstreamID == 0 || strings.TrimSpace(entity.UpstreamModelName) == "" || strings.TrimSpace(entity.BindingCode) == "" {
 		return repository.ErrInvalidInput
 	}
-	var existing model.LLMUpstreamModel
+	var existing models.LLMUpstreamModel
 	query := r.db.WithContext(ctx).
 		Where("upstream_id = ? AND upstream_model_name = ?", entity.UpstreamID, entity.UpstreamModelName).
 		Limit(1).
@@ -775,7 +775,7 @@ func (r *Repo) UpsertUpstreamModel(ctx context.Context, item *domainchannel.Upst
 	}
 
 	if err := r.db.WithContext(ctx).
-		Model(&model.LLMUpstreamModel{}).
+		Model(&models.LLMUpstreamModel{}).
 		Where("id = ?", existing.ID).
 		Updates(map[string]any{
 			"binding_code":        entity.BindingCode,
@@ -799,7 +799,7 @@ func (r *Repo) UpsertUpstreamModel(ctx context.Context, item *domainchannel.Upst
 
 // GetUpstreamModelByID 查询单条上游真实模型。
 func (r *Repo) GetUpstreamModelByID(ctx context.Context, sourceID uint, upstreamID uint) (*domainchannel.UpstreamModel, error) {
-	var item model.LLMUpstreamModel
+	var item models.LLMUpstreamModel
 	if err := r.db.WithContext(ctx).
 		Where("id = ? AND upstream_id = ?", sourceID, upstreamID).
 		First(&item).Error; err != nil {
@@ -814,7 +814,7 @@ func (r *Repo) GetUpstreamModelByID(ctx context.Context, sourceID uint, upstream
 
 // GetUpstreamModelByUpstreamName 查询单条上游真实模型。
 func (r *Repo) GetUpstreamModelByUpstreamName(ctx context.Context, upstreamID uint, upstreamModelName string) (*domainchannel.UpstreamModel, error) {
-	var item model.LLMUpstreamModel
+	var item models.LLMUpstreamModel
 	if err := r.db.WithContext(ctx).
 		Where("upstream_id = ? AND upstream_model_name = ?", upstreamID, strings.TrimSpace(upstreamModelName)).
 		First(&item).Error; err != nil {
@@ -830,23 +830,23 @@ func (r *Repo) GetUpstreamModelByUpstreamName(ctx context.Context, upstreamID ui
 // DeleteUpstreamModel 硬删除单条上游真实模型及其平台路由。
 func (r *Repo) DeleteUpstreamModel(ctx context.Context, sourceID uint, upstreamID uint) error {
 	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var item model.LLMUpstreamModel
+		var item models.LLMUpstreamModel
 		if err := tx.Where("id = ? AND upstream_id = ?", sourceID, upstreamID).First(&item).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrUpstreamModelNotFound
 			}
 			return err
 		}
-		if err := tx.Where("upstream_model_id = ?", item.ID).Delete(&model.LLMPlatformModelRoute{}).Error; err != nil {
+		if err := tx.Where("upstream_model_id = ?", item.ID).Delete(&models.LLMPlatformModelRoute{}).Error; err != nil {
 			return err
 		}
-		return tx.Unscoped().Delete(&model.LLMUpstreamModel{}, item.ID).Error
+		return tx.Unscoped().Delete(&models.LLMUpstreamModel{}, item.ID).Error
 	}))
 }
 
 // ListManagedUpstreamModels 返回由远端同步管理的目录项，用于生成同步变更预览。
 func (r *Repo) ListManagedUpstreamModels(ctx context.Context, upstreamID uint) ([]domainchannel.UpstreamModel, error) {
-	items := make([]model.LLMUpstreamModel, 0)
+	items := make([]models.LLMUpstreamModel, 0)
 	if err := r.db.WithContext(ctx).
 		Where("upstream_id = ? AND source IN ?", upstreamID, []string{"sync", "import"}).
 		Order("upstream_model_name ASC, id ASC").
@@ -871,7 +871,7 @@ func (r *Repo) ApplyUpstreamModelCatalogChanges(
 		return 0, repository.ErrInvalidInput
 	}
 
-	createdRows := make([]model.LLMUpstreamModel, 0, len(input.Create))
+	createdRows := make([]models.LLMUpstreamModel, 0, len(input.Create))
 	for i := range input.Create {
 		item := input.Create[i]
 		if item.ID != 0 || item.UpstreamID != upstreamID || strings.TrimSpace(item.UpstreamModelName) == "" || strings.TrimSpace(item.BindingCode) == "" {
@@ -881,7 +881,7 @@ func (r *Repo) ApplyUpstreamModelCatalogChanges(
 	}
 
 	now := time.Now()
-	updatedRows := make([]model.LLMUpstreamModel, 0, len(input.Update))
+	updatedRows := make([]models.LLMUpstreamModel, 0, len(input.Update))
 	for i := range input.Update {
 		item := input.Update[i]
 		if item.ID == 0 || item.UpstreamID != upstreamID || strings.TrimSpace(item.UpstreamModelName) == "" || strings.TrimSpace(item.BindingCode) == "" {
@@ -937,7 +937,7 @@ func (r *Repo) ApplyUpstreamModelCatalogChanges(
 	var inactivated int64
 	for start := 0; start < len(uniqueInactiveIDs); start += 200 {
 		end := min(start+200, len(uniqueInactiveIDs))
-		result := db.Model(&model.LLMUpstreamModel{}).
+		result := db.Model(&models.LLMUpstreamModel{}).
 			Where("upstream_id = ? AND id IN ? AND source IN ? AND status = ?", upstreamID, uniqueInactiveIDs[start:end], []string{"sync", "import"}, "active").
 			Update("status", "inactive")
 		if result.Error != nil {
@@ -1180,7 +1180,7 @@ func (r *Repo) UpsertPlatformModelRoute(ctx context.Context, item *domainchannel
 		return repository.ErrInvalidInput
 	}
 	entity := toPlatformModelRouteModel(item)
-	var existing model.LLMPlatformModelRoute
+	var existing models.LLMPlatformModelRoute
 	query := r.db.WithContext(ctx).
 		Where(
 			"platform_model_id = ? AND upstream_model_id = ? AND protocol = ?",
@@ -1202,7 +1202,7 @@ func (r *Repo) UpsertPlatformModelRoute(ctx context.Context, item *domainchannel
 	}
 	entity.ID = existing.ID
 	if err := r.db.WithContext(ctx).
-		Model(&model.LLMPlatformModelRoute{}).
+		Model(&models.LLMPlatformModelRoute{}).
 		Where("id = ?", existing.ID).
 		Updates(map[string]any{
 			"protocol":             entity.Protocol,
@@ -1254,7 +1254,7 @@ type platformRouteReplacementPlan struct {
 	input      repository.ReplaceChannelPlatformRoutesInput
 	sourceKey  platformRouteBindingKey
 	targetKey  platformRouteBindingKey
-	candidates []model.LLMPlatformModelRoute
+	candidates []models.LLMPlatformModelRoute
 }
 
 func loadPlatformRouteReplacementPlans(
@@ -1285,7 +1285,7 @@ func loadPlatformRouteReplacementPlans(
 		normalizedInputs[index] = input
 	}
 
-	selectedRows := make([]model.LLMPlatformModelRoute, 0, len(selectedRouteIDs))
+	selectedRows := make([]models.LLMPlatformModelRoute, 0, len(selectedRouteIDs))
 	if len(selectedRouteIDs) > 0 {
 		// 此处仅解析来源归属；先锁父模型、再锁完整路由集合，避免并发写入时形成 route -> model / model -> route 的交叉锁顺序。
 		if err := tx.Where("id IN ?", selectedRouteIDs).
@@ -1296,7 +1296,7 @@ func loadPlatformRouteReplacementPlans(
 			return nil, repository.ErrConflict
 		}
 	}
-	selectedByID := make(map[uint]model.LLMPlatformModelRoute, len(selectedRows))
+	selectedByID := make(map[uint]models.LLMPlatformModelRoute, len(selectedRows))
 	for _, row := range selectedRows {
 		selectedByID[row.ID] = row
 	}
@@ -1337,7 +1337,7 @@ func loadPlatformRouteReplacementPlans(
 	}
 
 	platformIDs := uintSetValues(platformModelIDs)
-	lockedModels := make([]model.LLMPlatformModel, 0, len(platformIDs))
+	lockedModels := make([]models.LLMPlatformModel, 0, len(platformIDs))
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Select("id").
 		Where("id IN ?", platformIDs).
@@ -1349,7 +1349,7 @@ func loadPlatformRouteReplacementPlans(
 	}
 
 	upstreamModelIDList := uintSetValues(upstreamModelIDs)
-	lockedUpstreamModels := make([]model.LLMUpstreamModel, 0, len(upstreamModelIDList))
+	lockedUpstreamModels := make([]models.LLMUpstreamModel, 0, len(upstreamModelIDList))
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Select("id", "upstream_id").
 		Where("id IN ?", upstreamModelIDList).
@@ -1365,14 +1365,14 @@ func loadPlatformRouteReplacementPlans(
 		}
 	}
 
-	allRows := make([]model.LLMPlatformModelRoute, 0, len(selectedRows))
+	allRows := make([]models.LLMPlatformModelRoute, 0, len(selectedRows))
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("platform_model_id IN ? AND upstream_model_id IN ?", platformIDs, upstreamModelIDList).
 		Order("id ASC").
 		Find(&allRows).Error; err != nil {
 		return nil, err
 	}
-	rowsByBinding := make(map[platformRouteBindingKey][]model.LLMPlatformModelRoute)
+	rowsByBinding := make(map[platformRouteBindingKey][]models.LLMPlatformModelRoute)
 	for _, row := range allRows {
 		key := platformRouteBindingKey{platformModelID: row.PlatformModelID, upstreamModelID: row.UpstreamModelID}
 		rowsByBinding[key] = append(rowsByBinding[key], row)
@@ -1399,14 +1399,14 @@ func loadPlatformRouteReplacementPlans(
 			return nil, repository.ErrDuplicate
 		}
 
-		candidateRows := make(map[uint]model.LLMPlatformModelRoute, len(sourceRows)+len(targetRows))
+		candidateRows := make(map[uint]models.LLMPlatformModelRoute, len(sourceRows)+len(targetRows))
 		for _, row := range sourceRows {
 			candidateRows[row.ID] = row
 		}
 		for _, row := range targetRows {
 			candidateRows[row.ID] = row
 		}
-		plan.candidates = make([]model.LLMPlatformModelRoute, 0, len(candidateRows))
+		plan.candidates = make([]models.LLMPlatformModelRoute, 0, len(candidateRows))
 		for _, row := range candidateRows {
 			plan.candidates = append(plan.candidates, row)
 		}
@@ -1452,8 +1452,8 @@ func applyPlatformRouteReplacementPlans(
 ) ([]domainchannel.PlatformModelRoute, error) {
 	const batchSize = 200
 	now := time.Now()
-	updatedRows := make([]model.LLMPlatformModelRoute, 0)
-	createdRows := make([]model.LLMPlatformModelRoute, 0)
+	updatedRows := make([]models.LLMPlatformModelRoute, 0)
+	createdRows := make([]models.LLMPlatformModelRoute, 0)
 	createdResultIndexes := make([]int, 0)
 	staleIDs := make([]uint, 0)
 	replaced := make([]domainchannel.PlatformModelRoute, 0)
@@ -1508,7 +1508,7 @@ func applyPlatformRouteReplacementPlans(
 		}
 	}
 	if len(staleIDs) > 0 {
-		if err := tx.Unscoped().Where("id IN ?", staleIDs).Delete(&model.LLMPlatformModelRoute{}).Error; err != nil {
+		if err := tx.Unscoped().Where("id IN ?", staleIDs).Delete(&models.LLMPlatformModelRoute{}).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -1539,7 +1539,7 @@ func uintSetValues(values map[uint]struct{}) []uint {
 	return result
 }
 
-func samePlatformRouteIDs(rows []model.LLMPlatformModelRoute, expected []uint) bool {
+func samePlatformRouteIDs(rows []models.LLMPlatformModelRoute, expected []uint) bool {
 	if len(rows) != len(expected) {
 		return false
 	}
@@ -1572,7 +1572,7 @@ func normalizePlatformRouteIDs(routeIDs []uint) ([]uint, bool) {
 }
 
 func selectPlatformRouteCandidate(
-	candidates []model.LLMPlatformModelRoute,
+	candidates []models.LLMPlatformModelRoute,
 	usedIDs map[uint]struct{},
 	targetPlatformModelID uint,
 	targetUpstreamModelID uint,
@@ -1609,7 +1609,7 @@ func (r *Repo) ListPlatformModelRoutesByPair(
 	platformModelID uint,
 	upstreamModelID uint,
 ) ([]domainchannel.PlatformModelRoute, error) {
-	items := make([]model.LLMPlatformModelRoute, 0)
+	items := make([]models.LLMPlatformModelRoute, 0)
 	if err := r.db.WithContext(ctx).
 		Table("llm_model_routes AS r").
 		Select("r.*").
@@ -1627,7 +1627,7 @@ func (r *Repo) ListPlatformModelRoutesByPair(
 }
 
 func (r *Repo) GetPlatformModelRouteByID(ctx context.Context, routeID uint, upstreamID uint) (*domainchannel.PlatformModelRoute, error) {
-	var item model.LLMPlatformModelRoute
+	var item models.LLMPlatformModelRoute
 	if err := r.db.WithContext(ctx).
 		Table("llm_model_routes AS r").
 		Select("r.*").
@@ -1654,7 +1654,7 @@ func (r *Repo) UpdatePlatformModelRouteByID(ctx context.Context, routeID uint, u
 		Joins("JOIN llm_upstream_models um ON um.id = r.upstream_model_id").
 		Where("r.id = ? AND um.upstream_id = ?", routeID, upstreamID)
 	result := r.db.WithContext(ctx).
-		Model(&model.LLMPlatformModelRoute{}).
+		Model(&models.LLMPlatformModelRoute{}).
 		Where("id IN (?)", sub).
 		Updates(updates)
 	if result.Error != nil {
@@ -1713,7 +1713,7 @@ func (r *Repo) DeletePlatformModelRoute(ctx context.Context, routeID uint, upstr
 	result := r.db.WithContext(ctx).
 		Unscoped().
 		Where("id IN (?)", sub).
-		Delete(&model.LLMPlatformModelRoute{})
+		Delete(&models.LLMPlatformModelRoute{})
 	if result.Error != nil {
 		return dberror.Translate(result.Error)
 	}
@@ -1926,7 +1926,7 @@ func (r *Repo) ListActiveRouteBindingCodesForUpstream(ctx context.Context, upstr
 
 // GetLLMSetting 按 key 获取 LLM 全局设置。
 func (r *Repo) GetLLMSetting(ctx context.Context, key string) (*domainchannel.LLMSetting, error) {
-	var item model.SystemSetting
+	var item models.SystemSetting
 	if err := r.db.WithContext(ctx).
 		Where("namespace = ? AND key = ?", "llm", strings.TrimSpace(key)).
 		First(&item).Error; err != nil {
@@ -1941,7 +1941,7 @@ func (r *Repo) GetLLMSetting(ctx context.Context, key string) (*domainchannel.LL
 
 // ListLLMSettings 列出 LLM 全局设置。
 func (r *Repo) ListLLMSettings(ctx context.Context) ([]domainchannel.LLMSetting, error) {
-	items := make([]model.SystemSetting, 0)
+	items := make([]models.SystemSetting, 0)
 	if err := r.db.WithContext(ctx).
 		Where("namespace = ?", "llm").
 		Order("id ASC").
@@ -1958,7 +1958,7 @@ func (r *Repo) ListLLMSettings(ctx context.Context) ([]domainchannel.LLMSetting,
 // UpsertLLMSetting 新增或更新 LLM 全局设置。
 func (r *Repo) UpsertLLMSetting(ctx context.Context, item *domainchannel.LLMSetting) error {
 	entity := toLLMSettingModel(item)
-	var existing model.SystemSetting
+	var existing models.SystemSetting
 	query := r.db.WithContext(ctx).
 		Where("namespace = ? AND key = ?", "llm", entity.Key).
 		Limit(1).
@@ -1977,7 +1977,7 @@ func (r *Repo) UpsertLLMSetting(ctx context.Context, item *domainchannel.LLMSett
 	entity.ID = existing.ID
 
 	if err := r.db.WithContext(ctx).
-		Model(&model.SystemSetting{}).
+		Model(&models.SystemSetting{}).
 		Where("id = ?", existing.ID).
 		Updates(map[string]any{
 			"value":       entity.Value,
@@ -1994,29 +1994,29 @@ func (r *Repo) UpsertLLMSetting(ctx context.Context, item *domainchannel.LLMSett
 // DeleteUpstreamCascade 硬删除上游及其全部绑定，保留模型目录。
 func (r *Repo) DeleteUpstreamCascade(ctx context.Context, upstreamID uint) error {
 	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var item model.LLMUpstream
+		var item models.LLMUpstream
 		if err := tx.Where("id = ?", upstreamID).First(&item).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrUpstreamNotFound
 			}
 			return err
 		}
-		upstreamModelIDs := tx.Model(&model.LLMUpstreamModel{}).
+		upstreamModelIDs := tx.Model(&models.LLMUpstreamModel{}).
 			Select("id").
 			Where("upstream_id = ?", upstreamID)
-		if err := tx.Where("upstream_model_id IN (?)", upstreamModelIDs).Delete(&model.LLMPlatformModelRoute{}).Error; err != nil {
+		if err := tx.Where("upstream_model_id IN (?)", upstreamModelIDs).Delete(&models.LLMPlatformModelRoute{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("rule_type = ? AND value = ?",
 			domainchannel.PermissionGroupModelRuleUpstream,
 			strconv.FormatUint(uint64(upstreamID), 10),
-		).Delete(&model.PermissionGroupModelRule{}).Error; err != nil {
+		).Delete(&models.PermissionGroupModelRule{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("upstream_id = ?", upstreamID).Delete(&model.LLMUpstreamModel{}).Error; err != nil {
+		if err := tx.Where("upstream_id = ?", upstreamID).Delete(&models.LLMUpstreamModel{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Delete(&model.LLMUpstream{}, upstreamID).Error; err != nil {
+		if err := tx.Delete(&models.LLMUpstream{}, upstreamID).Error; err != nil {
 			return err
 		}
 		return nil
@@ -2026,27 +2026,27 @@ func (r *Repo) DeleteUpstreamCascade(ctx context.Context, upstreamID uint) error
 // DeleteModelCascade 硬删除平台模型及其全部路由绑定，保留上游真实模型清单。
 func (r *Repo) DeleteModelCascade(ctx context.Context, modelID uint) error {
 	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var item model.LLMPlatformModel
+		var item models.LLMPlatformModel
 		if err := tx.Where("id = ?", modelID).First(&item).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrModelNotFound
 			}
 			return err
 		}
-		if err := tx.Where("platform_model_id = ?", item.ID).Delete(&model.LLMPlatformModelRoute{}).Error; err != nil {
+		if err := tx.Where("platform_model_id = ?", item.ID).Delete(&models.LLMPlatformModelRoute{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("platform_model_id = ?", item.ID).Delete(&model.PermissionGroupModelAccess{}).Error; err != nil {
+		if err := tx.Where("platform_model_id = ?", item.ID).Delete(&models.PermissionGroupModelAccess{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Delete(&model.LLMPlatformModel{}, modelID).Error; err != nil {
+		if err := tx.Delete(&models.LLMPlatformModel{}, modelID).Error; err != nil {
 			return err
 		}
 		return nil
 	}))
 }
 
-func toUpstreamDomain(item model.LLMUpstream) domainchannel.Upstream {
+func toUpstreamDomain(item models.LLMUpstream) domainchannel.Upstream {
 	return domainchannel.Upstream{
 		ID:                   item.ID,
 		Name:                 item.Name,
@@ -2069,11 +2069,11 @@ func toUpstreamDomain(item model.LLMUpstream) domainchannel.Upstream {
 	}
 }
 
-func toUpstreamModel(item *domainchannel.Upstream) model.LLMUpstream {
+func toUpstreamModel(item *domainchannel.Upstream) models.LLMUpstream {
 	if item == nil {
-		return model.LLMUpstream{}
+		return models.LLMUpstream{}
 	}
-	return model.LLMUpstream{
+	return models.LLMUpstream{
 		Name:                 item.Name,
 		BaseURL:              item.BaseURL,
 		Compatible:           item.Compatible,
@@ -2092,7 +2092,7 @@ func toUpstreamModel(item *domainchannel.Upstream) model.LLMUpstream {
 	}
 }
 
-func toPlatformModelDomain(item model.LLMPlatformModel) domainchannel.PlatformModel {
+func toPlatformModelDomain(item models.LLMPlatformModel) domainchannel.PlatformModel {
 	return domainchannel.PlatformModel{
 		ID:                 item.ID,
 		PlatformModelName:  item.Name,
@@ -2115,11 +2115,11 @@ func toPlatformModelDomain(item model.LLMPlatformModel) domainchannel.PlatformMo
 	}
 }
 
-func toPlatformModelModel(item *domainchannel.PlatformModel) model.LLMPlatformModel {
+func toPlatformModelModel(item *domainchannel.PlatformModel) models.LLMPlatformModel {
 	if item == nil {
-		return model.LLMPlatformModel{}
+		return models.LLMPlatformModel{}
 	}
-	return model.LLMPlatformModel{
+	return models.LLMPlatformModel{
 		Name:               item.PlatformModelName,
 		Vendor:             item.Vendor,
 		DisplayGroupID:     item.DisplayGroupID,
@@ -2138,7 +2138,7 @@ func toPlatformModelModel(item *domainchannel.PlatformModel) model.LLMPlatformMo
 	}
 }
 
-func toUpstreamModelDomain(item model.LLMUpstreamModel) domainchannel.UpstreamModel {
+func toUpstreamModelDomain(item models.LLMUpstreamModel) domainchannel.UpstreamModel {
 	return domainchannel.UpstreamModel{
 		ID:                item.ID,
 		UpstreamID:        item.UpstreamID,
@@ -2157,11 +2157,11 @@ func toUpstreamModelDomain(item model.LLMUpstreamModel) domainchannel.UpstreamMo
 	}
 }
 
-func toUpstreamModelModel(item *domainchannel.UpstreamModel) model.LLMUpstreamModel {
+func toUpstreamModelModel(item *domainchannel.UpstreamModel) models.LLMUpstreamModel {
 	if item == nil {
-		return model.LLMUpstreamModel{}
+		return models.LLMUpstreamModel{}
 	}
-	return model.LLMUpstreamModel{
+	return models.LLMUpstreamModel{
 		UpstreamID:        item.UpstreamID,
 		BindingCode:       item.BindingCode,
 		UpstreamModelName: item.UpstreamModelName,
@@ -2176,7 +2176,7 @@ func toUpstreamModelModel(item *domainchannel.UpstreamModel) model.LLMUpstreamMo
 	}
 }
 
-func toPlatformModelRouteDomain(item model.LLMPlatformModelRoute) domainchannel.PlatformModelRoute {
+func toPlatformModelRouteDomain(item models.LLMPlatformModelRoute) domainchannel.PlatformModelRoute {
 	return domainchannel.PlatformModelRoute{
 		ID:                 item.ID,
 		PlatformModelID:    item.PlatformModelID,
@@ -2195,11 +2195,11 @@ func toPlatformModelRouteDomain(item model.LLMPlatformModelRoute) domainchannel.
 	}
 }
 
-func toPlatformModelRouteModel(item *domainchannel.PlatformModelRoute) model.LLMPlatformModelRoute {
+func toPlatformModelRouteModel(item *domainchannel.PlatformModelRoute) models.LLMPlatformModelRoute {
 	if item == nil {
-		return model.LLMPlatformModelRoute{}
+		return models.LLMPlatformModelRoute{}
 	}
-	return model.LLMPlatformModelRoute{
+	return models.LLMPlatformModelRoute{
 		PlatformModelID:    item.PlatformModelID,
 		UpstreamModelID:    item.UpstreamModelID,
 		Protocol:           item.Protocol,
@@ -2214,7 +2214,7 @@ func toPlatformModelRouteModel(item *domainchannel.PlatformModelRoute) model.LLM
 	}
 }
 
-func toLLMSettingDomain(item model.SystemSetting) domainchannel.LLMSetting {
+func toLLMSettingDomain(item models.SystemSetting) domainchannel.LLMSetting {
 	return domainchannel.LLMSetting{
 		ID:          item.ID,
 		Key:         item.Key,
@@ -2225,11 +2225,11 @@ func toLLMSettingDomain(item model.SystemSetting) domainchannel.LLMSetting {
 	}
 }
 
-func toLLMSettingModel(item *domainchannel.LLMSetting) model.SystemSetting {
+func toLLMSettingModel(item *domainchannel.LLMSetting) models.SystemSetting {
 	if item == nil {
-		return model.SystemSetting{}
+		return models.SystemSetting{}
 	}
-	return model.SystemSetting{
+	return models.SystemSetting{
 		Namespace:   "llm",
 		Key:         item.Key,
 		Value:       item.Value,

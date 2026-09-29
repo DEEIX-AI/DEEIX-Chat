@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// RunMeta identifies the moderated conversation turn.
+// RunMeta 标识被审核的会话轮次。
 type RunMeta struct {
 	UserID             uint
 	ConversationID     uint
@@ -28,28 +28,27 @@ type RunMeta struct {
 	Ephemeral bool
 }
 
-// BlockInfo is returned when a round is blocked.
+// BlockInfo 在轮次被拦截时返回。
 type BlockInfo struct {
 	EventID    string
 	Direction  string
 	Categories []string
 }
 
-// BarrierResult is the post-generation / input-only barrier outcome.
+// BarrierResult 是生成后 / 仅输入屏障的结果。
 type BarrierResult struct {
-	// Block is non-nil whenever a known hit must be hidden from the caller. Durable
-	// persistence may converge asynchronously when the primary transaction is unavailable.
+	// 只要已知命中必须对调用方隐藏，Block 即非 nil。主事务不可用时，持久化落库可能由异步补偿收敛。
 	Block *BlockInfo
-	// State is the caller-visible moderation target (passed|failed_open|blocked).
+	// State 是调用方可见的审核目标状态（passed|failed_open|blocked）。
 	State string
-	// TerminalEmitted is true when moderation_blocked was published to live/recovery streams.
+	// 当 moderation_blocked 已发布到实时/恢复流时，TerminalEmitted 为 true。
 	TerminalEmitted bool
 }
 
-// LiveEmitter delivers events to the active HTTP stream (in addition to recovery storage).
+// LiveEmitter 将事件投递到活动的 HTTP 流（恢复存储之外）。
 type LiveEmitter func(eventType string, payload map[string]any)
 
-// RunCoordinator tracks moderation tasks for a single chat/media run.
+// RunCoordinator 跟踪单次聊天/媒体运行的审核任务。
 type RunCoordinator struct {
 	service  *Service
 	ctx      context.Context
@@ -81,7 +80,7 @@ func newRunCoordinator(ctx context.Context, service *Service, meta RunMeta, cfg 
 	}
 }
 
-// SetLiveEmitter wires the active stream sink for moderation_checking / moderation_blocked.
+// SetLiveEmitter 为 moderation_checking / moderation_blocked 接入活动流输出端。
 func (c *RunCoordinator) SetLiveEmitter(emit LiveEmitter) {
 	if c == nil {
 		return
@@ -89,7 +88,7 @@ func (c *RunCoordinator) SetLiveEmitter(emit LiveEmitter) {
 	c.liveEmit = emit
 }
 
-// EnqueueInputText queues input text moderation if policy requires it.
+// EnqueueInputText 在策略要求时将输入文本审核入队。
 func (c *RunCoordinator) EnqueueInputText(text string) {
 	if c == nil {
 		return
@@ -108,7 +107,7 @@ func (c *RunCoordinator) EnqueueInputText(text string) {
 	})
 }
 
-// EnqueueInputImages queues input image moderation for used attachments.
+// EnqueueInputImages 为已使用的附件将输入图片审核入队。
 func (c *RunCoordinator) EnqueueInputImages(ctx context.Context, fileIDs []string) {
 	if c == nil {
 		return
@@ -147,7 +146,7 @@ func (c *RunCoordinator) EnqueueInputImages(ctx context.Context, fileIDs []strin
 			}
 			seenSHA[sha] = struct{}{}
 		}
-		// Isolated copy for review only; user originals are not deleted.
+		// 仅用于审核的隔离副本；不删除用户原始文件。
 		raw = append(raw, OutputImageSource{
 			FileID:   fileID,
 			Data:     prepared.Data,
@@ -162,9 +161,9 @@ func (c *RunCoordinator) EnqueueInputImages(ctx context.Context, fileIDs []strin
 	c.enqueueInputImageSources(raw, keptFiles, selected)
 }
 
-// EnqueueInputImageSources queues request-scoped image bytes without requiring
-// persisted file records. Ephemeral chat uses this path so its images follow the
-// same moderation policy while remaining outside the user file library.
+// EnqueueInputImageSources 将请求作用域内的图片字节入队，无需
+// 持久化的文件记录。临时聊天使用此路径，使其图片遵循
+// 相同的审核策略，同时保持在用户文件库之外。
 func (c *RunCoordinator) EnqueueInputImageSources(images []OutputImageSource) {
 	if c == nil {
 		return
@@ -212,12 +211,12 @@ func (c *RunCoordinator) enqueueInputImageSources(raw []OutputImageSource, fileI
 		FileIDs:   fileIDs,
 		Selected:  selected,
 		Location:  domaincm.ContentLocation{Field: "user_attachments"},
-		// Input hits must isolate but not revoke user library files.
+		// 输入命中必须隔离，但不撤销用户文件库中的文件。
 		IsolateOnly: true,
 	})
 }
 
-// AfterGeneration runs the post-generation barrier.
+// AfterGeneration 执行生成后屏障。
 func (c *RunCoordinator) AfterGeneration(ctx context.Context, outputText string, outputImages []OutputImageSource) BarrierResult {
 	if c == nil {
 		return BarrierResult{State: domaincm.ModerationStatePassed}
@@ -260,7 +259,7 @@ func (c *RunCoordinator) AfterGeneration(ctx context.Context, outputText string,
 	return BarrierResult{State: state}
 }
 
-// WaitInputOnly continues input checks after generation errors/cancels.
+// WaitInputOnly 在生成出错/取消后继续执行输入检查。
 func (c *RunCoordinator) WaitInputOnly(ctx context.Context) BarrierResult {
 	if c == nil {
 		return BarrierResult{State: domaincm.ModerationStatePassed}
@@ -311,8 +310,8 @@ func (c *RunCoordinator) updateRunState(state, eventID, categoriesJSON string) {
 	}
 }
 
-// RecordOutputImageFailure records an expected model-output image that could not be loaded.
-// A missing image must never be treated as a clean moderation pass.
+// RecordOutputImageFailure 记录预期存在但无法加载的模型输出图片。
+// 缺失的图片绝不能被视为审核通过。
 func (c *RunCoordinator) RecordOutputImageFailure(fileID string, loadErr error) {
 	c.recordSurfaceFailure(domaincm.DirectionOutput, domaincm.ModalityImage, fileID, loadErr)
 }
@@ -411,7 +410,7 @@ func (c *RunCoordinator) startTask(task *moderationTask) {
 	c.pending++
 	c.mu.Unlock()
 
-	// Worker (or enqueue-full path) calls onTaskResult directly — no Done-wait goroutine.
+	// Worker（或入队已满路径）直接调用 onTaskResult——无需等待 Done 的 goroutine。
 	if err := c.service.enqueue(task); err != nil {
 		c.onTaskResult(task, taskResult{Err: err, ErrorCode: domaincm.ErrorCodeQueueFull})
 	}
@@ -426,7 +425,7 @@ func (c *RunCoordinator) onTaskResult(task *moderationTask, result taskResult) *
 	if c.pending > 0 {
 		c.pending--
 	}
-	// Clear task payloads after processing to reduce retained sensitive memory.
+	// 处理后清空任务载荷，以减少驻留的敏感内存。
 	if task != nil {
 		task.Text = ""
 		task.RawImages = nil
@@ -501,12 +500,12 @@ func preferBlockDirection(candidate, current string) bool {
 }
 
 func (c *RunCoordinator) waitAll(ctx context.Context) {
-	// Bound wait to remaining policy timeout so stream cannot hang forever.
+	// 将等待限制在剩余策略超时内，避免流永久挂起。
 	timeout := c.cfg.Timeout
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
-	// Allow queued + multi-surface work up to 2x single-check budget, capped at 60s.
+	// 允许排队 + 多检查面的工作最多占用单次检查预算的 2 倍，上限 60s。
 	deadline := timeout * 2
 	if deadline > 60*time.Second {
 		deadline = 60 * time.Second
@@ -534,18 +533,18 @@ func (c *RunCoordinator) waitAll(ctx context.Context) {
 	}
 }
 
-// applyBlock persists withdrawal then emits the terminal stream event.
+// applyBlock 持久化撤回后发出终态流事件。
 func (c *RunCoordinator) applyBlock(info BlockInfo) (bool, error) {
 	if c.meta.Ephemeral {
 		return c.notifyBlocked(info), nil
 	}
-	// Client disconnect cancels the request context; persistence must survive that.
+	// 客户端断开会取消请求上下文；持久化必须不受其影响。
 	persistCtx, cancel := background.WithTimeout(c.ctx, 15*time.Second)
 	defer cancel()
 	includeUser := info.Direction == domaincm.DirectionInput
 	categoriesJSON := mustJSON(info.Categories)
 
-	// Single transactional write path — no sequential fallback.
+	// 单一事务写入路径——无顺序回退。
 	fileIDs, err := c.service.repo.ApplyRunBlock(persistCtx, c.meta.RunID, includeUser, info.EventID, categoriesJSON)
 	if err != nil {
 		c.service.logWarn("content_moderation_apply_block_failed",
@@ -578,8 +577,8 @@ func (c *RunCoordinator) emit(eventType string, payload map[string]any) {
 	} else if _, ok := payload["type"]; !ok {
 		payload["type"] = eventType
 	}
-	// Prefer live sink (handler flushStreamEvent already persists + writes NDJSON).
-	// Fall back to recovery-only emitter when no live connection is bound.
+	// 优先使用实时输出端（handler 的 flushStreamEvent 已完成持久化并写入 NDJSON）。
+	// 未绑定实时连接时回退到仅恢复的发送器。
 	if c.liveEmit != nil {
 		c.liveEmit(eventType, payload)
 		return
@@ -598,7 +597,7 @@ func (c *RunCoordinator) finish() {
 	}
 }
 
-// IsBlocked returns whether a hit has already been recorded.
+// IsBlocked 返回是否已记录命中。
 func (c *RunCoordinator) IsBlocked() (bool, BlockInfo) {
 	if c == nil {
 		return false, BlockInfo{}

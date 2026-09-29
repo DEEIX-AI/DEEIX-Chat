@@ -22,6 +22,7 @@ import { MessageKnowledgeSources } from "@/features/chat/components/message/mess
 import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
 import { AssistantMessageMeta } from "@/features/chat/components/message/message-meta";
 import { MessageAgentTrace, MessageProcessTrace } from "@/features/chat/components/message/message-process-trace";
+import { useChatInlineVideoSource } from "@/features/chat/hooks/use-chat-inline-video-source";
 import { resolveLeadingImagePreview } from "@/features/chat/model/media-image-preview";
 import {
   clearLiveUpstreamThinkTrace,
@@ -34,17 +35,13 @@ import type {
   MessageAttachment,
 } from "@/features/chat/types/messages";
 import { isUpstreamStreamingDebugBody, summarizeUpstreamError } from "@/features/chat/utils/chat-runtime";
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { cn } from "@/lib/utils";
-import { fetchFileContent } from "@/shared/api/file";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
-import { PreviewMedia } from "@/shared/components/file-preview/preview-media";
+import { type FileContentLoader, PreviewMedia } from "@/entities/file";
 import { type MarkdownArtifactActions, MarkdownImage } from "@/shared/components/markdown/streamdown-components";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { MediaActionBar, MediaActionButton } from "@/shared/components/media-action-bar";
 import { useBranding } from "@/shared/config/branding-provider";
-import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
+import type { BillingDisplayCurrency } from "@/entities/billing";
 
 const EMPTY_TRACE_EVENTS: NonNullable<NonNullable<ChatAreaMessage["processTrace"]>["events"]> = [];
 const GrainientBackground = dynamic(
@@ -159,6 +156,7 @@ type ChatMessageBotProps = {
   showLatency?: boolean;
   showTokenUsage?: boolean;
   showBillingCost?: boolean;
+  showProcessTrace?: boolean;
   billingDisplayCurrency?: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate?: number | null;
   readOnly?: boolean;
@@ -192,6 +190,7 @@ export function ChatMessageBot({
   showLatency = true,
   showTokenUsage = true,
   showBillingCost = false,
+  showProcessTrace = true,
   billingDisplayCurrency = "USD",
   billingDisplayUsdToCnyRate = null,
   readOnly = false,
@@ -373,11 +372,13 @@ export function ChatMessageBot({
 
   return (
     <div className="group/assistant-message flex w-full flex-col items-start">
-      <MessageProcessTrace
-        trace={processTrace}
-        active={messageStreaming}
-        autoCollapseReady={processAutoCollapseReady}
-      />
+      {showProcessTrace ? (
+        <MessageProcessTrace
+          trace={processTrace}
+          active={messageStreaming}
+          autoCollapseReady={processAutoCollapseReady}
+        />
+      ) : null}
       <MessageAgentTrace
         events={postProcessEvents}
         activeToolBlock={toolTrace}
@@ -740,11 +741,6 @@ export function AssistantVideoGenerationSkeleton({ label }: { label?: string }) 
   );
 }
 
-type InlineVideoPreviewState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; source: string; contentType: string };
-
 function InlineVideoLoadingPlaceholder() {
   return (
     <div className="my-4 flex aspect-video w-full max-w-[40rem] items-center justify-center overflow-hidden rounded-xl bg-muted/20">
@@ -762,106 +758,8 @@ function MessageInlineVideoPreview({
   loadContent?: FileContentLoader;
   onExtend?: () => void;
 }) {
-  const tPreview = useTranslations("files.previewDialog");
   const tMessages = useTranslations("chat.messages");
-  const resolveErrorMessage = useLocalizedErrorMessage();
-  const objectURLRef = React.useRef<string | null>(null);
-  const fileID = attachment.fileID;
-  const fileName = attachment.fileName;
-  const mimeType = attachment.mimeType;
-  const detectedMime = attachment.detectedMime;
-  const previewURL = attachment.previewURL;
-  const sizeBytes = attachment.sizeBytes;
-  const [state, setState] = React.useState<InlineVideoPreviewState>(() =>
-    previewURL
-      ? {
-          status: "ready",
-          source: previewURL,
-          contentType: detectedMime || mimeType,
-        }
-      : { status: "loading" },
-  );
-  const revokeObjectURL = React.useCallback(() => {
-    if (!objectURLRef.current) {
-      return;
-    }
-    URL.revokeObjectURL(objectURLRef.current);
-    objectURLRef.current = null;
-  }, []);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    revokeObjectURL();
-
-    if (previewURL) {
-      setState({
-        status: "ready",
-        source: previewURL,
-        contentType: detectedMime || mimeType,
-      });
-      return undefined;
-    }
-
-    setState({ status: "loading" });
-    void (async () => {
-      try {
-        const file = {
-          fileID,
-          fileName,
-          mimeType,
-          sizeBytes,
-        };
-        const result = loadContent
-          ? await loadContent(file, controller.signal)
-          : await (async () => {
-              const token = await resolveAccessToken();
-              if (!token) {
-                throw new Error(tPreview("sessionExpired"));
-              }
-              return fetchFileContent(token, fileID, controller.signal);
-            })();
-        const objectURL = URL.createObjectURL(result.blob);
-        objectURLRef.current = objectURL;
-
-        if (cancelled || controller.signal.aborted) {
-          URL.revokeObjectURL(objectURL);
-          if (objectURLRef.current === objectURL) {
-            objectURLRef.current = null;
-          }
-          return;
-        }
-
-        setState({
-          status: "ready",
-          source: objectURL,
-          contentType: result.contentType || detectedMime || mimeType,
-        });
-      } catch (error) {
-        if (cancelled || controller.signal.aborted) {
-          return;
-        }
-        setState({ status: "error", message: resolveErrorMessage(error, tPreview("loadFailed")) });
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-      revokeObjectURL();
-    };
-  }, [
-    detectedMime,
-    fileID,
-    fileName,
-    loadContent,
-    mimeType,
-    previewURL,
-    resolveErrorMessage,
-    revokeObjectURL,
-    sizeBytes,
-    tPreview,
-  ]);
+  const state = useChatInlineVideoSource(attachment, loadContent);
 
   if (state.status === "loading") {
     return <InlineVideoLoadingPlaceholder />;

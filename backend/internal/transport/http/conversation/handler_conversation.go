@@ -66,8 +66,8 @@ func (h *Handler) CreateConversation(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param status query string false "状态筛选: active|archived|all"
 // @Param starred query string false "星标筛选: all|starred|unstarred"
 // @Param share query string false "分享筛选: all|shared|unshared"
@@ -114,8 +114,8 @@ func (h *Handler) ListConversations(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param q query string false "搜索关键词；为空时返回最近会话"
 // @Success 200 {object} ConversationSearchListResponseDoc
 // @Failure 400 {object} ErrorDoc

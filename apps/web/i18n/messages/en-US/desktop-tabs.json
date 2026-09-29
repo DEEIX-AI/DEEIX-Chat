@@ -4,5 +4,6 @@
   "minimize": "Minimize",
   "maximize": "Maximize",
   "restore": "Restore",
-  "close": "Close"
+  "close": "Close",
+  "closeTab": "Close tab"
 }

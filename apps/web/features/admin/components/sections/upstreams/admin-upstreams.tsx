@@ -15,16 +15,15 @@ import {
 } from "@/components/ui/select";
 
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
-import type { AdminLLMStatus } from "@/features/admin/api/llm.types";
-import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
+import { AdminBulkConfirmDialog } from "@/features/admin/components/shared/bulk-confirm-dialog";
 import { useAdminCircuitBreaker } from "@/features/admin/hooks/use-admin-circuit-breaker";
 import {
   UPSTREAM_SORT_OPTIONS,
-  type UpstreamSortValue,
   useAdminUpstreams,
 } from "@/features/admin/hooks/use-admin-upstreams";
+import { isAdminLLMStatus } from "@/features/admin/model/admin-unions";
 import { COMPATIBLE_OPTIONS } from "@/features/admin/utils/llm-display";
-import { AdminCircuitBreakerControl } from "../shared/admin-circuit-breaker-control";
+import { AdminCircuitBreakerControl } from "../../shared/circuit-breaker-control";
 import {
   BulkDeleteUpstreamsDialog,
   CircuitActionDialog,
@@ -132,7 +131,10 @@ export function AdminUpstreamsPage() {
         ]}
         sort={{
           value: upstreams.sortValue,
-          onValueChange: (v) => upstreams.setSortValue(v as UpstreamSortValue),
+          onValueChange: (v) => {
+            const sortOption = UPSTREAM_SORT_OPTIONS.find((option) => option.value === v);
+            if (sortOption) upstreams.setSortValue(sortOption.value);
+          },
           options: UPSTREAM_SORT_OPTIONS.map((o) => ({ label: t(o.labelKey), value: o.value })),
         }}
         selectedCount={upstreams.selected.size}
@@ -146,7 +148,9 @@ export function AdminUpstreamsPage() {
             >
               <Select
                 value={upstreams.batchStatus || undefined}
-                onValueChange={(value) => upstreams.setBatchStatus(value as AdminLLMStatus)}
+                onValueChange={(value) => {
+                  if (isAdminLLMStatus(value)) upstreams.setBatchStatus(value);
+                }}
                 disabled={upstreams.loading || upstreams.batchApplying || upstreams.selected.size === 0}
               >
                 <SelectTrigger size="xs" className="h-7 px-2 text-[11px] text-muted-foreground">

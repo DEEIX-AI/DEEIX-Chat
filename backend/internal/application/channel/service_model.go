@@ -599,9 +599,9 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 	return s.getModelViewByID(ctx, modelID)
 }
 
-// clearAutomaticContextWindow removes a catalog-derived context window after
-// the model identity changes. Explicit administrator overrides do not carry
-// the marker and are intentionally preserved.
+// clearAutomaticContextWindow 在模型身份变化后移除从目录派生的
+// 上下文窗口。管理员显式覆盖的值不带该标记，
+// 会被有意保留。
 func clearAutomaticContextWindow(raw string) (string, bool) {
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &payload); err != nil || payload == nil {

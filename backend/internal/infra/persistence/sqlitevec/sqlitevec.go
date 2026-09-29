@@ -37,14 +37,14 @@ type vectorTableSpec struct {
 	partitionColumn string
 }
 
-// Register loads sqlite-vec into all SQLite connections opened after this call.
+// Register 将 sqlite-vec 加载到此调用之后打开的所有 SQLite 连接中。
 func Register() {
 	registerOnce.Do(func() {
 		sqlite_vec.Auto()
 	})
 }
 
-// Migrate creates the local vector tables used by SQLite deployments.
+// Migrate 创建 SQLite 部署使用的本地向量表。
 func Migrate(db *gorm.DB) error {
 	if db == nil || db.Dialector == nil || db.Dialector.Name() != "sqlite" {
 		return nil
@@ -61,7 +61,7 @@ func Migrate(db *gorm.DB) error {
 	return nil
 }
 
-// Available checks whether sqlite-vec is loaded and all vector tables exist.
+// Available 检查 sqlite-vec 是否已加载且所有向量表均存在。
 func Available(ctx context.Context, db *gorm.DB) (bool, error) {
 	if db == nil || db.Dialector == nil || db.Dialector.Name() != "sqlite" {
 		return false, nil
@@ -82,7 +82,7 @@ func Available(ctx context.Context, db *gorm.DB) (bool, error) {
 	return true, nil
 }
 
-// SerializeFloat32 returns the vector BLOB format accepted by sqlite-vec.
+// SerializeFloat32 返回 sqlite-vec 接受的向量 BLOB 格式。
 func SerializeFloat32(vector []float32) ([]byte, error) {
 	aligned, err := vectorutil.AlignForStorage(vector)
 	if err != nil {

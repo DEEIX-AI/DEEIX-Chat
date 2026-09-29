@@ -13,32 +13,26 @@ import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, Tab
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import { getAdminOpenRouterOfficialPricing, invalidateAdminReferenceDataCache, listAdminModelPricing, upsertAdminModelPricing } from "@/features/admin/api";
-import type { AdminModelPricingDTO } from "@/features/admin/api/billing.types";
-import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
-import { listAllAdminPages } from "@/features/admin/api/shared";
+import type { AdminModelPricingDTO } from "@/features/admin/api/billing-types";
+import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { PricingBillingDialog } from "@/features/admin/components/sections/billing/billing-dialogs";
 import { PRICE_COLUMN_COUNT, PricingColumns, PricingModeDetail, SchedulePricingBadge, formatTierRange } from "@/features/admin/components/sections/billing/billing-tables";
 import {
   buildModelPricingExportObject,
   buildPricingRows,
   createFormState,
-  createOptimisticModelPricing,
   DEFAULT_PAGE_SIZE,
   downloadJSONFile,
   formatDateTime,
-  mergeModelPricingItem,
   normalizePricingMode,
-  parseModelPricingImportJSON,
-  parsePrice,
   parseTieredPricingJSON,
-  shortListDescription,
-  stringifyTieredPricing,
   type BillingModelPricingRow,
   type PricingFormState,
   type TieredPricingTierForm,
 } from "@/features/admin/model/billing-settings";
-import { normalizeSchedulePeriods, stringifySchedulePricing } from "@/shared/model/schedule-pricing";
+import { useAdminBillingPricing } from "@/features/admin/hooks/use-admin-billing-pricing";
+import { useAdminBillingOfficialPricingCatalog } from "@/features/admin/hooks/use-admin-billing-official-pricing-catalog";
+import { normalizeSchedulePeriods } from "@/entities/billing";
 import {
   applyOfficialPricingToForm,
   findOfficialPricingSuggestions,
@@ -48,12 +42,9 @@ import {
   type OfficialModelPricingSuggestion,
   type OfficialPricingCatalogItem,
 } from "@/features/admin/model/official-pricing";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { ModelIcon } from "@/shared/components/model-icon";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { ModelIcon, resolveModelIconURL, resolveModelIdentity } from "@/entities/model";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { cn } from "@/lib/utils";
-import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
 
 type BillingPricesSectionProps = {
   models: AdminLLMModelDTO[];
@@ -119,8 +110,22 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
   const t = useTranslations("adminBilling");
   const tActions = useTranslations("common.actions");
   const importPricingInputRef = React.useRef<HTMLInputElement | null>(null);
-  const [saving, setSaving] = React.useState(false);
-  const [modelPricingRefreshing, setModelPricingRefreshing] = React.useState(false);
+  const {
+    saving,
+    modelPricingRefreshing,
+    freeSwitchPendingModel,
+    loadModelPricing,
+    savePricing: persistPricing,
+    importModelPricingFile: importModelPricing,
+    toggleModelFree,
+  } = useAdminBillingPricing({ pricingItems, setPricingItems });
+  const {
+    catalog: officialPricingCatalog,
+    stale: officialPricingCatalogStale,
+    loading: officialPricingCatalogLoading,
+    hasError: officialPricingCatalogHasError,
+    refresh: refreshOfficialPricingCatalog,
+  } = useAdminBillingOfficialPricingCatalog();
   const [query, setQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("");
   const [freeFilter, setFreeFilter] = React.useState("");
@@ -134,12 +139,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
   const [officialPricingSearch, setOfficialPricingSearch] = React.useState("");
   const [officialPricingMultiplier, setOfficialPricingMultiplier] = React.useState("1");
   const [officialPricingImportSuggestion, setOfficialPricingImportSuggestion] = React.useState<OfficialModelPricingSuggestion | null>(null);
-  const [officialPricingCatalog, setOfficialPricingCatalog] = React.useState<OfficialPricingCatalogItem[]>([]);
-  const [officialPricingCatalogStale, setOfficialPricingCatalogStale] = React.useState(true);
-  const [officialPricingCatalogLoading, setOfficialPricingCatalogLoading] = React.useState(false);
-  const [officialPricingCatalogHasError, setOfficialPricingCatalogHasError] = React.useState(false);
   const [officialPricingSingleDialogOpen, setOfficialPricingSingleDialogOpen] = React.useState(false);
-  const [freeSwitchPendingModel, setFreeSwitchPendingModel] = React.useState("");
   const stableEditRow = useDialogSnapshot(editRow);
   const stableForm = useDialogSnapshot(form);
   const stableOfficialPricingImportSuggestion = useDialogSnapshot(officialPricingImportSuggestion);
@@ -220,60 +220,6 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
     setForm(createFormState(row));
     setShowScheduleErrors(false);
     setOfficialPricingSearch("");
-  }
-
-  async function loadModelPricing() {
-    setModelPricingRefreshing(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const items = await listAllAdminPages((options) => listAdminModelPricing(token, options));
-      setPricingItems(items);
-      invalidateAdminReferenceDataCache();
-    } catch (error) {
-      toast.error(t("toast.loadFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setModelPricingRefreshing(false);
-    }
-  }
-
-  async function refreshOfficialPricingCatalog(options: { quiet?: boolean; refresh?: boolean } = {}) {
-    setOfficialPricingCatalogLoading(true);
-    setOfficialPricingCatalogHasError(false);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const data = await getAdminOpenRouterOfficialPricing(token, { refresh: options.refresh });
-      const catalog = data.items ?? [];
-      if (catalog.length === 0) {
-        throw new Error(t("toast.officialPricingRemoteEmpty"));
-      }
-      setOfficialPricingCatalog(catalog);
-      setOfficialPricingCatalogStale(Boolean(data.stale));
-      if (data.stale) {
-        setOfficialPricingCatalogHasError(true);
-        if (!options.quiet) {
-          toast.error(t("toast.officialPricingRemoteFailed"));
-        }
-      }
-      if (!options.quiet && !data.stale) {
-        toast.success(t("toast.officialPricingRemoteLoaded", { count: catalog.length }));
-      }
-    } catch (error) {
-      setOfficialPricingCatalogStale(true);
-      setOfficialPricingCatalogHasError(true);
-      if (!options.quiet) {
-        toast.error(t("toast.officialPricingRemoteFailed"), { description: resolveAdminErrorMessage(error) });
-      }
-    } finally {
-      setOfficialPricingCatalogLoading(false);
-    }
   }
 
   function openOfficialPricingForEdit() {
@@ -359,39 +305,10 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
       toast.error(t("modelPricing.schedule.invalid"));
       return;
     }
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const payload = {
-        platformModelName: form.platformModelName,
-        currency: "USD",
-        pricingMode: form.pricingMode,
-        inputUSDPerMTokens: form.pricingMode === "token" ? parsePrice(form.input) : 0,
-        cacheReadUSDPerMTokens: form.pricingMode === "token" ? parsePrice(form.cacheRead) : 0,
-        cacheWriteUSDPerMTokens: form.pricingMode === "token" ? parsePrice(form.cacheWrite) : 0,
-        cacheWritePriceBasis: form.cacheWritePriceBasis,
-        outputUSDPerMTokens: form.pricingMode === "token" ? parsePrice(form.output) : 0,
-        callUSDPerCall: form.pricingMode === "call" ? parsePrice(form.call) : 0,
-        durationUSDPerSecond: form.pricingMode === "duration" ? parsePrice(form.duration) : 0,
-        tieredPricingJSON: form.pricingMode === "tiered" ? stringifyTieredPricing(form.tieredTiers) : undefined,
-        schedulePricingJSON: stringifySchedulePricing(schedule.periods),
-        isFree: form.isFree,
-      };
-      const data = await upsertAdminModelPricing(token, payload);
-      setPricingItems((current) => mergeModelPricingItem(current, data.modelPricing));
-      invalidateAdminReferenceDataCache();
-      toast.success(t("toast.pricingSaved"));
+    if (await persistPricing(form, schedule.periods)) {
       setEditRow(null);
       setForm(null);
       setShowScheduleErrors(false);
-    } catch (error) {
-      toast.error(t("toast.pricingSaveFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -413,102 +330,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
       return;
     }
 
-    setSaving(true);
-    try {
-      const raw = await file.text();
-      const validNames = new Set(rows.map((row) => row.platformModelName));
-      const videoGenerationNames = new Set(
-        rows.filter((row) => row.supportsVideoGeneration).map((row) => row.platformModelName),
-      );
-      const parsed = parseModelPricingImportJSON(raw, validNames, videoGenerationNames, {
-        invalidJSON: t("importErrors.invalidJSON"),
-        rootObject: t("importErrors.rootObject"),
-        emptyModelName: t("importErrors.emptyModelName"),
-        duplicateModel: (model) => t("importErrors.duplicateModel", { model }),
-        pricingObject: (model) => t("importErrors.pricingObject", { model }),
-        invalidPricingMode: (model) => t("importErrors.invalidPricingMode", { model }),
-        durationVideoOnly: (model) => t("importErrors.durationVideoOnly", { model }),
-        invalidNumber: (model, field) => t("importErrors.invalidNumber", { model, field }),
-        invalidTieredPricing: (model, field) => t("importErrors.invalidTieredPricing", { model, field }),
-        invalidTieredPricingJSON: (model) => t("importErrors.invalidTieredPricingJSON", { model }),
-        invalidSchedulePricing: (model) => t("importErrors.invalidSchedulePricing", { model }),
-      });
-      if (parsed.unknownModelNames.length > 0) {
-        toast.error(t("toast.importUnknownModels"), {
-          description: shortListDescription(parsed.unknownModelNames, "", t("toast.moreItems")),
-        });
-        return;
-      }
-      if (parsed.errors.length > 0) {
-        toast.error(t("toast.importInvalidJSON"), {
-          description: shortListDescription(parsed.errors, "", t("toast.moreItems")),
-        });
-        return;
-      }
-      if (parsed.items.length === 0) {
-        toast.error(t("toast.importEmpty"));
-        return;
-      }
-
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const savedItems: AdminModelPricingDTO[] = [];
-      for (const item of parsed.items) {
-        const data = await upsertAdminModelPricing(token, item);
-        savedItems.push(data.modelPricing);
-      }
-      setPricingItems((current) => savedItems.reduce((items, item) => mergeModelPricingItem(items, item), current));
-      invalidateAdminReferenceDataCache();
-      toast.success(t("toast.imported", { count: parsed.items.length }));
-    } catch (error) {
-      toast.error(t("toast.importFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function toggleModelFree(row: BillingModelPricingRow, checked: boolean) {
-    if (freeSwitchPendingModel) {
-      return;
-    }
-    const previousPricingItems = pricingItems;
-    setFreeSwitchPendingModel(row.platformModelName);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const pricingMode = normalizePricingMode(row.pricing?.pricingMode);
-      const payload = {
-        platformModelName: row.platformModelName,
-        currency: row.pricing?.currency || "USD",
-        pricingMode,
-        inputUSDPerMTokens: pricingMode === "token" ? row.pricing?.inputUSDPerMTokens ?? 0 : 0,
-        cacheReadUSDPerMTokens: pricingMode === "token" ? row.pricing?.cacheReadUSDPerMTokens ?? 0 : 0,
-        cacheWriteUSDPerMTokens: pricingMode === "token" ? row.pricing?.cacheWriteUSDPerMTokens ?? 0 : 0,
-        cacheWritePriceBasis: row.pricing?.cacheWritePriceBasis,
-        outputUSDPerMTokens: pricingMode === "token" ? row.pricing?.outputUSDPerMTokens ?? 0 : 0,
-        callUSDPerCall: pricingMode === "call" ? row.pricing?.callUSDPerCall ?? 0 : 0,
-        durationUSDPerSecond: pricingMode === "duration" ? row.pricing?.durationUSDPerSecond ?? 0 : 0,
-        tieredPricingJSON: pricingMode === "tiered" ? row.pricing?.tieredPricingJSON || stringifyTieredPricing(createFormState(row).tieredTiers) : undefined,
-        schedulePricingJSON: row.pricing?.schedulePricingJSON || undefined,
-        isFree: checked,
-      };
-      setPricingItems((current) => mergeModelPricingItem(current, createOptimisticModelPricing(row, payload)));
-      const data = await upsertAdminModelPricing(token, payload);
-      setPricingItems((current) => mergeModelPricingItem(current, data.modelPricing));
-      invalidateAdminReferenceDataCache();
-      toast.success(checked ? t("toast.freeEnabled") : t("toast.freeDisabled"));
-    } catch (error) {
-      setPricingItems(previousPricingItems);
-      toast.error(t("toast.freeSaveFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setFreeSwitchPendingModel("");
-    }
+    await importModelPricing(file, rows);
   }
 
   return (
@@ -883,6 +705,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
                                       <TooltipTrigger asChild>
                                         <span
                                           className="inline-flex text-amber-700 dark:text-amber-300"
+                                          role="img"
                                           aria-label={t("modelPricing.officialPricingIgnored")}
                                         >
                                           <Info className="size-3.5" strokeWidth={1.5} />

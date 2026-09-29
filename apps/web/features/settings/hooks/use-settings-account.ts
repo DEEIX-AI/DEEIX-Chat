@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -30,10 +31,11 @@ import {
   startNewEmailChange,
   startPasswordChangeVerification,
 } from "@/shared/api/auth";
-import type { ActiveSessionDTO, IdentityProviderDTO, SecurityVerificationMethod, TwoFactorSetupStartData, TwoFactorStatusData, UserDTO, UserIdentityDTO } from "@/shared/api/auth.types";
-import { resolveApiBaseURL } from "@/shared/api/http-client";
+import type { ActiveSessionDTO, IdentityProviderDTO, SecurityVerificationMethod, TwoFactorSetupStartData, TwoFactorStatusData, UserDTO, UserIdentityDTO } from "@/shared/api/auth-types";
+import { beginProviderAuthorization } from "@/shared/auth/provider-bridge";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { clearSessionAndRedirectToLogin } from "@/shared/auth/session";
+import { useCapabilities } from "@/shared/capabilities";
 
 type UseSettingsAccountResult = {
   viewer: UserDTO | null;
@@ -93,30 +95,9 @@ type UseSettingsAccountResult = {
 
 const VERIFICATION_CODE_RESEND_COOLDOWN_MS = 60_000;
 
-function providerPKCEStorageKey(slug: string): string {
-  return `deeix-chat:oauth:${slug}:pkce_verifier`;
-}
-
-function base64URL(bytes: Uint8Array): string {
-  let binary = "";
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}
-
-async function createProviderPKCE() {
-  const verifierBytes = new Uint8Array(48);
-  window.crypto.getRandomValues(verifierBytes);
-  const verifier = base64URL(verifierBytes);
-  const digest = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
-  return {
-    verifier,
-    challenge: base64URL(new Uint8Array(digest)),
-  };
-}
-
 export function useSettingsAccount(): UseSettingsAccountResult {
+  const { flags: capabilities } = useCapabilities();
+  const router = useRouter();
   const t = useTranslations("settings.accountPage.toasts");
   const translateError = useLocalizedErrorMessage();
   const [viewer, setViewer] = React.useState<UserDTO | null>(null);
@@ -196,11 +177,19 @@ export function useSettingsAccount(): UseSettingsAccountResult {
         return;
       }
 
-      const [nextViewer, sessionData, loginOptions, identityData, twoFactorData] = await Promise.all([getMe(token), getCurrentActiveSessions(token), getLoginOptions(), listCurrentUserIdentities(token), getCurrentTwoFactorStatus(token)]);
+      const [nextViewer, sessionData, loginOptions, identityData, twoFactorData] = await Promise.all([
+        getMe(token),
+        capabilities.accountSecurity ? getCurrentActiveSessions(token) : { results: [], total: 0 },
+        getLoginOptions(),
+        capabilities.identityProviders ? listCurrentUserIdentities(token) : { results: [] },
+        capabilities.accountSecurity ? getCurrentTwoFactorStatus(token) : null,
+      ]);
       setViewer(nextViewer);
       setSessions(sessionData.results);
       setIdentities(identityData.results);
-      setIdentityProviders(loginOptions.providers.filter((provider) => provider.loginEnabled));
+      setIdentityProviders(
+        loginOptions.providerAuthBridge.enabled ? loginOptions.providers.filter((provider) => provider.loginEnabled) : [],
+      );
       setTwoFactorStatus(twoFactorData);
       setEmailVerificationEnabled(loginOptions.emailVerificationEnabled);
     } catch (error) {
@@ -208,7 +197,7 @@ export function useSettingsAccount(): UseSettingsAccountResult {
     } finally {
       setLoading(false);
     }
-  }, [t, translateError]);
+  }, [capabilities.accountSecurity, capabilities.identityProviders, t, translateError]);
 
   React.useEffect(() => {
     void loadAccountData();
@@ -497,14 +486,17 @@ export function useSettingsAccount(): UseSettingsAccountResult {
       const token = await resolveAccessToken();
       if (!token) throw new Error(t("sessionMissing"));
       await deleteCurrentUserIdentity(token, identity.id);
-      const [nextViewer, identityData] = await Promise.all([getMe(token), listCurrentUserIdentities(token)]);
+      const [nextViewer, identityData] = await Promise.all([
+        getMe(token),
+        capabilities.identityProviders ? listCurrentUserIdentities(token) : { results: [] },
+      ]);
       setViewer(nextViewer);
       setIdentities(identityData.results);
       toast.success(t("identityUnlinked"));
     } catch (error) {
       toast.error(t("unlinkIdentityFailed"), { description: translateError(error, t("retryLater")) });
     }
-  }, [t, translateError]);
+  }, [capabilities.identityProviders, t, translateError]);
 
   const handleStartTwoFactorSetup = React.useCallback(async () => {
     try {
@@ -597,20 +589,22 @@ export function useSettingsAccount(): UseSettingsAccountResult {
       if (!provider.loginEnabled) {
         throw new Error(t("providerUnavailable"));
       }
-      const redirectURI = `${window.location.origin}/auth/callback?provider=${encodeURIComponent(provider.slug)}`;
-      const pkce = await createProviderPKCE();
-      window.sessionStorage.setItem(providerPKCEStorageKey(provider.slug), pkce.verifier);
-      const params = new URLSearchParams();
-      params.set("redirect_uri", redirectURI);
-      params.set("next", "/setting/account");
-      params.set("code_challenge", pkce.challenge);
-      params.set("intent", "bind");
-      // OAuth must use a full document navigation so the provider redirect can leave the app origin.
-      window.location.href = `${resolveApiBaseURL()}/api/v1/auth/providers/${encodeURIComponent(provider.slug)}/start?${params.toString()}`;
+      const callbackPath = await beginProviderAuthorization({
+        slug: provider.slug,
+        intent: "bind",
+        next: "/settings/account",
+        accessToken: token,
+      });
+      if (callbackPath) {
+        router.replace(callbackPath);
+      }
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
       toast.error(t("bindIdentityFailed"), { description: translateError(error, t("retryLater")) });
     }
-  }, [t, translateError]);
+  }, [router, t, translateError]);
 
   return {
     viewer,

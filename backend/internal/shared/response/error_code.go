@@ -21,6 +21,7 @@ const (
 	CodeAuthSessionInvalid       = "auth.session_invalid"
 	CodeResourceNotFound         = "resource.not_found"
 	CodeResourceConflict         = "resource.conflict"
+	CodeFeatureDisabled          = "feature.disabled"
 	CodeBillingPaymentRequired   = "billing.payment_required"
 	CodeBillingInsufficientFunds = "billing.insufficient_funds"
 	CodeBillingPricingRequired   = "billing.pricing_required"
@@ -57,6 +58,7 @@ var codeMessages = map[string]string{
 	CodeAuthSessionInvalid:       "session invalid",
 	CodeResourceNotFound:         "resource not found",
 	CodeResourceConflict:         "resource conflict",
+	CodeFeatureDisabled:          "this feature is not available on this server",
 	CodeBillingPaymentRequired:   "payment required",
 	CodeBillingInsufficientFunds: "insufficient balance",
 	CodeBillingPricingRequired:   "model pricing is required",
@@ -73,9 +75,6 @@ var codeMessages = map[string]string{
 
 	"auth.provider_email_conflict":                  "provider email belongs to another account",
 	"billing.invalid_redemption_code":               "invalid redemption code",
-	"content_moderation.config_required":            "content moderation service config and policy are required when enabled",
-	"content_moderation.invalid_config":             "invalid content moderation config",
-	"content_moderation.probe_failed":               "content moderation probe failed",
 	"conversation.message_fork_history_incomplete":  "message history is too deep or incomplete",
 	"conversation.message_fork_state_invalid":       "message is still generating",
 	"conversation.message_fork_target_invalid":      "only assistant messages can be forked",

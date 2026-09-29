@@ -7,7 +7,7 @@ import (
 	"time"
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -18,32 +18,32 @@ func TestApplyRunBlockWithdrawsAssistantAttachments(t *testing.T) {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	if err := db.AutoMigrate(
-		&model.Message{},
-		&model.Attachment{},
-		&model.FileObject{},
-		&model.ConversationRun{},
-		&model.ChatRunEvent{},
+		&models.Message{},
+		&models.Attachment{},
+		&models.FileObject{},
+		&models.ConversationRun{},
+		&models.ChatRunEvent{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	run := model.ConversationRun{RunID: "run_with_attachment", Status: "success", ModerationState: domaincm.ModerationStateModerating, StartedAt: time.Now()}
+	run := models.ConversationRun{RunID: "run_with_attachment", Status: "success", ModerationState: domaincm.ModerationStateModerating, StartedAt: time.Now()}
 	if err := db.Create(&run).Error; err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	message := model.Message{RunID: run.RunID, Role: "assistant", ContentType: "image", Content: "unsafe output", ReasoningContent: "unsafe reasoning", Status: "success"}
+	message := models.Message{RunID: run.RunID, Role: "assistant", ContentType: "image", Content: "unsafe output", ReasoningContent: "unsafe reasoning", Status: "success"}
 	if err := db.Create(&message).Error; err != nil {
 		t.Fatalf("create message: %v", err)
 	}
-	file := model.FileObject{FileID: "file_generated", UserID: 42, StoragePath: "generated/file.png", Status: "active"}
+	file := models.FileObject{FileID: "file_generated", UserID: 42, StoragePath: "generated/file.png", Status: "active"}
 	if err := db.Create(&file).Error; err != nil {
 		t.Fatalf("create file: %v", err)
 	}
-	attachment := model.Attachment{MessageID: message.ID, UserID: 42, FileID: file.FileID, Kind: "image", Status: "active", UploadedAt: time.Now()}
+	attachment := models.Attachment{MessageID: message.ID, UserID: 42, FileID: file.FileID, Kind: "image", Status: "active", UploadedAt: time.Now()}
 	if err := db.Create(&attachment).Error; err != nil {
 		t.Fatalf("create attachment: %v", err)
 	}
-	trace := model.ChatRunEvent{RunID: run.RunID, EventScope: "trace_event", EventID: "trace_1", StartedAt: time.Now()}
+	trace := models.ChatRunEvent{RunID: run.RunID, EventScope: "trace_event", EventID: "trace_1", StartedAt: time.Now()}
 	if err := db.Create(&trace).Error; err != nil {
 		t.Fatalf("create trace: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestApplyRunBlockWithdrawsAssistantAttachments(t *testing.T) {
 		t.Fatalf("run was not blocked: %#v", run)
 	}
 	var traceCount int64
-	if err := db.Model(&model.ChatRunEvent{}).Where("run_id = ?", run.RunID).Count(&traceCount).Error; err != nil {
+	if err := db.Model(&models.ChatRunEvent{}).Where("run_id = ?", run.RunID).Count(&traceCount).Error; err != nil {
 		t.Fatalf("count traces: %v", err)
 	}
 	if traceCount != 0 {
@@ -95,25 +95,25 @@ func TestDeleteExpiredMetadataKeepsRowsWithUnclearedContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.ContentModerationEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.ContentModerationEvent{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
 	expired := time.Now().Add(-time.Hour)
-	pendingCleanup := model.ContentModerationEvent{
+	pendingCleanup := models.ContentModerationEvent{
 		PublicID:          "cme_pending_cleanup",
 		ImageCount:        1,
 		ImageMetaJSON:     `[{"storage_path":"moderation/pending"}]`,
 		ContentExpiresAt:  expired,
 		MetadataExpiresAt: expired,
 	}
-	cleared := model.ContentModerationEvent{
+	cleared := models.ContentModerationEvent{
 		PublicID:          "cme_cleared",
 		ImageMetaJSON:     "[]",
 		ContentExpiresAt:  expired,
 		MetadataExpiresAt: expired,
 	}
-	if err := db.Create(&[]model.ContentModerationEvent{pendingCleanup, cleared}).Error; err != nil {
+	if err := db.Create(&[]models.ContentModerationEvent{pendingCleanup, cleared}).Error; err != nil {
 		t.Fatalf("create events: %v", err)
 	}
 
@@ -126,7 +126,7 @@ func TestDeleteExpiredMetadataKeepsRowsWithUnclearedContent(t *testing.T) {
 		t.Fatalf("deleted=%d, want 1", deleted)
 	}
 
-	var remaining []model.ContentModerationEvent
+	var remaining []models.ContentModerationEvent
 	if err := db.Find(&remaining).Error; err != nil {
 		t.Fatalf("list remaining events: %v", err)
 	}
@@ -140,15 +140,15 @@ func TestListEventsSearchesAcrossEventAndUserMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.ContentModerationEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.ContentModerationEvent{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	user := model.User{PublicID: "usr_reviewer", Username: "safety-admin", DisplayName: "Safety Reviewer"}
+	user := models.User{PublicID: "usr_reviewer", Username: "safety-admin", DisplayName: "Safety Reviewer"}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	events := []model.ContentModerationEvent{
+	events := []models.ContentModerationEvent{
 		{
 			PublicID:        "cme_matching",
 			UserID:          user.ID,

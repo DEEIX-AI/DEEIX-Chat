@@ -69,8 +69,8 @@ func (h *Handler) UploadModelIconAsset(c *gin.Context) {
 // @Tags llm
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} ModelIconAssetListResponseDoc
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/llm/icon-assets [get]
@@ -177,8 +177,8 @@ func (h *Handler) GetModelIconAsset(c *gin.Context) {
 // @Tags llm
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param q query string false "搜索 key 或名称"
 // @Success 200 {object} ModelVendorListResponseDoc
 // @Failure 500 {object} ErrorDoc
@@ -298,8 +298,8 @@ func (h *Handler) DeleteModelVendor(c *gin.Context) {
 // @Tags llm
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param q query string false "搜索名称"
 // @Success 200 {object} ModelDisplayGroupListResponseDoc
 // @Failure 500 {object} ErrorDoc

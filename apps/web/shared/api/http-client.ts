@@ -1,6 +1,7 @@
-import { resolveApiBaseUrl } from "@deeix/core";
+import { FEATURE_DISABLED_ERROR_CODE, resolveApiBaseUrl } from "@deeix/core";
 import { CLIENT_PLATFORM_HEADER, resolveClientPlatform } from "@/shared/platform";
-import type { ApiEnvelope } from "@/shared/api/common.types";
+import type { ApiEnvelope } from "@/shared/api/common-types";
+import { isRecord, readString } from "@/shared/lib/type-guards";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -39,7 +40,7 @@ export class ApiError extends Error {
   }
 }
 
-// parseRetryAfterSeconds 解析 Retry-After 秒数；缺失或非法时返回 undefined。
+// parseRetryAfterSeconds parses Retry-After seconds; returns undefined if missing or invalid.
 export function parseRetryAfterSeconds(response: Response): number | undefined {
   const raw = response.headers.get("retry-after")?.trim();
   if (!raw) {
@@ -88,16 +89,26 @@ function normalizeApiErrorMessage(message: string, status: number): string {
   return normalized;
 }
 
-// Runtime API base URL source, registered by the platform layer (desktop reads
-// the user-chosen server from storage). Read on every request so a change takes
-// effect immediately; http-client itself stays free of storage concerns.
+// Notified when the server answers feature.disabled, so the capabilities cache
+// can be refreshed; registered by the capabilities layer to keep this module
+// free of React.
+let featureDisabledListener: (() => void) | null = null;
+
+export function registerFeatureDisabledListener(listener: () => void): void {
+  featureDisabledListener = listener;
+}
+
+// Runtime API base URL source, registered by the platform layer. On desktop the
+// server address is persisted by the Rust shell and read through shared/platform
+// (server-address.ts). Read on every request so a change takes effect immediately;
+// http-client itself stays free of platform concerns.
 let runtimeApiBaseURLResolver: (() => string) | null = null;
 
 export function registerRuntimeApiBaseURLResolver(resolver: () => string): void {
   runtimeApiBaseURLResolver = resolver;
 }
 
-// resolveConfiguredApiBaseURL 返回显式配置（运行时覆盖优先，其次构建期变量），未配置时为空。
+// resolveConfiguredApiBaseURL returns the explicit config (runtime override first, then build-time variable), or empty if unset.
 export function resolveConfiguredApiBaseURL(): string {
   return resolveApiBaseUrl({
     runtimeOverride: runtimeApiBaseURLResolver?.(),
@@ -105,7 +116,7 @@ export function resolveConfiguredApiBaseURL(): string {
   });
 }
 
-// resolveApiBaseURL 在显式配置之外回退到当前页面 origin（本地开发回退到 :8080）。
+// resolveApiBaseURL falls back to the current page origin when not explicitly configured (:8080 in local development).
 export function resolveApiBaseURL(): string {
   return resolveApiBaseUrl({
     runtimeOverride: runtimeApiBaseURLResolver?.(),
@@ -157,19 +168,36 @@ function buildRequestInit(options: ApiRequestOptions): RequestInit {
   };
 }
 
-// toApiError 从失败响应中解析统一错误信封，生成携带错误码与请求 ID 的 ApiError。
+type UntypedEnvelope = Omit<ApiEnvelope<unknown>, "errorMsg"> & { errorMsg?: string };
+
+// readEnvelope keeps only the envelope fields whose runtime type matches the contract, so a
+// malformed body degrades to the status-based fallback message instead of leaking odd values.
+function readEnvelope(payload: unknown): UntypedEnvelope {
+  if (!isRecord(payload)) {
+    return { data: undefined };
+  }
+  return {
+    errorMsg: readString(payload, "errorMsg"),
+    errorCode: readString(payload, "errorCode"),
+    requestId: readString(payload, "requestId"),
+    details: payload.details,
+    data: payload.data,
+  };
+}
+
+// toApiError parses the unified error envelope from a failed response into an ApiError carrying the error code and request ID.
 export async function toApiError(response: Response): Promise<ApiError> {
   const contentType = response.headers.get("content-type") || "";
   const requestId = response.headers.get("x-request-id") || undefined;
   if (contentType.includes("application/json")) {
     try {
-      const payload = (await response.json()) as Partial<ApiEnvelope<unknown>>;
+      const payload = readEnvelope(await response.json());
       return new ApiError(
-        payload?.errorMsg || `request failed: ${response.status}`,
+        payload.errorMsg || `request failed: ${response.status}`,
         response.status,
-        payload?.details,
-        payload?.errorCode,
-        payload?.requestId || requestId,
+        payload.details,
+        payload.errorCode,
+        payload.requestId || requestId,
         parseRetryAfterSeconds(response),
       );
     } catch {
@@ -206,7 +234,7 @@ export async function toApiError(response: Response): Promise<ApiError> {
   }
 }
 
-// apiFetch 发起无鉴权请求并返回原始 Response；失败响应按统一错误信封抛出 ApiError。
+// apiFetch issues an unauthenticated request and returns the raw Response; failed responses throw ApiError per the unified error envelope.
 export async function apiFetch(path: string, options: ApiRequestOptions = {}): Promise<Response> {
   const endpoint = `${resolveApiBaseURL()}${path}`;
   let response: Response;
@@ -239,11 +267,14 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
   const contentType = response.headers.get("content-type") || "";
   const responseRequestId = response.headers.get("x-request-id") || undefined;
-  const payload = contentType.includes("application/json")
-    ? ((await response.json()) as ApiEnvelope<T>)
-    : ({ errorMsg: response.ok ? "" : await response.text(), requestId: responseRequestId } as ApiEnvelope<T>);
+  const payload: UntypedEnvelope = contentType.includes("application/json")
+    ? readEnvelope(await response.json())
+    : { errorMsg: response.ok ? "" : await response.text(), requestId: responseRequestId, data: undefined };
 
   if (!response.ok) {
+    if (payload.errorCode === FEATURE_DISABLED_ERROR_CODE) {
+      featureDisabledListener?.();
+    }
     throw new ApiError(
       payload.errorMsg?.trim() || `request failed: ${response.status}`,
       response.status,
@@ -263,5 +294,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       parseRetryAfterSeconds(response),
     );
   }
-  return payload.data;
+  // Type assertion: the envelope shape is validated above, but `data` is typed by the endpoint's
+  // server contract (@deeix/api-contract) that callers pick through `T`; it is not re-validated here.
+  return payload.data as T;
 }

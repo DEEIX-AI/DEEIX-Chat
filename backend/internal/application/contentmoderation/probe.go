@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// ProbeResult is the super-admin probe response for one modality.
+// ProbeResult 是单个模态的超级管理员探测响应。
 type ProbeResult struct {
 	Valid   bool
 	Model   string
@@ -19,18 +19,18 @@ type ProbeResult struct {
 	Error   string
 }
 
-// ProbeResponse covers text and image probes.
+// ProbeResponse 涵盖文本与图片探测。
 type ProbeResponse struct {
 	Text  ProbeResult
 	Image ProbeResult
 }
 
-// 1x1 transparent PNG.
+// 1x1 透明 PNG。
 var probePNG, _ = base64.StdEncoding.DecodeString(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
 )
 
-// Probe validates the saved config against built-in harmless samples.
+// Probe 使用内置无害样本校验已保存的配置。
 func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, error) {
 	if !isSuperAdmin(actorRole) {
 		return nil, ErrSuperAdminRequired
@@ -45,7 +45,7 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 	}
 	providerConfig := providerConfigFromRuntime(cfg)
 
-	// Text probe
+	// 文本探测
 	{
 		started := time.Now()
 		resp, err := s.provider.ModerateText(ctx, providerConfig, "hello", nil, ModalityText)
@@ -61,7 +61,7 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 		}
 	}
 
-	// Image probe
+	// 图片探测
 	{
 		started := time.Now()
 		resp, err := s.provider.ModerateImages(ctx, providerConfig, []ProviderImage{{Data: probePNG, MimeType: "image/png"}}, nil, ModalityImage)
@@ -72,7 +72,7 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 		} else if resp == nil || len(resp.Results) == 0 || resp.Results[0].Categories == nil {
 			out.Image.Error = probeErrorMessage(ErrModerationInvalidResp)
 		} else {
-			// Official Omni responses include category_applied_input_types; require image proof.
+			// 官方 Omni 响应包含 category_applied_input_types；要求其中出现 image，以证明图片确实参与了审核。
 			applied := resp.Results[0].CategoryAppliedInputTypes
 			foundImage := false
 			for _, types := range applied {

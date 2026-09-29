@@ -1,5 +1,5 @@
-import { AdminGroupsPage } from "@/features/admin/components/sections/groups/admin-groups";
+import { AdminGroupsPage } from "@/features/admin";
 
-export default function AdminGroupsRoute() {
+export default function Page() {
   return <AdminGroupsPage />;
 }

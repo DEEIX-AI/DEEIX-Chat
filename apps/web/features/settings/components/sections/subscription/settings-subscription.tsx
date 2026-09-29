@@ -6,8 +6,10 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { Separator } from "@/components/ui/separator";
+import { type PaymentProvider, useSettingsBillingActions } from "@/features/settings/hooks/use-settings-billing-actions";
+import { useSettingsBillingOverview } from "@/features/settings/hooks/use-settings-billing-overview";
+import { useSettingsBillingUsageLog } from "@/features/settings/hooks/use-settings-billing-usage-log";
 import {
-  billingDisplayAmountToMinorUnits,
   formatAccountBalance,
   isFreePlan,
   planRank,
@@ -15,36 +17,11 @@ import {
   resolvePlanActionKind,
 } from "@/features/settings/model/subscription-format";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import type { UserDTO } from "@/shared/api/auth.types";
-import {
-  createBillingCheckout,
-  getBillingConfig,
-  getBillingOverview,
-  listBillingDailyUsage,
-  listBillingMonthlyUsage,
-  listBillingPlans,
-  listBillingUsage,
-  redeemBillingCode,
-  subscribeBillingPlan,
-} from "@/shared/api/billing";
-import type {
-  BillingConfigData,
-  BillingMode,
-  BillingOverviewData,
-  BillingPlanDTO,
-  BillingPlanPriceDTO,
-  BillingUsageDailyDTO,
-  BillingUsageLedgerDTO,
-  BillingUsageMonthlyDTO,
-} from "@/shared/api/billing.types";
+import type { BillingMode, BillingPlanDTO, BillingPlanPriceDTO } from "@/shared/api/billing-types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { SettingsPage, SettingsSectionHeader } from "@/shared/components/settings-layout";
-import {
-  type BillingDisplayOptions,
-  normalizeBillingDisplayCurrency,
-} from "@/shared/lib/billing-display";
-import { ActivityHeatmapSkeleton } from "./activity-heatmap-skeleton";
+import { type BillingDisplayOptions, normalizeBillingDisplayCurrency } from "@/entities/billing";
+import { SubscriptionActivityHeatmapSkeleton } from "./subscription-activity-heatmap-skeleton";
 import { RedemptionDialog, TopUpDialog } from "./subscription-billing-dialogs";
 import { SubscriptionSummary } from "./subscription-summary";
 import type { UsageTrendView } from "./subscription-trend";
@@ -59,10 +36,10 @@ const SubscriptionTrend = dynamic(
 );
 
 const SubscriptionActivityHeatmap = dynamic(
-  () => import("./activity-heatmap").then((module) => module.SubscriptionActivityHeatmap),
+  () => import("./subscription-activity-heatmap").then((module) => module.SubscriptionActivityHeatmap),
   {
     ssr: false,
-    loading: () => <ActivityHeatmapSkeleton />,
+    loading: () => <SubscriptionActivityHeatmapSkeleton />,
   },
 );
 
@@ -88,33 +65,32 @@ function SubscriptionTrendSkeleton() {
   );
 }
 
-type BillingRuntimeConfig = BillingConfigData["config"];
-type PaymentProvider = "stripe" | "epay";
-
 export function SettingsSubscription() {
   const t = useTranslations("settings.subscriptionPage");
-  const resolveErrorMessage = useLocalizedErrorMessage();
   const { locale } = useAppLocale();
   const { accessToken, user } = useAuthSession();
-  const [viewer, setViewer] = React.useState<UserDTO | null>(null);
-  const [billingPlans, setBillingPlans] = React.useState<BillingPlanDTO[]>([]);
-  const [billingConfig, setBillingConfig] = React.useState<BillingRuntimeConfig | null>(null);
-  const [billingOverview, setBillingOverview] = React.useState<BillingOverviewData["overview"] | null>(null);
-  const [usageLedgers, setUsageLedgers] = React.useState<BillingUsageLedgerDTO[]>([]);
-  const [dailyUsage, setDailyUsage] = React.useState<BillingUsageDailyDTO[]>([]);
-  const [monthlyUsage, setMonthlyUsage] = React.useState<BillingUsageMonthlyDTO[]>([]);
-  const [usageTotal, setUsageTotal] = React.useState(0);
-  const [usagePage, setUsagePage] = React.useState(1);
-  const [usagePageSize, setUsagePageSize] = React.useState(25);
-  const [usageQuery, setUsageQuery] = React.useState("");
-  const [usageStatus, setUsageStatus] = React.useState("");
-  const [usageSort, setUsageSort] = React.useState("newest");
+  const {
+    viewer,
+    billingPlans,
+    billingConfig,
+    billingOverview,
+    setBillingOverview,
+    dailyUsage,
+    monthlyUsage,
+    billingLoading,
+  } = useSettingsBillingOverview(accessToken, user);
+  const usageLog = useSettingsBillingUsageLog(accessToken);
+  const {
+    checkoutPriceID,
+    topUpLoading,
+    redemptionLoading,
+    checkout: handleCheckout,
+    subscribeFreePlan: handleSubscribeFreePlan,
+    topUp,
+    redeemCode,
+  } = useSettingsBillingActions({ accessToken, onOverviewChange: setBillingOverview });
   const [usageView, setUsageView] = React.useState<UsageTrendView>("daily");
-  const [billingLoading, setBillingLoading] = React.useState(true);
-  const [usageLoading, setUsageLoading] = React.useState(true);
-  const [checkoutPriceID, setCheckoutPriceID] = React.useState<number | null>(null);
   const [topUpAmount, setTopUpAmount] = React.useState("20");
-  const [topUpLoading, setTopUpLoading] = React.useState(false);
   const [pricingDialogOpen, setPricingDialogOpen] = React.useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = React.useState(false);
   const [selectedPlan, setSelectedPlan] = React.useState<BillingPlanDTO | null>(null);
@@ -124,7 +100,6 @@ export function SettingsSubscription() {
   const [topUpDialogOpen, setTopUpDialogOpen] = React.useState(false);
   const [redemptionDialogOpen, setRedemptionDialogOpen] = React.useState(false);
   const [redemptionCode, setRedemptionCode] = React.useState("");
-  const [redemptionLoading, setRedemptionLoading] = React.useState(false);
   const billingMode: BillingMode = billingConfig?.mode ?? "self";
   const billingDisplay = React.useMemo<BillingDisplayOptions>(
     () => ({
@@ -182,61 +157,6 @@ export function SettingsSubscription() {
     [t],
   );
 
-  React.useEffect(() => {
-    let mounted = true;
-    setBillingLoading(true);
-    void Promise.all([
-      getBillingConfig(accessToken),
-      listBillingPlans(accessToken),
-      getBillingOverview(accessToken),
-      listBillingDailyUsage(accessToken),
-      listBillingMonthlyUsage(accessToken, 12),
-    ])
-      .then(([configData, plans, overviewData, dailyUsageData, monthlyUsageData]) => ({
-        viewer: user,
-        config: configData.config,
-        plans,
-        overview: overviewData.overview,
-        dailyUsage: dailyUsageData,
-        monthlyUsage: monthlyUsageData,
-      }))
-      .then(({ viewer: nextViewer, config, plans, overview, dailyUsage: nextDailyUsage, monthlyUsage: nextMonthlyUsage }) => {
-        if (!mounted) return;
-        setViewer(nextViewer);
-        setBillingConfig(config);
-        setBillingPlans(plans);
-        setBillingOverview(overview);
-        setDailyUsage(nextDailyUsage ?? []);
-        setMonthlyUsage(nextMonthlyUsage ?? []);
-      })
-      .catch((error) => {
-        if (mounted) toast.error(t("toasts.subscriptionLoadFailed"), { description: resolveErrorMessage(error, t("toasts.retryLater")) });
-      })
-      .finally(() => {
-        if (mounted) setBillingLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [accessToken, resolveErrorMessage, t, user]);
-
-  const loadUsageLogs = React.useCallback(async (page: number, pageSize: number, query: string, status: string, sort: string) => {
-    setUsageLoading(true);
-    try {
-      const usage = await listBillingUsage(accessToken, { page, pageSize, query, status, sort });
-      setUsageLedgers(usage.results ?? []);
-      setUsageTotal(usage.total ?? 0);
-    } catch (error) {
-      toast.error(t("toasts.usageLogLoadFailed"), { description: resolveErrorMessage(error, t("toasts.retryLater")) });
-    } finally {
-      setUsageLoading(false);
-    }
-  }, [accessToken, resolveErrorMessage, t]);
-
-  React.useEffect(() => {
-    void loadUsageLogs(usagePage, usagePageSize, usageQuery, usageStatus, usageSort);
-  }, [loadUsageLogs, usagePage, usagePageSize, usageQuery, usageStatus, usageSort]);
-
   const epayTypes = React.useMemo(() => {
     const values = billingConfig?.epayTypes?.filter((item) => item.type.trim()) ?? [];
     return values.length > 0 ? values : [{ name: epayLabels.alipay, type: "alipay" }, { name: epayLabels.wxpay, type: "wxpay" }];
@@ -256,99 +176,25 @@ export function SettingsSubscription() {
     }
   }, [epayTypes, selectedEPayType, selectedPaymentProvider]);
 
-  const handleCheckout = React.useCallback(async (price: BillingPlanPriceDTO, paymentProvider: PaymentProvider, epayType?: string) => {
-    setCheckoutPriceID(price.id);
-    try {
-      const data = await createBillingCheckout(accessToken, {
-        orderType: "subscription",
-        priceID: price.id,
-        cycles: 1,
-        paymentProvider,
-        epayType: paymentProvider === "epay" ? epayType : undefined,
-        successURL: `${window.location.origin}/setting/subscription?payment=success`,
-        cancelURL: `${window.location.origin}/setting/subscription?payment=cancel`,
-      });
-      if (!data.checkout.checkoutURL) {
-        toast.error(t("toasts.checkoutCreateFailed"), { description: t("toasts.checkoutURLMissing") });
-        return;
-      }
-      window.open(data.checkout.checkoutURL, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      toast.error(t("toasts.checkoutCreateFailed"), { description: resolveErrorMessage(error, t("toasts.retryLater")) });
-    } finally {
-      setCheckoutPriceID(null);
-    }
-  }, [accessToken, resolveErrorMessage, t]);
+  const handleTopUp = React.useCallback(
+    () => topUp(topUpAmount, selectedPaymentProvider, selectedEPayType),
+    [selectedEPayType, selectedPaymentProvider, topUp, topUpAmount],
+  );
 
-  const handleSubscribeFreePlan = React.useCallback(async (price: BillingPlanPriceDTO) => {
-    setCheckoutPriceID(price.id);
-    try {
-      await subscribeBillingPlan(accessToken, price.id);
-      toast.success(t("toasts.planUpdated"));
-      window.location.reload();
-    } catch (error) {
-      toast.error(t("toasts.subscribeFailed"), { description: resolveErrorMessage(error, t("toasts.retryLater")) });
-    } finally {
-      setCheckoutPriceID(null);
-    }
-  }, [accessToken, resolveErrorMessage, t]);
-
-  const handleTopUp = React.useCallback(async () => {
-    const displayAmount = Number(topUpAmount);
-    const amountMinorUnits = billingDisplayAmountToMinorUnits(displayAmount);
-    if (!Number.isFinite(displayAmount) || displayAmount <= 0 || amountMinorUnits <= 0) {
-      toast.error(t("toasts.invalidTopUpAmount"), { description: t("toasts.invalidTopUpAmountDescription") });
-      return;
-    }
-    setTopUpLoading(true);
-    try {
-      const data = await createBillingCheckout(accessToken, {
-        orderType: "topup",
-        amountMinorUnits,
-        cycles: 1,
-        paymentProvider: selectedPaymentProvider,
-        epayType: selectedPaymentProvider === "epay" ? selectedEPayType : undefined,
-        successURL: `${window.location.origin}/setting/subscription?payment=success`,
-        cancelURL: `${window.location.origin}/setting/subscription?payment=cancel`,
-      });
-      if (!data.checkout.checkoutURL) {
-        toast.error(t("toasts.checkoutCreateFailed"), { description: t("toasts.checkoutURLMissing") });
-        return;
-      }
-      window.open(data.checkout.checkoutURL, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      toast.error(t("toasts.checkoutCreateFailed"), { description: resolveErrorMessage(error, t("toasts.retryLater")) });
-    } finally {
-      setTopUpLoading(false);
-    }
-  }, [accessToken, resolveErrorMessage, selectedEPayType, selectedPaymentProvider, t, topUpAmount]);
-
-  const handleRedeemCode = React.useCallback(async () => {
-    const code = redemptionCode.trim();
-    if (!code) {
-      toast.error(t("toasts.invalidRedemptionCode"));
-      return;
-    }
-    setRedemptionLoading(true);
-    try {
-      const data = await redeemBillingCode(accessToken, { code });
-      setBillingOverview(data.overview);
+  const handleRedeemCode = React.useCallback(
+    () => redeemCode(redemptionCode, () => {
       setRedemptionDialogOpen(false);
       setRedemptionCode("");
-      toast.success(t("toasts.redemptionSucceeded"));
-    } catch (error) {
-      toast.error(t("toasts.redemptionFailed"), { description: resolveErrorMessage(error, t("toasts.retryLater")) });
-    } finally {
-      setRedemptionLoading(false);
-    }
-  }, [accessToken, redemptionCode, resolveErrorMessage, t]);
+    }),
+    [redeemCode, redemptionCode],
+  );
 
   const subscriptionEntitlements = React.useMemo(
     () => billingOverview?.subscriptionEntitlements ?? [],
     [billingOverview?.subscriptionEntitlements],
   );
   const paymentDisabled = paymentProviders.length === 0;
-  // 配置未加载时先不渲染充值入口,避免"置灰→消失"的闪现;确认无渠道后保持隐藏。
+  // Don't render the top-up entry until config loads, avoiding a "disabled → gone" flash; keep it hidden once no channel is confirmed.
   const topUpVisible = billingConfig !== null && paymentProviders.length > 0;
   const currentPlan = React.useMemo(() => {
     if (billingOverview?.plan) return billingOverview.plan;
@@ -474,33 +320,21 @@ export function SettingsSubscription() {
         />
         <Separator />
         <SubscriptionUsageLog
-          items={usageLedgers}
-          total={usageTotal}
-          loading={usageLoading}
-          page={usagePage}
-          pageSize={usagePageSize}
-          query={usageQuery}
-          status={usageStatus}
-          sort={usageSort}
+          items={usageLog.items}
+          total={usageLog.total}
+          loading={usageLog.loading}
+          page={usageLog.page}
+          pageSize={usageLog.pageSize}
+          query={usageLog.query}
+          status={usageLog.status}
+          sort={usageLog.sort}
           billingDisplay={billingDisplay}
-          onQueryChange={(value) => {
-            setUsageQuery(value);
-            setUsagePage(1);
-          }}
-          onStatusChange={(value) => {
-            setUsageStatus(value);
-            setUsagePage(1);
-          }}
-          onSortChange={(value) => {
-            setUsageSort(value);
-            setUsagePage(1);
-          }}
-          onRefresh={() => void loadUsageLogs(usagePage, usagePageSize, usageQuery, usageStatus, usageSort)}
-          onPageChange={setUsagePage}
-          onPageSizeChange={(nextPageSize) => {
-            setUsagePageSize(nextPageSize);
-            setUsagePage(1);
-          }}
+          onQueryChange={usageLog.changeQuery}
+          onStatusChange={usageLog.changeStatus}
+          onSortChange={usageLog.changeSort}
+          onRefresh={usageLog.refresh}
+          onPageChange={usageLog.setPage}
+          onPageSizeChange={usageLog.changePageSize}
         />
       </section>
 

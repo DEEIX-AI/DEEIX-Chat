@@ -395,7 +395,8 @@
       "latencyDescription": "Controls whether total call latency appears below AI replies.",
       "costTitle": "Show total cost",
       "costDescription": "Controls whether total call cost appears below AI replies.",
-      "costDescriptionSelfMode": "Controls whether total call cost appears below AI replies. Hidden in self-use mode.",
+      "processTraceTitle": "Show processing steps",
+      "processTraceDescription": "Controls whether the processing steps for a reply, such as context planning, retrieval, and tool summaries, appear above AI replies.",
       "widthTitle": "Chat area width",
       "width": {
         "compact": "Compact",

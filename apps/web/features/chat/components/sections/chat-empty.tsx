@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import type * as React from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 import { Badge } from "@/components/ui/badge";

@@ -208,6 +208,7 @@ func (s *Service) RetrieveWithStatus(ctx context.Context, input RetrieveInput) (
 			FileName:   idToName[c.FileObjID],
 			FileID:     idToFileID[c.FileObjID],
 			ChunkIndex: c.ChunkIndex,
+			Modality:   c.Modality,
 			Score:      retrievalScore(c, cfg.RAGHybridEnabled),
 		})
 	}
@@ -377,16 +378,16 @@ func selectRAGCandidatesForContext(
 		}
 	}
 
-	// Prefer evidence across files only while it remains reasonably close to the
-	// strongest hit. The second pass fills remaining capacity by relevance, so a
-	// weak document can never displace materially better evidence merely to add
-	// variety.
+	// 仅当跨文件证据与最强命中保持相当接近时才优先选用。
+	// 第二轮按相关性填充剩余容量，因此
+	// 较弱的文档绝不会仅为增加多样性而取代
+	// 明显更好的证据。
 	selectCandidates(true)
 	selectCandidates(false)
 
-	// Select by retrieval relevance first, then restore document order only for
-	// the final prompt so adjacent chunks remain readable without displacing
-	// higher-ranked evidence under a tight token budget.
+	// 先按检索相关性选择，仅在最终提示词中恢复文档顺序，
+	// 使相邻分块保持可读，同时在紧张的 token 预算下
+	// 不会挤掉排名更高的证据。
 	sortChunksByDocOrder(selected)
 	return selected
 }
@@ -451,10 +452,12 @@ func (s *Service) embedTexts(ctx context.Context, texts []string, cfg config.Con
 			end = len(texts)
 		}
 		batchEmbeddings, batchErr := s.embedClient.CallAPI(ctx, portembedding.Request{
+			Protocol:       portembedding.Protocol(cfg.EmbeddingProtocol),
 			APIBase:        apiBase,
 			APIKey:         apiKey,
 			Model:          model,
-			Texts:          texts[start:end],
+			Inputs:         portembedding.TextInputs(texts[start:end]),
+			Purpose:        portembedding.PurposeQuery,
 			Dimensions:     cfg.EmbeddingOutputDimensions,
 			OmitDimensions: cfg.EmbeddingDimensionsPolicy == config.EmbeddingDimensionsPolicyOmit,
 			TimeoutSeconds: cfg.EmbeddingTimeoutSeconds,

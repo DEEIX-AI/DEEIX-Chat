@@ -1,13 +1,14 @@
-import { parseChatContentWidth } from "@/shared/model/chat-content-width";
+import { parseChatContentWidth } from "@/entities/user-settings";
 import type { ChatInputHeight, ChatSettings, FileMode, ModelPresentationGroup, SendShortcut } from "@/features/settings/types/settings";
 import type { UserSettingsMap } from "@/shared/api/user-settings";
-import type { PublicModelDTO } from "@/shared/api/model.types";
+import type { PublicModelDTO } from "@/shared/api/model-types";
 import { platformSendShortcut } from "@/shared/lib/platform-shortcuts";
-import { resolveModelPresentationGroup } from "@/shared/lib/model-presentation";
+import { resolveModelPresentationGroup } from "@/entities/model";
+import { isOneOf } from "@/shared/lib/type-guards";
 
-const FILE_MODES: FileMode[] = ["auto", "full_context", "rag"];
-const INPUT_HEIGHTS: ChatInputHeight[] = ["compact", "standard", "loose"];
-const SEND_SHORTCUTS: SendShortcut[] = ["enter", "ctrl_enter", "meta_enter"];
+const isFileMode = isOneOf(["auto", "full_context", "rag"] as const satisfies readonly FileMode[]);
+const isChatInputHeight = isOneOf(["compact", "standard", "loose"] as const satisfies readonly ChatInputHeight[]);
+const isSendShortcut = isOneOf(["enter", "ctrl_enter", "meta_enter"] as const satisfies readonly SendShortcut[]);
 
 export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   defaultModel: "",
@@ -16,6 +17,7 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   showModelInfo: true,
   showLatency: true,
   showBillingCost: true,
+  showProcessTrace: true,
   markdownRender: true,
   autoExpandThinking: true,
   autoExpandToolCalls: true,
@@ -45,6 +47,7 @@ export function parseChatSettings(map: UserSettingsMap): ChatSettings {
     showModelInfo: map["chat.show_model_info"] !== "false",
     showLatency: map["chat.show_latency"] !== "false",
     showBillingCost: map["chat.show_billing_cost"] !== "false",
+    showProcessTrace: map["chat.show_process_trace"] !== "false",
     markdownRender: map["chat.markdown_render"] !== "false",
     autoExpandThinking: map["chat.auto_expand_thinking"] !== "false",
     autoExpandToolCalls: map["chat.auto_expand_tool_calls"] !== "false",
@@ -56,9 +59,9 @@ export function parseChatSettings(map: UserSettingsMap): ChatSettings {
     preserveConversationDrafts: map["chat.preserve_conversation_drafts"] !== "false",
     reuseModelOptions: map["chat.reuse_model_options"] !== "false",
     reasoningContentPassback: map["chat.reasoning_content_passback"] !== "false",
-    inputHeight: INPUT_HEIGHTS.includes(inputHeight as ChatInputHeight) ? (inputHeight as ChatInputHeight) : "standard",
+    inputHeight: isChatInputHeight(inputHeight) ? inputHeight : "standard",
     contentWidth: parseChatContentWidth(contentWidth),
-    fileMode: FILE_MODES.includes(fileMode as FileMode) ? (fileMode as FileMode) : "auto",
+    fileMode: isFileMode(fileMode) ? fileMode : "auto",
   };
 }
 
@@ -66,7 +69,7 @@ export function parseSendShortcut(value: string | undefined): SendShortcut {
   if (value === "enter") {
     return "enter";
   }
-  if (SEND_SHORTCUTS.includes(value as SendShortcut)) {
+  if (isSendShortcut(value)) {
     return platformSendShortcut();
   }
   return "enter";

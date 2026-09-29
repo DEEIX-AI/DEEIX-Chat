@@ -1,8 +1,9 @@
 import { authedFetch } from "@/shared/api/authed-client";
 import { resolveApiBaseURL } from "@/shared/api/http-client";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { withHeaderTimeout } from "@/shared/lib/fetch-timeout";
 
-// 将受保护的完整图片 URL 还原为 API 相对路径，供 authedFetch 统一携带凭证与 401 刷新。
+// Restore protected absolute image URLs to API-relative paths so authedFetch uniformly attaches credentials and handles 401 refresh.
 function resolveProtectedMarkdownImagePath(src: string): string | null {
   const protectedSrc = resolveProtectedMarkdownImageSource(src);
   if (!protectedSrc) {
@@ -66,14 +67,17 @@ export function resolveMarkdownImageDownloadName(src: string, alt: string | unde
   return `${baseName}.png`;
 }
 
+// Upper bound for the image host to start responding, so a stalled host cannot hang the action.
+// Only the headers are bounded; a large image on a slow link can still finish downloading.
+const IMAGE_DOWNLOAD_HEADER_TIMEOUT_MS = 30_000;
+
 export async function downloadMarkdownImageSource(src: string, fileName: string): Promise<void> {
   const protectedPath = resolveProtectedMarkdownImagePath(src);
-  let response: Response;
-  if (protectedPath) {
-    response = await fetchProtectedMarkdownImage(protectedPath);
-  } else {
-    response = await fetch(resolveMarkdownImageSource(src));
-  }
+  const response = await withHeaderTimeout(
+    (signal) =>
+      protectedPath ? fetchProtectedMarkdownImage(protectedPath, signal) : fetch(resolveMarkdownImageSource(src), { signal }),
+    { timeoutMs: IMAGE_DOWNLOAD_HEADER_TIMEOUT_MS },
+  );
   if (!response.ok) {
     throw new Error("Failed to download image");
   }

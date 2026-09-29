@@ -6,7 +6,7 @@ import (
 	"time"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -54,7 +54,7 @@ func TestMigrateLeavesLegacyMCPToolMetadataPendingConfirmation(t *testing.T) {
 		t.Fatalf("Migrate() error = %v", err)
 	}
 
-	var migrated model.MCPTool
+	var migrated models.MCPTool
 	if err = db.First(&migrated, legacy.ID).Error; err != nil {
 		t.Fatalf("load migrated MCP tool: %v", err)
 	}
@@ -78,10 +78,10 @@ func TestBackfillContextArtifactMessageIDsUsesAssistantRunOwner(t *testing.T) {
 			_ = sqlDB.Close()
 		}
 	})
-	if err = db.AutoMigrate(&model.Message{}, &model.ChatContextRecord{}); err != nil {
+	if err = db.AutoMigrate(&models.Message{}, &models.ChatContextRecord{}); err != nil {
 		t.Fatalf("migrate context artifacts: %v", err)
 	}
-	userMessage := model.Message{
+	userMessage := models.Message{
 		ConversationID: 7,
 		UserID:         11,
 		PublicID:       "msg_user",
@@ -92,7 +92,7 @@ func TestBackfillContextArtifactMessageIDsUsesAssistantRunOwner(t *testing.T) {
 	if err = db.Create(&userMessage).Error; err != nil {
 		t.Fatalf("create user message: %v", err)
 	}
-	assistantMessage := model.Message{
+	assistantMessage := models.Message{
 		ConversationID:  7,
 		UserID:          11,
 		PublicID:        "msg_assistant",
@@ -104,7 +104,7 @@ func TestBackfillContextArtifactMessageIDsUsesAssistantRunOwner(t *testing.T) {
 	if err = db.Create(&assistantMessage).Error; err != nil {
 		t.Fatalf("create assistant message: %v", err)
 	}
-	ambiguousUser := model.Message{
+	ambiguousUser := models.Message{
 		ConversationID: 8,
 		UserID:         13,
 		PublicID:       "msg_ambiguous_user",
@@ -115,7 +115,7 @@ func TestBackfillContextArtifactMessageIDsUsesAssistantRunOwner(t *testing.T) {
 	if err = db.Create(&ambiguousUser).Error; err != nil {
 		t.Fatalf("create ambiguous user message: %v", err)
 	}
-	ambiguousAssistants := []model.Message{
+	ambiguousAssistants := []models.Message{
 		{
 			ConversationID: 8, UserID: 13, PublicID: "msg_ambiguous_assistant_1",
 			ParentMessageID: &ambiguousUser.ID, RunID: "run_ambiguous", Role: "assistant", Status: "success",
@@ -128,7 +128,7 @@ func TestBackfillContextArtifactMessageIDsUsesAssistantRunOwner(t *testing.T) {
 	if err = db.Create(&ambiguousAssistants).Error; err != nil {
 		t.Fatalf("create ambiguous assistant messages: %v", err)
 	}
-	artifacts := []model.ChatContextRecord{
+	artifacts := []models.ChatContextRecord{
 		{
 			RecordType:     "artifact",
 			ConversationID: 7,
@@ -193,35 +193,35 @@ func TestBackfillContextArtifactMessageIDsUsesAssistantRunOwner(t *testing.T) {
 		t.Fatalf("backfillContextArtifactMessageIDs() second error = %v", err)
 	}
 
-	var toolArtifact model.ChatContextRecord
+	var toolArtifact models.ChatContextRecord
 	if err = db.Where("source_id = ?", "call_1").First(&toolArtifact).Error; err != nil {
 		t.Fatalf("load tool artifact: %v", err)
 	}
 	if toolArtifact.MessageID != assistantMessage.ID {
 		t.Fatalf("tool artifact message id = %d, want %d", toolArtifact.MessageID, assistantMessage.ID)
 	}
-	var fileArtifact model.ChatContextRecord
+	var fileArtifact models.ChatContextRecord
 	if err = db.Where("source_type = ?", "file_chunk").First(&fileArtifact).Error; err != nil {
 		t.Fatalf("load file artifact: %v", err)
 	}
 	if fileArtifact.MessageID != assistantMessage.ID {
 		t.Fatalf("file artifact message id = %d, want %d", fileArtifact.MessageID, assistantMessage.ID)
 	}
-	var foreignUserArtifact model.ChatContextRecord
+	var foreignUserArtifact models.ChatContextRecord
 	if err = db.Where("source_id = ?", "foreign_user_call").First(&foreignUserArtifact).Error; err != nil {
 		t.Fatalf("load foreign user artifact: %v", err)
 	}
 	if foreignUserArtifact.MessageID != 99 {
 		t.Fatalf("foreign user artifact message id = %d, want unchanged 99", foreignUserArtifact.MessageID)
 	}
-	var ambiguousArtifact model.ChatContextRecord
+	var ambiguousArtifact models.ChatContextRecord
 	if err = db.Where("source_id = ?", "ambiguous_call").First(&ambiguousArtifact).Error; err != nil {
 		t.Fatalf("load ambiguous artifact: %v", err)
 	}
 	if ambiguousArtifact.MessageID != ambiguousUser.ID {
 		t.Fatalf("ambiguous artifact message id = %d, want unchanged %d", ambiguousArtifact.MessageID, ambiguousUser.ID)
 	}
-	var snapshot model.ChatContextRecord
+	var snapshot models.ChatContextRecord
 	if err = db.Where("record_type = ?", "snapshot").First(&snapshot).Error; err != nil {
 		t.Fatalf("load snapshot: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestSeedBillingCatalogBindsDefaultPermissionGroup(t *testing.T) {
 		t.Fatalf("SeedBillingCatalog() error = %v", err)
 	}
 
-	var plans []model.BillingPlan
+	var plans []models.BillingPlan
 	if err := db.Order("code ASC").Find(&plans).Error; err != nil {
 		t.Fatalf("list plans: %v", err)
 	}
@@ -258,7 +258,7 @@ func TestSeedBillingCatalogBackfillsExistingPlans(t *testing.T) {
 	if err := SeedPermissionGroups(db); err != nil {
 		t.Fatalf("SeedPermissionGroups() error = %v", err)
 	}
-	if err := db.Create(&model.BillingPlan{
+	if err := db.Create(&models.BillingPlan{
 		Code:     "pro",
 		Name:     "Pro",
 		IsActive: true,
@@ -270,7 +270,7 @@ func TestSeedBillingCatalogBackfillsExistingPlans(t *testing.T) {
 		t.Fatalf("SeedBillingCatalog() error = %v", err)
 	}
 
-	var plan model.BillingPlan
+	var plan models.BillingPlan
 	if err := db.Where("code = ?", "pro").First(&plan).Error; err != nil {
 		t.Fatalf("get plan: %v", err)
 	}
@@ -281,16 +281,16 @@ func TestSeedBillingCatalogBackfillsExistingPlans(t *testing.T) {
 
 func TestSeedPermissionGroupsClearsDefaultGroupUserAccess(t *testing.T) {
 	db := openSchemaTestDB(t)
-	defaultGroup := model.PermissionGroup{Name: "Default", IsDefault: true}
-	manualGroup := model.PermissionGroup{Name: "Manual"}
-	if err := db.Create(&[]model.PermissionGroup{defaultGroup, manualGroup}).Error; err != nil {
+	defaultGroup := models.PermissionGroup{Name: "Default", IsDefault: true}
+	manualGroup := models.PermissionGroup{Name: "Manual"}
+	if err := db.Create(&[]models.PermissionGroup{defaultGroup, manualGroup}).Error; err != nil {
 		t.Fatalf("create groups: %v", err)
 	}
-	var groups []model.PermissionGroup
+	var groups []models.PermissionGroup
 	if err := db.Order("id ASC").Find(&groups).Error; err != nil {
 		t.Fatalf("list groups: %v", err)
 	}
-	if err := db.Create(&[]model.PermissionGroupUserAccess{
+	if err := db.Create(&[]models.PermissionGroupUserAccess{
 		{GroupID: groups[0].ID, UserID: 1},
 		{GroupID: groups[1].ID, UserID: 1},
 	}).Error; err != nil {
@@ -302,7 +302,7 @@ func TestSeedPermissionGroupsClearsDefaultGroupUserAccess(t *testing.T) {
 	}
 
 	var defaultRows int64
-	if err := db.Model(&model.PermissionGroupUserAccess{}).
+	if err := db.Model(&models.PermissionGroupUserAccess{}).
 		Where("group_id = ?", groups[0].ID).
 		Count(&defaultRows).Error; err != nil {
 		t.Fatalf("count default rows: %v", err)
@@ -311,7 +311,7 @@ func TestSeedPermissionGroupsClearsDefaultGroupUserAccess(t *testing.T) {
 		t.Fatalf("expected default group user access to be cleared, got %d", defaultRows)
 	}
 	var manualRows int64
-	if err := db.Model(&model.PermissionGroupUserAccess{}).
+	if err := db.Model(&models.PermissionGroupUserAccess{}).
 		Where("group_id = ?", groups[1].ID).
 		Count(&manualRows).Error; err != nil {
 		t.Fatalf("count manual rows: %v", err)
@@ -327,11 +327,11 @@ func TestSeedPermissionGroupsInitializesDefaultAllModelsRule(t *testing.T) {
 		t.Fatalf("SeedPermissionGroups() error = %v", err)
 	}
 
-	var defaultGroup model.PermissionGroup
+	var defaultGroup models.PermissionGroup
 	if err := db.Where("is_default = ?", true).First(&defaultGroup).Error; err != nil {
 		t.Fatalf("get default group: %v", err)
 	}
-	var rule model.PermissionGroupModelRule
+	var rule models.PermissionGroupModelRule
 	if err := db.Where("group_id = ? AND rule_type = ?", defaultGroup.ID, domainchannel.PermissionGroupModelRuleAll).
 		First(&rule).Error; err != nil {
 		t.Fatalf("expected default all-model rule: %v", err)
@@ -340,15 +340,15 @@ func TestSeedPermissionGroupsInitializesDefaultAllModelsRule(t *testing.T) {
 
 func TestSeedPermissionGroupsDoesNotRecreateDefaultAllRuleAfterAccessConfigured(t *testing.T) {
 	db := openSchemaTestDB(t)
-	defaultGroup := model.PermissionGroup{Name: "Default", IsDefault: true}
+	defaultGroup := models.PermissionGroup{Name: "Default", IsDefault: true}
 	if err := db.Create(&defaultGroup).Error; err != nil {
 		t.Fatalf("create default group: %v", err)
 	}
-	manualGroup := model.PermissionGroup{Name: "Manual"}
+	manualGroup := models.PermissionGroup{Name: "Manual"}
 	if err := db.Create(&manualGroup).Error; err != nil {
 		t.Fatalf("create manual group: %v", err)
 	}
-	if err := db.Create(&model.PermissionGroupModelRule{
+	if err := db.Create(&models.PermissionGroupModelRule{
 		GroupID:  manualGroup.ID,
 		RuleType: domainchannel.PermissionGroupModelRuleVendor,
 		Value:    "openai",
@@ -361,7 +361,7 @@ func TestSeedPermissionGroupsDoesNotRecreateDefaultAllRuleAfterAccessConfigured(
 	}
 
 	var count int64
-	if err := db.Model(&model.PermissionGroupModelRule{}).
+	if err := db.Model(&models.PermissionGroupModelRule{}).
 		Where("group_id = ? AND rule_type = ?", defaultGroup.ID, domainchannel.PermissionGroupModelRuleAll).
 		Count(&count).Error; err != nil {
 		t.Fatalf("count default all rule: %v", err)
@@ -377,19 +377,19 @@ func TestSeedModelVendorsPromotesBuiltInsPreservesEditsAndBackfillsExistingKeys(
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err = db.AutoMigrate(&model.LLMModelVendor{}, &model.LLMPlatformModel{}); err != nil {
+	if err = db.AutoMigrate(&models.LLMModelVendor{}, &models.LLMPlatformModel{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	customized := model.LLMModelVendor{
+	customized := models.LLMModelVendor{
 		Key: "openai", Name: "OpenAI Custom", Icon: "custom-icon", BuiltIn: false, SortOrder: 99,
 	}
 	if err = db.Create(&customized).Error; err != nil {
 		t.Fatalf("create customized vendor: %v", err)
 	}
-	if err = db.Create(&model.LLMPlatformModel{Name: "acme-chat", Vendor: "acme-ai"}).Error; err != nil {
+	if err = db.Create(&models.LLMPlatformModel{Name: "acme-chat", Vendor: "acme-ai"}).Error; err != nil {
 		t.Fatalf("create existing model: %v", err)
 	}
-	if err = db.Create(&model.LLMPlatformModel{Name: "legacy-openai", Vendor: "OpenAI"}).Error; err != nil {
+	if err = db.Create(&models.LLMPlatformModel{Name: "legacy-openai", Vendor: "OpenAI"}).Error; err != nil {
 		t.Fatalf("create legacy model: %v", err)
 	}
 
@@ -397,7 +397,7 @@ func TestSeedModelVendorsPromotesBuiltInsPreservesEditsAndBackfillsExistingKeys(
 		t.Fatalf("SeedModelVendors() error = %v", err)
 	}
 
-	var openAI model.LLMModelVendor
+	var openAI models.LLMModelVendor
 	if err = db.Where("key = ?", "openai").First(&openAI).Error; err != nil {
 		t.Fatalf("load OpenAI vendor: %v", err)
 	}
@@ -407,14 +407,14 @@ func TestSeedModelVendorsPromotesBuiltInsPreservesEditsAndBackfillsExistingKeys(
 	if !openAI.BuiltIn {
 		t.Fatalf("expected matching custom vendor to be promoted to built-in, got %#v", openAI)
 	}
-	var custom model.LLMModelVendor
+	var custom models.LLMModelVendor
 	if err = db.Where("key = ?", "acme-ai").First(&custom).Error; err != nil {
 		t.Fatalf("load backfilled vendor: %v", err)
 	}
 	if custom.Name != "acme-ai" || custom.BuiltIn {
 		t.Fatalf("unexpected backfilled vendor: %#v", custom)
 	}
-	var legacy model.LLMModelVendor
+	var legacy models.LLMModelVendor
 	if err = db.Where("key = ?", "OpenAI").First(&legacy).Error; err != nil {
 		t.Fatalf("load legacy vendor with duplicate display name: %v", err)
 	}
@@ -431,12 +431,12 @@ func openSchemaTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	if err = db.AutoMigrate(
-		&model.PermissionGroup{},
-		&model.PermissionGroupUserAccess{},
-		&model.PermissionGroupModelAccess{},
-		&model.PermissionGroupModelRule{},
-		&model.BillingPlan{},
-		&model.BillingPrice{},
+		&models.PermissionGroup{},
+		&models.PermissionGroupUserAccess{},
+		&models.PermissionGroupModelAccess{},
+		&models.PermissionGroupModelRule{},
+		&models.BillingPlan{},
+		&models.BillingPrice{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -449,17 +449,17 @@ func TestInvalidateUnsignedFileEmbeddingsQueuesOnlyLegacyVectors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err = db.AutoMigrate(&model.FileObject{}, &model.FileChunk{}); err != nil {
+	if err = db.AutoMigrate(&models.FileObject{}, &models.FileChunk{}); err != nil {
 		t.Fatalf("migrate file models: %v", err)
 	}
-	files := []model.FileObject{
+	files := []models.FileObject{
 		{FileID: "file_legacy_vector", UserID: 1, Status: "active", EmbedStatus: "ready"},
 		{FileID: "file_signed_vector", UserID: 1, Status: "active", EmbedStatus: "ready"},
 	}
 	if err = db.Create(&files).Error; err != nil {
 		t.Fatalf("create files: %v", err)
 	}
-	chunks := []model.FileChunk{
+	chunks := []models.FileChunk{
 		{FileObjID: files[0].ID, UserID: 1, Content: "legacy", EmbeddingSignature: ""},
 		{FileObjID: files[1].ID, UserID: 1, Content: "signed", EmbeddingSignature: "model@4096"},
 	}
@@ -470,7 +470,7 @@ func TestInvalidateUnsignedFileEmbeddingsQueuesOnlyLegacyVectors(t *testing.T) {
 		t.Fatalf("invalidate unsigned file embeddings: %v", err)
 	}
 	var statuses []string
-	if err = db.Model(&model.FileObject{}).Order("id ASC").Pluck("embed_status", &statuses).Error; err != nil {
+	if err = db.Model(&models.FileObject{}).Order("id ASC").Pluck("embed_status", &statuses).Error; err != nil {
 		t.Fatalf("load embed statuses: %v", err)
 	}
 	if len(statuses) != 2 || statuses[0] != "stale" || statuses[1] != "ready" {

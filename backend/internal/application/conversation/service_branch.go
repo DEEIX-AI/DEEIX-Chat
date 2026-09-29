@@ -83,7 +83,7 @@ func (s *Service) resolveMessageBranch(
 		}
 		switch sourceMessage.Role {
 		case "user":
-			// User retry/edit creates a new user sibling and a fresh assistant child.
+			// 用户重试/编辑会创建新的用户兄弟消息及新的助手子消息。
 		case "assistant":
 			if branchReason != "retry" || parentMessage == nil || parentMessage.Role != "user" {
 				return nil, ErrInvalidMessageBranch
@@ -133,12 +133,12 @@ func (s *Service) resolveMessageBranch(
 	return state, nil
 }
 
-// loadMessageBranchContext hydrates one active ancestor path in bounded pages.
-// Branch selection is deliberately kept lightweight; full messages are loaded
-// only after the route and latest rolling snapshot are known. A verified
-// snapshot boundary stops the scan early, while conversations without a
-// snapshot are read to their root so the first compaction never summarizes a
-// silently truncated suffix.
+// loadMessageBranchContext 分页有界地加载一条活动祖先路径。
+// 分支选择有意保持轻量；完整消息仅在
+// 路由与最新滚动快照确定后才加载。已验证的
+// 快照边界会提前终止扫描，而没有快照的会话
+// 会读取到根节点，确保首次压缩绝不会对
+// 被静默截断的后缀进行摘要。
 func (s *Service) loadMessageBranchContext(
 	ctx context.Context,
 	conversationID uint,
@@ -210,9 +210,9 @@ func contextMessagesPayloadBytes(messages []model.Message) int {
 	return total
 }
 
-// recoverAssistantRetryUserStates makes a reused user message valid context
-// after its assistant retry produced usable output. Persisted history remains
-// unchanged so the original failed run can still be diagnosed.
+// recoverAssistantRetryUserStates 在助手重试产生可用输出后，
+// 使复用的用户消息成为有效上下文。持久化历史保持
+// 不变，以便仍可诊断原先失败的运行。
 func recoverAssistantRetryUserStates(messages []model.Message) []model.Message {
 	var recovered []model.Message
 	for index := range messages {
@@ -291,10 +291,10 @@ func buildBranchMessagePath(branch *messageBranchState, userMessage *model.Messa
 	return buildMessagePath(allMessages, userMessage.ID)
 }
 
-// buildModelContextMessages resolves the complete active branch before removing
-// unusable rows. Keeping topology and prompt eligibility separate prevents a
-// canceled or failed ancestor from breaking the parent chain and silently
-// discarding otherwise valid history.
+// buildModelContextMessages 先解析完整的活动分支，再移除
+// 不可用的行。将拓扑与提示词可用性分离，可防止
+// 已取消或失败的祖先打断父链并静默
+// 丢弃其余有效历史。
 func buildModelContextMessages(branch *messageBranchState, userMessage *model.Message, branchReason string) []model.Message {
 	messages := buildBranchMessagePath(branch, userMessage)
 	messages = recoverAssistantRetryUserStates(messages)
@@ -309,10 +309,10 @@ func buildModelContextMessages(branch *messageBranchState, userMessage *model.Me
 	return filterDefaultBranchContextMessages(messages, currentMessageID)
 }
 
-// filterDefaultBranchContextMessages excludes failed, canceled, and pending
-// historical rows without treating them as a boundary. The newly persisted
-// user row is still pending while its model request is being assembled, so it
-// is retained explicitly unless moderation already removed it.
+// filterDefaultBranchContextMessages 排除失败、已取消及待处理的
+// 历史行，但不将其视为边界。新持久化的
+// 用户行在组装其模型请求期间仍处于待处理状态，因此
+// 会被显式保留，除非审核已将其移除。
 func filterDefaultBranchContextMessages(messages []model.Message, currentMessageID uint) []model.Message {
 	if len(messages) == 0 {
 		return messages

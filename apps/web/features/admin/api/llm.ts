@@ -1,6 +1,6 @@
 import { authedRequest } from "@/shared/api/authed-client";
 import { pathParam } from "@/shared/api/http-client";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 import type {
   AdminBatchDeleteData,
   AdminBatchDeleteRequest,
@@ -40,7 +40,7 @@ import type {
   UpdateAdminLLMModelUpstreamSourceRequest,
   UpdateAdminLLMUpstreamRequest,
   UpsertAdminLLMUpstreamModelRequest,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 
 import { normalizeAdminPagePayload, resolveAdminPage, type AdminListQueryOptions, type AdminPageOptions } from "./shared";
 

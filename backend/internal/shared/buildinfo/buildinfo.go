@@ -6,13 +6,13 @@ import (
 	"sync"
 )
 
-// Version is injected from the repository-level VERSION file at build time.
+// Version 在构建时从仓库根目录的 VERSION 文件注入。
 var Version = "dev"
 
-// Commit is injected from the current git commit at build time.
+// Commit 在构建时从当前 git commit 注入。
 var Commit = "unknown"
 
-// BuildTime is injected as an RFC3339 UTC timestamp at build time.
+// BuildTime 在构建时以 RFC3339 UTC 时间戳注入。
 var BuildTime = "unknown"
 
 var (

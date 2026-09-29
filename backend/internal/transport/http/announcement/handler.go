@@ -122,8 +122,8 @@ func (h *Handler) CloseAnnouncement(c *gin.Context) {
 // @Param type query string false "类型：critical/warning/info/normal/general"
 // @Param pinned query bool false "是否置顶"
 // @Param q query string false "搜索关键词"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} AdminAnnouncementListResponseDoc
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/announcements [get]

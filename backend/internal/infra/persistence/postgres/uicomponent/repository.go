@@ -6,8 +6,9 @@ import (
 
 	domainuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/uicomponent"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -27,13 +28,14 @@ func (r *Repo) ListUIComponents(ctx context.Context, filter repository.UICompone
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 200 {
-		limit = 200
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
 
-	var items []model.UIComponent
+	var items []models.UIComponent
 	var total int64
-	query := applyFilter(r.db.WithContext(ctx).Model(&model.UIComponent{}), filter)
+	query := applyFilter(r.db.WithContext(ctx).Model(&models.UIComponent{}), filter)
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
 	}
@@ -52,7 +54,7 @@ func (r *Repo) GetUIComponent(ctx context.Context, id uint) (*domainuicomponent.
 	if id == 0 {
 		return nil, repository.ErrInvalidInput
 	}
-	var record model.UIComponent
+	var record models.UIComponent
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&record).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -65,7 +67,7 @@ func (r *Repo) CreateUIComponent(ctx context.Context, item *domainuicomponent.Co
 	if item == nil {
 		return nil, repository.ErrInvalidInput
 	}
-	record := model.UIComponent{
+	record := models.UIComponent{
 		Scope:           strings.TrimSpace(item.Scope),
 		OwnerUserID:     item.OwnerUserID,
 		Name:            strings.TrimSpace(item.Name),
@@ -84,7 +86,7 @@ func (r *Repo) CreateUIComponent(ctx context.Context, item *domainuicomponent.Co
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if record.SortOrder <= 0 {
 			var maxSortOrder int
-			if err := tx.Model(&model.UIComponent{}).
+			if err := tx.Model(&models.UIComponent{}).
 				Where("scope = ? AND owner_user_id = ?", record.Scope, record.OwnerUserID).
 				Select("COALESCE(MAX(sort_order), 0)").
 				Scan(&maxSortOrder).Error; err != nil {
@@ -111,7 +113,7 @@ func (r *Repo) PatchUIComponent(ctx context.Context, id uint, patch repository.U
 	}
 	var result domainuicomponent.Component
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var record model.UIComponent
+		var record models.UIComponent
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&record).Error; err != nil {
 			return dberror.Translate(err)
 		}
@@ -165,7 +167,7 @@ func (r *Repo) DeleteUIComponent(ctx context.Context, id uint) error {
 	if id == 0 {
 		return repository.ErrInvalidInput
 	}
-	result := r.db.WithContext(ctx).Delete(&model.UIComponent{}, id)
+	result := r.db.WithContext(ctx).Delete(&models.UIComponent{}, id)
 	if result.Error != nil {
 		return dberror.Translate(result.Error)
 	}
@@ -213,7 +215,7 @@ func orderClause(filter repository.UIComponentListFilter) string {
 	return "CASE WHEN enabled THEN 0 ELSE 1 END ASC, sort_order ASC, updated_at DESC, id DESC"
 }
 
-func toDomain(item model.UIComponent) domainuicomponent.Component {
+func toDomain(item models.UIComponent) domainuicomponent.Component {
 	return domainuicomponent.Component{
 		ID:              item.ID,
 		Scope:           item.Scope,

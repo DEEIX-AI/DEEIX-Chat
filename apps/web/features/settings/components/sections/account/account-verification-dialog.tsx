@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { SpinnerLabel } from "@/components/ui/spinner";
-import type { SecurityVerificationMethod } from "@/shared/api/auth.types";
+import type { SecurityVerificationMethod } from "@/shared/api/auth-types";
 
 export function sanitizeVerificationCode(method: SecurityVerificationMethod, value: string) {
   if (method === "two_factor") {

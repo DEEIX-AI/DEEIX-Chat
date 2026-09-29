@@ -265,7 +265,7 @@ func TestWorkerPrefetchDoesNotBypassQueueCapacity(t *testing.T) {
 	service := NewService(nil, repo, "", nil)
 	service.maxConcurrency = 1
 	service.queueCapacity = 1
-	service.activeWorkers = 1 // keep the worker waiting for a logical slot
+	service.activeWorkers = 1 // 让 worker 持续等待逻辑并发槽位
 
 	ctx, cancel := context.WithCancel(context.Background())
 	service.wg.Add(1)

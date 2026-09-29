@@ -392,8 +392,8 @@ func (s *Service) SetMessageFeedback(
 	}, nil
 }
 
-// UpdateAssistantMessageContent 更新当前用户的一条 assistant 消息正文。
-func (s *Service) UpdateAssistantMessageContent(
+// UpdateMessageContent 就地更新当前用户的一条消息正文，不触发重新生成；只允许 user/assistant 消息。
+func (s *Service) UpdateMessageContent(
 	ctx context.Context,
 	userID uint,
 	messagePublicID string,
@@ -415,14 +415,14 @@ func (s *Service) UpdateAssistantMessageContent(
 		}
 		return nil, err
 	}
-	if message.Role != "assistant" {
+	if message.Role != "assistant" && message.Role != "user" {
 		return nil, ErrMessageEditTargetInvalid
 	}
 	if message.Status == "pending" {
 		return nil, ErrMessageEditStateInvalid
 	}
 
-	updated, err := s.repo.UpdateAssistantMessageContent(ctx, userID, normalizedPublicID, normalizedContent, time.Now())
+	updated, err := s.repo.UpdateMessageContent(ctx, userID, normalizedPublicID, normalizedContent, time.Now())
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrMessageNotFound

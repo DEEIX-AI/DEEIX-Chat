@@ -1,6 +1,10 @@
+import { isOneOf } from "@/shared/lib/type-guards";
+
 export const APP_LOCALES = ["en-US", "zh-CN"] as const;
 
 export type AppLocale = (typeof APP_LOCALES)[number];
+
+export const isAppLocale = isOneOf(APP_LOCALES);
 
 export const DEFAULT_LOCALE: AppLocale = "en-US";
 export const LOCALE_COOKIE_NAME = "deeix_chat_locale";
@@ -20,7 +24,7 @@ export function normalizeAppLocale(value: string | null | undefined): AppLocale 
   if (lower === "en" || lower.startsWith("en-")) {
     return "en-US";
   }
-  return APP_LOCALES.includes(canonical as AppLocale) ? (canonical as AppLocale) : DEFAULT_LOCALE;
+  return isAppLocale(canonical) ? canonical : DEFAULT_LOCALE;
 }
 
 export function resolveBrowserLocale(languages: readonly string[] | undefined): AppLocale {

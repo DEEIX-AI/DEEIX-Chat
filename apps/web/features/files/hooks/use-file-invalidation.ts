@@ -2,10 +2,7 @@
 
 import * as React from "react";
 
-import {
-  subscribeFileLibraryInvalidated,
-  type FileLibraryInvalidatedDetail,
-} from "@/shared/events/file-library-events";
+import { subscribeFileLibraryInvalidated, type FileLibraryInvalidatedDetail } from "@/entities/file";
 
 export function useFileInvalidation(
   onInvalidated: (detail: FileLibraryInvalidatedDetail) => void,

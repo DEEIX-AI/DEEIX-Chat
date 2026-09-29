@@ -17,7 +17,7 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-// New initializes a SQLite connection for single-node deployments.
+// New 为单节点部署初始化 SQLite 连接。
 func New(cfg config.Config) (*gorm.DB, error) {
 	dsn, err := sqliteDSN(cfg)
 	if err != nil {

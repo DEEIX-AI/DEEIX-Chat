@@ -12,11 +12,11 @@ import {
   sanitizeConversationOptions,
 } from "@/features/chat/model/conversation-options";
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
 
 /**
- * 所选模型的参数状态：切换模型时按「本地缓存优先、否则模型默认值」初始化；
- * 用户修改即写入 localStorage；模型默认值变更且用户未改动时跟随更新；支持重置与恢复后端默认值。
+ * Parameter state for the selected model: on model switch, initialize from local cache first, else model defaults;
+ * user edits are written to localStorage; follows model default changes when the user hasn't edited; supports reset and restoring backend defaults.
  */
 export function useChatModelOptionState({
   selectedModel,

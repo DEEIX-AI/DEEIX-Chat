@@ -15,7 +15,7 @@ import (
 	appchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstorage"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/gin-gonic/gin"
 )
@@ -31,8 +31,8 @@ func TestGetModelIconAssetValidatesObjectBeforeConditionalResponse(t *testing.T)
 		StoragePath: "model-icons/" + hash[:2] + "/" + hash + ".png", ContentType: "image/png", SizeBytes: int64(len(data)),
 		ReadyAt: &readyAt, LeaseExpiresAt: time.Now().Add(time.Hour),
 	}
-	store := objectstore.NewLocal(t.TempDir())
-	if _, err := store.Put(t.Context(), item.StoragePath, bytes.NewReader(data), objectstore.PutOptions{
+	store := objectstorage.NewLocal(t.TempDir())
+	if _, err := store.Put(t.Context(), item.StoragePath, bytes.NewReader(data), objectstorage.PutOptions{
 		SizeBytes: int64(len(data)), ContentType: item.ContentType,
 	}); err != nil {
 		t.Fatalf("seed icon object: %v", err)
@@ -87,7 +87,7 @@ func TestGetModelIconAssetDoesNotReturnNotModifiedWhenObjectIsMissing(t *testing
 		StoragePath: "model-icons/" + hash[:2] + "/" + hash + ".png", ContentType: "image/png", SizeBytes: int64(len(data)),
 		ReadyAt: &readyAt, LeaseExpiresAt: time.Now().Add(time.Hour),
 	}
-	provider := &countingModelIconStoreProvider{store: objectstore.NewLocal(t.TempDir())}
+	provider := &countingModelIconStoreProvider{store: objectstorage.NewLocal(t.TempDir())}
 	service := appchannel.NewServiceWithRuntime(config.NewRuntime(config.Config{}), nil, nil, nil, nil)
 	service.SetModelIconAssetRepository(handlerModelIconAssetRepo{item: item})
 	service.SetObjectStoreProvider(provider)
@@ -207,11 +207,11 @@ func TestDeleteModelIconAssetReturnsReferenceSummary(t *testing.T) {
 }
 
 type countingModelIconStoreProvider struct {
-	store objectstore.Store
+	store objectstorage.Store
 	opens int
 }
 
-func (p *countingModelIconStoreProvider) Open(context.Context) (objectstore.Store, error) {
+func (p *countingModelIconStoreProvider) Open(context.Context) (objectstorage.Store, error) {
 	p.opens++
 	return p.store, nil
 }

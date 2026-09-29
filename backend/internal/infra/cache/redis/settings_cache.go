@@ -1,4 +1,4 @@
-package cache
+package redis
 
 import (
 	"context"
@@ -6,18 +6,18 @@ import (
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	"github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v8"
 )
 
 const settingsCacheTTL = 60 * time.Second
 
 // settingsCache 实现 repository.SettingsCacheRepository，封装配置项的 Redis 缓存操作。
 type settingsCache struct {
-	client *redis.Client
+	client *goredis.Client
 }
 
 // NewSettingsCache 创建配置缓存实现。
-func NewSettingsCache(client *redis.Client) repository.SettingsCacheRepository {
+func NewSettingsCache(client *goredis.Client) repository.SettingsCacheRepository {
 	return &settingsCache{client: client}
 }
 

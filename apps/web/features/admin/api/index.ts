@@ -1,4 +1,4 @@
-export * from "./accounts";
+export * from "./users";
 export * from "./announcements";
 export * from "./auth";
 export * from "./audit";

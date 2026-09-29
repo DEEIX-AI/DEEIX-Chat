@@ -23,7 +23,7 @@ import {
   MAX_CONVERSATION_LABELS,
   normalizeConversationLabel,
   normalizeConversationLabels,
-} from "@/shared/lib/conversation-labels";
+} from "@/entities/conversation/lib/conversation-labels";
 
 type ConversationLabelsDialogProps = {
   open: boolean;

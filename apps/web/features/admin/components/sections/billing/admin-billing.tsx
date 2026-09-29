@@ -8,6 +8,7 @@ import { BillingPricesSection } from "@/features/admin/components/sections/billi
 import { BillingRedemptionSection } from "@/features/admin/components/sections/billing/billing-redemption";
 import { BillingToolsSection } from "@/features/admin/components/sections/billing/billing-tools";
 import { useAdminBillingReference } from "@/features/admin/hooks/use-admin-billing-reference";
+import { FeatureGate } from "@/shared/capabilities";
 
 export function AdminBillingPage() {
   const billing = useAdminBillingReference();
@@ -27,22 +28,24 @@ export function AdminBillingPage() {
         loading={billing.loading}
       />
 
-      <Separator className="mx-1 my-10" />
+      <FeatureGate feature="billingGating">
+        <Separator className="mx-1 my-10" />
 
-      <BillingRedemptionSection
-        plans={billing.plans}
-        billingMode={billingMode}
-        loading={billing.loading}
-      />
+        <BillingRedemptionSection
+          plans={billing.plans}
+          billingMode={billingMode}
+          loading={billing.loading}
+        />
 
-      <Separator className="mx-1 my-10" />
+        <Separator className="mx-1 my-10" />
 
-      <BillingPlanSection
-        plans={billing.plans}
-        setPlans={billing.setPlans}
-        permissionGroups={billing.permissionGroups}
-        loading={billing.loading}
-      />
+        <BillingPlanSection
+          plans={billing.plans}
+          setPlans={billing.setPlans}
+          permissionGroups={billing.permissionGroups}
+          loading={billing.loading}
+        />
+      </FeatureGate>
 
       <Separator className="mx-1 my-10" />
 

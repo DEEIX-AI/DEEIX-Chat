@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 )
 
 func TestSessionAcceptsPresentedRefreshHash(t *testing.T) {
 	now := time.Now()
 	rotatedAt := now.Add(-5 * time.Second)
-	session := model.UserSession{
+	session := models.UserSession{
 		RefreshTokenHash:         "current-hash",
 		PreviousRefreshTokenHash: "previous-hash",
 		RefreshRotatedAt:         &rotatedAt,
@@ -36,7 +36,7 @@ func TestSessionAcceptsPresentedRefreshHash(t *testing.T) {
 func TestClassifyPresentedRefreshHash(t *testing.T) {
 	now := time.Now()
 	rotatedAt := now.Add(-5 * time.Second)
-	session := model.UserSession{
+	session := models.UserSession{
 		RefreshTokenHash:         "current-hash",
 		PreviousRefreshTokenHash: "previous-hash",
 		RefreshRotatedAt:         &rotatedAt,
@@ -62,7 +62,7 @@ func TestClassifyPresentedRefreshHash(t *testing.T) {
 	}
 
 	// 从未轮换过的会话没有"上一枚"，任何非当前令牌都只是无效，不构成重用。
-	fresh := model.UserSession{RefreshTokenHash: "current-hash", ExpiresAt: now.Add(time.Hour)}
+	fresh := models.UserSession{RefreshTokenHash: "current-hash", ExpiresAt: now.Add(time.Hour)}
 	if got := classifyPresentedRefreshHash(fresh, "previous-hash", now, 15*time.Second); got != refreshHashUnknown {
 		t.Fatalf("fresh session: got %v, want unknown", got)
 	}
@@ -71,7 +71,7 @@ func TestClassifyPresentedRefreshHash(t *testing.T) {
 func TestSessionRejectsPresentedRefreshHashForInactiveSession(t *testing.T) {
 	now := time.Now()
 	revokedAt := now
-	revokedSession := model.UserSession{
+	revokedSession := models.UserSession{
 		RefreshTokenHash: "current-hash",
 		ExpiresAt:        now.Add(time.Hour),
 		RevokedAt:        &revokedAt,
@@ -80,7 +80,7 @@ func TestSessionRejectsPresentedRefreshHashForInactiveSession(t *testing.T) {
 		t.Fatal("expected revoked session to reject refresh hash")
 	}
 
-	expiredSession := model.UserSession{
+	expiredSession := models.UserSession{
 		RefreshTokenHash: "current-hash",
 		ExpiresAt:        now.Add(-time.Second),
 	}

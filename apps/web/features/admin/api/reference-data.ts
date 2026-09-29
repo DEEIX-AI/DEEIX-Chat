@@ -4,9 +4,10 @@ import {
   listAdminModelPricing,
 } from "./billing";
 import { listAdminLLMModels } from "./llm";
-import type { AdminBillingConfigData, AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing.types";
-import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
+import type { AdminBillingConfigData, AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing-types";
+import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { listAllAdminPages } from "./shared";
+import { whenFeatureAvailable } from "@/shared/api/capabilities";
 
 type AdminReferenceData = {
   billingConfig: AdminBillingConfigData;
@@ -35,7 +36,7 @@ export async function getAdminReferenceData(accessToken: string): Promise<AdminR
 
   pendingReferenceData = Promise.all([
     getAdminBillingConfig(accessToken),
-    listAdminBillingPlans(accessToken),
+    whenFeatureAvailable(listAdminBillingPlans(accessToken), []),
     listAllAdminPages((options) => listAdminLLMModels(accessToken, { ...options, onlyActive: false, sort: "sortOrder_asc" })),
     listAllAdminPages((options) => listAdminModelPricing(accessToken, options)),
   ])

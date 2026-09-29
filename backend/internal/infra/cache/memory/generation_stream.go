@@ -28,7 +28,7 @@ type generationStream struct {
 	notify                chan struct{}
 }
 
-// ClaimGenerationStream claims ownership of a generation stream and renews its leases.
+// ClaimGenerationStream 认领生成流的所有权并续期其租约。
 func (c *Cache) ClaimGenerationStream(
 	_ context.Context,
 	lease repository.GenerationStreamLease,
@@ -77,7 +77,7 @@ func (c *Cache) ClaimGenerationStream(
 	return true, nil
 }
 
-// GetGenerationStreamOwner returns the active owner of a generation stream.
+// GetGenerationStreamOwner 返回生成流的当前活跃所有者。
 func (c *Cache) GetGenerationStreamOwner(ctx context.Context, runID string) (uint, bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -89,7 +89,7 @@ func (c *Cache) GetGenerationStreamOwner(ctx context.Context, runID string) (uin
 	return stream.ownerID, true, nil
 }
 
-// RenewGenerationStreamLease extends the active and ownership leases for a stream.
+// RenewGenerationStreamLease 延长流的活跃租约与所有权租约。
 func (c *Cache) RenewGenerationStreamLease(
 	_ context.Context,
 	lease repository.GenerationStreamLease,
@@ -116,7 +116,7 @@ func (c *Cache) RenewGenerationStreamLease(
 	return true, nil
 }
 
-// CompleteGenerationStream marks a stream complete while retaining its events temporarily.
+// CompleteGenerationStream 将流标记为完成，并临时保留其事件。
 func (c *Cache) CompleteGenerationStream(_ context.Context, lease repository.GenerationStreamLease, retention time.Duration) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -142,7 +142,7 @@ func (c *Cache) CompleteGenerationStream(_ context.Context, lease repository.Gen
 	return true, nil
 }
 
-// AbandonGenerationStream removes an active stream without retaining its events.
+// AbandonGenerationStream 移除活跃流，不保留其事件。
 func (c *Cache) AbandonGenerationStream(_ context.Context, lease repository.GenerationStreamLease) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -160,7 +160,7 @@ func (c *Cache) AbandonGenerationStream(_ context.Context, lease repository.Gene
 	return true, nil
 }
 
-// ListActiveGenerationStreams lists active streams owned by a user.
+// ListActiveGenerationStreams 列出用户拥有的活跃流。
 func (c *Cache) ListActiveGenerationStreams(ctx context.Context, userID uint) ([]repository.ActiveGenerationStream, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -179,7 +179,7 @@ func (c *Cache) ListActiveGenerationStreams(ctx context.Context, userID uint) ([
 	return items, nil
 }
 
-// IsGenerationStreamActive reports whether a generation stream is active.
+// IsGenerationStreamActive 报告生成流是否处于活跃状态。
 func (c *Cache) IsGenerationStreamActive(ctx context.Context, runID string) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -188,7 +188,7 @@ func (c *Cache) IsGenerationStreamActive(ctx context.Context, runID string) (boo
 	return stream != nil && !stream.activeExpired(now), nil
 }
 
-// RequestGenerationStreamCancel records a user's cancellation request for a stream.
+// RequestGenerationStreamCancel 记录用户对某个流的取消请求。
 func (c *Cache) RequestGenerationStreamCancel(_ context.Context, runID string, userID uint, ttl time.Duration) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -202,7 +202,7 @@ func (c *Cache) RequestGenerationStreamCancel(_ context.Context, runID string, u
 	return true, nil
 }
 
-// IsGenerationStreamCanceled reports whether a stream has an unexpired cancellation request.
+// IsGenerationStreamCanceled 报告流是否存在未过期的取消请求。
 func (c *Cache) IsGenerationStreamCanceled(ctx context.Context, runID string) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -211,7 +211,7 @@ func (c *Cache) IsGenerationStreamCanceled(ctx context.Context, runID string) (b
 	return stream != nil && !stream.cancelExpired(now), nil
 }
 
-// AppendGenerationStreamEvent appends an event to an owned generation stream.
+// AppendGenerationStreamEvent 向已拥有的生成流追加事件。
 func (c *Cache) AppendGenerationStreamEvent(
 	_ context.Context,
 	lease repository.GenerationStreamLease,
@@ -232,7 +232,7 @@ func (c *Cache) AppendGenerationStreamEvent(
 	return record, true, nil
 }
 
-// AppendActiveGenerationEvent appends an event to the shared active-stream feed.
+// AppendActiveGenerationEvent 向共享的活跃流 feed 追加事件。
 func (c *Cache) AppendActiveGenerationEvent(
 	_ context.Context,
 	input repository.GenerationStreamAppend,
@@ -294,7 +294,7 @@ func appendGenerationStreamEventLocked(
 	return record
 }
 
-// GetGenerationStreamUpstreamThinkSnapshot returns the latest upstream thinking snapshot.
+// GetGenerationStreamUpstreamThinkSnapshot 返回最新的上游思考快照。
 func (c *Cache) GetGenerationStreamUpstreamThinkSnapshot(ctx context.Context, runID string) (repository.GenerationStreamUpstreamThinkSnapshot, bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -311,7 +311,7 @@ func (c *Cache) GetGenerationStreamUpstreamThinkSnapshot(ctx context.Context, ru
 	}, true, nil
 }
 
-// GetGenerationStreamTextSnapshot returns the latest accumulated text snapshot.
+// GetGenerationStreamTextSnapshot 返回最新的累计文本快照。
 func (c *Cache) GetGenerationStreamTextSnapshot(ctx context.Context, runID string) (repository.GenerationStreamTextSnapshot, bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -326,7 +326,7 @@ func (c *Cache) GetGenerationStreamTextSnapshot(ctx context.Context, runID strin
 	}, true, nil
 }
 
-// ListGenerationStreamEvents returns retained events for a generation stream.
+// ListGenerationStreamEvents 返回生成流保留的事件。
 func (c *Cache) ListGenerationStreamEvents(ctx context.Context, runID string, limit int64) ([]repository.GenerationStreamMessage, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -341,7 +341,7 @@ func (c *Cache) ListGenerationStreamEvents(ctx context.Context, runID string, li
 	return append([]repository.GenerationStreamMessage(nil), stream.events[len(stream.events)-int(limit):]...), nil
 }
 
-// ReadGenerationStreamEvents waits for and returns events after a stream cursor.
+// ReadGenerationStreamEvents 等待并返回流游标之后的事件。
 func (c *Cache) ReadGenerationStreamEvents(ctx context.Context, runID string, afterID string, block time.Duration, limit int64) ([]repository.GenerationStreamMessage, error) {
 	if c == nil {
 		return nil, nil
@@ -389,7 +389,7 @@ func (c *Cache) notifyGenerationStreamsLocked() {
 	c.streamNotify = make(chan struct{})
 }
 
-// ResetGenerationStreamEvents clears retained events while preserving stream ownership.
+// ResetGenerationStreamEvents 清除保留的事件，同时保留流的所有权。
 func (c *Cache) ResetGenerationStreamEvents(_ context.Context, lease repository.GenerationStreamLease) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -398,7 +398,7 @@ func (c *Cache) ResetGenerationStreamEvents(_ context.Context, lease repository.
 		return false, nil
 	}
 	stream.resetEventsLocked()
-	// Keep seq monotonic so any in-flight afterSeq cursors stay valid.
+	// 保持 seq 单调递增，使进行中的 afterSeq 游标仍然有效。
 	stream.notifyLocked()
 	c.notifyGenerationStreamsLocked()
 	return true, nil

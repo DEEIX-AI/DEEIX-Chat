@@ -19,14 +19,10 @@ import {
   getChatFilePolicy,
   uploadFile,
 } from "@/shared/api/file";
-import type { ChatFilePolicyDTO, FileProcessingStatusDTO } from "@/shared/api/file.types";
+import type { ChatFilePolicyDTO, FileProcessingStatusDTO } from "@/shared/api/file-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import {
-  type FileStatusPollingResult,
-  useFileProcessingStatusPolling,
-} from "@/shared/hooks/use-file-processing-status-polling";
+import { type FileStatusPollingResult, isFileProcessing, useFileProcessingStatusPolling } from "@/entities/file";
 import { runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
-import { isFileProcessing } from "@/shared/lib/file-processing";
 import { createSecureUUID } from "@/shared/lib/secure-id";
 
 function revokeAttachmentPreview(item: PendingAttachment) {

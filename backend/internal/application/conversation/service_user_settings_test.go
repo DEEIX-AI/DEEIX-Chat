@@ -92,7 +92,7 @@ func newUserSettingTestServices(repo userSettingTestRepository, runtimeCfg *conf
 	return conversationService, settingsService, cache
 }
 
-// TestIssue589UserSettingChangesTakeEffectImmediately covers every setting reported in #589.
+// TestIssue589UserSettingChangesTakeEffectImmediately 覆盖 #589 中报告的每一项设置。
 func TestIssue589UserSettingChangesTakeEffectImmediately(t *testing.T) {
 	const userID uint = 17
 	ctx := context.Background()

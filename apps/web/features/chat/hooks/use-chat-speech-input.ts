@@ -37,10 +37,14 @@ type BrowserSpeechRecognition = EventTarget & {
 
 type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 
-type BrowserWindowWithSpeechRecognition = Window & {
-  SpeechRecognition?: BrowserSpeechRecognitionConstructor;
-  webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
-};
+// lib.dom does not declare the Web Speech constructors; Chromium and Safari only ship the prefixed one.
+declare global {
+  // biome-ignore lint/style/useConsistentTypeDefinitions: augmenting the global Window requires interface declaration merging.
+  interface Window {
+    SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+    webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+  }
+}
 
 export type SpeechInputStatus = "idle" | "starting" | "listening";
 
@@ -116,7 +120,7 @@ export function useChatSpeechInput({
   }, [draft]);
 
   React.useEffect(() => {
-    const browserWindow = window as BrowserWindowWithSpeechRecognition;
+    const browserWindow = window;
     const RecognitionConstructor = browserWindow.SpeechRecognition ?? browserWindow.webkitSpeechRecognition;
     setSupported(window.isSecureContext && Boolean(RecognitionConstructor));
 
@@ -168,7 +172,7 @@ export function useChatSpeechInput({
       return;
     }
 
-    const browserWindow = window as BrowserWindowWithSpeechRecognition;
+    const browserWindow = window;
     const RecognitionConstructor = browserWindow.SpeechRecognition ?? browserWindow.webkitSpeechRecognition;
     if (!RecognitionConstructor) {
       setSupported(false);

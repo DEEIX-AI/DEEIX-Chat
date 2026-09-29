@@ -804,8 +804,9 @@ dependencies = [
 
 [[package]]
 name = "deeix-chat-desktop"
-version = "0.4.4-beta.2"
+version = "0.4.4-beta.3"
 dependencies = [
+ "dunce",
  "keyring",
  "objc2",
  "objc2-foundation",
@@ -821,6 +822,8 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tokio",
+ "windows-registry",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -13,8 +13,8 @@ function droppedFiles(event: React.DragEvent<HTMLElement>): File[] {
 }
 
 /**
- * 文件拖拽上传：按拖入/拖出深度计数维护高亮状态（避免子元素间移动误关），
- * drop 时过滤出有效文件并交给上传回调；禁用期间重置状态且不接受拖放。
+ * File drag-and-drop upload: tracks highlight state via an enter/leave depth counter (so moving between children doesn't close it);
+ * on drop, filters valid files and passes them to the upload callback. While disabled, state is reset and drops are rejected.
  */
 export function useChatFileDrag({
   disabled,

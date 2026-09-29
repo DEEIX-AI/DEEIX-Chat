@@ -136,7 +136,7 @@ func TestLocalGrantIsSingleUseAndBoundToCurrentIssue(t *testing.T) {
 		t.Fatalf("unknown grant must fail, got %v", err)
 	}
 
-	// 重新签发后，旧 grant 立即作废（即便它从未被使用）。
+	// 重新签发后，旧的一次性授权凭证立即作废（即便它从未被使用）。
 	stale, _ := service.IssueLocalGrant()
 	fresh, _ := service.IssueLocalGrant()
 	if _, err := service.ExchangeLocalGrant(context.Background(), stale, "req-4", audit); !errors.Is(err, ErrLocalGrantInvalid) {

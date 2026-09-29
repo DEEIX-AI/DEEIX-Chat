@@ -87,8 +87,8 @@ func SupportsImageGenerationStream(protocol string, model string) bool {
 	case AdapterOpenAIImageEdits:
 		return openAIImageEditModelSupportsStream(model)
 	case AdapterOpenRouterImages:
-		// OpenRouter 统一图片端点对不支持原生流式的提供商会忽略 stream 并返回缓冲 JSON，
-		// 因此始终走流式入口即可同时覆盖两类提供商。
+		// OpenRouter 统一图片端点对不支持原生流式的提供方会忽略 stream 并返回缓冲 JSON，
+		// 因此始终走流式入口即可同时覆盖两类提供方。
 		return true
 	default:
 		return false

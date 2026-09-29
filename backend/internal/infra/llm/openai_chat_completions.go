@@ -220,7 +220,7 @@ func buildChatCompletionsContent(msg portllm.Message, promptCache *openAIPromptC
 			}
 			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
 			parts = append(parts, block)
-		default: // text, file — treated as plain text
+		default: // text、file——按纯文本处理
 			text := part.Text
 			if strings.TrimSpace(text) == "" {
 				continue
@@ -562,8 +562,8 @@ func parseOpenAICompatibleUsageForAdapter(adapter string, parsed map[string]any)
 		getInt64FromPath(parsed, "usage", "completion_tokens_details", "reasoning_tokens"),
 		getInt64FromPath(parsed, "usage", "reasoning_tokens"),
 	)
-	// OpenAI reports output/completion tokens as the billable output total,
-	// while xAI reports reasoning separately from completion/output tokens.
+	// OpenAI 将 output/completion tokens 报告为计费输出总量，
+	// 而 xAI 将 reasoning 与 completion/output tokens 分开报告。
 	visibleTokens := outputTokens
 	if openAICompatibleOutputIncludesReasoning(adapter) {
 		visibleTokens = visibleOutputTokens(outputTokens, reasoningTokens)

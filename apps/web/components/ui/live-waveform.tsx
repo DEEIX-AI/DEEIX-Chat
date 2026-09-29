@@ -5,6 +5,7 @@ import { useEffect, useRef, type HTMLAttributes } from "react"
 import { cn } from "@/lib/utils"
 
 declare global {
+  // biome-ignore lint/style/useConsistentTypeDefinitions: augmenting the global Window requires interface declaration merging.
   interface Window {
     webkitAudioContext?: typeof AudioContext
   }
@@ -311,7 +312,7 @@ export const LiveWaveform = ({
         // Clear history when starting
         historyRef.current = []
       } catch (error) {
-        onError?.(error as Error)
+        onError?.(error instanceof Error ? error : new Error(String(error)))
       }
     }
 

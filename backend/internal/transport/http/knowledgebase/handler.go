@@ -50,8 +50,8 @@ func (h *Handler) requireKnowledgeBaseEnabled(c *gin.Context) {
 // @Param q query string false "搜索关键词"
 // @Param sort query string false "排序方式(default/name/created/updated/files)"
 // @Param id query []string false "知识库ID"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} KnowledgeBasePageResponseDoc
 // @Router /knowledge-bases [get]
 func (h *Handler) ListVisible(c *gin.Context) {
@@ -67,8 +67,8 @@ func (h *Handler) ListVisible(c *gin.Context) {
 // @Param sort query string false "排序方式(default/name/created/updated/files)"
 // @Param id query []string false "知识库ID"
 // @Param enabled query bool false "可用状态"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} KnowledgeBasePageResponseDoc
 // @Router /knowledge-bases/mine [get]
 func (h *Handler) ListMine(c *gin.Context) {
@@ -151,8 +151,8 @@ func (h *Handler) DeleteMine(c *gin.Context) {
 // @Tags knowledge-bases
 // @Security BearerAuth
 // @Param id path string true "知识库ID"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} KnowledgeBaseFilePageResponseDoc
 // @Router /knowledge-bases/{id}/files [get]
 func (h *Handler) ListVisibleFiles(c *gin.Context) {
@@ -201,8 +201,8 @@ func (h *Handler) GetVisibleFileProcessingSnapshot(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path string true "知识库ID"
 // @Param q query string false "文件名搜索关键词"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} KnowledgeBaseFilePageResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc
@@ -277,8 +277,8 @@ func (h *Handler) RemoveMineFile(c *gin.Context) {
 // @Param sort query string false "排序方式(default/name/created/updated/files)"
 // @Param id query []string false "知识库ID"
 // @Param enabled query bool false "可用状态"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} KnowledgeBasePageResponseDoc
 // @Router /admin/knowledge-bases [get]
 func (h *Handler) ListAdmin(c *gin.Context) {
@@ -294,8 +294,8 @@ func (h *Handler) ListAdmin(c *gin.Context) {
 // @Tags admin-knowledge-bases
 // @Security BearerAuth
 // @Param q query string false "文件名搜索关键词"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} KnowledgeBaseFilePageResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
@@ -544,8 +544,8 @@ func (h *Handler) DeleteAdmin(c *gin.Context) { h.delete(c, true) }
 // @Tags admin-knowledge-bases
 // @Security BearerAuth
 // @Param id path string true "知识库ID"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} KnowledgeBaseFilePageResponseDoc
 // @Router /admin/knowledge-bases/{id}/files [get]
 func (h *Handler) ListAdminFiles(c *gin.Context) {
@@ -594,8 +594,8 @@ func (h *Handler) GetAdminFileProcessingSnapshot(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path string true "知识库ID"
 // @Param q query string false "文件名搜索关键词"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} KnowledgeBaseFilePageResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc

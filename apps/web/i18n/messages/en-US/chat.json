@@ -136,6 +136,7 @@
     "previewImage": "Preview image",
     "editImage": "Edit image",
     "downloadImage": "Download image",
+    "downloadImageFailed": "Could not download image",
     "scrollableTable": "Scrollable data table",
     "scrollableTableHint": "Scroll horizontally to view more columns.",
     "table": {
@@ -272,7 +273,11 @@
     "processing": "Processing...",
     "expandUserMessage": "Expand",
     "collapseUserMessage": "Collapse",
-    "editCreatesBranch": "Saving creates a new branch in this conversation.",
+    "editModes": "Save updates this message only; Generate starts a new branch here and replies again.",
+    "editSaveOnly": "Save",
+    "editSaveOnlyHint": "Update this message without regenerating",
+    "editRegenerate": "Generate",
+    "editRegenerateHint": "Regenerate the reply from the edited message",
     "previousBranch": "Switch to previous branch",
     "nextBranch": "Switch to next branch",
     "retryMessage": "Retry",
@@ -282,6 +287,7 @@
     "editReply": "Edit",
     "replyEditedDisclaimer": "Edited",
     "replyEditedTooltip": "Content may no longer fully reflect the original model output.",
+    "userEditedTooltip": "This message was edited after sending; later replies were generated from the original content.",
     "likeReply": "Like",
     "dislikeReply": "Dislike",
     "retryReply": "Retry",
@@ -302,7 +308,8 @@
     "memoryNamePlaceholder": "Preference name, e.g. response style",
     "memoryValuePlaceholder": "Preference content, e.g. answer concisely",
     "savingPreference": "Saving...",
-    "savePreference": "Save preference"
+    "savePreference": "Save preference",
+    "positionRail": "Message position"
   },
   "loadError": {
     "title": "Failed to load conversation",
@@ -386,6 +393,7 @@
     "forkFailed": "Failed to fork conversation",
     "deleteMessageFailed": "Failed to delete message",
     "editReplyFailed": "Failed to edit reply",
+    "editMessageFailed": "Failed to edit message",
     "retryReplyFailed": "Unable to retry this reply",
     "retryReplyMissingUser": "The corresponding user message was not found.",
     "moderationChecking": "Safety check in progress…",
@@ -708,6 +716,7 @@
     },
     "rag": {
       "sourceFallback": "Chunk source {fileID}",
+      "imageMatch": "Matched by image content",
       "chunksShort": "{count} chunks · {scorePercent}%",
       "chunksTotal": "{count} chunks",
       "retrievalSources": "Retrieval sources",

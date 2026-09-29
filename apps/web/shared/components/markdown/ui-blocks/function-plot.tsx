@@ -245,10 +245,10 @@ function buildImplicitPath(fn: CompiledExpression, view: Viewport, width: number
   const crossing = (a: number, b: number) => (a === b ? 0.5 : a / (a - b));
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
-      const v0 = values[row * (cols + 1) + col] as number;
-      const v1 = values[row * (cols + 1) + col + 1] as number;
-      const v2 = values[(row + 1) * (cols + 1) + col + 1] as number;
-      const v3 = values[(row + 1) * (cols + 1) + col] as number;
+      const v0 = values[row * (cols + 1) + col];
+      const v1 = values[row * (cols + 1) + col + 1];
+      const v2 = values[(row + 1) * (cols + 1) + col + 1];
+      const v3 = values[(row + 1) * (cols + 1) + col];
       if (!Number.isFinite(v0) || !Number.isFinite(v1) || !Number.isFinite(v2) || !Number.isFinite(v3)) {
         continue;
       }
@@ -260,8 +260,8 @@ function buildImplicitPath(fn: CompiledExpression, view: Viewport, width: number
       if (v3 < 0 !== v2 < 0) points.push([x0 + crossing(v3, v2) * cellW, y0 + cellH]);
       if (v0 < 0 !== v3 < 0) points.push([x0, y0 + crossing(v0, v3) * cellH]);
       for (let index = 0; index + 1 < points.length; index += 2) {
-        const [ax, ay] = points[index] as [number, number];
-        const [bx, by] = points[index + 1] as [number, number];
+        const [ax, ay] = points[index];
+        const [bx, by] = points[index + 1];
         parts.push(`M${ax.toFixed(1)} ${ay.toFixed(1)}L${bx.toFixed(1)} ${by.toFixed(1)}`);
       }
     }
@@ -420,7 +420,7 @@ function FunctionPlot({ id, props }: UIBlockRenderProps<FunctionPlotProps>) {
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // Pointer capture would retarget the click away from the zoom controls.
-    if (event.button !== 0 || (event.target as HTMLElement).closest("button")) {
+    if (event.button !== 0 || (event.target instanceof Element && event.target.closest("button"))) {
       return;
     }
     stopAnimation();
@@ -471,7 +471,7 @@ function FunctionPlot({ id, props }: UIBlockRenderProps<FunctionPlotProps>) {
 
       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         {/* The list never grows past the plot: 8 rows fit exactly, anything taller scrolls. */}
-        <div className="min-w-0 md:max-h-(--plot-height) md:overflow-y-auto" style={{ "--plot-height": `${height}px` } as React.CSSProperties}>
+        <div className="min-w-0 md:max-h-(--plot-height) md:overflow-y-auto" style={{ "--plot-height": `${height}px` }}>
           <ul className="[&>li+li]:shadow-[inset_0_0.5px_0_var(--border)]">
             {compiledRows.map((row) => {
               const color = SERIES_COLORS[row.key % SERIES_COLORS.length];
@@ -580,7 +580,7 @@ function FunctionPlot({ id, props }: UIBlockRenderProps<FunctionPlotProps>) {
           aria-label={props.title ?? rows.map((row) => row.expr).join(", ")}
         >
           {width > 0 ? (
-            <svg width={width} height={height} className="block">
+            <svg aria-hidden="true" width={width} height={height} className="block">
               <g className="stroke-border" strokeWidth={0.5}>
                 {xTicks.map((x) => (
                   <line key={`gx-${x}`} x1={toPx(x)} x2={toPx(x)} y1={0} y2={height} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { type AuthHost, type SessionStore, classifyAuthError, createAuthClient } from "@deeix/core";
-import type { LoginData } from "@/shared/api/auth.types";
+import type { LoginData } from "@/shared/api/auth-types";
 import { ApiError, apiRequest } from "@/shared/api/http-client";
 import { clearSessionSnapshot, readAccessToken, readSessionRevision, writeSessionSnapshot } from "@/shared/auth/session";
 import { isDesktopApp } from "@/shared/platform";
@@ -15,12 +15,6 @@ import { isShellSessionError, refreshSession } from "@/shared/platform/desktop-s
 //     using the keychain-held token. The webview never sees that token.
 
 const AUTH_REFRESH_LOCK_NAME = "deeix-chat:auth-refresh";
-
-type NavigatorWithLocks = Navigator & {
-  locks?: {
-    request<T>(name: string, callback: () => Promise<T> | T): Promise<T>;
-  };
-};
 
 const sessionStore: SessionStore = {
   readAccessToken,
@@ -58,7 +52,8 @@ const host: AuthHost = {
   },
   lock: {
     run(fn) {
-      const locks = typeof navigator === "undefined" ? undefined : (navigator as NavigatorWithLocks).locks;
+      // lib.dom types `locks` as always present, but it is missing in insecure contexts and older browsers.
+      const locks: LockManager | undefined = typeof navigator === "undefined" ? undefined : navigator.locks;
       return locks ? locks.request(AUTH_REFRESH_LOCK_NAME, fn) : fn();
     },
   },

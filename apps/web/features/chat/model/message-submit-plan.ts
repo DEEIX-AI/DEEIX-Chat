@@ -19,8 +19,8 @@ import {
 import { resolveImageLoadingAspectRatio } from "@/features/chat/model/message-submit-media";
 import type { ChatModelOption, PendingAttachment } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage, ImageLoadingAspectRatio } from "@/features/chat/types/messages";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 
 export type ChatSubmissionBranchReason = "default" | "retry" | "edit";
 

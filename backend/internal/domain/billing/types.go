@@ -15,9 +15,9 @@ const (
 	// PricingModeTiered 表示按 token 阶梯计费。
 	PricingModeTiered = "tiered"
 
-	// An empty cache-write basis preserves legacy protocol-dependent rates.
+	// 空的 cache-write 计价基准保留旧版按协议区分的费率。
 	CacheWritePriceBasisDirect = "direct"
-	// CacheWritePriceBasisAnthropic5m includes the 5m premium; native 1h costs 8/5 of this rate.
+	// CacheWritePriceBasisAnthropic5m 已包含 5m 溢价；原生 1h 的费用为该费率的 8/5。
 	CacheWritePriceBasisAnthropic5m = "anthropic_5m"
 
 	// IntervalMonth 表示按月计费。

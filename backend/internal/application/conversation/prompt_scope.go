@@ -51,10 +51,10 @@ func (s promptScope) activeMessages() []model.Message {
 	return s.FullBranchMessages
 }
 
-// estimatePromptScopeTokens mirrors the exact rolling-snapshot scope that is
-// eligible for the next upstream request. Keeping this estimate beside
-// buildPromptScope prevents the hard-budget preflight from double-counting
-// covered history or overlooking the summary and image-token reserve.
+// estimatePromptScopeTokens 精确镜像下一次上游请求可用的
+// 滚动快照范围。将该估算放在
+// buildPromptScope 旁边，可防止硬预算预检重复计算
+// 已覆盖的历史，或遗漏摘要与图片 token 预留。
 func estimatePromptScopeTokens(
 	messages []model.Message,
 	snapshot *model.ContextSnapshot,

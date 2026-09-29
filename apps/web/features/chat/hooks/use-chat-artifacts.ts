@@ -37,9 +37,9 @@ function clampArtifactRatio(value: number): number {
 }
 
 function useArtifactViewport() {
-  const [viewport, setViewport] = React.useState({
+  const [viewport, setViewport] = React.useState<{ isInline: boolean; inlineLayout: ChatArtifactInlineLayout }>({
     isInline: false,
-    inlineLayout: "balanced" as ChatArtifactInlineLayout,
+    inlineLayout: "balanced",
   });
 
   React.useEffect(() => {

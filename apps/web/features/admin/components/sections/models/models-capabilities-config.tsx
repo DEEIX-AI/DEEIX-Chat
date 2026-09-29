@@ -29,11 +29,17 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
+import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { ModelCapabilitiesPresetDialog } from "@/features/admin/components/sections/models/models-capabilities-presets";
-import type { NativeToolDefinition } from "@/shared/lib/model-option-policy";
-import { MODEL_OPTION_POLICY_PROTOCOL_LABELS, resolveModelOptionPolicyProtocol } from "@/shared/lib/model-option-policy";
-import { nativeToolPayloadMatchesShape, nativeToolPayloadSignature } from "@/shared/lib/native-tool-payload";
+import {
+  MODEL_OPTION_POLICY_PROTOCOL_LABELS,
+  MODEL_OPTION_POLICY_PROTOCOLS,
+  type NativeToolDefinition,
+  nativeToolPayloadMatchesShape,
+  nativeToolPayloadSignature,
+  resolveModelOptionPolicyProtocol,
+} from "@/entities/model";
+import { isOneOf, isRecord } from "@/shared/lib/type-guards";
 
 export const MODEL_CAPABILITIES_PLACEHOLDER = `{
   "defaultOptions": {},
@@ -68,11 +74,24 @@ export const MODEL_CAPABILITIES_PLACEHOLDER = `{
   ]
 }`;
 
-type CapabilityControlType = "text" | "select" | "number" | "boolean";
+const CAPABILITY_CONTROL_TYPES = ["text", "select", "number", "boolean"] as const;
+type CapabilityControlType = (typeof CAPABILITY_CONTROL_TYPES)[number];
+const isCapabilityControlType = isOneOf(CAPABILITY_CONTROL_TYPES);
+
+const PROMPT_CACHE_AVAILABILITIES = ["auto", "enabled", "disabled"] as const;
+const isPromptCacheAvailability = isOneOf(PROMPT_CACHE_AVAILABILITIES);
+const PROMPT_CACHE_MODES = ["implicit", "explicit"] as const;
+const isPromptCacheMode = isOneOf(PROMPT_CACHE_MODES);
+
+const CAPABILITY_EDITOR_TABS = ["parameters", "tools"] as const;
+type CapabilityEditorTab = (typeof CAPABILITY_EDITOR_TABS)[number];
+const isCapabilityEditorTab = isOneOf(CAPABILITY_EDITOR_TABS);
+
+const isModelOptionPolicyProtocol = isOneOf(MODEL_OPTION_POLICY_PROTOCOLS);
 
 type PromptCacheConfig = {
-  availability: "auto" | "enabled" | "disabled";
-  mode: "implicit" | "explicit";
+  availability: (typeof PROMPT_CACHE_AVAILABILITIES)[number];
+  mode: (typeof PROMPT_CACHE_MODES)[number];
 };
 
 type ParameterRow = {
@@ -115,7 +134,6 @@ type NativeToolRow = {
 
 type NativeToolRowErrors = Record<string, Partial<Record<"key" | "protocols" | "type" | "payload", string>>>;
 
-const CAPABILITY_CONTROL_TYPES: CapabilityControlType[] = ["text", "select", "number", "boolean"];
 const OPENAI_PROMPT_CACHE_PROTOCOLS = new Set(["openai_chat_completions", "openai_responses"]);
 const DEFAULT_PROMPT_CACHE_CONFIG: PromptCacheConfig = {
   availability: "auto",
@@ -136,8 +154,11 @@ function createCapabilityRowID(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function isPlainJSONObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+// Syntax errors still throw so callers keep their existing error handling;
+// valid JSON that is not an object falls back to an empty payload.
+function parseJSONObjectOrEmpty(raw: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(raw);
+  return isRecord(parsed) ? parsed : {};
 }
 
 function parseCapabilitiesObject(raw: string): Record<string, unknown> | null {
@@ -146,8 +167,8 @@ function parseCapabilitiesObject(raw: string): Record<string, unknown> | null {
     return {};
   }
   try {
-    const parsed = JSON.parse(normalized) as unknown;
-    return isPlainJSONObject(parsed) ? parsed : null;
+    const parsed: unknown = JSON.parse(normalized);
+    return isRecord(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -158,7 +179,7 @@ function supportsPromptCacheProtocols(routeProtocols: string[]): boolean {
 }
 
 function parsePromptCacheConfig(value: unknown): PromptCacheConfig {
-  if (!isPlainJSONObject(value)) {
+  if (!isRecord(value)) {
     return DEFAULT_PROMPT_CACHE_CONFIG;
   }
   const availability = value.enabled === true
@@ -171,7 +192,7 @@ function parsePromptCacheConfig(value: unknown): PromptCacheConfig {
 }
 
 function applyPromptCacheConfig(payload: Record<string, unknown>, config: PromptCacheConfig) {
-  const promptCache = isPlainJSONObject(payload.promptCache) ? { ...payload.promptCache } : {};
+  const promptCache = isRecord(payload.promptCache) ? { ...payload.promptCache } : {};
 
   if (config.availability === "disabled") {
     promptCache.enabled = false;
@@ -211,7 +232,7 @@ export function imageStreamEnabledFromCapabilities(raw: string): boolean {
     return true;
   }
   const image = payload.image;
-  if (!isPlainJSONObject(image)) {
+  if (!isRecord(image)) {
     return true;
   }
   return image.stream !== false;
@@ -224,7 +245,7 @@ export function setImageStreamEnabledInCapabilities(raw: string, enabled: boolea
   }
   if (enabled) {
     const image = payload.image;
-    if (isPlainJSONObject(image)) {
+    if (isRecord(image)) {
       delete image.stream;
       if (Object.keys(image).length === 0) {
         delete payload.image;
@@ -232,7 +253,7 @@ export function setImageStreamEnabledInCapabilities(raw: string, enabled: boolea
     }
   } else {
     payload.image = {
-      ...(isPlainJSONObject(payload.image) ? payload.image : {}),
+      ...(isRecord(payload.image) ? payload.image : {}),
       stream: false,
     };
   }
@@ -259,7 +280,7 @@ function formatDefaultOptionValue(value: unknown): string {
 }
 
 function flattenDefaultOptions(value: unknown, prefix: string[] = []): { path: string; value: string; rawValue: unknown }[] {
-  if (isPlainJSONObject(value)) {
+  if (isRecord(value)) {
     return Object.entries(value).flatMap(([key, child]) => flattenDefaultOptions(child, [...prefix, key]));
   }
   if (prefix.length === 0) {
@@ -278,7 +299,7 @@ function parseDefaultOptionValue(value: string): unknown {
     return null;
   }
   try {
-    return JSON.parse(normalized) as unknown;
+    return JSON.parse(normalized);
   } catch {
     return normalized;
   }
@@ -290,11 +311,12 @@ function setNestedOptionValue(target: Record<string, unknown>, path: string[], v
   }
   let current = target;
   path.slice(0, -1).forEach((segment) => {
-    const nextValue = current[segment];
-    if (!isPlainJSONObject(nextValue)) {
-      current[segment] = {};
+    const existing = current[segment];
+    const nextValue: Record<string, unknown> = isRecord(existing) ? existing : {};
+    if (!isRecord(existing)) {
+      current[segment] = nextValue;
     }
-    current = current[segment] as Record<string, unknown>;
+    current = nextValue;
   });
   current[path[path.length - 1]] = value;
 }
@@ -326,9 +348,7 @@ function parseLockedOptionPaths(value: unknown): Set<string> {
 }
 
 function normalizeControlType(value: unknown): CapabilityControlType {
-  return CAPABILITY_CONTROL_TYPES.includes(value as CapabilityControlType)
-    ? (value as CapabilityControlType)
-    : "text";
+  return isCapabilityControlType(value) ? value : "text";
 }
 
 function inferControlType(value: unknown): CapabilityControlType {
@@ -346,7 +366,7 @@ function parseOptionControls(value: unknown): ParameterRow[] {
     return [];
   }
   return value.flatMap((item): ParameterRow[] => {
-    if (!isPlainJSONObject(item) || typeof item.path !== "string") {
+    if (!isRecord(item) || typeof item.path !== "string") {
       return [];
     }
     const path = optionPathSegments(item.path);
@@ -598,14 +618,14 @@ function collectNativeToolKeysFromDefaultOptions(
   routeProtocols: string[],
 ): { derivedKeys: string[]; matchingKeys: Set<string> } {
   const matchingKeys = new Set<string>();
-  if (!isPlainJSONObject(value)) {
+  if (!isRecord(value)) {
     return { derivedKeys: [], matchingKeys };
   }
   const routeProtocolSet = new Set(routeProtocols.map((protocol) => resolveModelOptionPolicyProtocol(protocol)).filter(Boolean));
   const tools = Array.isArray(value.tools) ? value.tools : [];
   const derivedKeys: string[] = [];
   for (const rawTool of tools) {
-    if (!isPlainJSONObject(rawTool)) {
+    if (!isRecord(rawTool)) {
       continue;
     }
     const matchingTools = nativeTools.filter((tool) => nativeToolMatchesRawTool(rawTool, tool));
@@ -686,7 +706,7 @@ function canonicalNativeToolProtocol(protocol: string): string {
 
 function formatNativeToolProtocols(protocols: string[]): string {
   return Array.from(new Set(protocols.map(canonicalNativeToolProtocol).filter(Boolean)))
-    .map((protocol) => MODEL_OPTION_POLICY_PROTOCOL_LABELS[protocol as keyof typeof MODEL_OPTION_POLICY_PROTOCOL_LABELS] ?? protocol)
+    .map((protocol) => (isModelOptionPolicyProtocol(protocol) ? MODEL_OPTION_POLICY_PROTOCOL_LABELS[protocol] : protocol))
     .join(" / ");
 }
 
@@ -723,18 +743,20 @@ function nativeToolProtocolSelectOptions(
     seen.add(normalized);
     return [{
       value: normalized,
-      label: MODEL_OPTION_POLICY_PROTOCOL_LABELS[normalized as keyof typeof MODEL_OPTION_POLICY_PROTOCOL_LABELS] ?? normalized,
+      label: MODEL_OPTION_POLICY_PROTOCOL_LABELS[normalized] ?? normalized,
     }];
   });
 }
 
 function NativeToolProtocolsSelect({
+  id,
   value,
   options,
   invalid,
   placeholder,
   onChange,
 }: {
+  id?: string;
   value: string;
   options: { value: string; label: string }[];
   invalid?: boolean;
@@ -762,6 +784,7 @@ function NativeToolProtocolsSelect({
     <Popover>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           type="button"
           variant="outline"
           size="sm"
@@ -833,7 +856,7 @@ function nativeToolRowFromOption(option: NativeToolOption, enabled: boolean): Na
 }
 
 function nativeToolRowFromConfig(value: Record<string, unknown>, index: number): NativeToolRow | null {
-  const payload = isPlainJSONObject(value.payload) ? value.payload : {};
+  const payload = isRecord(value.payload) ? value.payload : {};
   const key = typeof (value.key ?? value.toolKey) === "string" ? String(value.key ?? value.toolKey).trim() : "";
   const protocols = nativeToolProtocolsFromConfig(value);
   const type = typeof value.type === "string" ? value.type.trim() : nativeToolPayloadType(payload);
@@ -885,7 +908,7 @@ function parseNativeToolRows(
       rows.unshift({ ...row, id: row.id || createCapabilityRowID() });
       return;
     }
-    const configuredPayload = JSON.parse(row.payload || "{}") as Record<string, unknown>;
+    const configuredPayload = parseJSONObjectOrEmpty(row.payload || "{}");
     for (const index of matchingIndexes) {
       const catalogRow = rows[index];
       if (!catalogRow) {
@@ -893,7 +916,7 @@ function parseNativeToolRows(
       }
       const matchedProtocols = parseNativeToolProtocolsInput(catalogRow.protocols)
         .filter((protocol) => configuredProtocols.size === 0 || configuredProtocols.has(resolveModelOptionPolicyProtocol(protocol)));
-      const catalogPayload = JSON.parse(catalogRow.payload || "{}") as Record<string, unknown>;
+      const catalogPayload = parseJSONObjectOrEmpty(catalogRow.payload || "{}");
       rows[index] = {
         ...catalogRow,
         ...row,
@@ -911,7 +934,7 @@ function parseNativeToolRows(
 
   if (Array.isArray(payload.nativeTools)) {
     payload.nativeTools.forEach((item, index) => {
-      if (!isPlainJSONObject(item)) {
+      if (!isRecord(item)) {
         return;
       }
       const row = nativeToolRowFromConfig(item, index);
@@ -940,11 +963,11 @@ function buildNativeTools(rows: NativeToolRow[]): Record<string, unknown>[] {
     }
     let payload: unknown;
     try {
-      payload = JSON.parse(row.payload.trim() || "{}") as unknown;
+      payload = JSON.parse(row.payload.trim() || "{}");
     } catch {
       return [];
     }
-    if (!isPlainJSONObject(payload)) {
+    if (!isRecord(payload)) {
       return [];
     }
     const item: Record<string, unknown> = {
@@ -986,14 +1009,14 @@ function validateNativeToolRows(rows: NativeToolRow[], t: (key: string) => strin
     }
     let payload: unknown;
     try {
-      payload = JSON.parse(row.payload.trim() || "{}") as unknown;
+      payload = JSON.parse(row.payload.trim() || "{}");
     } catch {
       rowErrors.payload = t("sheet.capabilitiesQuick.nativeToolPayloadInvalid");
     }
-    if (payload !== undefined && !isPlainJSONObject(payload)) {
+    if (payload !== undefined && !isRecord(payload)) {
       rowErrors.payload = t("sheet.capabilitiesQuick.nativeToolPayloadInvalid");
     }
-    if (!row.type.trim() && isPlainJSONObject(payload) && !nativeToolPayloadType(payload)) {
+    if (!row.type.trim() && isRecord(payload) && !nativeToolPayloadType(payload)) {
       rowErrors.type = t("sheet.capabilitiesQuick.nativeToolTypeRequired");
     }
     if (Object.keys(rowErrors).length > 0) {
@@ -1224,7 +1247,7 @@ export function ModelCapabilitiesQuickConfig({
 }) {
   const [open, setOpen] = useState(false);
   const [presetOpen, setPresetOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"parameters" | "tools">("parameters");
+  const [activeTab, setActiveTab] = useState<CapabilityEditorTab>("parameters");
   const [draftBaseJSON, setDraftBaseJSON] = useState("");
   const [parameterRows, setParameterRows] = useState<ParameterRow[]>([]);
   const [promptCacheConfig, setPromptCacheConfig] = useState<PromptCacheConfig>(DEFAULT_PROMPT_CACHE_CONFIG);
@@ -1424,7 +1447,9 @@ export function ModelCapabilitiesQuickConfig({
           <div className="min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden px-4 py-2">
             <Tabs
               value={activeTab}
-              onValueChange={(value) => setActiveTab(value as "parameters" | "tools")}
+              onValueChange={(value) => {
+                if (isCapabilityEditorTab(value)) setActiveTab(value);
+              }}
               className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden"
             >
               <div className="min-w-0 shrink-0">
@@ -1474,10 +1499,10 @@ export function ModelCapabilitiesQuickConfig({
                         </span>
                         <Select
                           value={promptCacheConfig.availability}
-                          onValueChange={(availability) => setPromptCacheConfig((current) => ({
-                            ...current,
-                            availability: availability as PromptCacheConfig["availability"],
-                          }))}
+                          onValueChange={(availability) => {
+                            if (!isPromptCacheAvailability(availability)) return;
+                            setPromptCacheConfig((current) => ({ ...current, availability }));
+                          }}
                         >
                           <SelectTrigger className="h-8 w-full">
                             <SelectValue />
@@ -1496,10 +1521,10 @@ export function ModelCapabilitiesQuickConfig({
                         <Select
                           value={promptCacheConfig.mode}
                           disabled={promptCacheConfig.availability === "disabled"}
-                          onValueChange={(mode) => setPromptCacheConfig((current) => ({
-                            ...current,
-                            mode: mode as PromptCacheConfig["mode"],
-                          }))}
+                          onValueChange={(mode) => {
+                            if (!isPromptCacheMode(mode)) return;
+                            setPromptCacheConfig((current) => ({ ...current, mode }));
+                          }}
                         >
                           <SelectTrigger className="h-8 w-full">
                             <SelectValue />
@@ -1581,7 +1606,9 @@ export function ModelCapabilitiesQuickConfig({
                                 </span>
                                 <Select
                                   value={row.type}
-                                  onValueChange={(type) => updateParameterType(row.id, type as CapabilityControlType)}
+                                  onValueChange={(type) => {
+                                    if (isCapabilityControlType(type)) updateParameterType(row.id, type);
+                                  }}
                                 >
                                   <SelectTrigger
                                     aria-invalid={Boolean(rowErrors.type)}
@@ -1796,11 +1823,12 @@ export function ModelCapabilitiesQuickConfig({
                                 />
                                 {rowErrors.type ? <p className="truncate px-1 text-[10px] text-destructive">{rowErrors.type}</p> : null}
                               </label>
-                              <label className="min-w-0 space-y-1">
+                              <label className="min-w-0 space-y-1" htmlFor={`native-tool-protocols-${row.id}`}>
                                 <span className="block truncate px-1 text-[11px] text-muted-foreground">
                                   {t("sheet.capabilitiesQuick.nativeToolProtocols")} *
                                 </span>
                                 <NativeToolProtocolsSelect
+                                  id={`native-tool-protocols-${row.id}`}
                                   value={row.protocols}
                                   options={protocolOptions}
                                   invalid={Boolean(rowErrors.protocols)}

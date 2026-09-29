@@ -12,7 +12,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { cn } from "@/lib/utils"
 
 // Define the structure for our logo objects
-export interface LogoCarouselLogo {
+export type LogoCarouselLogo = {
   name: string
   id: number | string
   img?: React.ComponentType<React.SVGProps<SVGSVGElement>>
@@ -57,7 +57,7 @@ const distributeLogos = (allLogos: LogoCarouselLogo[], columnCount: number): Log
 }
 
 // Props for the LogoColumn component
-interface LogoColumnProps {
+type LogoColumnProps = {
   logos: LogoCarouselLogo[]
   index: number
   currentTime: number
@@ -145,7 +145,7 @@ const LogoColumn: React.FC<LogoColumnProps> = React.memo(
 )
 LogoColumn.displayName = "LogoColumn"
 
-interface LogoCarouselProps {
+type LogoCarouselProps = {
   columnCount?: number
   logos?: LogoCarouselLogo[]
   className?: string
@@ -252,6 +252,7 @@ function LogoCarousel({
 function AppleIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       width="209"
       height="256"
@@ -266,6 +267,7 @@ function AppleIcon(props: SVGProps<SVGSVGElement>) {
 function PierreIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 74 20"
       width={74}
       height={20}
@@ -285,6 +287,7 @@ function PierreIcon(props: SVGProps<SVGSVGElement>) {
 function BMWIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      aria-hidden="true"
       width="800px"
       height="800px"
       viewBox="0 0 498.503 498.503"
@@ -314,6 +317,7 @@ function BMWIcon(props: SVGProps<SVGSVGElement>) {
 function LowesIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       width={91.239998}
       height={42.970001}
@@ -343,6 +347,7 @@ function LowesIcon(props: SVGProps<SVGSVGElement>) {
 function AllyLogo(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 556.10669 317.57333"
       height={317.57333}
@@ -367,6 +372,7 @@ function AllyLogo(props: SVGProps<SVGSVGElement>) {
 function VercelIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 256 222"
       width="256"
       height="222"
@@ -381,6 +387,7 @@ function VercelIcon(props: SVGProps<SVGSVGElement>) {
 
 const StripeIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
+    aria-hidden="true"
     xmlns="http://www.w3.org/2000/svg"
     width={512}
     height={214}
@@ -396,6 +403,7 @@ const StripeIcon = (props: SVGProps<SVGSVGElement>) => (
 
 const TypeScriptIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
+    aria-hidden="true"
     viewBox="0 0 256 256"
     width={256}
     height={256}
@@ -416,6 +424,7 @@ const TypeScriptIcon = (props: SVGProps<SVGSVGElement>) => (
 
 const ClaudeAIIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
+    aria-hidden="true"
     xmlns="http://www.w3.org/2000/svg"
     shapeRendering="geometricPrecision"
     textRendering="geometricPrecision"
@@ -439,6 +448,7 @@ const ClaudeAIIcon = (props: SVGProps<SVGSVGElement>) => (
 function SupabaseIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 109 113"
       width="109"
       height="113"
@@ -490,6 +500,7 @@ function SupabaseIcon(props: SVGProps<SVGSVGElement>) {
 function OpenAIIconBlack(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       width="256"
       height="260"
@@ -508,6 +519,7 @@ function OpenAIIconBlack(props: SVGProps<SVGSVGElement>) {
 function UpstashIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      aria-hidden="true"
       {...props}
       viewBox="0 0 256 341"
       xmlns="http://www.w3.org/2000/svg"
@@ -543,6 +555,7 @@ function UpstashIcon(props: SVGProps<SVGSVGElement>) {
 
 const TailwindCSSIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
+    aria-hidden="true"
     xmlns="http://www.w3.org/2000/svg"
     fill="none"
     viewBox="0 0 54 33"
@@ -566,6 +579,7 @@ const TailwindCSSIcon = (props: SVGProps<SVGSVGElement>) => (
 
 const NextjsIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
+    aria-hidden="true"
     width={180}
     height={180}
     viewBox="0 0 180 180"

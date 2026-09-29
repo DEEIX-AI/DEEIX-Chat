@@ -8,9 +8,9 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 )
 
-// The legacy finalization replay persisted its duplicate completion immediately
-// after the first one. Local production-shaped data tops out below two seconds;
-// keep a small margin while refusing to merge later, potentially real rounds.
+// 旧版终结重放会在首次完成后立即持久化
+// 重复的完成事件。本地类生产数据的间隔最高不到两秒；
+// 保留少量余量，同时拒绝合并更晚的、可能真实的轮次。
 const legacyReasoningReplayMaxGap = 3 * time.Second
 
 type persistedReasoningEventMetadata struct {
@@ -23,10 +23,10 @@ type legacyThinkReplayCandidate struct {
 	metadata persistedReasoningEventMetadata
 }
 
-// normalizeLegacyThinkReplayEvents hides reasoning snapshots replayed by legacy
-// streaming finalization paths. They could persist the same live and terminal
-// content as separate rounds, sometimes without reasoning metadata. Keep the
-// canonical identity and merge the terminal snapshot without mutating storage.
+// normalizeLegacyThinkReplayEvents 隐藏旧版流式终结路径
+// 重放的推理快照。这些路径可能将相同的实时与终态
+// 内容持久化为不同轮次，有时还缺少推理元数据。保留
+// 权威身份并合并终态快照，且不修改存储。
 func normalizeLegacyThinkReplayEvents(rows []model.MessageTraceEventRow) []model.MessageTraceEventRow {
 	if len(rows) < 2 {
 		return rows

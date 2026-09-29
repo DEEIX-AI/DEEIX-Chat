@@ -1,5 +1,5 @@
 import { getConversation } from "@/shared/api/conversation";
-import type { ConversationDTO, SendMessageResult } from "@/shared/api/conversation.types";
+import type { ConversationDTO, SendMessageResult } from "@/shared/api/conversation-types";
 
 const CONVERSATION_METADATA_REFRESH_MAX_WAIT_MS = 45_000;
 const CONVERSATION_METADATA_REFRESH_INITIAL_DELAY_MS = 800;

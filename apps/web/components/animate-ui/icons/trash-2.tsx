@@ -68,8 +68,9 @@ const animations = {
     },
   } satisfies Record<string, Variants>,
   shake: {
-    // 摆动挂在 svg 根元素上：整只垃圾桶围绕中心晃动，盖子随之抬起，比 default 的
-    // 1px 掀盖在小尺寸下更可感知。
+    // The wiggle is attached to the svg root: the whole trash can sways around its center
+    // and the lid lifts with it, which reads better at small sizes than the default 1px
+    // lid lift.
     root: {
       initial: {
         rotate: 0,

@@ -13,7 +13,6 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -34,16 +33,6 @@ const (
 	// fallbackProcessingTimeout 是降级模式单个任务的硬超时。
 	// 必须覆盖「提取（含 PDF OCR 回退）+ 向量化 5min」的上限，避免外层超时先于内层流水线触发。
 	fallbackProcessingTimeout = 30 * time.Minute
-)
-
-var (
-	// ErrFileProcessingFailed 表示文件处理失败。
-	ErrFileProcessingFailed = errors.New("file processing failed")
-	// errExtractionServiceNotConfigured 表示文件处理服务未注入抽取服务。
-	errExtractionServiceNotConfigured = errors.New("extraction service not configured")
-	// ErrFileNotFound 表示当前用户名下不存在该活跃文件。
-	ErrFileNotFound            = apperr.New("file.not_found", "file not found")
-	errFileProcessingClaimLost = errors.New("file processing claim lost")
 )
 
 // FileProcessingStatusDTO 文件处理状态响应数据。

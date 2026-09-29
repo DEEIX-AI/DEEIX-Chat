@@ -7,8 +7,8 @@ import (
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
 )
 
-// These private documents preserve the stored JSON schema without coupling domain types
-// to a transport or persistence protocol.
+// 这些私有文档保留已存储的 JSON 结构，避免领域类型
+// 与传输或持久化协议耦合。
 type contentLocationJSON struct {
 	Field      string `json:"field,omitempty"`
 	FileID     string `json:"fileID,omitempty"`

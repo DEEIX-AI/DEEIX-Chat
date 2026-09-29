@@ -14,7 +14,7 @@ import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
 const GENERATION_CANCEL_SETTLEMENT_TIMEOUT_MS = 25_000;
 
-// 停止当前可见分支的生成:优先取消可见活跃流,并在取消请求未及时结算时兜底中断连接。
+// Stop generation on the visible branch: cancel the visible active stream first, and abort the connection as a fallback if the cancel request doesn't settle in time.
 export function useChatStopMessage({
   activeStreamsRef,
   currentLeafMessage,

@@ -1,7 +1,9 @@
 import enErrors from "@/i18n/messages/en-US/errors.json";
 import zhErrors from "@/i18n/messages/zh-CN/errors.json";
 import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME, normalizeAppLocale, resolveBrowserLocale, type AppLocale } from "@/i18n/config";
+import { disabledFeatureOf } from "@deeix/core";
 import { ApiError } from "@/shared/api/http-client";
+import { isRecord } from "@/shared/lib/type-guards";
 
 const ERROR_MESSAGES: Record<AppLocale, unknown> = {
   "en-US": enErrors,
@@ -226,10 +228,10 @@ function readClientLocale(): AppLocale {
 function lookupErrorMessage(locale: AppLocale, errorCode: string): string | undefined {
   let current: unknown = ERROR_MESSAGES[locale];
   for (const segment of toErrorMessagePath(errorCode)) {
-    if (!current || typeof current !== "object" || !Object.hasOwn(current, segment)) {
+    if (!isRecord(current) || !Object.hasOwn(current, segment)) {
       return undefined;
     }
-    current = (current as Record<string, unknown>)[segment];
+    current = current[segment];
   }
   return typeof current === "string" ? current : undefined;
 }
@@ -522,9 +524,22 @@ function resolveRedemptionCodeValidationMessage(error: ApiError, locale: AppLoca
   return lookupErrorMessage(locale, `billing.redemption_validation.${reason}`);
 }
 
+// feature.disabled names the feature in details; prefer the per-feature text
+// over the generic one (docs/ARCHITECTURE.md §4).
+function resolveFeatureDisabledMessage(error: ApiError, locale: AppLocale): string | undefined {
+  const feature = disabledFeatureOf(error);
+  if (!feature) return undefined;
+  return lookupErrorMessage(locale, `feature.byFeature.${feature}`) ?? lookupErrorMessage(locale, "feature.disabled");
+}
+
 export function resolveLocalizedErrorMessage(error: unknown, fallback?: string): string {
   const locale = readClientLocale();
   if (error instanceof ApiError && error.errorCode) {
+    const featureDisabledMessage = resolveFeatureDisabledMessage(error, locale);
+    if (featureDisabledMessage) {
+      return featureDisabledMessage;
+    }
+
     const validationMessage = resolveRequestBodyValidationMessage(error, locale);
     if (validationMessage) {
       return validationMessage;

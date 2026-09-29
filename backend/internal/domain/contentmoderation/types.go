@@ -6,26 +6,26 @@ import (
 	"time"
 )
 
-// Direction indicates whether content is user input or model output.
+// Direction 表示内容是用户输入还是模型输出。
 const (
 	DirectionInput  = "input"
 	DirectionOutput = "output"
 )
 
-// Modality indicates text or image content.
+// Modality 表示文本或图片内容。
 const (
 	ModalityText  = "text"
 	ModalityImage = "image"
 )
 
-// Result values for events and daily stats.
+// 事件与每日统计的结果取值。
 const (
 	ResultHit        = "hit"
 	ResultFailedOpen = "failed_open"
 	ResultPassed     = "passed"
 )
 
-// Run moderation_state values.
+// Run 的 moderation_state 取值。
 const (
 	ModerationStateNotRequired = "not_required"
 	ModerationStatePending     = "pending"
@@ -35,12 +35,12 @@ const (
 	ModerationStateFailedOpen  = "failed_open"
 )
 
-// Message/run status for blocked rounds.
+// 被拦截轮次的消息/run 状态。
 const (
 	StatusBlocked = "blocked"
 )
 
-// Error codes stored on failure events.
+// 失败事件中存储的错误码。
 const (
 	ErrorCodeTimeout       = "timeout"
 	ErrorCodeRateLimited   = "rate_limited"
@@ -52,7 +52,7 @@ const (
 	ErrorCodeConfigMissing = "config_missing"
 )
 
-// Event is a moderation check record (pass, hit, or failed-open).
+// Event 是一条审核检查记录（通过、命中或 failed-open）。
 type Event struct {
 	ID                  uint
 	PublicID            string
@@ -82,7 +82,7 @@ type Event struct {
 	UpdatedAt           time.Time
 }
 
-// DailyStat aggregates anonymous counters for a calendar day.
+// DailyStat 按自然日聚合匿名计数。
 type DailyStat struct {
 	ID           uint
 	StatDate     time.Time
@@ -100,7 +100,7 @@ type DailyStat struct {
 	UpdatedAt    time.Time
 }
 
-// EventListFilter filters super-admin event queries.
+// EventListFilter 用于过滤超级管理员的事件查询。
 type EventListFilter struct {
 	Query     string
 	Direction string
@@ -115,7 +115,7 @@ type EventListFilter struct {
 	Limit     int
 }
 
-// IsolatedImageMeta describes one encrypted image copy held for review.
+// IsolatedImageMeta 描述一份为审核而保留的加密图片副本。
 type IsolatedImageMeta struct {
 	Index        int
 	SHA256       string
@@ -125,7 +125,7 @@ type IsolatedImageMeta struct {
 	SourceFileID string
 }
 
-// ContentLocation describes where moderated content originated.
+// ContentLocation 描述被审核内容的来源位置。
 type ContentLocation struct {
 	Field      string
 	FileID     string
@@ -134,7 +134,7 @@ type ContentLocation struct {
 	ChunkCount int
 }
 
-// ProviderConfig contains runtime values needed by a moderation provider.
+// ProviderConfig 包含审核提供方所需的运行时参数。
 type ProviderConfig struct {
 	BaseURL string
 	APIKey  string
@@ -142,13 +142,13 @@ type ProviderConfig struct {
 	Timeout time.Duration
 }
 
-// ProviderImage is an image submitted to a moderation provider.
+// ProviderImage 是提交给审核提供方的图片。
 type ProviderImage struct {
 	Data     []byte
 	MimeType string
 }
 
-// CategoryResult is a provider-neutral category result.
+// CategoryResult 是与提供方无关的分类结果。
 type CategoryResult struct {
 	Flagged                   bool
 	Categories                map[string]bool
@@ -156,21 +156,21 @@ type CategoryResult struct {
 	CategoryAppliedInputTypes map[string][]string
 }
 
-// ProviderResponse is a provider-neutral moderation result.
+// ProviderResponse 是与提供方无关的审核结果。
 type ProviderResponse struct {
 	ID      string
 	Model   string
 	Results []CategoryResult
 }
 
-// HitEvaluation is the policy-aware decision for one provider response.
+// HitEvaluation 是针对单个提供方响应、结合策略得出的判定。
 type HitEvaluation struct {
 	Hit        bool
 	Categories []string
 	Scores     map[string]float64
 }
 
-// EvaluateHit decides a block using only selected categories that apply to the expected modality.
+// EvaluateHit 仅依据适用于预期模态的已选分类来决定是否拦截。
 func EvaluateHit(response *ProviderResponse, selected []string, expectedModality string) HitEvaluation {
 	evaluation := HitEvaluation{
 		Categories: make([]string, 0),

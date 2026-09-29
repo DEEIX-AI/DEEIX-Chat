@@ -19,7 +19,6 @@ import { cn } from "@/lib/utils";
 type SidebarHeaderProps = {
   collapsed: boolean;
   showCollapseButton?: boolean;
-  total: number;
   query: string;
   searchOpen: boolean;
   filterKeys: FileFilterValue[];
@@ -44,7 +43,6 @@ type SidebarHeaderProps = {
 
 export function SidebarHeader({
   collapsed,
-  total,
   query,
   searchOpen,
   filterKeys,
@@ -180,8 +178,11 @@ export function SidebarHeader({
 
                     <DropdownMenuSeparator className="mx-0 my-1" />
 
-                    {FILE_FILTER_OPTIONS.filter((item) => item.value !== "all").map((item) => {
-                      const value = item.value as FileFilterValue;
+                    {FILE_FILTER_OPTIONS.map((item) => {
+                      const value = item.value;
+                      if (value === "all") {
+                        return null;
+                      }
                       const active = activeFilterSet.has(value);
                       return (
                         <DropdownMenuItem

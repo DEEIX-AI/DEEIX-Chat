@@ -1,6 +1,6 @@
 import { authedRequest } from "@/shared/api/authed-client";
 import { pathParam } from "@/shared/api/http-client";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 import type {
   AdminAnnouncementDTO,
   AdminAnnouncementData,
@@ -8,7 +8,7 @@ import type {
   AdminAnnouncementPage,
   CreateAdminAnnouncementRequest,
   UpdateAdminAnnouncementRequest,
-} from "@/features/admin/api/announcements.types";
+} from "@/features/admin/api/announcements-types";
 import { normalizeAdminPagePayload, resolveAdminPage, type AdminListQueryOptions } from "./shared";
 
 export async function listAdminAnnouncements(

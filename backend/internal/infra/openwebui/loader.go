@@ -11,10 +11,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// RowLoader reads users from an external OpenWebUI database.
+// RowLoader 从外部 OpenWebUI 数据库读取用户。
 type RowLoader struct{}
 
-// NewRowLoader creates an OpenWebUI row loader.
+// NewRowLoader 创建 OpenWebUI 行加载器。
 func NewRowLoader() RowLoader {
 	return RowLoader{}
 }
@@ -27,7 +27,7 @@ type userRow struct {
 	Balance     float64 `gorm:"column:balance"`
 }
 
-// LoadOpenWebUIRows opens the external database only for the duration of one import.
+// LoadOpenWebUIRows 仅在单次导入期间打开外部数据库。
 func (RowLoader) LoadOpenWebUIRows(ctx context.Context, dsn string) ([]repository.OpenWebUIUserRow, error) {
 	db, err := openDB(dsn)
 	if err != nil {

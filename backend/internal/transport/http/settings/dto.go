@@ -131,6 +131,7 @@ type ChatContextPolicyResponse struct {
 // FeaturePolicyResponse 返回用户侧功能开关策略。
 type FeaturePolicyResponse struct {
 	KnowledgeBaseEnabled bool `json:"knowledgeBaseEnabled"`
+	ProcessTraceEnabled  bool `json:"processTraceEnabled"`
 }
 
 // ── mapping 函数 ─────────────────────────────────────────────────────────────

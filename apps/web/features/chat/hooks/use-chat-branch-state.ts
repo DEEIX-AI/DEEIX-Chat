@@ -11,7 +11,7 @@ import {
 import type { PendingExchange, PendingExchangeMap } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation.types";
+import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation-types";
 import { ApiError } from "@/shared/api/http-client";
 
 function appendPendingExchangeMessages({

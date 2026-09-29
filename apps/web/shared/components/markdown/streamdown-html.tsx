@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { isOneOf } from "@/shared/lib/type-guards";
 import { containsMarkdownMath } from "./streamdown-content";
 import {
   sanitizeHTMLStyle,
@@ -67,13 +68,15 @@ const KATEX_SPAN_CLASS_NAMES = [
   "mainrm",
 ] as const;
 
+const isKatexSpanClassName = isOneOf(KATEX_SPAN_CLASS_NAMES);
+
 function isKatexSpan(className: string | undefined, style: React.CSSProperties | undefined): boolean {
   if (typeof style?.top !== "undefined") {
     return true;
   }
   const classNames = className?.trim().split(/\s+/) ?? [];
   return classNames.some((item) => (
-    KATEX_SPAN_CLASS_NAMES.includes(item as (typeof KATEX_SPAN_CLASS_NAMES)[number]) ||
+    isKatexSpanClassName(item) ||
     /^reset-size\d+$/.test(item) ||
     /^size\d+$/.test(item)
   ));

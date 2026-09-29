@@ -3,21 +3,22 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { listAdminLLMSettings, updateAdminLLMSetting } from "@/features/admin/api";
-import type { AdminLLMSetting } from "@/features/admin/api/llm.types";
+import type { AdminLLMSetting } from "@/features/admin/api/llm-types";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { isRecord } from "@/shared/lib/type-guards";
 
 const CIRCUIT_BREAKER_DEFAULTS_KEY = "circuit_breaker.defaults";
 
-type CircuitBreakerDefaults = Record<string, unknown> & {
-  enabled?: boolean;
-};
+// Kept as an open record: unknown keys must round-trip untouched when only
+// `enabled` is toggled; `enabled` is read with a strict `=== true` check.
+type CircuitBreakerDefaults = Record<string, unknown>;
 
 function parseCircuitBreakerDefaults(value: string): CircuitBreakerDefaults {
   try {
     const parsed: unknown = JSON.parse(value);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as CircuitBreakerDefaults;
+    if (isRecord(parsed)) {
+      return parsed;
     }
   } catch {
     // Invalid historical values are effectively disabled; the backend owns validation.

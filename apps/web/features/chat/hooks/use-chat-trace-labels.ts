@@ -22,6 +22,7 @@ export type ProcessTraceLabels = {
   };
   rag: {
     sourceFallback: (fileID: string) => string;
+    imageMatch: string;
     chunksShort: (count: number, scorePercent: number) => string;
     chunksTotal: (count: number) => string;
     retrievalSources: string;
@@ -157,6 +158,7 @@ export function useChatTraceLabels(): ProcessTraceLabels {
       },
       rag: {
         sourceFallback: (fileID: string) => t("rag.sourceFallback", { fileID }),
+        imageMatch: t("rag.imageMatch"),
         chunksShort: (count: number, scorePercent: number) => t("rag.chunksShort", { count, scorePercent }),
         chunksTotal: (count: number) => t("rag.chunksTotal", { count }),
         retrievalSources: t("rag.retrievalSources"),

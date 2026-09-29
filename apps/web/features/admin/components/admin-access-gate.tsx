@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import type * as React from "react";
 import { useTranslations } from "next-intl";
 
 import { CenteredEmptyState } from "@/components/ui/empty-state";

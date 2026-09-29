@@ -16,6 +16,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -82,7 +83,7 @@ func (r *Repo) serviceOnlyUsageExpression() string {
 
 // ListActivePlans 查询启用套餐。
 func (r *Repo) ListActivePlans(ctx context.Context) ([]domainbilling.Plan, error) {
-	items := make([]model.BillingPlan, 0)
+	items := make([]models.BillingPlan, 0)
 	if err := r.db.WithContext(ctx).
 		Where("is_active = ?", true).
 		Order("sort_order ASC, id ASC").
@@ -98,7 +99,7 @@ func (r *Repo) ListActivePlans(ctx context.Context) ([]domainbilling.Plan, error
 
 // ListActivePricesByPlanIDs 查询一批套餐的启用价格。
 func (r *Repo) ListActivePricesByPlanIDs(ctx context.Context, planIDs []uint) ([]domainbilling.Price, error) {
-	items := make([]model.BillingPrice, 0)
+	items := make([]models.BillingPrice, 0)
 	if len(planIDs) == 0 {
 		return []domainbilling.Price{}, nil
 	}
@@ -129,7 +130,7 @@ func (r *Repo) ListActivePricesByPlanIDs(ctx context.Context, planIDs []uint) ([
 
 // GetPriceByID 查询价格。
 func (r *Repo) GetPriceByID(ctx context.Context, priceID uint) (*domainbilling.Price, error) {
-	var item model.BillingPrice
+	var item models.BillingPrice
 	if err := r.db.WithContext(ctx).Where("id = ?", priceID).First(&item).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -150,7 +151,7 @@ func (r *Repo) GetPriceByID(ctx context.Context, priceID uint) (*domainbilling.P
 
 // GetPlanByID 查询套餐。
 func (r *Repo) GetPlanByID(ctx context.Context, planID uint) (*domainbilling.Plan, error) {
-	var item model.BillingPlan
+	var item models.BillingPlan
 	if err := r.db.WithContext(ctx).Where("id = ?", planID).First(&item).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -160,7 +161,7 @@ func (r *Repo) GetPlanByID(ctx context.Context, planID uint) (*domainbilling.Pla
 
 // ListPlansByIDs 查询一批套餐。
 func (r *Repo) ListPlansByIDs(ctx context.Context, planIDs []uint) ([]domainbilling.Plan, error) {
-	items := make([]model.BillingPlan, 0)
+	items := make([]models.BillingPlan, 0)
 	if len(planIDs) == 0 {
 		return []domainbilling.Plan{}, nil
 	}
@@ -178,7 +179,7 @@ func (r *Repo) ListPlansByIDs(ctx context.Context, planIDs []uint) ([]domainbill
 
 // GetActivePlanByCode 按编码查询启用套餐。
 func (r *Repo) GetActivePlanByCode(ctx context.Context, code string) (*domainbilling.Plan, error) {
-	var item model.BillingPlan
+	var item models.BillingPlan
 	if err := r.db.WithContext(ctx).
 		Where("code = ? AND is_active = ?", strings.TrimSpace(code), true).
 		First(&item).Error; err != nil {
@@ -201,19 +202,19 @@ func (r *Repo) UpdatePlanWithDefaultPrice(ctx context.Context, plan *domainbilli
 			"is_active":             true,
 			"permission_group_id":   plan.PermissionGroupID,
 		}
-		if err := tx.Model(&model.BillingPlan{}).
+		if err := tx.Model(&models.BillingPlan{}).
 			Where("id = ?", plan.ID).
 			Updates(planUpdates).Error; err != nil {
 			return dberror.Translate(err)
 		}
 
-		if err := tx.Model(&model.BillingPrice{}).
+		if err := tx.Model(&models.BillingPrice{}).
 			Where("plan_id = ? AND is_default = ?", plan.ID, true).
 			Update("is_default", false).Error; err != nil {
 			return dberror.Translate(err)
 		}
 
-		var record model.BillingPrice
+		var record models.BillingPrice
 		err := tx.Where("plan_id = ? AND code = ?", plan.ID, strings.TrimSpace(price.Code)).
 			First(&record).Error
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -231,7 +232,7 @@ func (r *Repo) UpdatePlanWithDefaultPrice(ctx context.Context, plan *domainbilli
 			"external_price_ref": strings.TrimSpace(price.ExternalPriceRef),
 		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			record = model.BillingPrice{
+			record = models.BillingPrice{
 				PlanID: plan.ID,
 				Code:   strings.TrimSpace(price.Code),
 			}
@@ -247,7 +248,7 @@ func (r *Repo) UpdatePlanWithDefaultPrice(ctx context.Context, plan *domainbilli
 func (r *Repo) CountPlansWithPermissionGroup(ctx context.Context, groupID uint) (int64, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).
-		Model(&model.BillingPlan{}).
+		Model(&models.BillingPlan{}).
 		Where("permission_group_id = ?", groupID).
 		Count(&count).Error; err != nil {
 		return 0, dberror.Translate(err)
@@ -261,7 +262,7 @@ func (r *Repo) ListSubscriptionEntitlementsByUserIDs(
 	userIDs []uint,
 	now time.Time,
 ) ([]domainbilling.Subscription, error) {
-	items := make([]model.Subscription, 0)
+	items := make([]models.Subscription, 0)
 	if len(userIDs) == 0 {
 		return []domainbilling.Subscription{}, nil
 	}
@@ -285,7 +286,7 @@ func (r *Repo) ListSubscriptionEntitlementsByUserIDs(
 }
 
 // CreateSubscription 创建订阅。
-func (r *Repo) CreateSubscription(ctx context.Context, item *model.Subscription) error {
+func (r *Repo) CreateSubscription(ctx context.Context, item *models.Subscription) error {
 	return r.db.WithContext(ctx).Create(item).Error
 }
 
@@ -295,7 +296,7 @@ func (r *Repo) ReplaceSubscription(ctx context.Context, item *domainbilling.Subs
 		return nil
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&model.Subscription{}).
+		if err := tx.Model(&models.Subscription{}).
 			Where("user_id = ? AND status = ?", item.UserID, "active").
 			Updates(map[string]any{
 				"status":                "expired",
@@ -305,7 +306,7 @@ func (r *Repo) ReplaceSubscription(ctx context.Context, item *domainbilling.Subs
 			}).Error; err != nil {
 			return err
 		}
-		record := model.Subscription{
+		record := models.Subscription{
 			UserID:               item.UserID,
 			PlanID:               item.PlanID,
 			PriceID:              item.PriceID,
@@ -326,7 +327,7 @@ func (r *Repo) CreatePaymentOrder(ctx context.Context, item *domainbilling.Payme
 	if item == nil || strings.TrimSpace(item.OrderNo) == "" {
 		return nil, repository.ErrInvalidInput
 	}
-	record := model.PaymentOrder{
+	record := models.PaymentOrder{
 		OrderNo:         strings.TrimSpace(item.OrderNo),
 		OrderType:       normalizeOrderType(item.OrderType),
 		UserID:          item.UserID,
@@ -362,7 +363,7 @@ func (r *Repo) UpdatePaymentOrderCheckout(ctx context.Context, orderNo string, e
 		return repository.ErrInvalidInput
 	}
 	return dberror.Translate(r.db.WithContext(ctx).
-		Model(&model.PaymentOrder{}).
+		Model(&models.PaymentOrder{}).
 		Where("order_no = ?", orderNo).
 		Updates(map[string]any{
 			"external_checkout_id": strings.TrimSpace(externalCheckoutID),
@@ -372,7 +373,7 @@ func (r *Repo) UpdatePaymentOrderCheckout(ctx context.Context, orderNo string, e
 
 // GetPaymentOrderByOrderNo 查询支付单。
 func (r *Repo) GetPaymentOrderByOrderNo(ctx context.Context, orderNo string) (*domainbilling.PaymentOrder, error) {
-	var record model.PaymentOrder
+	var record models.PaymentOrder
 	if err := r.db.WithContext(ctx).Where("order_no = ?", strings.TrimSpace(orderNo)).First(&record).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -399,7 +400,7 @@ func (r *Repo) MarkPaymentOrderPaidAndGrantSubscription(
 	var result domainbilling.PaymentOrder
 	activated := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var order model.PaymentOrder
+		var order models.PaymentOrder
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("order_no = ?", orderNo).First(&order).Error; err != nil {
 			return dberror.Translate(err)
 		}
@@ -422,11 +423,11 @@ func (r *Repo) MarkPaymentOrderPaidAndGrantSubscription(
 			return repository.ErrInvalidInput
 		}
 
-		var plan model.BillingPlan
+		var plan models.BillingPlan
 		if err := tx.Where("id = ? AND is_active = ?", subscription.PlanID, true).First(&plan).Error; err != nil {
 			return dberror.Translate(err)
 		}
-		var price model.BillingPrice
+		var price models.BillingPrice
 		if err := tx.Where("id = ? AND plan_id = ? AND is_active = ?", subscription.PriceID, subscription.PlanID, true).First(&price).Error; err != nil {
 			return dberror.Translate(err)
 		}
@@ -492,7 +493,7 @@ func restoreUsageLedgerByRefNo(tx *gorm.DB, usage *domainbilling.UsageLedger) (b
 	if usage.UserID == 0 || refNo == "" {
 		return false, nil
 	}
-	var existing model.UsageLedger
+	var existing models.UsageLedger
 	err := tx.Where("user_id = ? AND ref_no = ?", usage.UserID, refNo).First(&existing).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -549,7 +550,7 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 			}).Error; err != nil {
 				return dberror.Translate(err)
 			}
-			transaction := model.BalanceTransaction{
+			transaction := models.BalanceTransaction{
 				AccountID:           account.ID,
 				UserID:              usage.UserID,
 				Type:                domainbilling.BalanceTransactionTypeUsage,
@@ -616,7 +617,7 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 		}
 
 		var usedBeforeNanousd int64
-		if err = tx.Model(&model.UsageLedger{}).
+		if err = tx.Model(&models.UsageLedger{}).
 			Select("COALESCE(SUM(billed_nanousd), 0)").
 			Where("user_id = ? AND is_free_model = ? AND billing_at >= ? AND billing_at < ?", usage.UserID, false, periodStart, periodEnd).
 			Scan(&usedBeforeNanousd).Error; err != nil {
@@ -681,7 +682,7 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 			}).Error; err != nil {
 				return dberror.Translate(err)
 			}
-			transaction := model.BalanceTransaction{
+			transaction := models.BalanceTransaction{
 				AccountID:           account.ID,
 				UserID:              usage.UserID,
 				Type:                domainbilling.BalanceTransactionTypeUsage,
@@ -723,7 +724,7 @@ func restoreSettledUsageLedger(tx *gorm.DB, usageLedgerID uint, usage *domainbil
 	if usageLedgerID == 0 || usage == nil {
 		return repository.ErrConflict
 	}
-	var existing model.UsageLedger
+	var existing models.UsageLedger
 	if err := tx.First(&existing, usageLedgerID).Error; err != nil {
 		return dberror.Translate(err)
 	}
@@ -770,7 +771,7 @@ func (r *Repo) ListBillingAccountsByUserIDs(ctx context.Context, userIDs []uint)
 	if len(userIDs) == 0 {
 		return []domainbilling.BillingAccount{}, nil
 	}
-	items := make([]model.BillingAccount, 0, len(userIDs))
+	items := make([]models.BillingAccount, 0, len(userIDs))
 	if err := r.db.WithContext(ctx).
 		Where("user_id IN ?", userIDs).
 		Find(&items).Error; err != nil {
@@ -803,7 +804,7 @@ func (r *Repo) SetBillingAccountBalance(ctx context.Context, userID uint, balanc
 			return dberror.Translate(err)
 		}
 		if amount != 0 {
-			transaction := model.BalanceTransaction{
+			transaction := models.BalanceTransaction{
 				AccountID:           account.ID,
 				UserID:              userID,
 				Type:                domainbilling.BalanceTransactionTypeAdminSet,
@@ -847,7 +848,7 @@ func (r *Repo) MarkPaymentOrderPaidAndCreditBalance(
 	var result domainbilling.PaymentOrder
 	credited := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var order model.PaymentOrder
+		var order models.PaymentOrder
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("order_no = ?", orderNo).First(&order).Error; err != nil {
 			return dberror.Translate(err)
 		}
@@ -879,7 +880,7 @@ func (r *Repo) MarkPaymentOrderPaidAndCreditBalance(
 		}).Error; err != nil {
 			return dberror.Translate(err)
 		}
-		transaction := model.BalanceTransaction{
+		transaction := models.BalanceTransaction{
 			AccountID:           account.ID,
 			UserID:              order.UserID,
 			Type:                domainbilling.BalanceTransactionTypeTopUp,
@@ -918,12 +919,13 @@ func (r *Repo) ListRedemptionCodes(ctx context.Context, filter repository.Redemp
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 200 {
-		limit = 200
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
-	items := make([]model.RedemptionCode, 0)
+	items := make([]models.RedemptionCode, 0)
 	var total int64
-	query := r.db.WithContext(ctx).Model(&model.RedemptionCode{})
+	query := r.db.WithContext(ctx).Model(&models.RedemptionCode{})
 	if len(filter.Modes) > 0 {
 		modes := make([]string, 0, len(filter.Modes))
 		for _, mode := range filter.Modes {
@@ -1003,10 +1005,11 @@ func (r *Repo) ListRedemptions(ctx context.Context, filter repository.Redemption
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 200 {
-		limit = 200
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
-	query := r.db.WithContext(ctx).Model(&model.Redemption{}).
+	query := r.db.WithContext(ctx).Model(&models.Redemption{}).
 		Joins("LEFT JOIN billing_redemption_codes AS rc ON rc.id = billing_redemptions.code_id").
 		Joins("LEFT JOIN billing_plans AS rp ON rp.id = billing_redemptions.plan_id AND billing_redemptions.plan_id > 0").
 		Joins("LEFT JOIN billing_balance_transactions AS rt ON rt.id = billing_redemptions.balance_transaction_id AND billing_redemptions.balance_transaction_id > 0")
@@ -1085,7 +1088,7 @@ func (r *Repo) GetRedemptionCodeByID(ctx context.Context, id uint) (*domainbilli
 	if id == 0 {
 		return nil, repository.ErrInvalidInput
 	}
-	var item model.RedemptionCode
+	var item models.RedemptionCode
 	if err := r.db.WithContext(ctx).
 		Where("id = ? AND status <> ?", id, domainbilling.RedemptionCodeStatusDeleted).
 		First(&item).Error; err != nil {
@@ -1100,7 +1103,7 @@ func (r *Repo) CreateRedemptionCode(ctx context.Context, item *domainbilling.Red
 	if item == nil || strings.TrimSpace(item.CodeHash) == "" {
 		return nil, repository.ErrInvalidInput
 	}
-	record := model.RedemptionCode{
+	record := models.RedemptionCode{
 		CodeHash:        strings.TrimSpace(item.CodeHash),
 		CodeEncrypted:   strings.TrimSpace(item.CodeEncrypted),
 		CodeHint:        strings.TrimSpace(item.CodeHint),
@@ -1133,7 +1136,7 @@ func (r *Repo) PatchRedemptionCode(ctx context.Context, id uint, patch repositor
 	}
 	var result domainbilling.RedemptionCode
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var record model.RedemptionCode
+		var record models.RedemptionCode
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND status <> ?", id, domainbilling.RedemptionCodeStatusDeleted).
 			First(&record).Error; err != nil {
@@ -1201,7 +1204,7 @@ func (r *Repo) DeleteRedemptionCode(ctx context.Context, id uint) error {
 		return repository.ErrInvalidInput
 	}
 	result := r.db.WithContext(ctx).
-		Model(&model.RedemptionCode{}).
+		Model(&models.RedemptionCode{}).
 		Where("id = ? AND status <> ?", id, domainbilling.RedemptionCodeStatusDeleted).
 		Update("status", domainbilling.RedemptionCodeStatusDeleted)
 	if result.Error != nil {
@@ -1225,7 +1228,7 @@ func (r *Repo) RedeemCode(ctx context.Context, input repository.RedemptionApplyI
 	}
 	var result repository.RedemptionApplyResult
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var code model.RedemptionCode
+		var code models.RedemptionCode
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("code_hash = ?", codeHash).
 			First(&code).Error
@@ -1239,7 +1242,7 @@ func (r *Repo) RedeemCode(ctx context.Context, input repository.RedemptionApplyI
 			return err
 		}
 
-		redemption := model.Redemption{
+		redemption := models.Redemption{
 			CodeID:        code.ID,
 			UserID:        input.UserID,
 			Mode:          code.Mode,
@@ -1296,7 +1299,7 @@ func (r *Repo) RedeemCode(ctx context.Context, input repository.RedemptionApplyI
 
 // GetBillingMode 查询当前计费方式。
 func (r *Repo) GetBillingMode(ctx context.Context) (string, error) {
-	var item model.SystemSetting
+	var item models.SystemSetting
 	if err := r.db.WithContext(ctx).
 		Where("namespace = ? AND key = ?", "billing", "mode").
 		First(&item).Error; err != nil {
@@ -1316,7 +1319,7 @@ func (r *Repo) GetBillingMode(ctx context.Context) (string, error) {
 
 // GetBillingPrepaidAmountNanousd 查询兼容旧设置键对应的单次风险预算。
 func (r *Repo) GetBillingPrepaidAmountNanousd(ctx context.Context) (int64, error) {
-	var item model.SystemSetting
+	var item models.SystemSetting
 	if err := r.db.WithContext(ctx).
 		Where("namespace = ? AND key = ?", "billing", "prepaid_amount_usd").
 		First(&item).Error; err != nil {
@@ -1338,7 +1341,7 @@ func (r *Repo) GetBillingPrepaidAmountNanousd(ctx context.Context) (int64, error
 
 // GetNativeToolBillingEnabled 查询模型原生工具是否按官方默认价计费。
 func (r *Repo) GetNativeToolBillingEnabled(ctx context.Context) (bool, error) {
-	var item model.SystemSetting
+	var item models.SystemSetting
 	if err := r.db.WithContext(ctx).
 		Where("namespace = ? AND key = ?", "billing", "native_tool_billing_enabled").
 		First(&item).Error; err != nil {
@@ -1356,7 +1359,7 @@ func (r *Repo) GetNativeToolBillingEnabled(ctx context.Context) (bool, error) {
 
 // GetNativeToolPricingJSON 查询模型原生工具计费覆盖配置。
 func (r *Repo) GetNativeToolPricingJSON(ctx context.Context) (string, error) {
-	var item model.SystemSetting
+	var item models.SystemSetting
 	if err := r.db.WithContext(ctx).
 		Where("namespace = ? AND key = ?", "billing", "native_tool_pricing_json").
 		First(&item).Error; err != nil {
@@ -1370,7 +1373,7 @@ func (r *Repo) GetNativeToolPricingJSON(ctx context.Context) (string, error) {
 
 // GetModelPricing 查询模型计费配置。
 func (r *Repo) GetModelPricing(ctx context.Context, platformModelName string) (*domainbilling.ModelPricing, error) {
-	var item model.ModelPricing
+	var item models.ModelPricing
 	if err := r.db.WithContext(ctx).
 		Where("platform_model_name = ?", strings.TrimSpace(platformModelName)).
 		First(&item).Error; err != nil {
@@ -1382,10 +1385,10 @@ func (r *Repo) GetModelPricing(ctx context.Context, platformModelName string) (*
 
 // ListModelPricing 分页查询模型单价。
 func (r *Repo) ListModelPricing(ctx context.Context, query string, offset int, limit int) ([]domainbilling.ModelPricing, int64, error) {
-	items := make([]model.ModelPricing, 0)
+	items := make([]models.ModelPricing, 0)
 	var total int64
 
-	dbq := r.db.WithContext(ctx).Model(&model.ModelPricing{})
+	dbq := r.db.WithContext(ctx).Model(&models.ModelPricing{})
 	if keyword := strings.TrimSpace(query); keyword != "" {
 		like := "%" + strings.ToLower(keyword) + "%"
 		dbq = dbq.Where("LOWER(platform_model_name) LIKE ?", like)
@@ -1415,7 +1418,7 @@ func (r *Repo) UpsertModelPricing(ctx context.Context, item *domainbilling.Model
 		return nil, repository.ErrInvalidInput
 	}
 
-	var record model.ModelPricing
+	var record models.ModelPricing
 	err := r.db.WithContext(ctx).Where("platform_model_name = ?", platformModelName).First(&record).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, dberror.Translate(err)
@@ -1437,7 +1440,7 @@ func (r *Repo) UpsertModelPricing(ctx context.Context, item *domainbilling.Model
 		"schedule_pricing_json":            emptyJSONObject(item.SchedulePricingJSON),
 	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		record = model.ModelPricing{
+		record = models.ModelPricing{
 			PlatformModelName: platformModelName,
 		}
 		if err := r.db.WithContext(ctx).Create(&record).Error; err != nil {
@@ -1458,7 +1461,7 @@ func (r *Repo) UpsertModelPricing(ctx context.Context, item *domainbilling.Model
 func (r *Repo) ListUsageByUser(ctx context.Context, userID uint, filter repository.UsageListFilter, offset int, limit int) ([]domainbilling.UsageLedger, int64, error) {
 	items := make([]usageLedgerListRow, 0)
 	var total int64
-	query := r.db.WithContext(ctx).Model(&model.UsageLedger{}).Where("user_id = ?", userID)
+	query := r.db.WithContext(ctx).Model(&models.UsageLedger{}).Where("user_id = ?", userID)
 	if search := strings.TrimSpace(filter.Query); search != "" {
 		like := "%" + strings.ToLower(search) + "%"
 		query = query.Where("LOWER(platform_model_name) LIKE ?", like)
@@ -1502,7 +1505,7 @@ func (r *Repo) ListUsageByUser(ctx context.Context, userID uint, filter reposito
 func (r *Repo) ListUsageLogs(ctx context.Context, filter repository.UsageLogListFilter, offset int, limit int) ([]domainbilling.UsageLedger, int64, error) {
 	items := make([]usageLedgerListRow, 0)
 	var total int64
-	query := r.db.WithContext(ctx).Model(&model.UsageLedger{})
+	query := r.db.WithContext(ctx).Model(&models.UsageLedger{})
 	if filter.UserID > 0 {
 		query = query.Where("user_id = ?", filter.UserID)
 	}
@@ -1563,7 +1566,7 @@ func (r *Repo) ListUsageLogs(ctx context.Context, filter repository.UsageLogList
 }
 
 type usageLedgerListRow struct {
-	model.UsageLedger
+	models.UsageLedger
 	ResolvedBalanceAfterNanousd *int64 `gorm:"column:resolved_balance_after_nanousd"`
 }
 
@@ -1660,7 +1663,7 @@ func usageStatisticsMetricsFromRow(row usageStatisticsMetricRow) domainbilling.U
 
 func (r *Repo) usageStatisticsQuery(ctx context.Context, filter repository.UsageStatisticsFilter) *gorm.DB {
 	query := r.db.WithContext(ctx).
-		Model(&model.UsageLedger{}).
+		Model(&models.UsageLedger{}).
 		Where("usage_date >= ? AND usage_date < ?", filter.StartDate, filter.EndDateExclusive)
 	if filter.UserID > 0 {
 		query = query.Where("user_id = ?", filter.UserID)
@@ -1880,9 +1883,9 @@ func (r *Repo) GetUsageStatistics(ctx context.Context, filter repository.UsageSt
 
 // ListPaymentOrders 分页查询管理员支付订单记录。
 func (r *Repo) ListPaymentOrders(ctx context.Context, filter repository.PaymentOrderListFilter, offset int, limit int) ([]domainbilling.PaymentOrder, int64, error) {
-	items := make([]model.PaymentOrder, 0)
+	items := make([]models.PaymentOrder, 0)
 	var total int64
-	query := r.db.WithContext(ctx).Model(&model.PaymentOrder{})
+	query := r.db.WithContext(ctx).Model(&models.PaymentOrder{})
 	if filter.UserID > 0 {
 		query = query.Where("user_id = ?", filter.UserID)
 	}
@@ -1970,7 +1973,7 @@ func (r *Repo) ListMonthlyUsageByUser(ctx context.Context, userID uint, limit in
 	rows := make([]monthlyUsageRow, 0)
 	monthKeyExpression := r.usageMonthKeyExpression()
 	if err := r.db.WithContext(ctx).
-		Model(&model.UsageLedger{}).
+		Model(&models.UsageLedger{}).
 		Select(monthKeyExpression+` AS month_key,
 			COUNT(*) AS record_count,
 			COALESCE(SUM(input_tokens), 0) AS input_tokens,
@@ -2016,7 +2019,7 @@ func (r *Repo) ListMonthlyUsageByUser(ctx context.Context, userID uint, limit in
 
 // GetUserCreatedAt 查询用户注册时间。
 func (r *Repo) GetUserCreatedAt(ctx context.Context, userID uint) (time.Time, error) {
-	var item model.User
+	var item models.User
 	if err := r.db.WithContext(ctx).
 		Select("created_at").
 		Where("id = ?", userID).
@@ -2038,7 +2041,7 @@ func (r *Repo) GetDailyActivityByUser(ctx context.Context, userID uint, startDat
 
 	rows := make([]dailyActivityRow, 0)
 	if err := r.db.WithContext(ctx).
-		Model(&model.UsageLedger{}).
+		Model(&models.UsageLedger{}).
 		Select(`usage_date,
 			COUNT(*) AS request_count,
 			COALESCE(SUM(input_tokens + cache_read_tokens + cache_write_tokens + output_tokens + reasoning_tokens), 0) AS token_usage`).
@@ -2082,7 +2085,7 @@ func (r *Repo) ListDailyUsageByUser(ctx context.Context, userID uint, startDate 
 	modelRows := make([]dailyModelUsageRow, 0)
 	dayKeyExpression := r.usageDayKeyExpression()
 	if err := r.db.WithContext(ctx).
-		Model(&model.UsageLedger{}).
+		Model(&models.UsageLedger{}).
 		Select(dayKeyExpression+` AS usage_date_key,
 			platform_model_name,
 			COUNT(*) AS record_count,
@@ -2170,7 +2173,7 @@ func weightedAverageLatency(currentAvg int64, currentCount int64, nextAvg int64,
 func (r *Repo) SumBillableNanousd(ctx context.Context, userID uint, startAt time.Time, endAt time.Time) (int64, error) {
 	var total int64
 	err := r.db.WithContext(ctx).
-		Model(&model.UsageLedger{}).
+		Model(&models.UsageLedger{}).
 		Select("COALESCE(SUM(billed_nanousd), 0)").
 		Where("user_id = ? AND is_free_model = ? AND billing_at >= ? AND billing_at < ?", userID, false, startAt, endAt).
 		Scan(&total).Error
@@ -2184,7 +2187,7 @@ func (r *Repo) SumBillableNanousd(ctx context.Context, userID uint, startAt time
 func (r *Repo) SumTotalBilledNanousd(ctx context.Context, userID uint) (int64, error) {
 	var total int64
 	err := r.db.WithContext(ctx).
-		Model(&model.UsageLedger{}).
+		Model(&models.UsageLedger{}).
 		Select("COALESCE(SUM(billed_nanousd), 0)").
 		Where("user_id = ? AND is_free_model = ?", userID, false).
 		Scan(&total).Error
@@ -2194,7 +2197,7 @@ func (r *Repo) SumTotalBilledNanousd(ctx context.Context, userID uint) (int64, e
 	return total, nil
 }
 
-func toDomainModelPricing(item model.ModelPricing) domainbilling.ModelPricing {
+func toDomainModelPricing(item models.ModelPricing) domainbilling.ModelPricing {
 	return domainbilling.ModelPricing{
 		ID:                          item.ID,
 		PlatformModelName:           item.PlatformModelName,
@@ -2224,7 +2227,7 @@ func emptyJSONObject(raw string) string {
 	return raw
 }
 
-func toDomainPaymentOrder(item model.PaymentOrder) domainbilling.PaymentOrder {
+func toDomainPaymentOrder(item models.PaymentOrder) domainbilling.PaymentOrder {
 	return domainbilling.PaymentOrder{
 		ID:                 item.ID,
 		OrderNo:            item.OrderNo,
@@ -2253,8 +2256,8 @@ func toDomainPaymentOrder(item model.PaymentOrder) domainbilling.PaymentOrder {
 	}
 }
 
-func toModelUsageLedger(usage *domainbilling.UsageLedger) model.UsageLedger {
-	return model.UsageLedger{
+func toModelUsageLedger(usage *domainbilling.UsageLedger) models.UsageLedger {
+	return models.UsageLedger{
 		UserID:              usage.UserID,
 		RefNo:               strings.TrimSpace(usage.RefNo),
 		ConversationID:      usage.ConversationID,
@@ -2285,7 +2288,7 @@ func toModelUsageLedger(usage *domainbilling.UsageLedger) model.UsageLedger {
 	}
 }
 
-func toDomainUsageLedger(item model.UsageLedger) domainbilling.UsageLedger {
+func toDomainUsageLedger(item models.UsageLedger) domainbilling.UsageLedger {
 	return domainbilling.UsageLedger{
 		ID:                  item.ID,
 		UserID:              item.UserID,
@@ -2320,11 +2323,11 @@ func toDomainUsageLedger(item model.UsageLedger) domainbilling.UsageLedger {
 	}
 }
 
-func getOrCreateBillingAccountForUpdate(tx *gorm.DB, userID uint) (*model.BillingAccount, error) {
+func getOrCreateBillingAccountForUpdate(tx *gorm.DB, userID uint) (*models.BillingAccount, error) {
 	if userID == 0 {
 		return nil, repository.ErrInvalidInput
 	}
-	var account model.BillingAccount
+	var account models.BillingAccount
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", userID).First(&account).Error
 	if err == nil {
 		return &account, nil
@@ -2332,7 +2335,7 @@ func getOrCreateBillingAccountForUpdate(tx *gorm.DB, userID uint) (*model.Billin
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, dberror.Translate(err)
 	}
-	account = model.BillingAccount{
+	account = models.BillingAccount{
 		UserID:         userID,
 		Currency:       "USD",
 		BalanceNanousd: 0,
@@ -2350,7 +2353,7 @@ func getOrCreateBillingAccountForUpdate(tx *gorm.DB, userID uint) (*model.Billin
 	return &account, nil
 }
 
-func toDomainBillingAccount(item model.BillingAccount) domainbilling.BillingAccount {
+func toDomainBillingAccount(item models.BillingAccount) domainbilling.BillingAccount {
 	return domainbilling.BillingAccount{
 		ID:             item.ID,
 		UserID:         item.UserID,
@@ -2362,7 +2365,7 @@ func toDomainBillingAccount(item model.BillingAccount) domainbilling.BillingAcco
 	}
 }
 
-func toDomainSubscription(item model.Subscription) domainbilling.Subscription {
+func toDomainSubscription(item models.Subscription) domainbilling.Subscription {
 	return domainbilling.Subscription{
 		ID:                   item.ID,
 		UserID:               item.UserID,
@@ -2380,7 +2383,7 @@ func toDomainSubscription(item model.Subscription) domainbilling.Subscription {
 	}
 }
 
-func toDomainRedemptionCode(item model.RedemptionCode) domainbilling.RedemptionCode {
+func toDomainRedemptionCode(item models.RedemptionCode) domainbilling.RedemptionCode {
 	return domainbilling.RedemptionCode{
 		ID:              item.ID,
 		CodeHash:        item.CodeHash,
@@ -2403,7 +2406,7 @@ func toDomainRedemptionCode(item model.RedemptionCode) domainbilling.RedemptionC
 	}
 }
 
-func toDomainRedemption(item model.Redemption) domainbilling.Redemption {
+func toDomainRedemption(item models.Redemption) domainbilling.Redemption {
 	return domainbilling.Redemption{
 		ID:                   item.ID,
 		CodeID:               item.CodeID,
@@ -2421,7 +2424,7 @@ func toDomainRedemption(item model.Redemption) domainbilling.Redemption {
 	}
 }
 
-func validateRedeemableCode(tx *gorm.DB, code model.RedemptionCode, userID uint, currentMode string, now time.Time) error {
+func validateRedeemableCode(tx *gorm.DB, code models.RedemptionCode, userID uint, currentMode string, now time.Time) error {
 	if code.Status != domainbilling.RedemptionCodeStatusActive ||
 		!domainbilling.RedemptionCodeModeAvailableInBillingMode(code.Mode, currentMode) ||
 		(code.ExpiresAt != nil && !code.ExpiresAt.After(now)) {
@@ -2435,7 +2438,7 @@ func validateRedeemableCode(tx *gorm.DB, code model.RedemptionCode, userID uint,
 		perUserLimit = 1
 	}
 	var userCount int64
-	if err := tx.Model(&model.Redemption{}).
+	if err := tx.Model(&models.Redemption{}).
 		Where("code_id = ? AND user_id = ?", code.ID, userID).
 		Count(&userCount).Error; err != nil {
 		return dberror.Translate(err)
@@ -2458,7 +2461,7 @@ func validateRedeemableCode(tx *gorm.DB, code model.RedemptionCode, userID uint,
 	return nil
 }
 
-func applyRedemptionBalance(tx *gorm.DB, userID uint, code model.RedemptionCode, refNo string) (*model.BillingAccount, uint, error) {
+func applyRedemptionBalance(tx *gorm.DB, userID uint, code models.RedemptionCode, refNo string) (*models.BillingAccount, uint, error) {
 	account, err := getOrCreateBillingAccountForUpdate(tx, userID)
 	if err != nil {
 		return nil, 0, err
@@ -2473,7 +2476,7 @@ func applyRedemptionBalance(tx *gorm.DB, userID uint, code model.RedemptionCode,
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", account.ID).First(account).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
 	}
-	transaction := model.BalanceTransaction{
+	transaction := models.BalanceTransaction{
 		AccountID:           account.ID,
 		UserID:              userID,
 		Type:                domainbilling.BalanceTransactionTypeRedemption,
@@ -2490,8 +2493,8 @@ func applyRedemptionBalance(tx *gorm.DB, userID uint, code model.RedemptionCode,
 	return account, transaction.ID, nil
 }
 
-func applyRedemptionSubscription(tx *gorm.DB, userID uint, code model.RedemptionCode, now time.Time) (*model.Subscription, error) {
-	var plan model.BillingPlan
+func applyRedemptionSubscription(tx *gorm.DB, userID uint, code models.RedemptionCode, now time.Time) (*models.Subscription, error) {
+	var plan models.BillingPlan
 	if err := tx.Where("id = ? AND is_active = ?", code.PlanID, true).First(&plan).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -2513,8 +2516,8 @@ func applyRedemptionSubscription(tx *gorm.DB, userID uint, code model.Redemption
 	})
 }
 
-func activeDefaultPriceForPlan(tx *gorm.DB, planID uint) (*model.BillingPrice, error) {
-	var price model.BillingPrice
+func activeDefaultPriceForPlan(tx *gorm.DB, planID uint) (*models.BillingPrice, error) {
+	var price models.BillingPrice
 	err := tx.Where("plan_id = ? AND is_active = ? AND is_default = ?", planID, true, true).
 		First(&price).Error
 	if err == nil {
@@ -2533,8 +2536,8 @@ func activeDefaultPriceForPlan(tx *gorm.DB, planID uint) (*model.BillingPrice, e
 
 type subscriptionTimelineGrantRequest struct {
 	UserID            uint
-	Plan              model.BillingPlan
-	Price             model.BillingPrice
+	Plan              models.BillingPlan
+	Price             models.BillingPrice
 	StartAt           time.Time
 	Duration          time.Duration
 	CancelAtPeriodEnd bool
@@ -2542,7 +2545,7 @@ type subscriptionTimelineGrantRequest struct {
 	NewGrant          bool
 }
 
-func grantSubscriptionOnTimeline(tx *gorm.DB, input subscriptionTimelineGrantRequest) (*model.Subscription, error) {
+func grantSubscriptionOnTimeline(tx *gorm.DB, input subscriptionTimelineGrantRequest) (*models.Subscription, error) {
 	if input.UserID == 0 || input.Plan.ID == 0 || input.Price.ID == 0 || input.Duration <= 0 {
 		return nil, repository.ErrInvalidInput
 	}
@@ -2550,7 +2553,7 @@ func grantSubscriptionOnTimeline(tx *gorm.DB, input subscriptionTimelineGrantReq
 	if now.IsZero() {
 		now = time.Now()
 	}
-	var existing []model.Subscription
+	var existing []models.Subscription
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("user_id = ? AND status = ? AND current_period_end_at IS NOT NULL AND current_period_end_at > ?", input.UserID, "active", now).
 		Order("current_period_start_at ASC, current_period_end_at ASC, id ASC").
@@ -2609,11 +2612,11 @@ func grantSubscriptionOnTimeline(tx *gorm.DB, input subscriptionTimelineGrantReq
 func applySubscriptionTimeline(
 	tx *gorm.DB,
 	userID uint,
-	existing []model.Subscription,
+	existing []models.Subscription,
 	segments []subscriptionTimelineSegment,
 	now time.Time,
 	grantPlanID uint,
-) (*model.Subscription, error) {
+) (*models.Subscription, error) {
 	targetsBySubscriptionID := make(map[uint][]subscriptionTimelineSegment, len(existing))
 	newSegments := make([]subscriptionTimelineSegment, 0)
 	for _, segment := range normalizeSubscriptionTimeline(segments) {
@@ -2624,7 +2627,7 @@ func applySubscriptionTimeline(
 		newSegments = append(newSegments, segment)
 	}
 
-	var granted *model.Subscription
+	var granted *models.Subscription
 	for _, item := range existing {
 		targets := targetsBySubscriptionID[item.ID]
 		if len(targets) == 0 {
@@ -2641,7 +2644,7 @@ func applySubscriptionTimeline(
 			}
 		}
 		for index, target := range targets {
-			var record *model.Subscription
+			var record *models.Subscription
 			var err error
 			if index == reusableIndex {
 				record, err = updateSubscriptionSegment(tx, item, target, now)
@@ -2672,7 +2675,7 @@ func applySubscriptionTimeline(
 	return granted, nil
 }
 
-func reusableSubscriptionSegmentIndex(item model.Subscription, targets []subscriptionTimelineSegment, now time.Time) int {
+func reusableSubscriptionSegmentIndex(item models.Subscription, targets []subscriptionTimelineSegment, now time.Time) int {
 	for index, target := range targets {
 		if !target.EndAt.After(target.StartAt) {
 			continue
@@ -2685,7 +2688,7 @@ func reusableSubscriptionSegmentIndex(item model.Subscription, targets []subscri
 	return -1
 }
 
-func expireSubscriptionForTimeline(tx *gorm.DB, item model.Subscription, now time.Time) error {
+func expireSubscriptionForTimeline(tx *gorm.DB, item models.Subscription, now time.Time) error {
 	endAt := now
 	if item.CurrentPeriodStartAt.After(endAt) {
 		endAt = item.CurrentPeriodStartAt
@@ -2701,7 +2704,7 @@ func expireSubscriptionForTimeline(tx *gorm.DB, item model.Subscription, now tim
 	}).Error)
 }
 
-func updateSubscriptionSegment(tx *gorm.DB, item model.Subscription, segment subscriptionTimelineSegment, now time.Time) (*model.Subscription, error) {
+func updateSubscriptionSegment(tx *gorm.DB, item models.Subscription, segment subscriptionTimelineSegment, now time.Time) (*models.Subscription, error) {
 	startAt := segment.StartAt
 	if item.CurrentPeriodStartAt.Before(now) && !segment.StartAt.After(now) {
 		startAt = item.CurrentPeriodStartAt
@@ -2724,19 +2727,19 @@ func updateSubscriptionSegment(tx *gorm.DB, item model.Subscription, segment sub
 	}).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
-	var updated model.Subscription
+	var updated models.Subscription
 	if err := tx.Where("id = ?", item.ID).First(&updated).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
 	return &updated, nil
 }
 
-func createSubscriptionSegment(tx *gorm.DB, userID uint, segment subscriptionTimelineSegment) (*model.Subscription, error) {
+func createSubscriptionSegment(tx *gorm.DB, userID uint, segment subscriptionTimelineSegment) (*models.Subscription, error) {
 	if userID == 0 || segment.PlanID == 0 || segment.PriceID == 0 || !segment.EndAt.After(segment.StartAt) {
 		return nil, repository.ErrInvalidInput
 	}
 	endAt := segment.EndAt
-	record := model.Subscription{
+	record := models.Subscription{
 		UserID:               userID,
 		PlanID:               segment.PlanID,
 		PriceID:              segment.PriceID,
@@ -2954,7 +2957,7 @@ func maxTime(left time.Time, right time.Time) time.Time {
 	return right
 }
 
-func appendSubscriptionPlanID(items []model.Subscription, planID uint) []uint {
+func appendSubscriptionPlanID(items []models.Subscription, planID uint) []uint {
 	ids := make([]uint, 0, len(items)+1)
 	seen := make(map[uint]struct{}, len(items)+1)
 	if planID > 0 {
@@ -2974,12 +2977,12 @@ func appendSubscriptionPlanID(items []model.Subscription, planID uint) []uint {
 	return ids
 }
 
-func billingPlansForTimeline(tx *gorm.DB, planIDs []uint) (map[uint]model.BillingPlan, error) {
-	results := make(map[uint]model.BillingPlan, len(planIDs))
+func billingPlansForTimeline(tx *gorm.DB, planIDs []uint) (map[uint]models.BillingPlan, error) {
+	results := make(map[uint]models.BillingPlan, len(planIDs))
 	if len(planIDs) == 0 {
 		return results, nil
 	}
-	var plans []model.BillingPlan
+	var plans []models.BillingPlan
 	if err := tx.Where("id IN ?", planIDs).Find(&plans).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -2992,7 +2995,7 @@ func billingPlansForTimeline(tx *gorm.DB, planIDs []uint) (map[uint]model.Billin
 	return results, nil
 }
 
-func subscriptionPlanRank(plan model.BillingPlan) int {
+func subscriptionPlanRank(plan models.BillingPlan) int {
 	if strings.TrimSpace(plan.Code) == "free" {
 		return 0
 	}
@@ -3002,7 +3005,7 @@ func subscriptionPlanRank(plan model.BillingPlan) int {
 	return int(plan.ID)
 }
 
-func redemptionSnapshotJSON(code model.RedemptionCode) string {
+func redemptionSnapshotJSON(code models.RedemptionCode) string {
 	payload := map[string]any{
 		"code_id":        code.ID,
 		"mode":           code.Mode,
@@ -3087,7 +3090,7 @@ func minInt64(a int64, b int64) int64 {
 	return b
 }
 
-func toPlanDomain(item model.BillingPlan) domainbilling.Plan {
+func toPlanDomain(item models.BillingPlan) domainbilling.Plan {
 	return domainbilling.Plan{
 		ID:                  item.ID,
 		Code:                item.Code,

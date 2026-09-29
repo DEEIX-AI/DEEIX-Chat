@@ -1,6 +1,6 @@
 "use client";
 
-import type { ConversationExportDTO } from "@/shared/api/conversation.types";
+import type { ConversationExportDTO } from "@/shared/api/conversation-types";
 
 function safeFileNamePart(value: string) {
   const normalized = value

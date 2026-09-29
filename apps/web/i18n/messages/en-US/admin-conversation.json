@@ -34,6 +34,10 @@
       "label": "Interactive components",
       "description": "Let the model emit interactive components (charts, tables, calculators, Gantt charts, and more) in replies. When off, the catalog is not injected, the picker is hidden, and existing blocks show their raw content; the admin library stays editable."
     },
+    "processTraceEnabled": {
+      "label": "Processing steps",
+      "description": "Record and show the processing steps for each reply (context planning, retrieval, tool summaries). When off, no trace data is written and the matching user setting is hidden."
+    },
     "contextCompactEnabled": {
       "label": "Context compression",
       "description": "Summarize older conversation turns into a rolling context. Users can still opt out in chat settings."

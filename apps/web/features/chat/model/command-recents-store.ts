@@ -1,3 +1,5 @@
+import { isRecord } from "@/shared/lib/type-guards";
+
 const COMMAND_RECENTS_STORAGE_KEY = "deeix.chat.command.recents.v1";
 const COMMAND_RECENTS_MAX_ENTRIES_PER_KIND = 20;
 
@@ -13,20 +15,20 @@ type CommandRecentsState = Partial<Record<CommandRecentsKind, CommandRecentsEntr
 let memoryState: CommandRecentsState | null = null;
 
 function isCommandRecentsEntry(value: unknown): value is CommandRecentsEntry {
-  if (typeof value !== "object" || value === null) {
+  if (!isRecord(value)) {
     return false;
   }
-  const entry = value as { id?: unknown; usedAt?: unknown };
+  const entry = value;
   return typeof entry.id === "string" && entry.id.length > 0 && typeof entry.usedAt === "number";
 }
 
 function sanitizeState(value: unknown): CommandRecentsState {
-  if (typeof value !== "object" || value === null) {
+  if (!isRecord(value)) {
     return {};
   }
   const state: CommandRecentsState = {};
   for (const kind of ["model", "file", "tool", "skill", "prompt"] as const) {
-    const entries = (value as Record<string, unknown>)[kind];
+    const entries = value[kind];
     if (!Array.isArray(entries)) {
       continue;
     }
@@ -54,7 +56,7 @@ function loadState(): CommandRecentsState {
   }
   try {
     const raw = window.localStorage.getItem(COMMAND_RECENTS_STORAGE_KEY);
-    memoryState = raw ? sanitizeState(JSON.parse(raw) as unknown) : {};
+    memoryState = raw ? sanitizeState(JSON.parse(raw)) : {};
   } catch {
     memoryState = {};
   }

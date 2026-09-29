@@ -13,7 +13,7 @@ import (
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstorage"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 )
 
@@ -203,7 +203,7 @@ type preparedImageAttachment struct {
 
 func prepareImageAttachmentForProcessor(
 	ctx context.Context,
-	store objectstore.Store,
+	store objectstorage.Store,
 	attachment AttachmentInput,
 	maxDimension int,
 ) (preparedImageAttachment, error) {

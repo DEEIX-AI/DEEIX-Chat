@@ -1,5 +1,5 @@
-import { AdminAccountsPage } from "@/features/admin/components/sections/accounts/admin-accounts";
+import { AdminUsersPage } from "@/features/admin";
 
 export default function Page() {
-  return <AdminAccountsPage />;
+  return <AdminUsersPage />;
 }

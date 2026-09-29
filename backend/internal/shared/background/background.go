@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// inflight tracks every task started with Go so shutdown can drain them.
+// inflight 跟踪所有通过 Go 启动的任务，以便关闭时排空。
 var inflight sync.WaitGroup
 
 // Detach 保留父上下文中的值，同时让收尾工作不受请求取消或原截止时间影响。
@@ -47,8 +47,8 @@ func Go(logger *zap.Logger, name string, fn func()) {
 	}()
 }
 
-// Wait blocks until every task started with Go has returned or ctx expires.
-// Callers cancel the tasks' context first; Wait only bounds the drain.
+// Wait 阻塞直到所有通过 Go 启动的任务返回或 ctx 到期。
+// 调用方应先取消任务的 context；Wait 仅限定排空的时长上限。
 func Wait(ctx context.Context) error {
 	done := make(chan struct{})
 	go func() {

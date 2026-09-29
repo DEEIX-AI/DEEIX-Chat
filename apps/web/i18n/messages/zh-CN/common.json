@@ -47,7 +47,7 @@
     "recent": "对话",
     "files": "文件",
     "knowledgeBases": "知识库",
-    "skillsPrompt": "Skills & Prompts",
+    "library": "指令库",
     "searchTitle": "搜索",
     "searchDescription": "搜索对话标题、标签、项目和消息正文",
     "searchPlaceholder": "搜索对话或消息内容",
@@ -153,5 +153,9 @@
     "description": "刷新网页后即可使用最新版本。",
     "prerelease": "预览版",
     "stable": "正式版"
+  },
+  "attribution": {
+    "poweredBy": "技术支持",
+    "githubLink": "GitHub 上的 DEEIX Chat"
   }
 }

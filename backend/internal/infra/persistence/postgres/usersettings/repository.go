@@ -22,7 +22,7 @@ func NewRepo(db *gorm.DB) *Repo {
 
 // ListByUserID 查询指定用户的全部配置项。
 func (r *Repo) ListByUserID(ctx context.Context, userID uint) ([]domainusersettings.UserSetting, error) {
-	var items []model.UserSetting
+	var items []models.UserSetting
 	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("key").Find(&items).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -30,8 +30,8 @@ func (r *Repo) ListByUserID(ctx context.Context, userID uint) ([]domainusersetti
 }
 
 // GetByKey 查询指定用户的单个配置项，不存在时返回 nil。
-func (r *Repo) GetByKey(ctx context.Context, userID uint, key string) (*model.UserSetting, error) {
-	var item model.UserSetting
+func (r *Repo) GetByKey(ctx context.Context, userID uint, key string) (*models.UserSetting, error) {
+	var item models.UserSetting
 	err := r.db.WithContext(ctx).Where("user_id = ? AND key = ?", userID, key).First(&item).Error
 	if err != nil {
 		if dberror.IsRecordNotFound(err) {
@@ -58,10 +58,10 @@ func (r *Repo) Upsert(ctx context.Context, items []domainusersettings.UserSettin
 
 // Delete 删除指定用户的配置项。
 func (r *Repo) Delete(ctx context.Context, userID uint, key string) error {
-	return dberror.Translate(r.db.WithContext(ctx).Where("user_id = ? AND key = ?", userID, key).Delete(&model.UserSetting{}).Error)
+	return dberror.Translate(r.db.WithContext(ctx).Where("user_id = ? AND key = ?", userID, key).Delete(&models.UserSetting{}).Error)
 }
 
-func toDomainUserSettings(items []model.UserSetting) []domainusersettings.UserSetting {
+func toDomainUserSettings(items []models.UserSetting) []domainusersettings.UserSetting {
 	results := make([]domainusersettings.UserSetting, 0, len(items))
 	for _, item := range items {
 		results = append(results, domainusersettings.UserSetting{
@@ -75,10 +75,10 @@ func toDomainUserSettings(items []model.UserSetting) []domainusersettings.UserSe
 	return results
 }
 
-func toModelUserSettings(items []domainusersettings.UserSetting) []model.UserSetting {
-	results := make([]model.UserSetting, 0, len(items))
+func toModelUserSettings(items []domainusersettings.UserSetting) []models.UserSetting {
+	results := make([]models.UserSetting, 0, len(items))
 	for _, item := range items {
-		results = append(results, model.UserSetting{
+		results = append(results, models.UserSetting{
 			ID:        item.ID,
 			UserID:    item.UserID,
 			Key:       item.Key,

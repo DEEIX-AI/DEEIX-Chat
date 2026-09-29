@@ -6,43 +6,15 @@ import { useTranslations } from "next-intl";
 import { Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SpinnerLabel } from "@/components/ui/spinner";
-import {
-  providerAuthBridgeStorageKey,
-  providerPKCEStorageKey,
-  TWO_FACTOR_CHALLENGE_STORAGE_KEY,
-  TWO_FACTOR_METHODS_STORAGE_KEY,
-} from "@/features/auth/model/login-page";
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { completeProviderBind, completeProviderLogin, exchangeProviderAuthBridgeGrant } from "@/shared/api/auth";
-import { ApiError } from "@/shared/api/http-client";
-import { DEFAULT_AUTH_NEXT_PATH, normalizeAuthNextPath } from "@/shared/auth/local-path";
+import { useAuthProviderCallback } from "@/features/auth/hooks/use-auth-provider-callback";
 import { AppLogo } from "@/shared/components/app-logo";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { resolveOAuthClientId } from "@/shared/platform/desktop-oauth";
-import { completeNativeSignIn } from "@/shared/platform/desktop-session";
 
-const PROVIDER_EMAIL_CONFLICT_ERROR_CODE = "auth.provider_email_conflict";
-const PROVIDER_EMAIL_CONFLICT_ACTION_SIGN_IN_THEN_BIND = "sign_in_then_bind";
-const ACCOUNT_SETTINGS_PATH = "/setting/account";
-
-type ProviderEmailConflictDetails = {
-  action?: string;
-  providerSlug?: string;
-  email?: string;
-};
-
-type EmailConflictState = {
-  providerSlug?: string;
-  email?: string;
-};
+const ACCOUNT_SETTINGS_PATH = "/settings/account";
 
 export function AuthCallbackPage() {
   const t = useTranslations("login.oauthCallback");
-  const resolveErrorMessage = useLocalizedErrorMessage();
   const router = useRouter();
-  const [error, setError] = React.useState("");
-  const [emailConflict, setEmailConflict] = React.useState<EmailConflictState | null>(null);
-  const handledRef = React.useRef(false);
+  const { error, emailConflict } = useAuthProviderCallback();
 
   const redirectToLogin = React.useCallback(() => {
     router.replace("/login");
@@ -51,114 +23,6 @@ export function AuthCallbackPage() {
   const redirectToLoginWithAccountSettingsNext = React.useCallback(() => {
     router.replace(`/login?next=${encodeURIComponent(ACCOUNT_SETTINGS_PATH)}`);
   }, [router]);
-
-  React.useEffect(() => {
-    if (handledRef.current) {
-      return;
-    }
-    handledRef.current = true;
-
-    const params = new URLSearchParams(window.location.search);
-    const errorMessage = params.get("error");
-    if (errorMessage) {
-      setError(t("providerError", { error: errorMessage }));
-      return;
-    }
-
-    const provider = params.get("provider") ?? "";
-    const grant = params.get("grant") ?? "";
-    if (provider && grant) {
-      const stored = readProviderAuthBridgeRequest(provider);
-      window.sessionStorage.removeItem(providerAuthBridgeStorageKey(provider));
-      if (!stored || !constantTimeStringEqual(params.get("state") ?? "", stored.state)) {
-        setError(t("expiredSession"));
-        return;
-      }
-      void exchangeProviderAuthBridgeGrant(provider, {
-        clientID: resolveOAuthClientId(),
-        grant,
-        codeVerifier: stored.verifier,
-      })
-        .then((result) => {
-          if (result.twoFactorRequired) {
-            window.sessionStorage.setItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY, result.twoFactorChallengeToken ?? "");
-            window.sessionStorage.setItem(TWO_FACTOR_METHODS_STORAGE_KEY, JSON.stringify(result.verificationMethods ?? ["two_factor"]));
-            router.replace(`/login?next=${encodeURIComponent(stored.next)}`);
-            return;
-          }
-          void completeNativeSignIn(result);
-          router.replace(stored.next);
-        })
-        .catch((caught) => {
-          if (isProviderEmailConflictError(caught)) {
-            const details = caught.details as ProviderEmailConflictDetails | undefined;
-            setEmailConflict({
-              providerSlug: details?.providerSlug?.trim() || undefined,
-              email: details?.email?.trim() || undefined,
-            });
-            return;
-          }
-          setError(resolveErrorMessage(caught, t("loginFailed")));
-        });
-      return;
-    }
-    const code = params.get("code") ?? "";
-    const state = params.get("state") ?? "";
-    const parsedState = parseProviderState(state);
-    const intent = parsedState.intent;
-    const nextPath = parsedState.next;
-    if (!provider || !code || !state) {
-      setError(t("missingParams"));
-      return;
-    }
-    const codeVerifier = window.sessionStorage.getItem(providerPKCEStorageKey(provider)) ?? "";
-    window.sessionStorage.removeItem(providerPKCEStorageKey(provider));
-    if (!codeVerifier) {
-      setError(t("expiredSession"));
-      return;
-    }
-
-    const redirectURI = `${window.location.origin}${window.location.pathname}?provider=${encodeURIComponent(provider)}`;
-    if (intent === "bind") {
-      void resolveAccessToken()
-        .then((accessToken) => {
-          if (!accessToken) {
-            throw new Error(t("bindSessionExpired"));
-          }
-          return completeProviderBind(accessToken, provider, code, state, redirectURI, codeVerifier);
-        })
-        .then(() => {
-          router.replace(nextPath);
-        })
-        .catch((caught) => {
-          setError(resolveErrorMessage(caught, t("bindFailed")));
-        });
-      return;
-    }
-
-    void completeProviderLogin(provider, code, state, redirectURI, codeVerifier, intent)
-      .then((result) => {
-        if (result.twoFactorRequired) {
-          window.sessionStorage.setItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY, result.twoFactorChallengeToken ?? "");
-          window.sessionStorage.setItem(TWO_FACTOR_METHODS_STORAGE_KEY, JSON.stringify(result.verificationMethods ?? ["two_factor"]));
-          router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
-          return;
-        }
-        void completeNativeSignIn(result);
-        router.replace(nextPath);
-      })
-      .catch((caught) => {
-        if (isProviderEmailConflictError(caught)) {
-          const details = caught.details as ProviderEmailConflictDetails | undefined;
-          setEmailConflict({
-            providerSlug: details?.providerSlug?.trim() || undefined,
-            email: details?.email?.trim() || undefined,
-          });
-          return;
-        }
-        setError(resolveErrorMessage(caught, t("loginFailed")));
-      });
-  }, [resolveErrorMessage, router, t]);
 
   const conflictProviderLabel = React.useMemo(() => {
     if (!emailConflict?.providerSlug) {
@@ -234,54 +98,4 @@ export function AuthCallbackPage() {
       </div>
     </main>
   );
-}
-
-function readProviderAuthBridgeRequest(slug: string): { verifier: string; state: string; intent: "login" | "register"; next: string } | null {
-  try {
-    const raw = window.sessionStorage.getItem(providerAuthBridgeStorageKey(slug));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { verifier?: string; state?: string; intent?: string; next?: string };
-    if (!parsed.verifier || !parsed.state) return null;
-    return {
-      verifier: parsed.verifier,
-      state: parsed.state,
-      intent: parsed.intent === "register" ? "register" : "login",
-      next: normalizeAuthNextPath(parsed.next),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function constantTimeStringEqual(left: string, right: string): boolean {
-  if (left.length !== right.length) return false;
-  let difference = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return difference === 0;
-}
-
-function isProviderEmailConflictError(error: unknown): boolean {
-  if (!(error instanceof ApiError) || error.errorCode !== PROVIDER_EMAIL_CONFLICT_ERROR_CODE) {
-    return false;
-  }
-  const details = error.details as ProviderEmailConflictDetails | undefined;
-  return details?.action === PROVIDER_EMAIL_CONFLICT_ACTION_SIGN_IN_THEN_BIND;
-}
-
-function parseProviderState(raw: string): { next: string; intent: "login" | "register" | "bind" } {
-  try {
-    const [encodedPayload] = raw.split(".");
-    if (!encodedPayload) return { next: DEFAULT_AUTH_NEXT_PATH, intent: "login" };
-    const padded = encodedPayload.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(encodedPayload.length / 4) * 4, "=");
-    const parsed = JSON.parse(atob(padded)) as { next?: string; intent?: string };
-    const intent = parsed.intent ?? "";
-    return {
-      next: normalizeAuthNextPath(parsed.next),
-      intent: intent === "register" ? "register" : intent === "bind" ? "bind" : "login",
-    };
-  } catch {
-    return { next: DEFAULT_AUTH_NEXT_PATH, intent: "login" };
-  }
 }

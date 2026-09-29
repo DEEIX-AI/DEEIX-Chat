@@ -105,7 +105,7 @@ export function StepIndicator({
 // Types
 // ============================================================================
 
-export interface OnboardingContextValue {
+export type OnboardingContextValue = {
   /** Current step index (1-based) */
   currentStep: number
   /** Total number of steps */
@@ -492,7 +492,7 @@ function OnboardingNavigation({
 
 type Orientation = "horizontal" | "vertical" | "grid"
 
-interface ChoiceGroupContextValue {
+type ChoiceGroupContextValue = {
   value: string | null
   setValue: (value: string) => void
   name: string
@@ -642,7 +642,7 @@ export const ChoiceGroup = Object.assign(ChoiceGroupRoot, {
 // Types
 // ============================================================================
 
-interface FeatureCarouselContextValue {
+type FeatureCarouselContextValue = {
   value: number
   setValue: (value: number | ((prev: number) => number)) => void
   totalItems: number

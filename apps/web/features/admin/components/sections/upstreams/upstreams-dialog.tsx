@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   AlertDialog,
@@ -13,32 +12,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { SpinnerLabel } from "@/components/ui/spinner";
-import {
-  batchDeleteAdminLLMUpstreams,
-  deleteAdminLLMUpstream,
-  openAdminLLMUpstreamCircuit,
-  resetAdminLLMUpstreamCircuit,
-} from "@/features/admin/api";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import {
-  mergeBatchResultData,
-  runBulkActionInChunks,
-} from "@/shared/lib/bulk-action";
+import { useAdminUpstreamsActions } from "@/features/admin/hooks/use-admin-upstreams-actions";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import type { AdminBatchDeleteData, AdminLLMUpstreamView } from "@/features/admin/api/llm.types";
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { toast } from "sonner";
-
-function summarizeBatchDeleteResult(
-  result: AdminBatchDeleteData,
-  translate: (key: string, values: Record<string, number>) => string,
-): string {
-  return translate("deleteDialog.summary", {
-    success: result.successCount,
-    notFound: result.notFoundCount,
-    failed: result.failedCount,
-  });
-}
+import type { AdminBatchDeleteData, AdminLLMUpstreamView } from "@/features/admin/api/llm-types";
 
 // ---------------------------------------------------------------------------
 // DeleteUpstreamDialog
@@ -57,24 +33,12 @@ export function DeleteUpstreamDialog({
 }: DeleteUpstreamDialogProps) {
   const t = useTranslations("adminUpstreams");
   const tActions = useTranslations("common.actions");
-  const resolveErrorMessage = useLocalizedErrorMessage();
-  const [pending, setPending] = useState(false);
+  const { pending, deleteUpstream } = useAdminUpstreamsActions();
   const stableUpstream = useDialogSnapshot(upstream);
 
   async function handleConfirm() {
     if (!upstream) return;
-    setPending(true);
-    try {
-      const token = await resolveAccessToken();
-      await deleteAdminLLMUpstream(token, upstream.id);
-      onDeleted(upstream.id);
-      toast.success(t("toast.upstreamDeleted"));
-      onClose();
-    } catch (error) {
-      toast.error(t("toast.deleteFailed"), { description: resolveErrorMessage(error) });
-    } finally {
-      setPending(false);
-    }
+    await deleteUpstream(upstream, { onDone: onDeleted, onClose });
   }
 
   return (
@@ -121,37 +85,13 @@ export function BulkDeleteUpstreamsDialog({
 }: BulkDeleteUpstreamsDialogProps) {
   const t = useTranslations("adminUpstreams");
   const tActions = useTranslations("common.actions");
-  const resolveErrorMessage = useLocalizedErrorMessage();
-  const [pending, setPending] = useState(false);
+  const { pending, bulkDeleteUpstreams } = useAdminUpstreamsActions();
 
   const visibleTargets = targets.slice(0, 6);
 
   async function handleConfirm() {
     if (targets.length === 0) return;
-    setPending(true);
-    try {
-      const token = await resolveAccessToken();
-      const result = mergeBatchResultData(await runBulkActionInChunks({
-        items: targets.map((item) => item.id),
-        title: t("deleteDialog.deleting"),
-        runChunk: (ids) => batchDeleteAdminLLMUpstreams(token, { ids }),
-      }));
-      onDeleted(result);
-      if (result.failedCount > 0) {
-        toast.error(t("toast.bulkDeletePartialFailed"), {
-          description: summarizeBatchDeleteResult(result, t),
-        });
-      } else {
-        toast.success(t("toast.bulkDeleteDone"), {
-          description: summarizeBatchDeleteResult(result, t),
-        });
-      }
-      onClose();
-    } catch (error) {
-      toast.error(t("toast.bulkDeleteFailed"), { description: resolveErrorMessage(error) });
-    } finally {
-      setPending(false);
-    }
+    await bulkDeleteUpstreams(targets, { onDone: onDeleted, onClose });
   }
 
   return (
@@ -212,8 +152,7 @@ export function CircuitActionDialog({
 }: CircuitActionDialogProps) {
   const t = useTranslations("adminUpstreams");
   const tActions = useTranslations("common.actions");
-  const resolveErrorMessage = useLocalizedErrorMessage();
-  const [pending, setPending] = useState(false);
+  const { pending, runCircuitAction } = useAdminUpstreamsActions();
   const stableUpstream = useDialogSnapshot(upstream);
 
   const isOpen = action === "open";
@@ -224,26 +163,7 @@ export function CircuitActionDialog({
 
   async function handleConfirm() {
     if (!upstream) return;
-    setPending(true);
-    try {
-      const token = await resolveAccessToken();
-      if (isOpen) {
-        await openAdminLLMUpstreamCircuit(token, upstream.id);
-        onDone({ ...upstream, circuitOpen: true });
-        toast.success(t("toast.circuitOpened"));
-      } else {
-        await resetAdminLLMUpstreamCircuit(token, upstream.id);
-        onDone({ ...upstream, circuitOpen: false });
-        toast.success(t("toast.circuitReset"));
-      }
-      onClose();
-    } catch (error) {
-      toast.error(isOpen ? t("toast.circuitOpenFailed") : t("toast.circuitResetFailed"), {
-        description: resolveErrorMessage(error),
-      });
-    } finally {
-      setPending(false);
-    }
+    await runCircuitAction(upstream, action, { onDone, onClose });
   }
 
   return (

@@ -3,6 +3,8 @@
 // primitive/enum checks, and adding a validator dependency for three
 // components is not justified. Revisit when custom components (P2) arrive.
 
+import { isRecord } from "@/shared/lib/type-guards";
+
 export type Schema =
   | { kind: "string"; enum?: readonly string[] }
   | { kind: "number" }
@@ -32,6 +34,8 @@ export const s = {
 export function validate<T>(schema: Schema, input: unknown): ValidationResult<T> {
   const issues: Issue[] = [];
   const value = walk(schema, input, "$", issues);
+  // Type assertion: `Schema` is an untyped runtime DSL, so the caller's `T` cannot be derived from
+  // it; each definition pairs its schema with its props type, and `walk` has checked that shape.
   return issues.length === 0 ? { ok: true, value: value as T } : { ok: false, issues };
 }
 
@@ -104,11 +108,11 @@ function walk(schema: Schema, input: unknown, path: string, issues: Issue[]): un
       return kept;
     }
     case "object": {
-      if (typeof input !== "object" || input === null || Array.isArray(input)) {
+      if (!isRecord(input)) {
         issues.push({ path, message: "expected object" });
         return undefined;
       }
-      const source = input as Record<string, unknown>;
+      const source = input;
       const output: Record<string, unknown> = {};
       for (const [key, fieldSchema] of Object.entries(schema.fields)) {
         const required = schema.required?.includes(key) ?? false;

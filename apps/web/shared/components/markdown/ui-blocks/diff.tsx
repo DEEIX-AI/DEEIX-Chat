@@ -41,8 +41,8 @@ function annotate(lines: DiffLine[]): { rows: Row[]; hunks: number } {
     hunk += 1;
     const removed: Row[] = [];
     const added: Row[] = [];
-    while (index < rows.length && rows[index]?.kind !== "same") {
-      const row = rows[index] as Row;
+    while (index < rows.length && rows[index].kind !== "same") {
+      const row = rows[index];
       row.hunk = hunk;
       (row.kind === "removed" ? removed : added).push(row);
       index += 1;
@@ -114,7 +114,7 @@ function toSplit(rows: DisplayRow[]): SplitRow[] {
   const result: SplitRow[] = [];
   let index = 0;
   while (index < rows.length) {
-    const row = rows[index] as DisplayRow;
+    const row = rows[index];
     if (row.kind === "gap") {
       result.push(row);
       index += 1;
@@ -124,8 +124,11 @@ function toSplit(rows: DisplayRow[]): SplitRow[] {
     } else {
       const removed: Row[] = [];
       const added: Row[] = [];
-      while (index < rows.length && rows[index]?.kind !== "same" && rows[index]?.kind !== "gap") {
-        const changed = rows[index] as Row;
+      while (index < rows.length) {
+        const changed = rows[index];
+        if (changed.kind === "same" || changed.kind === "gap") {
+          break;
+        }
         (changed.kind === "removed" ? removed : added).push(changed);
         index += 1;
       }

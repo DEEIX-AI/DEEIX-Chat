@@ -22,7 +22,7 @@ func NewRepo(db *gorm.DB) *Repo {
 
 // ListAll 查询全部动态配置。
 func (r *Repo) ListAll(ctx context.Context) ([]domainsettings.SystemSetting, error) {
-	var items []model.SystemSetting
+	var items []models.SystemSetting
 	if err := r.db.WithContext(ctx).Order("namespace, key").Find(&items).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -31,7 +31,7 @@ func (r *Repo) ListAll(ctx context.Context) ([]domainsettings.SystemSetting, err
 
 // ListByNamespace 按 namespace 查询配置。
 func (r *Repo) ListByNamespace(ctx context.Context, namespace string) ([]domainsettings.SystemSetting, error) {
-	var items []model.SystemSetting
+	var items []models.SystemSetting
 	if err := r.db.WithContext(ctx).Where("namespace = ?", namespace).Order("key").Find(&items).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -70,10 +70,10 @@ func (r *Repo) UpsertWithDescription(ctx context.Context, items []domainsettings
 func (r *Repo) Delete(ctx context.Context, namespace, key string) error {
 	return dberror.Translate(r.db.WithContext(ctx).
 		Where("namespace = ? AND key = ?", namespace, key).
-		Delete(&model.SystemSetting{}).Error)
+		Delete(&models.SystemSetting{}).Error)
 }
 
-func toDomainSystemSettings(items []model.SystemSetting) []domainsettings.SystemSetting {
+func toDomainSystemSettings(items []models.SystemSetting) []domainsettings.SystemSetting {
 	results := make([]domainsettings.SystemSetting, 0, len(items))
 	for _, item := range items {
 		results = append(results, domainsettings.SystemSetting{
@@ -90,10 +90,10 @@ func toDomainSystemSettings(items []model.SystemSetting) []domainsettings.System
 	return results
 }
 
-func toModelSystemSettings(items []domainsettings.SystemSetting) []model.SystemSetting {
-	results := make([]model.SystemSetting, 0, len(items))
+func toModelSystemSettings(items []domainsettings.SystemSetting) []models.SystemSetting {
+	results := make([]models.SystemSetting, 0, len(items))
 	for _, item := range items {
-		results = append(results, model.SystemSetting{
+		results = append(results, models.SystemSetting{
 			ID:          item.ID,
 			Namespace:   item.Namespace,
 			Key:         item.Key,

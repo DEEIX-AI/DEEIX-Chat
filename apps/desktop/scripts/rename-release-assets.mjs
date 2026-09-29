@@ -1,6 +1,9 @@
 // Gives every release asset one platform-explicit name:
 //   DEEIX-Chat-<version>-<os>-<arch>[-setup|-updater].<ext>
 //   e.g. DEEIX.Chat_0.4.4-beta.1_aarch64.dmg -> DEEIX-Chat-0.4.4-beta.1-macos-arm64.dmg
+//        DEEIX.Chat_0.4.4_x64_en-US.msi      -> DEEIX-Chat-0.4.4-windows-x64.msi
+// The portable zips (package-portable.mjs) are uploaded under their final
+// names and are left alone, as is SHA256SUMS (written after renaming).
 //
 // Tauri names assets after its bundler conventions, and the updater manifest
 // references them by file name, so the manifest URLs are rewritten to match.
@@ -16,6 +19,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const PRODUCT = "DEEIX-Chat";
+const DEFAULT_MSI_LOCALE = "en-US";
 
 const gh = (...args) => execFileSync("gh", args, { encoding: "utf8" });
 
@@ -38,7 +42,8 @@ function archLabel(raw) {
  * Recognised shapes (Tauri 2), each optionally followed by ".sig":
  *   <product>_<version>_<arch>.dmg | .AppImage | .deb | .rpm
  *   <product>_<version>_<arch>-setup.exe
- *   <product>_<version>_<arch>_<locale>.msi   (one per bundle.windows.wix.language)
+ *   <product>_<version>_<arch>_<locale>.msi   (one per bundle.windows.wix.language;
+ *                                              en-US, the only one built, carries no suffix)
  *   <product>_<arch>.app.tar.gz              (macOS updater payload)
  */
 export function renameAsset(name, version) {
@@ -67,13 +72,14 @@ export function renameAsset(name, version) {
     return null;
   }
   const [suffix, os, ext] = kind;
-  // "<...>_<arch>" or "<...>_<arch>_<locale>" precedes the suffix. The locale
-  // stays in the name: each MSI language is a distinct installer.
+  // "<...>_<arch>" or "<...>_<arch>_<locale>" precedes the suffix. A locale
+  // other than the default stays in the name: each MSI language is a distinct
+  // installer. en-US is the one MSI shipped, so it gets the plain name.
   let head = base.slice(0, -suffix.length);
   let locale = "";
   const localeMatch = /_([A-Za-z]{2,3}(?:-[A-Za-z0-9]+)?)$/.exec(head);
   if (localeMatch) {
-    locale = `-${localeMatch[1]}`;
+    locale = localeMatch[1] === DEFAULT_MSI_LOCALE ? "" : `-${localeMatch[1]}`;
     head = head.slice(0, -localeMatch[0].length);
   }
   const arch = archLabel(head.slice(head.lastIndexOf("_") + 1));

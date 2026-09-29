@@ -6,8 +6,9 @@ import type {
   UsageStatisticsUserRankResponse,
 } from "@deeix/api-contract";
 import { authedRequest } from "@/shared/api/authed-client";
+import type { ADMIN_USAGE_STATISTICS_RANK_BY } from "@/features/admin/model/admin-unions";
 
-export type AdminUsageStatisticsRankBy = "cost" | "tokens" | "calls";
+export type AdminUsageStatisticsRankBy = (typeof ADMIN_USAGE_STATISTICS_RANK_BY)[number];
 export type AdminUsageStatisticsBillingScope = "all" | "free" | "billable";
 export type AdminUsageStatisticsSection = "all" | "models" | "users";
 

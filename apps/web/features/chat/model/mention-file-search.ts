@@ -1,5 +1,5 @@
 import { listFiles } from "@/shared/api/file";
-import type { FileObjectDTO } from "@/shared/api/file.types";
+import type { FileObjectDTO } from "@/shared/api/file-types";
 
 type MentionFileSearchCacheKey = string;
 

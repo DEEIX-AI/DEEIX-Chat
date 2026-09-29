@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { useSidebarConversationsController } from "@/entities/conversation/hooks/use-sidebar-conversations";
+import { useConversationSidebarList } from "@/entities/conversation/hooks/use-conversation-sidebar-list";
 import type { SidebarConversationsControllerValue } from "@/entities/conversation/types/sidebar-conversations";
 
 type SidebarConversationsStore = {
@@ -58,7 +58,7 @@ export function SidebarConversationsProvider({
   children: React.ReactNode;
   newConversationTitle: string;
 }) {
-  const value = useSidebarConversationsController({ bulkPendingTitle, newConversationTitle });
+  const value = useConversationSidebarList({ bulkPendingTitle, newConversationTitle });
   const storeRef = React.useRef<SidebarConversationsStore | null>(null);
   if (storeRef.current === null) {
     storeRef.current = createSidebarConversationsStore(value);

@@ -1,5 +1,5 @@
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 import { type FileContentResult, readFileContentResponse } from "@/shared/api/file";
 import { pathParam } from "@/shared/api/http-client";
 import type {
@@ -19,7 +19,7 @@ import type {
   PatchMyKnowledgeBaseRequest,
   WriteKnowledgeBaseRequest,
   WriteMyKnowledgeBaseRequest,
-} from "@/shared/api/knowledge-bases.types";
+} from "@/shared/api/knowledge-bases-types";
 
 type KnowledgeBaseListOptions = {
   query?: string;

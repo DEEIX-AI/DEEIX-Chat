@@ -444,7 +444,7 @@ func TestResolveProviderEmailVerifiedDoesNotUseGenericVerifiedField(t *testing.T
 	}
 }
 
-func TestCompleteProviderBindAllowsSameAccountWithoutProviderEmailVerification(t *testing.T) {
+func TestBindProviderIdentityAllowsSameAccountWithoutProviderEmailVerification(t *testing.T) {
 	dataKey := "test-data-key"
 	clientSecret, err := secretbox.EncryptString(dataKey, "client-secret")
 	if err != nil {
@@ -498,29 +498,11 @@ func TestCompleteProviderBindAllowsSameAccountWithoutProviderEmailVerification(t
 		DataEncryptionKey:      dataKey,
 		ThirdPartyLoginEnabled: true,
 	}, repo, nil)
-	redirectURI := "http://localhost/auth/callback?provider=acme"
-	codeVerifier := strings.Repeat("a", 43)
-	state, err := service.signProviderState(providerOAuthState{
-		Provider:      "acme",
-		RedirectURI:   redirectURI,
-		Intent:        providerIntentBind,
-		CodeChallenge: providerCodeChallenge(codeVerifier),
-		ExpiresAt:     time.Now().Add(time.Minute).Unix(),
-	})
+	claims, err := service.fetchProviderProfileClaims(context.Background(), *provider, "code", "https://api.example.com/api/v1/auth/providers/acme/callback", strings.Repeat("a", 43))
 	if err != nil {
-		t.Fatalf("sign provider state: %v", err)
+		t.Fatalf("fetch provider profile: %v", err)
 	}
-
-	identity, err := service.CompleteProviderBind(context.Background(), CompleteProviderBindInput{
-		UserID:       42,
-		Slug:         "acme",
-		Code:         "code",
-		State:        state,
-		RedirectURI:  redirectURI,
-		CodeVerifier: codeVerifier,
-		RequestID:    "request-id",
-		AuditContext: requestmeta.SessionAuditContext{},
-	})
+	identity, err := service.bindProviderIdentity(context.Background(), 42, *provider, *claims, "request-id", requestmeta.SessionAuditContext{})
 	if err != nil {
 		t.Fatalf("expected manual bind to succeed without provider email verification claim, got %v", err)
 	}
@@ -532,7 +514,7 @@ func TestCompleteProviderBindAllowsSameAccountWithoutProviderEmailVerification(t
 	}
 }
 
-func TestCompleteProviderLoginAutoLinksGitHubVerifiedPrimaryEmail(t *testing.T) {
+func TestResolveProviderLoginCodeAutoLinksGitHubVerifiedPrimaryEmail(t *testing.T) {
 	dataKey := "test-data-key"
 	clientSecret, err := secretbox.EncryptString(dataKey, "client-secret")
 	if err != nil {
@@ -598,33 +580,18 @@ func TestCompleteProviderLoginAutoLinksGitHubVerifiedPrimaryEmail(t *testing.T) 
 		ThirdPartyLoginEnabled: true,
 		AutoLinkVerifiedEmail:  true,
 	}, repo, nil)
-	redirectURI := "http://localhost/auth/callback?provider=github"
-	codeVerifier := strings.Repeat("a", 43)
-	state, err := service.signProviderState(providerOAuthState{
-		Provider:      "github",
-		RedirectURI:   redirectURI,
-		Intent:        providerIntentLogin,
-		CodeChallenge: providerCodeChallenge(codeVerifier),
-		ExpiresAt:     time.Now().Add(time.Minute).Unix(),
-	})
-	if err != nil {
-		t.Fatalf("sign provider state: %v", err)
-	}
-
-	result, err := service.CompleteProviderLogin(context.Background(), CompleteProviderLoginInput{
-		Slug:         "github",
-		Code:         "code",
-		State:        state,
-		RedirectURI:  redirectURI,
-		CodeVerifier: codeVerifier,
-		Intent:       providerIntentLogin,
-		RequestID:    "request-id",
-		AuditContext: requestmeta.SessionAuditContext{},
-	})
+	userItem, subject, err := service.resolveProviderLoginCode(context.Background(), *provider, "code", "https://api.example.com/api/v1/auth/providers/github/callback", strings.Repeat("a", 43))
 	if err != nil {
 		t.Fatalf("expected github login to auto-link existing email, got %v", err)
 	}
-	if result.User.ID != existing.ID || result.User.Email != existing.Email {
+	if userItem.ID != existing.ID || userItem.Email != existing.Email || subject == "" {
+		t.Fatalf("expected existing user, got %#v subject=%q", userItem, subject)
+	}
+	result, err := service.completeProviderLoginForUser(context.Background(), userItem, provider.Slug, subject, "request-id", requestmeta.SessionAuditContext{})
+	if err != nil {
+		t.Fatalf("complete provider login: %v", err)
+	}
+	if result.User.ID != existing.ID {
 		t.Fatalf("expected existing user login result, got %#v", result.User)
 	}
 	if repo.createUserCount != 0 {
@@ -638,7 +605,7 @@ func TestCompleteProviderLoginAutoLinksGitHubVerifiedPrimaryEmail(t *testing.T) 
 	}
 }
 
-func TestCompleteProviderLoginReturnsErrorWhenGitHubEmailsUnavailable(t *testing.T) {
+func TestResolveProviderLoginCodeReturnsErrorWhenGitHubEmailsUnavailable(t *testing.T) {
 	dataKey := "test-data-key"
 	clientSecret, err := secretbox.EncryptString(dataKey, "client-secret")
 	if err != nil {
@@ -686,29 +653,7 @@ func TestCompleteProviderLoginReturnsErrorWhenGitHubEmailsUnavailable(t *testing
 		ThirdPartyLoginEnabled: true,
 		AutoLinkVerifiedEmail:  true,
 	}, repo, nil)
-	redirectURI := "http://localhost/auth/callback?provider=github"
-	codeVerifier := strings.Repeat("a", 43)
-	state, err := service.signProviderState(providerOAuthState{
-		Provider:      "github",
-		RedirectURI:   redirectURI,
-		Intent:        providerIntentLogin,
-		CodeChallenge: providerCodeChallenge(codeVerifier),
-		ExpiresAt:     time.Now().Add(time.Minute).Unix(),
-	})
-	if err != nil {
-		t.Fatalf("sign provider state: %v", err)
-	}
-
-	_, err = service.CompleteProviderLogin(context.Background(), CompleteProviderLoginInput{
-		Slug:         "github",
-		Code:         "code",
-		State:        state,
-		RedirectURI:  redirectURI,
-		CodeVerifier: codeVerifier,
-		Intent:       providerIntentLogin,
-		RequestID:    "request-id",
-		AuditContext: requestmeta.SessionAuditContext{},
-	})
+	_, _, err = service.resolveProviderLoginCode(context.Background(), *provider, "code", "https://api.example.com/api/v1/auth/providers/github/callback", strings.Repeat("a", 43))
 	if err == nil || !strings.Contains(err.Error(), "github provider emails failed") {
 		t.Fatalf("expected github email lookup error, got %v", err)
 	}

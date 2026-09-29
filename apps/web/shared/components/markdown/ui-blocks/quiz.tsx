@@ -97,9 +97,9 @@ function Quiz({ id, props }: UIBlockRenderProps<QuizProps>) {
     setPicked((current) => ({ ...current, [qIndex]: oIndex }));
   };
   const advance = () => {
-    const qIndex = path[path.length - 1] as number;
-    const question = questions[qIndex] as QuizQuestion;
-    const option = question.options[picked[qIndex] ?? 0] as QuizOption;
+    const qIndex = path[path.length - 1];
+    const question = questions[qIndex];
+    const option = question.options[picked[qIndex] ?? 0];
     const next = resolveNext(question, qIndex, option);
     setDirection(1);
     if (next === END) {
@@ -123,7 +123,7 @@ function Quiz({ id, props }: UIBlockRenderProps<QuizProps>) {
       if (current.length <= 1) {
         return current;
       }
-      const dropped = current[current.length - 1] as number;
+      const dropped = current[current.length - 1];
       setPicked((picks) => {
         const { [dropped]: _removed, ...rest } = picks;
         return rest;
@@ -136,8 +136,8 @@ function Quiz({ id, props }: UIBlockRenderProps<QuizProps>) {
     const chosen = picked[qIndex];
     const revealed = chosen !== undefined;
     const graded = question.answer !== undefined;
-    const answerIndex = graded ? Math.min(Math.max(0, Math.trunc(question.answer as number)), question.options.length - 1) : -1;
-    const chosenExplanation = revealed ? optionExplanation(question.options[chosen] as QuizOption) : undefined;
+    const answerIndex = question.answer !== undefined ? Math.min(Math.max(0, Math.trunc(question.answer)), question.options.length - 1) : -1;
+    const chosenExplanation = chosen !== undefined ? optionExplanation(question.options[chosen]) : undefined;
     const explanation = chosenExplanation ?? question.explanation;
     return (
       <div>
@@ -212,7 +212,7 @@ function Quiz({ id, props }: UIBlockRenderProps<QuizProps>) {
                 {scoreLabel ? <p className="mt-1 text-xs text-muted-foreground">{scoreLabel}</p> : null}
               </div>
             ) : (
-              renderQuestion(questions[path[path.length - 1] as number] as QuizQuestion, path[path.length - 1] as number, path.length)
+              renderQuestion(questions[path[path.length - 1]], path[path.length - 1], path.length)
             )}
             <div className="mt-3 flex items-center justify-between text-xs">
               <button type="button" onClick={back} disabled={path.length <= 1 && !ended} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground disabled:invisible">
@@ -223,7 +223,7 @@ function Quiz({ id, props }: UIBlockRenderProps<QuizProps>) {
                 <button
                   type="button"
                   onClick={advance}
-                  disabled={picked[path[path.length - 1] as number] === undefined}
+                  disabled={picked[path[path.length - 1]] === undefined}
                   className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground transition-opacity disabled:opacity-40"
                 >
                   {t("quizNext")}

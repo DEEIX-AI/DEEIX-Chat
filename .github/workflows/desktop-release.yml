@@ -19,9 +19,21 @@ name: Desktop Release
 #     WINDOWS_CERTIFICATE                 base64 of the code-signing .pfx
 #     WINDOWS_CERTIFICATE_PASSWORD        .pfx password
 #
+# Repository variables (optional):
+#     WEBVIEW2_FIXED_RUNTIME_URL          x64 WebView2 Fixed Version .cab from
+#                                         Microsoft; when set, the Windows leg also
+#                                         builds the -portable-offline.zip
+#     WEBVIEW2_FIXED_RUNTIME_SHA256       expected SHA-256 of that .cab (pinning)
+#
 # Signing switches on by itself once the secrets exist. Without them the
 # installers are unsigned: macOS users must allow the app under
 # System Settings → Privacy & Security, Windows shows a SmartScreen prompt.
+#
+# Windows ships three forms from one set of binaries: the per-user NSIS setup
+# (auto-updates), the per-machine MSI for IT (no in-app updates; its
+# upgradeCode in tauri.conf.json must never change) and a portable zip
+# (scripts/package-portable.mjs). Every release also gets SHA256SUMS, and the
+# Windows files get GitHub build provenance (`gh attestation verify`).
 
 # Release channels are decided by the tag:
 #   v1.2.3          stable  → normal release; the app polls releases/latest/download/latest.json
@@ -46,6 +58,10 @@ jobs:
   build:
     name: Build (${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write # create the draft release and upload assets
+      id-token: write # sign build provenance (Sigstore)
+      attestations: write # store build provenance
     strategy:
       fail-fast: false
       matrix:
@@ -132,20 +148,6 @@ jobs:
       - name: Verify version consistency
         run: node scripts/sync-version.mjs --check
 
-      - name: Resolve release channel
-        id: channel
-        shell: bash
-        run: |
-          tag="${{ github.ref_type == 'tag' && github.ref_name || '' }}"
-          if [[ "$tag" == *-* ]]; then
-            echo "name=beta" >> "$GITHUB_OUTPUT"
-            # No spaces inside the JSON: tauri-action splits `args` on whitespace.
-            echo 'tauri_args=--config {"plugins":{"updater":{"endpoints":["https://github.com/${{ github.repository }}/releases/download/desktop-beta/latest.json"]}}}' >> "$GITHUB_OUTPUT"
-          else
-            echo "name=stable" >> "$GITHUB_OUTPUT"
-            echo 'tauri_args=' >> "$GITHUB_OUTPUT"
-          fi
-
       # Tauri treats a signing variable that merely exists as configured, so
       # the Apple credentials are exported only when the secrets are set;
       # identity and team id are then read from the certificate.
@@ -170,9 +172,10 @@ jobs:
           done
           bash apps/desktop/scripts/apple-signing-env.sh >> "$GITHUB_ENV"
 
-      # Tauri signs Windows binaries with a certificate from the machine store,
-      # selected by thumbprint (bundle.windows.certificateThumbprint). Import the
-      # .pfx and pass the thumbprint through TAURI_BUNDLE_WINDOWS_CERTIFICATE_THUMBPRINT.
+      # Tauri signs Windows binaries with a certificate from the user store,
+      # selected by thumbprint. tauri-cli only reads it from
+      # bundle.windows.certificateThumbprint (no environment variable), so the
+      # next step passes it with --config.
       - name: Import Windows code-signing certificate
         if: matrix.platform == 'Windows'
         shell: pwsh
@@ -189,7 +192,25 @@ jobs:
           $secure = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
           $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $secure
           Remove-Item $pfx
-          "TAURI_BUNDLE_WINDOWS_CERTIFICATE_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          # A thumbprint is a public hash of the certificate, not a secret.
+          "WINDOWS_CERTIFICATE_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # Build-time config (scripts/release-config.mjs): the beta updater
+      # endpoint, the MSI's numeric ProductVersion and the signing thumbprint.
+      - name: Resolve release channel
+        id: channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ github.ref_type == 'tag' && github.ref_name || '' }}"
+          if [[ "$tag" == *-* ]]; then channel=beta; else channel=stable; fi
+          echo "name=$channel" >> "$GITHUB_OUTPUT"
+          args=(--channel "$channel" --repository "${{ github.repository }}")
+          if [[ -n "${WINDOWS_CERTIFICATE_THUMBPRINT:-}" ]]; then
+            args+=(--thumbprint "$WINDOWS_CERTIFICATE_THUMBPRINT")
+          fi
+          # One `--config <json>` without spaces: tauri-action splits `args` on whitespace.
+          echo "tauri_args=$(node apps/desktop/scripts/release-config.mjs "${args[@]}")" >> "$GITHUB_OUTPUT"
 
       - name: Build desktop bundles
         uses: tauri-apps/tauri-action@v0
@@ -202,7 +223,7 @@ jobs:
         with:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
-          # Beta builds override the updater endpoint at build time; stable uses tauri.conf.json as is.
+          # Beta endpoint, MSI version and signing thumbprint; see the channel step.
           args: ${{ matrix.args }} ${{ steps.channel.outputs.tauri_args }}
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: "v__VERSION__"
@@ -217,7 +238,13 @@ jobs:
             | macOS · Apple silicon | `macos-arm64.dmg` | ✅ Verified | ✅ Available |
             | macOS · Intel | `macos-x64.dmg` | ✅ Verified | ✅ Available |
             | Linux · x86_64 | `linux-x64.AppImage` or `.deb` | ✅ Verified | ✅ Available |
-            | Windows · x86_64 | `windows-x64-setup.exe` | ✅ Verified | ✅ Available |
+            | Windows · x86_64 · installer (per user, no admin, auto-updates) | `windows-x64-setup.exe` | ✅ Verified | ✅ Available |
+            | Windows · x86_64 · MSI (per machine, for IT: Intune / SCCM / GPO, `msiexec /i … /qn`; updates managed by IT) | `windows-x64.msi` | ✅ Verified | ✅ Available |
+            | Windows · x86_64 · portable (unzip and run; notifies about updates) | `windows-x64-portable.zip` | ✅ Verified | ✅ Available |
+
+            A `-portable-offline.zip`, when present, also contains the Microsoft WebView2 runtime for PCs without it or without internet access.
+
+            **Verify downloads:** `SHA256SUMS` lists the SHA-256 of every file (`sha256sum -c SHA256SUMS --ignore-missing`; on Windows `Get-FileHash <file>`). Windows files carry GitHub build provenance: `gh attestation verify <file> --repo ${{ github.repository }}`.
 
             `-updater.tar.gz`, `.sig` and `latest.json` belong to the built-in updater.
           # Draft until a human publishes it. Stable installs poll GitHub's
@@ -227,6 +254,10 @@ jobs:
           releaseDraft: true
           prerelease: ${{ steps.channel.outputs.name == 'beta' }}
           includeUpdaterJson: true
+          # With both NSIS and MSI built, point the generic `windows-x86_64`
+          # entry at the per-user installer (the auto-updating form). Installed
+          # apps look up `windows-x86_64-nsis` / `-msi` first by bundle type.
+          updaterJsonPreferNsis: true
 
       # Same post-processing as a local build (scripts/package-dmg.sh); the
       # re-encoded image replaces the asset tauri-action uploaded.
@@ -254,6 +285,120 @@ jobs:
             codesign --verify --deep --strict --verbose=2 "$app"
           done
 
+      # ---------- Windows: portable zip, signatures, provenance ----------
+
+      # The bundler signs (and patches the bundle type into) the copy of the
+      # app it packs into each installer, then restores the original unsigned
+      # binary in target/release. That original is what the portable zip
+      # ships, so it is signed here with the same certificate and settings.
+      - name: Sign portable executable
+        if: matrix.platform == 'Windows' && env.WINDOWS_CERTIFICATE_THUMBPRINT != ''
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $conf = Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Where-Object { $_.Directory.Parent.Name -as [version] } |
+            Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
+            Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found" }
+          $exe = "apps/desktop/src-tauri/target/release/deeix-chat-desktop.exe"
+          & $signtool.FullName sign /fd $conf.bundle.windows.digestAlgorithm /sha1 $env:WINDOWS_CERTIFICATE_THUMBPRINT `
+            /t $conf.bundle.windows.timestampUrl /d "DEEIX Chat" $exe
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed with $LASTEXITCODE" }
+
+      # Optional offline variant: Microsoft's WebView2 Fixed Version runtime,
+      # checked for Microsoft's Authenticode signature (and a pinned hash when
+      # configured) before it is expanded into the package.
+      - name: Fetch WebView2 Fixed Version runtime
+        id: webview2
+        if: matrix.platform == 'Windows' && vars.WEBVIEW2_FIXED_RUNTIME_URL != ''
+        shell: pwsh
+        env:
+          WEBVIEW2_URL: ${{ vars.WEBVIEW2_FIXED_RUNTIME_URL }}
+          WEBVIEW2_SHA256: ${{ vars.WEBVIEW2_FIXED_RUNTIME_SHA256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cab = Join-Path $env:RUNNER_TEMP "webview2-fixed.cab"
+          $dir = Join-Path $env:RUNNER_TEMP "webview2-fixed"
+          Invoke-WebRequest -Uri $env:WEBVIEW2_URL -OutFile $cab -UseBasicParsing
+          $hash = (Get-FileHash $cab -Algorithm SHA256).Hash
+          Write-Host "WebView2 runtime .cab SHA-256: $hash"
+          if ($env:WEBVIEW2_SHA256 -and $hash -ne $env:WEBVIEW2_SHA256.ToUpper()) {
+            throw "WebView2 runtime hash mismatch: expected $($env:WEBVIEW2_SHA256), got $hash"
+          }
+          $sig = Get-AuthenticodeSignature $cab
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+            throw "WebView2 runtime .cab is not validly signed by Microsoft: $($sig.Status) $($sig.SignerCertificate.Subject)"
+          }
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          expand.exe $cab -F:* $dir | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "expand failed with $LASTEXITCODE" }
+          "dir=$dir" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Package portable
+        id: portable
+        if: matrix.platform == 'Windows'
+        shell: bash
+        env:
+          WEBVIEW2_DIR: ${{ steps.webview2.outputs.dir }}
+        run: |
+          set -euo pipefail
+          out=apps/desktop/src-tauri/target/release/bundle/portable
+          rm -rf "$out"
+          node apps/desktop/scripts/package-portable.mjs --out-dir "$out"
+          if [[ -n "$WEBVIEW2_DIR" ]]; then
+            node apps/desktop/scripts/package-portable.mjs --out-dir "$out" --webview2 "$WEBVIEW2_DIR"
+          fi
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+
+      # With a certificate every shipped Windows binary must carry a valid
+      # signature; without one, report what is unsigned.
+      - name: Verify Windows signatures
+        if: matrix.platform == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = "apps/desktop/src-tauri"
+          $files = @(
+            "$root/target/release/deeix-chat-desktop.exe"
+            "$root/binaries/deeix-chat-server-x86_64-pc-windows-msvc.exe"
+          )
+          $files += Get-ChildItem "$root/target/release/bundle/nsis/*-setup.exe", "$root/target/release/bundle/msi/*.msi" |
+            ForEach-Object FullName
+          $required = [bool]$env:WINDOWS_CERTIFICATE_THUMBPRINT
+          $failed = $false
+          foreach ($file in $files) {
+            $sig = Get-AuthenticodeSignature -FilePath $file
+            $line = "$($sig.Status): $file ($($sig.SignerCertificate.Subject))"
+            if ($sig.Status -eq 'Valid') {
+              Write-Host $line
+            } elseif ($required) {
+              Write-Host "::error::$line"
+              $failed = $true
+            } else {
+              Write-Host "::warning::$line"
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Attest Windows build provenance
+        if: matrix.platform == 'Windows'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+            apps/desktop/src-tauri/target/release/bundle/msi/*.msi
+            apps/desktop/src-tauri/target/release/bundle/portable/*.zip
+
+      # Uploaded under their final names; the assets job leaves them alone.
+      - name: Upload portable packages to the release
+        if: matrix.platform == 'Windows' && github.ref_type == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" "${{ steps.portable.outputs.dir }}"/*.zip --clobber --repo "${{ github.repository }}"
+
       - name: Upload bundles as workflow artifacts
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
@@ -264,13 +409,16 @@ jobs:
             apps/desktop/src-tauri/target/**/release/bundle/**/*.AppImage
             apps/desktop/src-tauri/target/**/release/bundle/**/*.deb
             apps/desktop/src-tauri/target/**/release/bundle/**/*.exe
+            apps/desktop/src-tauri/target/**/release/bundle/**/*.msi
+            apps/desktop/src-tauri/target/**/release/bundle/portable/*.zip
           if-no-files-found: warn
 
   assets:
     name: Rename release assets
     # Tauri's asset names do not say which platform a file belongs to. Runs
     # once every leg has uploaded; the updater manifest references assets by
-    # file name and is rewritten to match.
+    # file name and is rewritten to match. SHA256SUMS is then written over
+    # the final names.
     needs: build
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
@@ -281,6 +429,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: node apps/desktop/scripts/rename-release-assets.mjs "${{ github.ref_name }}"
+      - name: Checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: node apps/desktop/scripts/release-checksums.mjs "${{ github.ref_name }}"
 
   channel:
     name: Refresh beta manifest

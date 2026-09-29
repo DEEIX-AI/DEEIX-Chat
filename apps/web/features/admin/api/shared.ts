@@ -1,4 +1,4 @@
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 
 export type AdminPageOptions = {
   page?: number;

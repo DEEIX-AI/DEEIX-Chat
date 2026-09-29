@@ -6,7 +6,7 @@ import (
 	"time"
 
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 )
 
 func TestGetDailyActivityByUserUsesMainUsageLedgers(t *testing.T) {
@@ -14,7 +14,7 @@ func TestGetDailyActivityByUserUsesMainUsageLedgers(t *testing.T) {
 	repo := NewRepo(db)
 	usageDate := time.Date(2026, 8, 26, 0, 0, 0, 0, time.UTC)
 
-	entries := []model.UsageLedger{
+	entries := []models.UsageLedger{
 		{
 			UserID: 7, UsageDate: usageDate, BillingAt: usageDate.Add(time.Hour),
 			InputTokens: 100, CacheReadTokens: 10, CacheWriteTokens: 5, OutputTokens: 20, ReasoningTokens: 3,

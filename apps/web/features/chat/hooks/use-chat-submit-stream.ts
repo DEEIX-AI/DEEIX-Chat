@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import type * as React from "react";
 
 import { useChatMessageSubmit } from "@/features/chat/hooks/use-chat-message-submit";
 import { useChatStreamBuffer } from "@/features/chat/hooks/use-chat-stream-buffer";
@@ -14,8 +14,8 @@ import type {
   ConversationDTO,
   ConversationOptions,
   MessageDTO,
-} from "@/shared/api/conversation.types";
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
+} from "@/shared/api/conversation-types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 
 export function useChatSubmitStream({
   conversationID,

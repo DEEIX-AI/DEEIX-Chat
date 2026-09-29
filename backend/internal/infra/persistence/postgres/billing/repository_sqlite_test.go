@@ -10,7 +10,7 @@ import (
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -22,7 +22,7 @@ func TestUsageQueriesUseSQLitePortableExpressions(t *testing.T) {
 	ctx := context.Background()
 
 	usageDate := time.Date(2026, 6, 6, 0, 0, 0, 0, time.UTC)
-	entries := []model.UsageLedger{
+	entries := []models.UsageLedger{
 		{
 			UserID:              1,
 			PlatformModelName:   "gpt-test",
@@ -55,7 +55,7 @@ func TestUsageQueriesUseSQLitePortableExpressions(t *testing.T) {
 	if err := db.Create(&entries).Error; err != nil {
 		t.Fatalf("create usage ledgers: %v", err)
 	}
-	if err := db.Create(&model.BalanceTransaction{
+	if err := db.Create(&models.BalanceTransaction{
 		UserID:              1,
 		Type:                domainbilling.BalanceTransactionTypeUsage,
 		BalanceAfterNanousd: 420,
@@ -164,14 +164,14 @@ func TestUsageQueriesUseSQLitePortableExpressions(t *testing.T) {
 
 func TestModelPricingCacheWriteBasisMigrationAndRoundTrip(t *testing.T) {
 	db := openBillingSQLiteTestDB(t)
-	// Simulate a price saved before the cache-write basis column existed.
+	// 模拟在 cache-write 计价基准列出现之前保存的价格。
 	if err := db.Exec(`CREATE TABLE billing_model_prices (id integer PRIMARY KEY AUTOINCREMENT, platform_model_name text NOT NULL)`).Error; err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Exec(`INSERT INTO billing_model_prices (platform_model_name) VALUES ('claude-test')`).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&model.ModelPricing{}); err != nil {
+	if err := db.AutoMigrate(&models.ModelPricing{}); err != nil {
 		t.Fatal(err)
 	}
 	repo := NewRepo(db)
@@ -196,39 +196,39 @@ func TestModelPricingCacheWriteBasisMigrationAndRoundTrip(t *testing.T) {
 func TestUsageStatisticsFiltersByCurrentPermissionGroupMembership(t *testing.T) {
 	db := openBillingSQLiteTestDB(t)
 	if err := db.AutoMigrate(
-		&model.PermissionGroup{},
-		&model.PermissionGroupUserAccess{},
-		&model.BillingPlan{},
-		&model.Subscription{},
+		&models.PermissionGroup{},
+		&models.PermissionGroupUserAccess{},
+		&models.BillingPlan{},
+		&models.Subscription{},
 	); err != nil {
 		t.Fatalf("migrate permission group tables: %v", err)
 	}
 
-	groups := []model.PermissionGroup{
+	groups := []models.PermissionGroup{
 		{Name: "Default", IsDefault: true},
 		{Name: "Pro"},
 	}
 	if err := db.Create(&groups).Error; err != nil {
 		t.Fatalf("create permission groups: %v", err)
 	}
-	if err := db.Create(&model.PermissionGroupUserAccess{GroupID: groups[1].ID, UserID: 1}).Error; err != nil {
+	if err := db.Create(&models.PermissionGroupUserAccess{GroupID: groups[1].ID, UserID: 1}).Error; err != nil {
 		t.Fatalf("create manual group member: %v", err)
 	}
 
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	activePlan := model.BillingPlan{Code: "pro", Name: "Pro", IsActive: true, PermissionGroupID: &groups[1].ID}
-	inactivePlan := model.BillingPlan{Code: "legacy", Name: "Legacy", IsActive: false, PermissionGroupID: &groups[1].ID}
-	if err := db.Create(&[]model.BillingPlan{activePlan, inactivePlan}).Error; err != nil {
+	activePlan := models.BillingPlan{Code: "pro", Name: "Pro", IsActive: true, PermissionGroupID: &groups[1].ID}
+	inactivePlan := models.BillingPlan{Code: "legacy", Name: "Legacy", IsActive: false, PermissionGroupID: &groups[1].ID}
+	if err := db.Create(&[]models.BillingPlan{activePlan, inactivePlan}).Error; err != nil {
 		t.Fatalf("create billing plans: %v", err)
 	}
-	var plans []model.BillingPlan
+	var plans []models.BillingPlan
 	if err := db.Order("id ASC").Find(&plans).Error; err != nil {
 		t.Fatalf("reload billing plans: %v", err)
 	}
 	periodEnd := now.Add(24 * time.Hour)
 	expiredEnd := now.Add(-time.Hour)
 	futureStart := now.Add(time.Hour)
-	subscriptions := []model.Subscription{
+	subscriptions := []models.Subscription{
 		{UserID: 1, PlanID: plans[0].ID, PriceID: 1, Status: "active", StartAt: now.Add(-time.Hour), CurrentPeriodStartAt: now.Add(-time.Hour), CurrentPeriodEndAt: &periodEnd},
 		{UserID: 2, PlanID: plans[0].ID, PriceID: 1, Status: "active", StartAt: now.Add(-time.Hour), CurrentPeriodStartAt: now.Add(-time.Hour), CurrentPeriodEndAt: &periodEnd},
 		{UserID: 3, PlanID: plans[0].ID, PriceID: 1, Status: "active", StartAt: now.Add(-48 * time.Hour), CurrentPeriodStartAt: now.Add(-48 * time.Hour), CurrentPeriodEndAt: &expiredEnd},
@@ -244,9 +244,9 @@ func TestUsageStatisticsFiltersByCurrentPermissionGroupMembership(t *testing.T) 
 	}
 
 	usageDate := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
-	ledgers := make([]model.UsageLedger, 0, 6)
+	ledgers := make([]models.UsageLedger, 0, 6)
 	for userID := uint(1); userID <= 6; userID++ {
-		ledgers = append(ledgers, model.UsageLedger{
+		ledgers = append(ledgers, models.UsageLedger{
 			UserID:            userID,
 			PlatformModelName: "gpt-test",
 			BillingAt:         usageDate,
@@ -296,7 +296,7 @@ func TestAddUsageAndSettleBalanceRecordsDebtWithoutReservation(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
 
-	account := model.BillingAccount{
+	account := models.BillingAccount{
 		UserID:         1,
 		Currency:       "USD",
 		BalanceNanousd: 100,
@@ -327,7 +327,7 @@ func TestAddUsageAndSettleBalanceRecordsDebtBeyondReservation(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
 
-	account := model.BillingAccount{
+	account := models.BillingAccount{
 		UserID:         1,
 		Currency:       "USD",
 		BalanceNanousd: 200,
@@ -362,7 +362,7 @@ func TestAddUsageAndSettleBalanceChargesActualBelowReservation(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
 
-	account := model.BillingAccount{
+	account := models.BillingAccount{
 		UserID:         1,
 		Currency:       "USD",
 		BalanceNanousd: 300,
@@ -397,7 +397,7 @@ func TestAddUsageAndSettleBalanceLeavesFreeModelBalanceUnchanged(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
 
-	account := model.BillingAccount{
+	account := models.BillingAccount{
 		UserID:         1,
 		Currency:       "USD",
 		BalanceNanousd: 100,
@@ -420,14 +420,14 @@ func TestAddUsageAndSettleBalanceLeavesFreeModelBalanceUnchanged(t *testing.T) {
 		t.Fatalf("AddUsageAndSettleBalance() error = %v", err)
 	}
 
-	var refreshed model.BillingAccount
+	var refreshed models.BillingAccount
 	if err := db.Where("user_id = ?", 1).First(&refreshed).Error; err != nil {
 		t.Fatalf("load billing account: %v", err)
 	}
 	if refreshed.BalanceNanousd != 100 {
 		t.Fatalf("balance = %d, want unchanged 100", refreshed.BalanceNanousd)
 	}
-	var ledger model.UsageLedger
+	var ledger models.UsageLedger
 	if err := db.Where("user_id = ? AND platform_model_name = ?", 1, "free-model").First(&ledger).Error; err != nil {
 		t.Fatalf("load usage ledger: %v", err)
 	}
@@ -435,7 +435,7 @@ func TestAddUsageAndSettleBalanceLeavesFreeModelBalanceUnchanged(t *testing.T) {
 		t.Fatalf("ledger balance after = %v, want 100", ledger.BalanceAfterNanousd)
 	}
 	var transactionCount int64
-	if err := db.Model(&model.BalanceTransaction{}).Where("user_id = ?", 1).Count(&transactionCount).Error; err != nil {
+	if err := db.Model(&models.BalanceTransaction{}).Where("user_id = ?", 1).Count(&transactionCount).Error; err != nil {
 		t.Fatalf("count balance transactions: %v", err)
 	}
 	if transactionCount != 0 {
@@ -451,7 +451,7 @@ func TestAddUsageAndSettleBalanceWithoutReservationReplaysLedgerByRefNo(t *testi
 	ctx := context.Background()
 	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
 
-	if err := db.Create(&model.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
+	if err := db.Create(&models.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
 	first := &domainbilling.UsageLedger{
@@ -534,7 +534,7 @@ func TestAddUsageReplaysLedgerByRefNoAndKeepsUnkeyedRowsIndependent(t *testing.T
 		}
 	}
 	var total int64
-	if err := db.Model(&model.UsageLedger{}).Count(&total).Error; err != nil {
+	if err := db.Model(&models.UsageLedger{}).Count(&total).Error; err != nil {
 		t.Fatalf("count ledgers: %v", err)
 	}
 	if total != 4 {
@@ -547,8 +547,8 @@ func TestUsageLedgerRefNoUniqueIndexOnlyCoversKeyedRows(t *testing.T) {
 	db := openBillingSQLiteTestDB(t)
 	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
 
-	row := func(refNo string) *model.UsageLedger {
-		return &model.UsageLedger{UserID: 1, RefNo: refNo, PlatformModelName: "gpt-test", BillingAt: now, UsageDate: now, BilledCurrency: "USD"}
+	row := func(refNo string) *models.UsageLedger {
+		return &models.UsageLedger{UserID: 1, RefNo: refNo, PlatformModelName: "gpt-test", BillingAt: now, UsageDate: now, BilledCurrency: "USD"}
 	}
 	if err := db.Create(row("run_unique")).Error; err != nil {
 		t.Fatalf("create keyed ledger: %v", err)
@@ -565,7 +565,7 @@ func TestUsageLedgerRefNoUniqueIndexOnlyCoversKeyedRows(t *testing.T) {
 
 func assertSingleUsageLedgerByRefNo(t *testing.T, db *gorm.DB, userID uint, refNo string, wantInputTokens int64, wantSnapshot string) {
 	t.Helper()
-	var ledgers []model.UsageLedger
+	var ledgers []models.UsageLedger
 	if err := db.Where("user_id = ? AND ref_no = ?", userID, refNo).Find(&ledgers).Error; err != nil {
 		t.Fatalf("load ledgers by ref no: %v", err)
 	}
@@ -589,7 +589,7 @@ func assertUsageSettlement(
 ) {
 	t.Helper()
 
-	var account model.BillingAccount
+	var account models.BillingAccount
 	if err := db.Where("user_id = ?", userID).First(&account).Error; err != nil {
 		t.Fatalf("load billing account: %v", err)
 	}
@@ -597,7 +597,7 @@ func assertUsageSettlement(
 		t.Fatalf("balance = %d, want %d", account.BalanceNanousd, wantBalance)
 	}
 
-	var ledger model.UsageLedger
+	var ledger models.UsageLedger
 	if err := db.Where("user_id = ? AND platform_model_name = ?", userID, platformModelName).First(&ledger).Error; err != nil {
 		t.Fatalf("load usage ledger: %v", err)
 	}
@@ -605,7 +605,7 @@ func assertUsageSettlement(
 		t.Fatalf("ledger balance after = %v, want %d", ledger.BalanceAfterNanousd, wantBalance)
 	}
 
-	var transaction model.BalanceTransaction
+	var transaction models.BalanceTransaction
 	if err := db.Where("user_id = ? AND type = ? AND ref_id = ?", userID, domainbilling.BalanceTransactionTypeUsage, ledger.ID).First(&transaction).Error; err != nil {
 		t.Fatalf("load settlement transaction: %v", err)
 	}
@@ -622,7 +622,7 @@ func assertUsageSettlement(
 		t.Fatalf("transaction ref no = %q, want %q", transaction.RefNo, wantRefNo)
 	}
 	if wantRefNo != "" {
-		var reservation model.UsageReservation
+		var reservation models.UsageReservation
 		if err := db.Where("user_id = ? AND ref_no = ?", userID, wantRefNo).First(&reservation).Error; err != nil {
 			t.Fatalf("load usage reservation: %v", err)
 		}
@@ -645,7 +645,7 @@ func TestReserveUsageBalanceDefaultBudgetAllowsFiveConcurrentCalls(t *testing.T)
 	db := openBillingSQLiteTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
-	if err := db.Create(&model.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
+	if err := db.Create(&models.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
 
@@ -686,7 +686,7 @@ func TestSettledReservationReopensSlotOnlyWhenBudgetRemains(t *testing.T) {
 			db := openBillingSQLiteTestDB(t)
 			repo := NewRepo(db)
 			ctx := context.Background()
-			if err := db.Create(&model.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
+			if err := db.Create(&models.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
 				t.Fatalf("create billing account: %v", err)
 			}
 
@@ -728,7 +728,7 @@ func TestReserveUsageBalanceRejectsReusedReference(t *testing.T) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 	now := time.Now()
-	if err := db.Create(&model.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
+	if err := db.Create(&models.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
 
@@ -765,7 +765,7 @@ func TestReserveUsageBalanceRejectsReusedReference(t *testing.T) {
 		t.Fatalf("retried usage was not restored from settled ledger: %+v", replayedUsage)
 	}
 	var replayedLedgerCount int64
-	if err = db.Model(&model.UsageLedger{}).Where("platform_model_name = ?", replayedPlatformModelName).Count(&replayedLedgerCount).Error; err != nil {
+	if err = db.Model(&models.UsageLedger{}).Where("platform_model_name = ?", replayedPlatformModelName).Count(&replayedLedgerCount).Error; err != nil {
 		t.Fatalf("count replayed usage ledgers: %v", err)
 	}
 	if replayedLedgerCount != 0 {
@@ -780,11 +780,11 @@ func TestReserveUsageBalanceRejectsLegacyReference(t *testing.T) {
 	db := openBillingSQLiteTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
-	account := model.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}
+	account := models.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}
 	if err := db.Create(&account).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
-	if err := db.Create(&model.BalanceTransaction{
+	if err := db.Create(&models.BalanceTransaction{
 		AccountID:           account.ID,
 		UserID:              1,
 		Type:                domainbilling.BalanceTransactionTypeUsageReserve,
@@ -805,7 +805,7 @@ func TestRenewUsageBalanceReservationExtendsActiveLease(t *testing.T) {
 	db := openBillingSQLiteTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
-	if err := db.Create(&model.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
+	if err := db.Create(&models.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
 	reservation, err := repo.ReserveUsageBalance(ctx, usageReservationRequest(1, 50, "run_renew"))
@@ -813,13 +813,13 @@ func TestRenewUsageBalanceReservationExtendsActiveLease(t *testing.T) {
 		t.Fatalf("reserve request: %v", err)
 	}
 	originalExpiry := reservation.ExpiresAt
-	if err = db.Model(&model.UsageReservation{}).Where("id = ?", reservation.ID).Update("expires_at", time.Now().Add(time.Minute)).Error; err != nil {
+	if err = db.Model(&models.UsageReservation{}).Where("id = ?", reservation.ID).Update("expires_at", time.Now().Add(time.Minute)).Error; err != nil {
 		t.Fatalf("shorten reservation lease: %v", err)
 	}
 	if err = repo.RenewUsageBalanceReservation(ctx, 1, reservation.RefNo); err != nil {
 		t.Fatalf("renew reservation: %v", err)
 	}
-	var renewed model.UsageReservation
+	var renewed models.UsageReservation
 	if err = db.First(&renewed, reservation.ID).Error; err != nil {
 		t.Fatalf("load renewed reservation: %v", err)
 	}
@@ -832,7 +832,7 @@ func TestReconciliationReservationContinuesBlockingBudgetAfterExpiry(t *testing.
 	db := openBillingSQLiteTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
-	if err := db.Create(&model.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
+	if err := db.Create(&models.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
 	reservation, err := repo.ReserveUsageBalance(ctx, usageReservationRequest(1, 100, "run_reconcile"))
@@ -842,7 +842,7 @@ func TestReconciliationReservationContinuesBlockingBudgetAfterExpiry(t *testing.
 	if err = repo.MarkUsageReservationReconciliationRequired(ctx, 1, reservation.RefNo, "settle_failed"); err != nil {
 		t.Fatalf("mark reconciliation: %v", err)
 	}
-	if err = db.Model(&model.UsageReservation{}).Where("id = ?", reservation.ID).Update("expires_at", time.Now().Add(-time.Hour)).Error; err != nil {
+	if err = db.Model(&models.UsageReservation{}).Where("id = ?", reservation.ID).Update("expires_at", time.Now().Add(-time.Hour)).Error; err != nil {
 		t.Fatalf("expire reconciliation reservation: %v", err)
 	}
 	if _, err = repo.ReserveUsageBalance(ctx, usageReservationRequest(1, 1, "run_after_reconcile")); !errors.Is(err, repository.ErrInsufficientBalance) {
@@ -875,7 +875,7 @@ func TestRaiseUsageBalanceReservationCoversEstimateWithinAvailableBalance(t *tes
 	db := openBillingSQLiteTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
-	if err := db.Create(&model.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 1000, Status: "active"}).Error; err != nil {
+	if err := db.Create(&models.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 1000, Status: "active"}).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
 	reservation, err := repo.ReserveUsageBalance(ctx, usageReservationRequest(1, 100, "run_raise"))
@@ -910,7 +910,7 @@ func TestRaiseUsageBalanceReservationCoversEstimateWithinAvailableBalance(t *tes
 
 func assertUsageReservationBudget(t *testing.T, db *gorm.DB, reservationID uint, wantBalanceNanousd int64, wantPeriodCreditNanousd int64) {
 	t.Helper()
-	var stored model.UsageReservation
+	var stored models.UsageReservation
 	if err := db.First(&stored, reservationID).Error; err != nil {
 		t.Fatalf("load reservation %d: %v", reservationID, err)
 	}
@@ -936,11 +936,11 @@ func TestRaiseUsageBalanceReservationSplitsPeriodCreditBeforeBalance(t *testing.
 	now := time.Now()
 	periodStart := now.Add(-time.Hour)
 	periodEnd := now.Add(time.Hour)
-	if err := db.Create(&model.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 500, Status: "active"}).Error; err != nil {
+	if err := db.Create(&models.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 500, Status: "active"}).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
-	if err := db.Create(&model.UsageLedger{
-		BaseModel:           model.BaseModel{CreatedAt: now.Add(-30 * time.Minute)},
+	if err := db.Create(&models.UsageLedger{
+		BaseModel:           models.BaseModel{CreatedAt: now.Add(-30 * time.Minute)},
 		UserID:              1,
 		PlatformModelName:   "gpt-before",
 		BillingAt:           now.Add(-30 * time.Minute),
@@ -982,7 +982,7 @@ func TestRaiseUsageBalanceReservationRejectsInactiveReservation(t *testing.T) {
 	db := openBillingSQLiteTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
-	if err := db.Create(&model.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 1000, Status: "active"}).Error; err != nil {
+	if err := db.Create(&models.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 1000, Status: "active"}).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
 	if err := repo.RaiseUsageBalanceReservation(ctx, 1, "missing_run", 10); !errors.Is(err, repository.ErrConflict) {
@@ -992,7 +992,7 @@ func TestRaiseUsageBalanceReservationRejectsInactiveReservation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reserve request: %v", err)
 	}
-	if err = db.Model(&model.UsageReservation{}).Where("id = ?", reservation.ID).Update("expires_at", time.Now().Add(-time.Minute)).Error; err != nil {
+	if err = db.Model(&models.UsageReservation{}).Where("id = ?", reservation.ID).Update("expires_at", time.Now().Add(-time.Minute)).Error; err != nil {
 		t.Fatalf("expire reservation: %v", err)
 	}
 	if err = repo.RaiseUsageBalanceReservation(ctx, 1, reservation.RefNo, 20); !errors.Is(err, repository.ErrConflict) {
@@ -1013,7 +1013,7 @@ func TestReservePeriodUsageDefaultBudgetAllowsFiveConcurrentCalls(t *testing.T) 
 	now := time.Now()
 	periodStart := now.Add(-time.Hour)
 	periodEnd := now.Add(time.Hour)
-	if err := db.Create(&model.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 0, Status: "active"}).Error; err != nil {
+	if err := db.Create(&models.BillingAccount{UserID: 1, Currency: "USD", BalanceNanousd: 0, Status: "active"}).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
 	request := domainbilling.UsageBalanceReservationRequest{
@@ -1048,7 +1048,7 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 	periodStart := now.Add(-2 * time.Hour)
 	periodEnd := now.Add(2 * time.Hour)
 
-	account := model.BillingAccount{
+	account := models.BillingAccount{
 		UserID:         1,
 		Currency:       "USD",
 		BalanceNanousd: 500,
@@ -1057,8 +1057,8 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 	if err := db.Create(&account).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
-	if err := db.Create(&model.UsageLedger{
-		BaseModel:           model.BaseModel{CreatedAt: now.Add(-time.Hour)},
+	if err := db.Create(&models.UsageLedger{
+		BaseModel:           models.BaseModel{CreatedAt: now.Add(-time.Hour)},
 		UserID:              1,
 		PlatformModelName:   "gpt-before",
 		BillingAt:           now.Add(-time.Hour),
@@ -1102,14 +1102,14 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 		t.Fatalf("AddPeriodUsageAndSettleOverage() error = %v", err)
 	}
 
-	var refreshed model.BillingAccount
+	var refreshed models.BillingAccount
 	if err := db.Where("user_id = ?", 1).First(&refreshed).Error; err != nil {
 		t.Fatalf("load billing account: %v", err)
 	}
 	if refreshed.BalanceNanousd != 200 {
 		t.Fatalf("balance = %d, want 200", refreshed.BalanceNanousd)
 	}
-	var tx model.BalanceTransaction
+	var tx models.BalanceTransaction
 	if err := db.Where("user_id = ? AND type = ?", 1, domainbilling.BalanceTransactionTypeUsage).First(&tx).Error; err != nil {
 		t.Fatalf("load balance transaction: %v", err)
 	}
@@ -1117,7 +1117,7 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 		t.Fatalf("transaction amount/balance = %d/%d, want -300/200", tx.AmountNanousd, tx.BalanceAfterNanousd)
 	}
 
-	var ledger model.UsageLedger
+	var ledger models.UsageLedger
 	if err := db.Where("platform_model_name = ?", "gpt-current").First(&ledger).Error; err != nil {
 		t.Fatalf("load current usage: %v", err)
 	}
@@ -1145,7 +1145,7 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 	if charged != 300 || delta != 200 || reservedCredit != 200 {
 		t.Fatalf("snapshot balance = charged %d delta %d credit reserved %d, want 300/200/200", charged, delta, reservedCredit)
 	}
-	var settledReservation model.UsageReservation
+	var settledReservation models.UsageReservation
 	if err := db.Where("id = ?", reservation.ID).First(&settledReservation).Error; err != nil {
 		t.Fatalf("load settled reservation: %v", err)
 	}
@@ -1162,7 +1162,7 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 		t.Fatalf("retry snapshot was not restored from settled ledger")
 	}
 	var ledgerCount int64
-	if err := db.Model(&model.UsageLedger{}).Where("user_id = ?", 1).Count(&ledgerCount).Error; err != nil {
+	if err := db.Model(&models.UsageLedger{}).Where("user_id = ?", 1).Count(&ledgerCount).Error; err != nil {
 		t.Fatalf("count period ledgers: %v", err)
 	}
 	if ledgerCount != 2 {
@@ -1178,7 +1178,7 @@ func TestAddPeriodUsageAndSettleOverageRecordsDebt(t *testing.T) {
 	periodStart := now.Add(-2 * time.Hour)
 	periodEnd := now.Add(2 * time.Hour)
 
-	account := model.BillingAccount{
+	account := models.BillingAccount{
 		UserID:         1,
 		Currency:       "USD",
 		BalanceNanousd: 100,
@@ -1187,8 +1187,8 @@ func TestAddPeriodUsageAndSettleOverageRecordsDebt(t *testing.T) {
 	if err := db.Create(&account).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
-	if err := db.Create(&model.UsageLedger{
-		BaseModel:           model.BaseModel{CreatedAt: now.Add(-time.Hour)},
+	if err := db.Create(&models.UsageLedger{
+		BaseModel:           models.BaseModel{CreatedAt: now.Add(-time.Hour)},
 		UserID:              1,
 		PlatformModelName:   "gpt-before-debt",
 		BillingAt:           now.Add(-time.Hour),
@@ -1235,7 +1235,7 @@ func TestAddPeriodUsageAndSettleOverageUsesBillingAtForPeriodBoundary(t *testing
 	createdInside := periodStart.Add(5 * time.Second)
 	billedOutside := periodStart.Add(-2 * time.Second)
 
-	account := model.BillingAccount{
+	account := models.BillingAccount{
 		UserID:         1,
 		Currency:       "USD",
 		BalanceNanousd: 500,
@@ -1244,8 +1244,8 @@ func TestAddPeriodUsageAndSettleOverageUsesBillingAtForPeriodBoundary(t *testing
 	if err := db.Create(&account).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
-	if err := db.Create(&model.UsageLedger{
-		BaseModel:           model.BaseModel{CreatedAt: createdInside},
+	if err := db.Create(&models.UsageLedger{
+		BaseModel:           models.BaseModel{CreatedAt: createdInside},
 		UserID:              1,
 		PlatformModelName:   "gpt-previous-period",
 		BillingAt:           billedOutside,
@@ -1279,14 +1279,14 @@ func TestAddPeriodUsageAndSettleOverageUsesBillingAtForPeriodBoundary(t *testing
 		t.Fatalf("AddPeriodUsageAndSettleOverage() error = %v", err)
 	}
 
-	var refreshed model.BillingAccount
+	var refreshed models.BillingAccount
 	if err := db.Where("user_id = ?", 1).First(&refreshed).Error; err != nil {
 		t.Fatalf("load billing account: %v", err)
 	}
 	if refreshed.BalanceNanousd != 500 {
 		t.Fatalf("balance = %d, want unchanged 500", refreshed.BalanceNanousd)
 	}
-	var ledger model.UsageLedger
+	var ledger models.UsageLedger
 	if err := db.Where("platform_model_name = ?", "gpt-current-period").First(&ledger).Error; err != nil {
 		t.Fatalf("load current period usage: %v", err)
 	}
@@ -1301,7 +1301,7 @@ func TestSumTotalBilledNanousdAggregatesLifetimePaidUsage(t *testing.T) {
 	ctx := context.Background()
 
 	// 跨年份的付费流水应全部计入;免费模型流水与其他用户流水应排除。
-	ledgers := []model.UsageLedger{
+	ledgers := []models.UsageLedger{
 		{
 			UserID:              1,
 			PlatformModelName:   "gpt-early",
@@ -1367,7 +1367,7 @@ func TestValidateRedeemableCodeAllowsUsageCodeInPeriodModeOnly(t *testing.T) {
 	db := openBillingSQLiteTestDB(t)
 	now := time.Date(2026, 6, 6, 12, 0, 0, 0, time.UTC)
 
-	usageCode := model.RedemptionCode{
+	usageCode := models.RedemptionCode{
 		Status:         domainbilling.RedemptionCodeStatusActive,
 		Mode:           domainbilling.RedemptionCodeModeUsage,
 		RewardType:     domainbilling.RedemptionRewardTypeBalance,
@@ -1383,7 +1383,7 @@ func TestValidateRedeemableCodeAllowsUsageCodeInPeriodModeOnly(t *testing.T) {
 		t.Fatalf("validateRedeemableCode(usage code in period mode) error = %v", err)
 	}
 
-	periodCode := model.RedemptionCode{
+	periodCode := models.RedemptionCode{
 		Status:        domainbilling.RedemptionCodeStatusActive,
 		Mode:          domainbilling.RedemptionCodeModePeriod,
 		RewardType:    domainbilling.RedemptionRewardTypeSubscription,
@@ -1415,7 +1415,7 @@ func openBillingSQLiteTestDB(t *testing.T) *gorm.DB {
 		_ = sqlDB.Close()
 	})
 
-	if err := db.AutoMigrate(&model.UsageLedger{}, &model.BillingAccount{}, &model.BalanceTransaction{}, &model.UsageReservation{}, &model.Redemption{}); err != nil {
+	if err := db.AutoMigrate(&models.UsageLedger{}, &models.BillingAccount{}, &models.BalanceTransaction{}, &models.UsageReservation{}, &models.Redemption{}); err != nil {
 		t.Fatalf("migrate billing tables: %v", err)
 	}
 	return db

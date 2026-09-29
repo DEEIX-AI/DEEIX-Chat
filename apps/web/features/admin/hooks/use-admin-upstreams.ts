@@ -7,7 +7,7 @@ import {
   listAdminLLMUpstreams,
   updateAdminLLMUpstream,
 } from "@/features/admin/api";
-import type { AdminBatchDeleteData, AdminLLMStatus, AdminLLMUpstreamView } from "@/features/admin/api/llm.types";
+import type { AdminBatchDeleteData, AdminLLMStatus, AdminLLMUpstreamView } from "@/features/admin/api/llm-types";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { replaceByID } from "@/shared/lib/optimistic-list";
 import { runSettledBulkItems } from "@/shared/lib/bulk-action";

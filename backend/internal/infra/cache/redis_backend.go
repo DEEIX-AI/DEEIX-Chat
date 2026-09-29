@@ -5,14 +5,14 @@ package cache
 import (
 	"context"
 
-	rediscache "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/cache/redis"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/cache/redis"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	"github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v8"
 )
 
 func openRedis(cfg config.Config) (Backend, error) {
-	client, err := rediscache.NewRedis(cfg)
+	client, err := redis.NewRedis(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -20,29 +20,29 @@ func openRedis(cfg config.Config) (Backend, error) {
 }
 
 type redisBackend struct {
-	client *redis.Client
+	client *goredis.Client
 }
 
 func (redisBackend) Name() string { return "redis" }
 
 func (b redisBackend) Settings() repository.SettingsCacheRepository {
-	return rediscache.NewSettingsCache(b.client)
+	return redis.NewSettingsCache(b.client)
 }
 
 func (b redisBackend) Channel() repository.ChannelCacheRepository {
-	return rediscache.NewChannelCache(b.client)
+	return redis.NewChannelCache(b.client)
 }
 
 func (b redisBackend) Conversation() repository.ConversationCacheRepository {
-	return rediscache.NewConversationCache(b.client)
+	return redis.NewConversationCache(b.client)
 }
 
 func (b redisBackend) RateLimiter() RateLimiter {
-	return rediscache.NewRateLimiter(b.client)
+	return redis.NewRateLimiter(b.client)
 }
 
 func (b redisBackend) ProviderAuthBridge() repository.ProviderAuthBridgeRepository {
-	return rediscache.NewProviderAuthBridge(b.client)
+	return redis.NewProviderAuthBridge(b.client)
 }
 
 func (b redisBackend) Ping(ctx context.Context) error {

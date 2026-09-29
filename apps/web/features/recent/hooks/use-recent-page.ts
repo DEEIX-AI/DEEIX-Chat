@@ -9,6 +9,7 @@ import {
   downloadConversationExport,
   isArchivedConversation,
   mergeUniqueByPublicID,
+  normalizeConversationSearchText,
   removeByPublicID,
   sortByUpdatedAtDesc,
   upsertByPublicID,
@@ -23,7 +24,6 @@ import {
   exportAllConversations,
   exportConversation,
   listConversations,
-  revokeConversationShare,
   revokeConversationShares,
 } from "@/shared/api/conversation";
 import type {
@@ -33,12 +33,11 @@ import type {
   ConversationShareFilter,
   ConversationStarredFilter,
   ConversationStatusFilter,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel";
 import { runBulkActionInChunks } from "@/shared/lib/bulk-action";
-import { normalizeConversationSearchText } from "@/shared/lib/conversation-search";
 import { downloadBlob, readExportManifest } from "@/shared/lib/export-download";
 
 const RECENT_SEARCH_DEBOUNCE_MS = 250;
@@ -183,11 +182,12 @@ export function useRecentPage() {
       return;
     }
 
-    if (!lastChange.item) {
+    const changedItem = lastChange.item;
+    if (!changedItem) {
       return;
     }
 
-    if (!conversationMatchesRecentFilters(lastChange.item, statusFilter, starredFilter, shareFilter, projectFilter)) {
+    if (!conversationMatchesRecentFilters(changedItem, statusFilter, starredFilter, shareFilter, projectFilter)) {
       setItems((current) => removeByPublicID(current, lastChange.publicID));
       setSelectedConversationIDs((current) => current.filter((item) => item !== lastChange.publicID));
       return;
@@ -197,7 +197,7 @@ export function useRecentPage() {
       return;
     }
 
-    setItems((current) => upsertByPublicID(current, lastChange.item!));
+    setItems((current) => upsertByPublicID(current, changedItem));
   }, [items, lastChange, normalizedQuery, projectFilter, shareFilter, starredFilter, statusFilter]);
 
   const loadPage = React.useCallback(
@@ -463,19 +463,6 @@ export function useRecentPage() {
       patchConversationShare(shareTarget.publicID, sharePatchFromResult(share));
     },
     [patchConversationShare, shareTarget],
-  );
-
-  const onRevokeShare = React.useCallback(
-    async (publicID: string) => {
-      const token = await resolveAccessToken();
-      if (!token) {
-        return;
-      }
-      const updated = await revokeConversationShare(token, publicID);
-      patchConversationShare(publicID, sharePatchFromResult(updated));
-      toast.success(t("shareClosed"));
-    },
-    [patchConversationShare, t],
   );
 
   const onDelete = React.useCallback((item: ConversationDTO) => {
@@ -834,7 +821,6 @@ export function useRecentPage() {
     onArchive,
     onShare,
     onSetProject,
-    onRevokeShare,
     onExport,
     onDelete,
     setRenameValue,

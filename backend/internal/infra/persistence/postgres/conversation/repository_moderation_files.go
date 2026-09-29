@@ -6,11 +6,11 @@ import (
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
-	models "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"gorm.io/gorm"
 )
 
-// GetFileObjectByFileIDAnyStatus loads a file row regardless of ownership/status.
+// GetFileObjectByFileIDAnyStatus 加载文件行，不限归属/状态。
 func (r *Repo) GetFileObjectByFileIDAnyStatus(ctx context.Context, fileID string) (*domainconversation.FileObject, error) {
 	fileID = strings.TrimSpace(fileID)
 	if fileID == "" {
@@ -27,8 +27,8 @@ func (r *Repo) GetFileObjectByFileIDAnyStatus(ctx context.Context, fileID string
 	return &item, nil
 }
 
-// ListModerationBlockedFileIDsForCleanup returns revoked files whose physical objects
-// still need deletion. storage_path is cleared only after object-store deletion succeeds.
+// ListModerationBlockedFileIDsForCleanup 返回物理对象仍需删除的已撤销文件。
+// storage_path 仅在对象存储删除成功后才清空。
 func (r *Repo) ListModerationBlockedFileIDsForCleanup(ctx context.Context, limit int) ([]string, error) {
 	if limit <= 0 {
 		limit = 100
@@ -42,7 +42,7 @@ func (r *Repo) ListModerationBlockedFileIDsForCleanup(ctx context.Context, limit
 	return fileIDs, dberror.Translate(err)
 }
 
-// RevokeGeneratedFileForModeration marks a generated file inaccessible and unlinks user ownership.
+// RevokeGeneratedFileForModeration 将生成文件标记为不可访问，并解除用户归属。
 func (r *Repo) RevokeGeneratedFileForModeration(ctx context.Context, fileID string) error {
 	fileID = strings.TrimSpace(fileID)
 	if fileID == "" {
@@ -60,9 +60,9 @@ func (r *Repo) RevokeGeneratedFileForModeration(ctx context.Context, fileID stri
 	return dberror.Translate(err)
 }
 
-// DeleteGeneratedFileArtifactsForModeration marks attachments deleted and returns storage path
-// for physical deletion. storage_path is NOT cleared here — callers clear it only after a
-// successful object-store delete so failed deletes remain retryable.
+// DeleteGeneratedFileArtifactsForModeration 将附件标记为已删除，并返回用于物理删除的
+// 存储路径。此处不清空 storage_path——调用方仅在对象存储删除
+// 成功后才清空，以便失败的删除可以重试。
 func (r *Repo) DeleteGeneratedFileArtifactsForModeration(ctx context.Context, fileID string) error {
 	fileID = strings.TrimSpace(fileID)
 	if fileID == "" {
@@ -78,13 +78,13 @@ func (r *Repo) DeleteGeneratedFileArtifactsForModeration(ctx context.Context, fi
 		}
 		return dberror.Translate(err)
 	}
-	// Soft-delete attachments that still reference this file.
+	// 软删除仍引用该文件的附件。
 	if err := r.db.WithContext(ctx).Model(&models.Attachment{}).
 		Where("file_id = ? AND status <> ?", fileID, "deleted").
 		Update("status", "deleted").Error; err != nil {
 		return dberror.Translate(err)
 	}
-	// Keep status blocked; leave storage_path intact for retryable physical cleanup.
+	// 保持 blocked 状态；保留 storage_path 以便可重试的物理清理。
 	if err := r.db.WithContext(ctx).Model(&models.FileObject{}).
 		Where("id = ?", file.ID).
 		Updates(map[string]any{
@@ -95,7 +95,7 @@ func (r *Repo) DeleteGeneratedFileArtifactsForModeration(ctx context.Context, fi
 	return nil
 }
 
-// ClearGeneratedFileStoragePath clears the storage path only after physical delete succeeds.
+// ClearGeneratedFileStoragePath 仅在物理删除成功后清空存储路径。
 func (r *Repo) ClearGeneratedFileStoragePath(ctx context.Context, fileID string) error {
 	fileID = strings.TrimSpace(fileID)
 	if fileID == "" {

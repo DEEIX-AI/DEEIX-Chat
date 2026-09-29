@@ -1,4 +1,4 @@
-package cache
+package redis
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	"github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 )
 
@@ -22,7 +22,7 @@ const circuitManualOpenDuration = 24 * time.Hour
 // KEYS: [open_key, until_key, probe_key]
 // ARGV: [now_unix, probe_ttl_sec]
 // 返回: "closed" | "open" | "half_open_granted" | "half_open_denied"
-var circuitBreakerCheckScript = redis.NewScript(`
+var circuitBreakerCheckScript = goredis.NewScript(`
 local now = tonumber(ARGV[1])
 local probe_ttl = tonumber(ARGV[2])
 local open_exists = redis.call('EXISTS', KEYS[1])
@@ -52,7 +52,7 @@ return 'closed'
 //
 //	upstream_window_sec, upstream_fail_threshold, upstream_model_threshold,
 //	upstream_logic, upstream_duration_sec, active_model_open_keys_json, probe_ttl]
-var circuitBreakerRecordFailureScript = redis.NewScript(`
+var circuitBreakerRecordFailureScript = goredis.NewScript(`
 local now = tonumber(ARGV[1])
 local uid = ARGV[2]
 local model_window = tonumber(ARGV[3])
@@ -138,7 +138,7 @@ return cjson.encode({ model_tripped = model_tripped, upstream_tripped = upstream
 // rateLimitRecordBackoffScript 原子递增路由限流次数并刷新退避窗口。
 // KEYS: [count_key, backoff_key]
 // ARGV: [count_ttl_sec, base_sec, max_sec, multiplier, retry_after_sec]
-var rateLimitRecordBackoffScript = redis.NewScript(`
+var rateLimitRecordBackoffScript = goredis.NewScript(`
 local count_ttl = tonumber(ARGV[1])
 local base = tonumber(ARGV[2])
 local max_backoff = tonumber(ARGV[3])
@@ -163,11 +163,11 @@ return backoff
 
 // channelCache 实现 repository.ChannelCacheRepository。
 type channelCache struct {
-	client *redis.Client
+	client *goredis.Client
 }
 
 // NewChannelCache 创建 ChannelCacheRepository 实现。
-func NewChannelCache(client *redis.Client) repository.ChannelCacheRepository {
+func NewChannelCache(client *goredis.Client) repository.ChannelCacheRepository {
 	return &channelCache{client: client}
 }
 

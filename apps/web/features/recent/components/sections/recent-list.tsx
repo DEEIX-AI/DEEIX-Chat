@@ -9,7 +9,13 @@ import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
 import { AnimatedText } from "@/components/ui/animated-text";
 import { LoadingReveal } from "@/shared/components/loading-reveal";
 import type { RecentRowState } from "@/features/recent/types/recent";
-import { ConversationLabelsMenuItem, isArchivedConversation } from "@/entities/conversation";
+import {
+  ConversationLabelsMenuItem,
+  ConversationProjectSubmenu,
+  ConversationShareExportSubmenu,
+  isArchivedConversation,
+  parseConversationLabelsJSON,
+} from "@/entities/conversation";
 import {
   formatRelativeUpdatedAt,
   recentEmptyStateTitle,
@@ -26,18 +32,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ConversationProjectSubmenu } from "@/shared/components/conversation-project-submenu";
-import { ConversationShareExportSubmenu } from "@/shared/components/conversation-share-export-menu";
 import { cn } from "@/lib/utils";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
-import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
 import type {
   ConversationDTO,
   ConversationProjectDTO,
   ConversationShareFilter,
   ConversationStarredFilter,
   ConversationStatusFilter,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 
 function RecentRowSkeleton({
   showCheckbox = true,
@@ -103,7 +106,6 @@ function RecentConversationRow({
   onManageLabels,
   onArchive,
   onShare,
-  onRevokeShare,
   onSetProject,
   onExport,
   onDelete,
@@ -124,7 +126,6 @@ function RecentConversationRow({
   onManageLabels: (item: ConversationDTO) => void;
   onArchive: (publicID: string, archived: boolean) => void;
   onShare: (item: ConversationDTO) => void;
-  onRevokeShare: (publicID: string) => void | Promise<void>;
   onSetProject: (publicID: string, projectID?: string) => void | Promise<void>;
   onExport: (item: ConversationDTO) => void | Promise<void>;
   onDelete: (item: ConversationDTO) => void;
@@ -361,7 +362,6 @@ type RecentListProps = {
   onManageLabels: (item: ConversationDTO) => void;
   onArchive: (publicID: string, archived: boolean) => void;
   onShare: (item: ConversationDTO) => void;
-  onRevokeShare: (publicID: string) => void | Promise<void>;
   onSetProject: (publicID: string, projectID?: string) => void | Promise<void>;
   onExport: (item: ConversationDTO) => void | Promise<void>;
   onDelete: (item: ConversationDTO) => void;
@@ -450,7 +450,6 @@ export function RecentList({
   onManageLabels,
   onArchive,
   onShare,
-  onRevokeShare,
   onSetProject,
   onExport,
   onDelete,
@@ -529,7 +528,6 @@ export function RecentList({
                     onManageLabels={onManageLabels}
                     onArchive={onArchive}
                     onShare={onShare}
-                    onRevokeShare={onRevokeShare}
                     onSetProject={onSetProject}
                     onExport={onExport}
                     onDelete={onDelete}

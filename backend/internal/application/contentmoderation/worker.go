@@ -21,7 +21,7 @@ type moderationTask struct {
 	Selected    []string
 	Location    domaincm.ContentLocation
 	RawImages   []OutputImageSource
-	IsolateOnly bool // input images: isolate copy only, do not revoke user files
+	IsolateOnly bool // 输入图片：仅隔离副本，不撤销用户文件
 }
 
 type taskResult struct {
@@ -47,7 +47,7 @@ func (s *Service) workerLoop(ctx context.Context) {
 				return
 			}
 
-			// Physical token (fixed channel) + logical activeWorkers gate.
+			// 物理令牌（固定 channel）+ 逻辑 activeWorkers 闸门。
 			select {
 			case <-ctx.Done():
 				s.markTaskDequeued()
@@ -87,8 +87,8 @@ func (s *Service) markTaskDequeued() {
 	s.workerMu.Unlock()
 }
 
-// waitLogicalSlot blocks until activeWorkers < maxConcurrency.
-// Returns false if the worker is shutting down before a slot is acquired.
+// waitLogicalSlot 阻塞直至 activeWorkers < maxConcurrency。
+// 若 worker 在获取槽位前正在关闭，则返回 false。
 func (s *Service) waitLogicalSlot(ctx context.Context) bool {
 	for {
 		s.workerMu.Lock()
@@ -223,9 +223,8 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 	}
 	cancelProvider()
 	latency := time.Since(started).Milliseconds()
-	// Start a fresh persistence budget only after the upstream request finishes.
-	// Slow moderation requests must not consume the time reserved for recording
-	// their result and statistics.
+	// 上游请求结束后才开始计算新的持久化时间预算：
+	// 慢速审核请求不得占用为记录审核结果与统计数据预留的时间。
 	persistCtx, persistCancel := context.WithTimeout(runCtx, 10*time.Second)
 	defer persistCancel()
 
@@ -430,7 +429,7 @@ func (s *Service) recordPass(ctx context.Context, task *moderationTask, latencyM
 			summary = "output_text_pass"
 		}
 	}
-	// Pass events keep metadata only — do not retain encrypted content payloads.
+	// 审核通过（pass）的事件仅保留元数据——不保留加密内容载荷。
 	event := &domaincm.Event{
 		PublicID:            publicID,
 		UserID:              task.Coord.meta.UserID,
@@ -492,7 +491,7 @@ func (s *Service) recordHit(ctx context.Context, task *moderationTask, eval HitE
 	}
 
 	encryptedText := ""
-	// Opaque summary only — never store plaintext snippets in the list metadata.
+	// 仅保存不透明摘要——绝不在列表元数据中存储明文片段。
 	summary := "image_hit"
 	if task.Modality == domaincm.ModalityText {
 		if enc, err := s.encryptText(task.Text); err == nil {
@@ -510,7 +509,7 @@ func (s *Service) recordHit(ctx context.Context, task *moderationTask, eval HitE
 		for i, img := range task.RawImages {
 			data := img.Data
 			if len(data) == 0 {
-				// Still revoke/delete output images even when payload bytes are missing.
+				// 即使缺少载荷字节，仍撤销/删除输出图片。
 				if !task.IsolateOnly && s.fileAccess != nil && strings.TrimSpace(img.FileID) != "" {
 					if err := s.fileAccess.RevokeGeneratedFile(ctx, img.FileID); err != nil {
 						s.logWarn("content_moderation_revoke_file_failed", zap.String("file_id", img.FileID), zap.Error(err))
@@ -525,7 +524,7 @@ func (s *Service) recordHit(ctx context.Context, task *moderationTask, eval HitE
 			if sha == "" {
 				sha = sha256Hex(data)
 			}
-			// Attempt isolation copy; output revoke/delete always runs regardless of isolation success.
+			// 尝试隔离复制；无论隔离是否成功，输出撤销/删除始终执行。
 			if s.objectStore != nil {
 				encStr, err := s.encryptBytes(data)
 				if err != nil {

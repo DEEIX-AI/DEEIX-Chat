@@ -11,8 +11,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { UIComponentDTO } from "@/shared/api/ui-components.types";
-import { uiComponentIcon } from "@/shared/model/ui-component-icons";
+import type { UIComponentDTO } from "@/shared/api/ui-components-types";
+import { uiComponentIcon } from "@/features/chat/model/ui-component-icons";
 
 // Builtin names and summaries are localised on the client; the catalog text
 // from the backend is the model-facing (Chinese) prompt. Custom components

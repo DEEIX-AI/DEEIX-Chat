@@ -64,9 +64,9 @@ import type {
   MessageDTO,
   SendMessageResult,
   StreamMessageEvent,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 import { ApiError } from "@/shared/api/http-client";
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { notifyResponseCompletion } from "@/shared/lib/browser-notifications";
 

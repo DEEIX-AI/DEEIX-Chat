@@ -29,6 +29,7 @@ import (
 	promptpresethttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/promptpreset"
 	settingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/settings"
 	skillhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/skill"
+	systemhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/system"
 	uicomponenthttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/uicomponent"
 	userhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/user"
 	usersettingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/usersettings"
@@ -72,6 +73,22 @@ type Modules struct {
 	StartupLog        func(*zap.Logger)
 	// Shutdown 是进程关停排空信号；排空期间就绪探针返回 503，引导负载均衡摘除流量。
 	Shutdown *lifecycle.Shutdown
+}
+
+// hasAdminRoutes 报告是否存在需要注册到 /admin 路由组的模块；新增管理端模块时须同步更新此处。
+func (m Modules) hasAdminRoutes() bool {
+	return m.Admin != nil ||
+		m.Auth != nil ||
+		m.Billing != nil ||
+		m.Channel != nil ||
+		m.MCP != nil ||
+		m.Settings != nil ||
+		m.Announcement != nil ||
+		m.PromptPreset != nil ||
+		m.Skill != nil ||
+		m.UIComponent != nil ||
+		m.KnowledgeBase != nil ||
+		m.ContentModeration != nil
 }
 
 // NewEngine 创建并注册 API 路由。
@@ -121,16 +138,19 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	}
 
 	api := engine.Group("/api/v1")
+	// 能力位关闭的功能整组返回 404 feature.disabled；见 docs/ARCHITECTURE.md §4。
+	gate := middleware.NewFeatureGate(cfg)
 	api.GET("/version", func(c *gin.Context) {
 		c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
 		c.Header("Pragma", "no-cache")
 		c.JSON(http.StatusOK, buildinfo.Snapshot())
 	})
-	if modules.Auth != nil || modules.Settings != nil || modules.Billing != nil || modules.Conversation != nil || modules.User != nil || modules.Channel != nil {
+	{
 		publicAuth := api.Group("")
 		publicAuth.Use(middleware.PublicAuthRateLimit(limiter, cfg))
+		systemhttp.NewModule(systemhttp.NewHandler(cfg)).RegisterPublicRoutes(publicAuth)
 		if modules.Auth != nil {
-			modules.Auth.RegisterPublicRoutes(publicAuth)
+			modules.Auth.RegisterPublicRoutes(publicAuth, gate)
 			if snapshot.LocalMode {
 				modules.Auth.RegisterLocalRoutes(publicAuth)
 			}
@@ -142,13 +162,13 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 			modules.Channel.RegisterPublicRoutes(publicAuth)
 		}
 		if modules.Conversation != nil {
-			modules.Conversation.RegisterPublicRoutes(publicAuth)
+			modules.Conversation.RegisterPublicRoutes(publicAuth, gate)
 		}
 		if modules.Settings != nil {
 			modules.Settings.RegisterPublicRoutes(publicAuth)
 		}
 		if modules.Billing != nil {
-			modules.Billing.RegisterPublicRoutes(publicAuth)
+			modules.Billing.RegisterPublicRoutes(publicAuth, gate)
 		}
 	}
 
@@ -157,10 +177,10 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	authRequired.Use(middleware.RateLimit(limiter, cfg))
 
 	if modules.Auth != nil {
-		modules.Auth.RegisterProtectedRoutes(authRequired)
+		modules.Auth.RegisterProtectedRoutes(authRequired, gate)
 	}
 	if modules.Conversation != nil {
-		modules.Conversation.RegisterRoutes(authRequired)
+		modules.Conversation.RegisterRoutes(authRequired, gate)
 	}
 	if modules.Channel != nil {
 		modules.Channel.RegisterRoutes(authRequired)
@@ -172,10 +192,10 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		modules.MCP.RegisterRoutes(authRequired)
 	}
 	if modules.Billing != nil {
-		modules.Billing.RegisterRoutes(authRequired)
+		modules.Billing.RegisterRoutes(authRequired, gate)
 	}
 	if modules.Announcement != nil {
-		modules.Announcement.RegisterRoutes(authRequired)
+		modules.Announcement.RegisterRoutes(authRequired, gate)
 	}
 	if modules.PromptPreset != nil {
 		modules.PromptPreset.RegisterRoutes(authRequired)
@@ -198,20 +218,20 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	if modules.User != nil {
 		modules.User.RegisterRoutes(authRequired)
 	}
-	if modules.Admin != nil || modules.Auth != nil || modules.Billing != nil || modules.Channel != nil || modules.MCP != nil || modules.Settings != nil || modules.Announcement != nil || modules.PromptPreset != nil || modules.Skill != nil || modules.KnowledgeBase != nil || modules.ContentModeration != nil {
+	if modules.hasAdminRoutes() {
 		adminGroup := authRequired.Group("/admin")
 		adminGroup.Use(middleware.AdminOnly())
 		if modules.Auth != nil {
-			modules.Auth.RegisterAdminRoutes(adminGroup)
+			modules.Auth.RegisterAdminRoutes(adminGroup, gate)
 		}
 		if modules.Admin != nil {
-			modules.Admin.RegisterRoutes(adminGroup)
+			modules.Admin.RegisterRoutes(adminGroup, gate)
 		}
 		if modules.ContentModeration != nil {
-			modules.ContentModeration.RegisterRoutes(adminGroup)
+			modules.ContentModeration.RegisterRoutes(adminGroup, gate)
 		}
 		if modules.Billing != nil {
-			modules.Billing.RegisterAdminRoutes(adminGroup)
+			modules.Billing.RegisterAdminRoutes(adminGroup, gate)
 		}
 		if modules.Channel != nil {
 			modules.Channel.RegisterAdminRoutes(adminGroup)
@@ -223,7 +243,7 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 			modules.Settings.RegisterAdminRoutes(adminGroup)
 		}
 		if modules.Announcement != nil {
-			modules.Announcement.RegisterAdminRoutes(adminGroup)
+			modules.Announcement.RegisterAdminRoutes(adminGroup, gate)
 		}
 		if modules.PromptPreset != nil {
 			modules.PromptPreset.RegisterAdminRoutes(adminGroup)
@@ -379,7 +399,8 @@ func applyFrontendCacheHeaders(c *gin.Context, requestPath string) {
 		return
 	}
 	if isNextExportDataAsset(requestPath) {
-		c.Header("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800")
+		// 导出的 RSC 载荷携带 buildId，与 HTML 页面一同失效；缓存旧载荷会让客户端路由退化为整页刷新。
+		c.Header("Cache-Control", "no-cache")
 		return
 	}
 	c.Header("Cache-Control", "public, max-age=3600")
@@ -395,8 +416,8 @@ func isVendorIconAsset(requestPath string) bool {
 }
 
 func isNextExportDataAsset(requestPath string) bool {
-	fileName := path.Base(requestPath)
-	return strings.HasPrefix(fileName, "__next.") && strings.EqualFold(path.Ext(fileName), ".txt")
+	// output: "export" 为每个页面写出同名 .txt（如 /settings/general.txt），并在根目录写出 __next.*.txt。
+	return strings.EqualFold(path.Ext(requestPath), ".txt")
 }
 
 func readyzHandler(hc HealthChecker, shutdown *lifecycle.Shutdown) gin.HandlerFunc {

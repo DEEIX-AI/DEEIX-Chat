@@ -3,7 +3,7 @@ import type {
   ConversationProjectDTO,
   CreateConversationProjectRequest,
   UpdateConversationProjectRequest,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 
 export type SidebarConversationChange = {
   sequence: number;

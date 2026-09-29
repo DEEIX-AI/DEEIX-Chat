@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useTranslations } from "next-intl";
 
-import { OptionSelect } from "@/shared/components/model-select";
+import { OptionSelect } from "@/shared/components/option-select";
 import { resolveTimeZoneOptions } from "@/shared/lib/time-zone";
 
 type TimeZoneSelectProps = {

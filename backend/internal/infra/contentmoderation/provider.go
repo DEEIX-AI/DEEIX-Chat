@@ -71,13 +71,13 @@ func (document moderationResponse) toDomainResponse() *domaincm.ProviderResponse
 	return &domaincm.ProviderResponse{ID: document.ID, Model: document.Model, Results: results}
 }
 
-// ValidateBaseURL validates and normalizes the supported OpenAI-compatible endpoint shape.
+// ValidateBaseURL 校验并规范化受支持的 OpenAI 兼容端点形态。
 func (c *Client) ValidateBaseURL(raw string) error {
 	_, err := normalizeBaseURL(raw)
 	return err
 }
 
-// ModerateText chunks UTF-8 text and submits each chunk within one shared timeout.
+// ModerateText 对 UTF-8 文本分块，并在同一共享超时内提交各分块。
 func (c *Client) ModerateText(
 	ctx context.Context,
 	config domaincm.ProviderConfig,
@@ -113,7 +113,7 @@ func (c *Client) ModerateText(
 	return merged, nil
 }
 
-// ModerateImages batches encoded image inputs within one shared timeout.
+// ModerateImages 在同一共享超时内批量提交已编码的图片输入。
 func (c *Client) ModerateImages(
 	ctx context.Context,
 	config domaincm.ProviderConfig,
@@ -370,8 +370,7 @@ func providerDeadline(timeout time.Duration) time.Time {
 }
 
 func mapHTTPStatus(status int) error {
-	// Never include provider response bodies: compatible services may echo
-	// moderated content or credentials and this error can be persisted.
+	// 切勿包含提供方响应体：兼容服务可能回显被审核内容或凭据，而该错误可能被持久化。
 	if status == http.StatusTooManyRequests {
 		return fmt.Errorf("%w: status %d", cmport.ErrRateLimited, status)
 	}

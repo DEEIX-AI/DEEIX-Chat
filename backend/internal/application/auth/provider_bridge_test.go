@@ -2,6 +2,9 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -10,6 +13,7 @@ import (
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	memorycache "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/cache/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/requestmeta"
 )
@@ -157,9 +161,9 @@ func TestProviderAuthBridgeDesktopRedirectMustBeLoopbackWithPort(t *testing.T) {
 		}
 	}
 	for _, bad := range []string{
-		"https://127.0.0.1:49152/oauth/callback", // must be plain http on loopback
-		"http://127.0.0.1/oauth/callback",        // ephemeral port is mandatory
-		"http://127.0.0.1:49152/other",           // fixed path
+		"https://127.0.0.1:49152/oauth/callback", // 回环地址必须使用纯 http
+		"http://127.0.0.1/oauth/callback",        // 必须指定临时端口
+		"http://127.0.0.1:49152/other",           // 路径必须固定为 /oauth/callback
 		"http://127.0.0.1:49152/oauth/callback?x=1",
 		"http://evil.example.com:49152/oauth/callback",
 		"http://127.0.0.1.evil.com:49152/oauth/callback",
@@ -196,4 +200,130 @@ func newProviderAuthBridgeTestService() (*Service, *memorycache.Cache) {
 	store := memorycache.New()
 	service.SetProviderAuthBridge(memorycache.NewProviderAuthBridge(store))
 	return service, store
+}
+
+func TestProviderAuthBridgeBindsIdentityOnlyForTheStartingUser(t *testing.T) {
+	dataKey := "test-data-key"
+	clientSecret, err := secretbox.EncryptString(dataKey, "client-secret")
+	if err != nil {
+		t.Fatalf("encrypt client secret: %v", err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/token":
+			_, _ = w.Write([]byte(`{"access_token":"access-token","token_type":"Bearer"}`))
+		case "/userinfo":
+			_, _ = w.Write([]byte(`{"sub":"sub-1","email":"user@example.com","name":"Provider User"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	provider := &domainuser.IdentityProvider{
+		ID:           10,
+		Type:         domainuser.IdentityProviderTypeOAuth2,
+		Name:         "Acme",
+		Slug:         "acme",
+		LoginEnabled: true,
+		ClientID:     "client",
+		ClientSecret: clientSecret,
+		AuthURL:      server.URL + "/auth",
+		TokenURL:     server.URL + "/token",
+		UserInfoURL:  server.URL + "/userinfo",
+		SubjectField: "sub",
+		EmailField:   "email",
+		NameField:    "name",
+	}
+	repo := &providerLoginRepo{
+		providersBySlug: map[string]*domainuser.IdentityProvider{"acme": provider},
+		usersByID:       map[uint]*domainuser.User{42: {ID: 42, Email: "user@example.com", Status: domainuser.StatusActive}},
+	}
+	service := newTestService(config.Config{
+		JWTSecret:              "test-secret",
+		DataEncryptionKey:      dataKey,
+		PublicAPIBaseURL:       "https://api.example.com",
+		CORSAllowOrigin:        "http://localhost",
+		ThirdPartyLoginEnabled: true,
+	}, repo, nil)
+	service.SetProviderAuthBridge(memorycache.NewProviderAuthBridge(memorycache.New()))
+
+	clientVerifier := strings.Repeat("b", 43)
+	clientState := strings.Repeat("s", 43)
+	startInput := ProviderAuthBridgeStartInput{
+		ClientID:      ProviderAuthWebClientID,
+		RedirectURI:   "http://localhost/auth/callback?provider=acme",
+		CodeChallenge: providerCodeChallenge(clientVerifier),
+		ClientState:   clientState,
+		Intent:        providerIntentBind,
+	}
+	if _, err = service.StartProviderAuthBridge(context.Background(), "acme", startInput); err == nil {
+		t.Fatal("expected bind without an authenticated user to be rejected")
+	}
+	startInput.UserID = 42
+	start, err := service.StartProviderAuthBridge(context.Background(), "acme", startInput)
+	if err != nil {
+		t.Fatalf("start bind: %v", err)
+	}
+	authorizationURL, _ := url.Parse(start.AuthorizationURL)
+	callback, err := service.CompleteProviderAuthBridgeCallback(context.Background(), "acme", ProviderAuthBridgeCallbackInput{
+		Code:  "code",
+		State: authorizationURL.Query().Get("state"),
+	})
+	if err != nil {
+		t.Fatalf("complete bind callback: %v", err)
+	}
+	if len(repo.identities) != 0 {
+		t.Fatalf("identity must not be linked before the authenticated exchange, got %#v", repo.identities)
+	}
+	redirect, _ := url.Parse(callback.RedirectURI)
+	exchangeInput := ProviderAuthBridgeExchangeInput{
+		ClientID:     ProviderAuthWebClientID,
+		Grant:        redirect.Query().Get("grant"),
+		CodeVerifier: clientVerifier,
+	}
+
+	if _, err = service.ExchangeProviderAuthBridgeGrant(context.Background(), "acme", exchangeInput, "request-id", requestmeta.SessionAuditContext{}); !errors.Is(err, ErrProviderGrantMismatch) {
+		t.Fatalf("a bind grant must not create a login session, got %v", err)
+	}
+	// 登录兑换已消费该授权凭证；再次执行流程以进行绑定兑换。
+	start, err = service.StartProviderAuthBridge(context.Background(), "acme", startInput)
+	if err != nil {
+		t.Fatalf("restart bind: %v", err)
+	}
+	authorizationURL, _ = url.Parse(start.AuthorizationURL)
+	callback, err = service.CompleteProviderAuthBridgeCallback(context.Background(), "acme", ProviderAuthBridgeCallbackInput{
+		Code:  "code",
+		State: authorizationURL.Query().Get("state"),
+	})
+	if err != nil {
+		t.Fatalf("complete bind callback: %v", err)
+	}
+	redirect, _ = url.Parse(callback.RedirectURI)
+	exchangeInput.Grant = redirect.Query().Get("grant")
+
+	if _, err = service.ExchangeProviderAuthBridgeBindGrant(context.Background(), 7, "acme", exchangeInput, "request-id", requestmeta.SessionAuditContext{}); !errors.Is(err, ErrProviderGrantMismatch) {
+		t.Fatalf("another user must not be able to consume the bind grant, got %v", err)
+	}
+	// 不匹配同样消费了授权凭证；最后一次执行完成绑定。
+	start, _ = service.StartProviderAuthBridge(context.Background(), "acme", startInput)
+	authorizationURL, _ = url.Parse(start.AuthorizationURL)
+	callback, _ = service.CompleteProviderAuthBridgeCallback(context.Background(), "acme", ProviderAuthBridgeCallbackInput{
+		Code:  "code",
+		State: authorizationURL.Query().Get("state"),
+	})
+	redirect, _ = url.Parse(callback.RedirectURI)
+	exchangeInput.Grant = redirect.Query().Get("grant")
+
+	identity, err := service.ExchangeProviderAuthBridgeBindGrant(context.Background(), 42, "acme", exchangeInput, "request-id", requestmeta.SessionAuditContext{})
+	if err != nil {
+		t.Fatalf("exchange bind grant: %v", err)
+	}
+	if identity.ProviderSlug != "acme" || identity.Email != "user@example.com" {
+		t.Fatalf("unexpected identity view %#v", identity)
+	}
+	if len(repo.identities) != 1 || repo.identities[0].UserID != 42 || repo.identities[0].ProviderSubject != "sub-1" {
+		t.Fatalf("expected the identity to be linked to user 42, got %#v", repo.identities)
+	}
 }

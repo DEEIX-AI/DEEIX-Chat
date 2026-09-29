@@ -113,7 +113,8 @@ const TYPE_WIDTH_RANK: Readonly<Record<ColumnType, number>> = {
   code: 4,
   content: 5,
 };
-const RESOLVED_CONFIGS = new WeakSet<ColumnAnalyzerConfig>();
+// Holds only configs built by createColumnAnalyzerConfig; typed as `object` so any options value can be looked up.
+const RESOLVED_CONFIGS = new WeakSet<object>();
 
 export function createColumnAnalyzerConfig(options: ColumnAnalyzerOptions = {}): ColumnAnalyzerConfig {
   const baseRules = options.headerRules === undefined ? DEFAULT_HEADER_RULES : options.headerRules;
@@ -295,7 +296,7 @@ export function mergeColumnType(previousType: ColumnType, nextType: ColumnType):
 }
 
 function isASCIIIdentifierLike(value: string): boolean {
-  const asciiCharacters = Array.from(value).filter((character) => character.codePointAt(0)! <= 0x7f).length;
+  const asciiCharacters = Array.from(value).filter((character) => (character.codePointAt(0) ?? 0) <= 0x7f).length;
   return asciiCharacters / Math.max(Array.from(value).length, 1) >= 0.8;
 }
 
@@ -306,8 +307,10 @@ function normalizeValue(value: unknown): string {
   return String(value).replace(/\s+/gu, " ").trim();
 }
 
+function isResolvedConfig(options: ColumnAnalyzerOptions | ColumnAnalyzerConfig): options is ColumnAnalyzerConfig {
+  return RESOLVED_CONFIGS.has(options);
+}
+
 function resolveConfig(options: ColumnAnalyzerOptions | ColumnAnalyzerConfig): ColumnAnalyzerConfig {
-  return RESOLVED_CONFIGS.has(options as ColumnAnalyzerConfig)
-    ? (options as ColumnAnalyzerConfig)
-    : createColumnAnalyzerConfig(options);
+  return isResolvedConfig(options) ? options : createColumnAnalyzerConfig(options);
 }

@@ -35,10 +35,10 @@ func (r *Repo) Create(ctx context.Context, item *domainaudit.Log) error {
 
 // List 分页查询审计日志。
 func (r *Repo) List(ctx context.Context, offset int, limit int, filter repository.AuditLogListFilter) ([]domainaudit.Log, int64, error) {
-	items := make([]model.AuditLog, 0)
+	items := make([]models.AuditLog, 0)
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&model.AuditLog{})
+	query := r.db.WithContext(ctx).Model(&models.AuditLog{})
 	if keyword := strings.TrimSpace(filter.Query); keyword != "" {
 		like := "%" + keyword + "%"
 		query = query.Where(
@@ -90,12 +90,12 @@ func (r *Repo) List(ctx context.Context, offset int, limit int, filter repositor
 	return toDomainAuditLogs(items), total, nil
 }
 
-func toModelAuditLog(item *domainaudit.Log) *model.AuditLog {
+func toModelAuditLog(item *domainaudit.Log) *models.AuditLog {
 	if item == nil {
-		return &model.AuditLog{}
+		return &models.AuditLog{}
 	}
-	return &model.AuditLog{
-		BaseModel: model.BaseModel{
+	return &models.AuditLog{
+		BaseModel: models.BaseModel{
 			ID:        item.ID,
 			CreatedAt: item.CreatedAt,
 			UpdatedAt: item.UpdatedAt,
@@ -111,7 +111,7 @@ func toModelAuditLog(item *domainaudit.Log) *model.AuditLog {
 	}
 }
 
-func toDomainAuditLogs(items []model.AuditLog) []domainaudit.Log {
+func toDomainAuditLogs(items []models.AuditLog) []domainaudit.Log {
 	results := make([]domainaudit.Log, 0, len(items))
 	for _, item := range items {
 		results = append(results, domainaudit.Log{

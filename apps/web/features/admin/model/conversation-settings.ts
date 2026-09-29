@@ -1,4 +1,4 @@
-import type { SettingsGrouped } from "@/shared/api/settings.types";
+import type { SettingsGrouped } from "@/shared/api/settings-types";
 
 export type ConversationFieldType = "int" | "bool" | "string" | "password" | "textarea" | "json" | "select" | "tabs" | "button";
 
@@ -16,6 +16,7 @@ export type ConversationSettingsField = {
     | "conversation_task_model"
     | "default_system_prompt"
     | "ui_components_enabled"
+    | "process_trace_enabled"
     | "conversation_title_prompt"
     | "conversation_labels_prompt"
     | "context_compact_enabled"
@@ -307,6 +308,14 @@ export function buildConversationSettingsFields(t: ConversationSettingsTranslato
       key: "ui_components_enabled",
       label: t("fields.uiComponentsEnabled.label"),
       description: t("fields.uiComponentsEnabled.description"),
+      type: "bool",
+    },
+    {
+      section: "conversation",
+      namespace: "chat",
+      key: "process_trace_enabled",
+      label: t("fields.processTraceEnabled.label"),
+      description: t("fields.processTraceEnabled.description"),
       type: "bool",
     },
     {

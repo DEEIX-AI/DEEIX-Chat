@@ -6,8 +6,9 @@ import (
 
 	domainpromptpreset "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/promptpreset"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -27,13 +28,14 @@ func (r *Repo) ListPromptPresets(ctx context.Context, filter repository.PromptPr
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 100 {
-		limit = 100
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
 
-	items := make([]model.PromptPreset, 0, limit)
+	items := make([]models.PromptPreset, 0)
 	var total int64
-	query := r.db.WithContext(ctx).Model(&model.PromptPreset{})
+	query := r.db.WithContext(ctx).Model(&models.PromptPreset{})
 	query = applyPromptPresetFilter(query, filter)
 
 	if err := query.Count(&total).Error; err != nil {
@@ -59,7 +61,7 @@ func (r *Repo) GetPromptPreset(ctx context.Context, id uint) (*domainpromptprese
 	if id == 0 {
 		return nil, repository.ErrInvalidInput
 	}
-	var record model.PromptPreset
+	var record models.PromptPreset
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&record).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -72,7 +74,7 @@ func (r *Repo) CreatePromptPreset(ctx context.Context, item *domainpromptpreset.
 	if item == nil {
 		return nil, repository.ErrInvalidInput
 	}
-	record := model.PromptPreset{
+	record := models.PromptPreset{
 		Scope:           strings.TrimSpace(item.Scope),
 		OwnerUserID:     item.OwnerUserID,
 		Title:           strings.TrimSpace(item.Title),
@@ -88,7 +90,7 @@ func (r *Repo) CreatePromptPreset(ctx context.Context, item *domainpromptpreset.
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if record.SortOrder <= 0 {
 			var maxSortOrder int
-			if err := tx.Model(&model.PromptPreset{}).
+			if err := tx.Model(&models.PromptPreset{}).
 				Where("scope = ? AND owner_user_id = ?", record.Scope, record.OwnerUserID).
 				Select("COALESCE(MAX(sort_order), 0)").
 				Scan(&maxSortOrder).Error; err != nil {
@@ -115,7 +117,7 @@ func (r *Repo) PatchPromptPreset(ctx context.Context, id uint, patch repository.
 	}
 	var result domainpromptpreset.PromptPreset
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var record model.PromptPreset
+		var record models.PromptPreset
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ?", id).
 			First(&record).Error; err != nil {
@@ -166,7 +168,7 @@ func (r *Repo) DeletePromptPreset(ctx context.Context, id uint) error {
 	if id == 0 {
 		return repository.ErrInvalidInput
 	}
-	result := r.db.WithContext(ctx).Delete(&model.PromptPreset{}, id)
+	result := r.db.WithContext(ctx).Delete(&models.PromptPreset{}, id)
 	if result.Error != nil {
 		return dberror.Translate(result.Error)
 	}
@@ -218,7 +220,7 @@ func promptPresetOrderClause(filter repository.PromptPresetListFilter) string {
 	return "CASE WHEN enabled THEN 0 ELSE 1 END ASC, sort_order ASC, updated_at DESC, id DESC"
 }
 
-func toDomain(item model.PromptPreset) domainpromptpreset.PromptPreset {
+func toDomain(item models.PromptPreset) domainpromptpreset.PromptPreset {
 	return domainpromptpreset.PromptPreset{
 		ID:              item.ID,
 		Scope:           item.Scope,

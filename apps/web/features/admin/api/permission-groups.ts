@@ -13,10 +13,11 @@ import type {
 } from "@deeix/api-contract";
 import { authedRequest } from "@/shared/api/authed-client";
 import { pathParam } from "@/shared/api/http-client";
+import type { PERMISSION_GROUP_MODEL_RULE_TYPES } from "@/features/admin/model/admin-unions";
 
 export type PermissionGroup = PermissionGroupResponse;
 
-export type PermissionGroupModelRuleType = "all" | "vendor" | "protocol" | "upstream";
+export type PermissionGroupModelRuleType = (typeof PERMISSION_GROUP_MODEL_RULE_TYPES)[number];
 
 export type PermissionGroupModelRule = Omit<PermissionGroupModelRuleResponse, "type"> & {
   type: PermissionGroupModelRuleType;

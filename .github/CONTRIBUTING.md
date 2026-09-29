@@ -31,7 +31,7 @@ Use the example configuration files for local development. Do not commit local s
 ## Pull Request Guidelines
 
 - Explain the problem and the approach.
-- Include tests for behavior changes when practical.
+- Tests: backend changes to security, authentication, billing, quotas, protocol adapters, streaming lifecycles, or any public contract need focused regression tests. `packages/core` changes need Node tests. `apps/web` has no unit tests by design; describe the manual verification you performed instead.
 - Update documentation when user-facing behavior, deployment steps, API contracts, or configuration changes.
 - Commit generated artifacts only when the project requires them. API contract changes must include the generated Swagger files and `packages/api-contract/src/types.generated.ts`.
 - Do not commit caches, build output, `.pyc` files, `.env` files, or local storage data.
@@ -65,13 +65,13 @@ Commit message subjects that do not match this format will fail CI.
 
 ## Architecture Boundaries
 
-- `frontend/` owns the user interface, client-side state, message rendering, and admin/user workflows.
+- `apps/web/` owns the user interface, client-side state, message rendering, and admin/user workflows. `apps/desktop/` is a Tauri shell around the same web build and contains no business UI. `packages/core` holds platform-neutral client logic (auth state machine, server address resolution, capabilities).
 - `backend/` owns business APIs, authentication, authorization, model routing, file processing, billing, audit logs, and persistence.
-- `docker/` contains optional local services for document extraction, OCR, and related runtime dependencies.
+- `deploy/` contains Docker Compose setups, config templates, and optional services for document extraction, OCR, and related runtime dependencies.
 - The frontend should not duplicate backend authorization, billing, provider routing, or file-processing business rules.
 - Keep cross-cutting concerns such as security, tracing, storage, and provider clients behind backend infrastructure boundaries.
 - Backend startup flows through `cmd -> internal/cli -> internal/app`.
-- Backend requests flow through `transport/http -> application -> repository interfaces -> infra implementations`.
+- Backend requests flow through `transport/http -> application -> repository / ports interfaces -> infra implementations`.
 - Domain packages own core business types and constants. Shared packages provide reusable response, request metadata, and security helpers.
 - Database tables are grouped by domain, including identity, conversations, files/RAG, model routing, tools, billing, settings, audit logs, and system events.
 - Financial records, audit logs, system events, file objects, and vector data should remain separate sources of truth.
@@ -92,9 +92,10 @@ Commit message subjects that do not match this format will fail CI.
 
 ## Backend Contributions
 
-Read the backend documentation index before making backend changes:
+Read the backend documentation before making backend changes:
 
-- [Backend docs](../backend/docs/README.md)
+- [Backend README](../backend/README.md)
+- [API documentation index](../backend/docs/README.md)
 
 Core expectations:
 
@@ -106,23 +107,26 @@ Core expectations:
 - put third-party contract types and sentinel errors in `internal/ports/<domain>`, declare the interface in the consuming `application` package, and implement it in `internal/infra`; outbound ports do not belong in `internal/repository`
 - wire every collaborator in `internal/app`; constructors receive dependencies and must not create fallback sub-services for nil arguments
 - use structured errors and existing response helpers
+- paginated list endpoints accept `page` and `page_size` through `shared/pagination` (default 20, maximum 1000)
 - add focused tests for shared behavior and security-sensitive changes
+- run `make -C backend lint test` before submitting
 
 ## Frontend Contributions
 
 Read the frontend documentation before making frontend changes:
 
-- [Frontend docs](../frontend/README.md)
+- [Frontend docs](../apps/web/README.md)
+- [Frontend Biome rules and exceptions](../apps/web/BIOME.md)
 
 Core expectations:
 
 - keep route files thin and place feature logic under `features/*`
 - use existing UI components and local design patterns
-- keep API access inside `shared/api` or feature-level API modules
+- keep API access inside `shared/api`; only admin-only endpoints live in `features/admin/api`, and components call them through hooks rather than directly
 - derive wire types from `@deeix/api-contract` and keep UI state types inside the owning feature
 - do not hard-code provider-private model behavior in the frontend
 - keep authentication tokens aligned with the existing session model
-- run `pnpm --filter @deeix/web lint`, and run `pnpm build` for routing, dependency, or Next.js changes
+- run `pnpm --filter @deeix/web check` (lint, typecheck, architecture rules), and run `pnpm --filter @deeix/web build` for routing, dependency, or Next.js changes
 
 ## Code Style
 

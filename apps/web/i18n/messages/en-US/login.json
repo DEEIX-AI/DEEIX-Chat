@@ -48,7 +48,7 @@
     "providerStartFailed": "Unable to start third-party sign-in. Refresh the page and try again.",
     "registerFailed": "Registration failed. Please try again later.",
     "turnstileRequired": "Complete the human verification first.",
-    "providerBridgeRequired": "Third-party sign-in on desktop requires the server's OAuth bridge. Ask your administrator to set PUBLIC_API_BASE_URL."
+    "providerBridgeRequired": "Third-party sign-in is unavailable. Ask your administrator to set PUBLIC_API_BASE_URL."
   },
   "oauthCallback": {
     "missingParams": "The third-party sign-in callback is missing required parameters.",

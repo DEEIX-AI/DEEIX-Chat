@@ -16,9 +16,9 @@ import {
   TableLoadingRow,
   TableRow,
 } from "@/components/ui/table";
-import type { AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing.types";
+import type { AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing-types";
 import { cn } from "@/lib/utils";
-import { WEEKDAY_ORDER, formatRateMultiplier, parseSchedulePricing } from "@/shared/model/schedule-pricing";
+import { WEEKDAY_ORDER, formatRateMultiplier, parseSchedulePricing } from "@/entities/billing";
 import {
   formatAmountCents,
   parseTieredPricingJSON,
@@ -159,7 +159,8 @@ function formatWeekdays(weekdays: number[], label: (key: (typeof WEEKDAY_KEYS)[n
     return "";
   }
   const key = (day: number) => WEEKDAY_KEYS[day] ?? "sun";
-  const contiguous = ordered.every((day, index) => index === 0 || order.indexOf(day) === order.indexOf(ordered[index - 1] as number) + 1);
+  const positions = ordered.map((day) => order.indexOf(day));
+  const contiguous = positions.every((position, index) => index === 0 || position - 1 === positions[index - 1]);
   if (contiguous && ordered.length > 2) {
     return `${label(key(first))}–${label(key(last))}`;
   }

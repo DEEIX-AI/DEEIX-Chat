@@ -1,14 +1,14 @@
-package cache
+package redis
 
 import (
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	"github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v8"
 )
 
 func TestParseFileEmbeddingMessagePreservesMetadata(t *testing.T) {
-	message, err := parseFileProcessingMessage(redis.XMessage{
+	message, err := parseFileProcessingMessage(goredis.XMessage{
 		ID: "1-0",
 		Values: map[string]any{
 			"user_id":             "7",

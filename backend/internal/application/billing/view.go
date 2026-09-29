@@ -76,7 +76,7 @@ type PublicModelPricing struct {
 	InputUSDPerMTokens      float64
 	CacheReadUSDPerMTokens  float64
 	CacheWriteUSDPerMTokens float64
-	// Native Anthropic cache durations use these multipliers on configured prices.
+	// Anthropic 原生缓存时长会在配置价格上应用这些倍率。
 	CacheWrite5mMultiplier float64
 	CacheWrite1hMultiplier float64
 	OutputUSDPerMTokens    float64

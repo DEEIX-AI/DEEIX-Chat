@@ -1,11 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import { useBranding } from "@/shared/config/branding-provider";
 
 export function PoweredByDeeix({ className }: { className?: string }) {
+  const t = useTranslations("common.attribution");
   return (
     <span
       className={cn(
@@ -13,12 +15,12 @@ export function PoweredByDeeix({ className }: { className?: string }) {
         className,
       )}
     >
-      <span>Powered by</span>
+      <span>{t("poweredBy")}</span>
       <a
         href="https://github.com/DEEIX-AI/DEEIX-Chat"
         target="_blank"
         rel="noopener noreferrer"
-        aria-label="DEEIX Chat on GitHub"
+        aria-label={t("githubLink")}
         className="inline-flex shrink-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2"
       >
         <Image

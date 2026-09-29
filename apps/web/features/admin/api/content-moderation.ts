@@ -19,7 +19,15 @@ export type DailyStat = ContentModerationDailyStatResponse;
 export type ModerationEvent = ContentModerationEventResponse;
 export type ContentModerationEventDetail = ContentModerationEventDetailResponse;
 
-type ContentModerationEventListQuery = Admin.ContentModerationEventsList.RequestQuery;
+// UI-facing query: camelCase keys mapped to the snake_case wire params below.
+type ContentModerationEventListQuery = Omit<
+  Admin.ContentModerationEventsList.RequestQuery,
+  "page_size" | "user_id" | "run_id"
+> & {
+  pageSize?: number;
+  userId?: Admin.ContentModerationEventsList.RequestQuery["user_id"];
+  runId?: Admin.ContentModerationEventsList.RequestQuery["run_id"];
+};
 
 export async function getContentModerationConfig(accessToken: string) {
   return authedRequest<ContentModerationConfigDataResponse>(
@@ -62,14 +70,14 @@ export async function listContentModerationEvents(
 ) {
   const query = new URLSearchParams();
   if (params.page) query.set("page", String(params.page));
-  if (params.pageSize) query.set("pageSize", String(params.pageSize));
+  if (params.pageSize) query.set("page_size", String(params.pageSize));
   if (params.query) query.set("query", params.query);
   if (params.result) query.set("result", params.result);
   if (params.direction) query.set("direction", params.direction);
   if (params.modality) query.set("modality", params.modality);
   if (params.category) query.set("category", params.category);
-  if (params.userId) query.set("userId", String(params.userId));
-  if (params.runId) query.set("runId", params.runId);
+  if (params.userId) query.set("user_id", String(params.userId));
+  if (params.runId) query.set("run_id", params.runId);
   if (params.from) query.set("from", params.from);
   if (params.to) query.set("to", params.to);
   const suffix = query.toString() ? `?${query.toString()}` : "";

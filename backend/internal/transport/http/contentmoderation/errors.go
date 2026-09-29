@@ -6,7 +6,5 @@ import "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 // 错误码与文案是前端依赖的 API 契约，改动需同步 apps/web/i18n/messages/*/errors.json。
 var (
 	errInvalidImageIndex = apperr.New("request.invalid_image_index", "invalid image index")
-	errInvalidPage       = apperr.New("request.invalid_page", "invalid page")
-	errInvalidPagesize   = apperr.New("request.invalid_pagesize", "invalid pagesize")
 	errInvalidUserid     = apperr.New("request.invalid_userid", "invalid userid")
 )

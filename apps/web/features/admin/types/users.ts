@@ -1,0 +1,93 @@
+import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin-types";
+import { isOneOf } from "@/shared/lib/type-guards";
+
+export const USER_STATUS_OPTIONS: AdminUserStatus[] = [
+  "pending_activation",
+  "active",
+  "locked",
+  "suspended",
+  "deactivated",
+];
+
+export const USER_ROLE_OPTIONS: AdminUserRole[] = ["user", "admin", "superadmin"];
+export const USER_TIER_OPTIONS = ["free", "pro", "max", "ultra"] as const;
+
+export const USER_SORT_OPTIONS = [
+  { labelKey: "sort.idDesc", value: "id_desc" },
+  { labelKey: "sort.idAsc", value: "id_asc" },
+  { labelKey: "sort.lastActiveDesc", value: "last_login_desc" },
+  { labelKey: "sort.updatedDesc", value: "updated_desc" },
+  { labelKey: "sort.displayNameAsc", value: "display_name_asc" },
+] as const;
+
+export const COMPACT_COMBOBOX_CLASSNAME =
+  "rounded-sm [&_[data-slot=input-group-control]]:px-2 [&_[data-slot=input-group-addon]]:pr-1.5 [&_[data-slot=input-group-button]]:size-4.5 [&_[data-slot=combobox-trigger-icon]]:size-3.5";
+
+export type UserTier = string;
+export type UserSortValue = (typeof USER_SORT_OPTIONS)[number]["value"];
+export const isUserSortValue = isOneOf(USER_SORT_OPTIONS.map((option) => option.value));
+
+export type PendingAction =
+  | ""
+  | "create"
+  | "edit"
+  | "avatar"
+  | "bulk-role"
+  | "bulk-status"
+  | "bulk-delete"
+  | "bulk-timezone"
+  | "bulk-balance"
+  | "reset-password"
+  | "reset-2fa"
+  | "revoke-sessions"
+  | "delete"
+  | "refresh";
+
+export type InlineEditableField = "role" | "status";
+
+export type AvatarDialogState =
+  | { mode: "closed" }
+  | { mode: "create"; value: string }
+  | { mode: "edit"; target: AdminUserDTO; value: string };
+
+export type CreateUserPayload = {
+  avatarURL: string;
+  username: string;
+  displayName: string;
+  password: string;
+  email: string;
+  timezone: string;
+  locale: string;
+  subscriptionTier: UserTier;
+  subscriptionExpiresAt: string;
+};
+
+export type EditUserPayload = {
+  avatarURL: string;
+  displayName: string;
+  email: string;
+  phone: string;
+  // Raw server values: an unknown role/status stays untouched until the admin
+  // picks a known one, instead of being coerced on open.
+  role: AdminUserRole | (string & {});
+  status: AdminUserStatus | (string & {});
+  timezone: string;
+  locale: string;
+  subscriptionTier: UserTier;
+  subscriptionExpiresAt: string;
+  billingBalanceUSD: string;
+  profilePreferences: string;
+  reason: string;
+};
+
+export const DEFAULT_CREATE_USER_PAYLOAD: CreateUserPayload = {
+  avatarURL: "",
+  username: "",
+  displayName: "",
+  password: "",
+  email: "",
+  timezone: "Etc/UTC",
+  locale: "en-US",
+  subscriptionTier: "free",
+  subscriptionExpiresAt: "",
+};

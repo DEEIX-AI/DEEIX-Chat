@@ -1,6 +1,6 @@
-// 替代 turndown 默认的全量转义：只转义会改变 CommonMark / GFM 结构或格式的位置，使粘贴结果与页面显示一致。
+// Replaces turndown's default escape-everything: only escape positions that would change CommonMark/GFM structure or formatting, so pasted output matches what's displayed.
 
-// 与 turndown 一致，只在文本节点起始处判断块级标记。
+// Like turndown, only check block-level markers at the start of a text node.
 const BLOCK_START_ESCAPES: ReadonlyArray<readonly [RegExp, string]> = [
   [/^-/, "\\-"],
   [/^\+ /, "\\+ "],
@@ -32,7 +32,7 @@ function isPunctuation(char: string): boolean {
   return char !== "" && (ASCII_PUNCTUATION.test(char) || UNICODE_PUNCTUATION_OR_SYMBOL.test(char));
 }
 
-// 按 CommonMark 6.2 的 left-/right-flanking 规则判断定界符串能否开启或关闭强调。
+// Decide whether a delimiter run can open or close emphasis, per the CommonMark 6.2 left-/right-flanking rules.
 function classifyDelimiterRun(text: string, char: string, start: number, end: number): DelimiterRun {
   const before = start > 0 ? text[start - 1] : "";
   const after = end < text.length ? text[end] : "";
@@ -75,7 +75,7 @@ function collectDelimiterRuns(text: string): DelimiterRun[] {
   return runs;
 }
 
-// 仅当存在可配对的开启 / 关闭定界符时才转义。
+// Escape only when a matching opening/closing delimiter exists.
 function resolveEscapedDelimiterPositions(text: string): Set<number> {
   const runs = collectDelimiterRuns(text);
   const positions = new Set<number>();

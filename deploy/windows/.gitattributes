@@ -1,0 +1,2 @@
+# regedit and Group Policy tooling expect Windows line endings.
+*.reg text eol=crlf

@@ -11,16 +11,16 @@ import { ChevronUp } from "@/components/animate-ui/icons/chevron-up";
 import { ChatMentionMenuPortal } from "@/features/chat/components/shared/chat-mention-menu";
 import { MessageAttachmentRow } from "@/features/chat/components/message/message-attachment";
 import { UserMessageMeta } from "@/features/chat/components/message/message-meta";
-import type { ChatAreaMessage } from "@/features/chat/types/messages";
+import type { ChatAreaMessage, UserMessageEditMode } from "@/features/chat/types/messages";
 import {
   useChatMentionMenu,
   type ChatMentionMenuKind,
 } from "@/features/chat/hooks/use-chat-mention-menu";
 import type { ChatModelOption, PendingAttachment } from "@/features/chat/types/chat-runtime";
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
+import type { FileContentLoader } from "@/entities/file";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 
 // Long user messages collapse to this many lines (leading-6 → 24px each).
@@ -33,7 +33,7 @@ const EDIT_MESSAGE_EMPTY_TOOL_IDS: number[] = [];
 type ChatMessageUserProps = {
   item: ChatAreaMessage;
   onRetryUserMessage: (message: ChatAreaMessage) => Promise<void> | void;
-  onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
+  onEditUserMessage: (message: ChatAreaMessage, content: string, mode: UserMessageEditMode) => Promise<boolean> | boolean;
   onDeleteUserMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   modelOptions?: ChatModelOption[];
   selectedPlatformModelName?: string;
@@ -138,12 +138,12 @@ export function ChatMessageUser({
     [item, onDeleteUserMessage],
   );
 
-  const onEditSave = React.useCallback(async () => {
+  const onEditSave = React.useCallback(async (mode: UserMessageEditMode) => {
     const nextContent = editingValue.trim();
     if (!nextContent || nextContent === item.content.trim()) {
       return;
     }
-    const ok = await onEditUserMessage(item, nextContent);
+    const ok = await onEditUserMessage(item, nextContent, mode);
     if (ok !== false) {
       setIsEditing(false);
     }
@@ -238,7 +238,7 @@ export function ChatMessageUser({
           <div className="flex items-center justify-between gap-4">
             <div className="flex gap-2 pt-2 text-xs text-muted-foreground">
               <CircleAlert className="mt-0.5 size-3 shrink-0" />
-              <span>{tMessages("editCreatesBranch")}</span>
+              <span>{tMessages("editModes")}</span>
             </div>
             <div className="mt-3 flex items-center justify-center gap-2">
               <Button
@@ -249,12 +249,22 @@ export function ChatMessageUser({
                 {tCommon("cancel")}
               </Button>
               <Button
+                variant="outline"
+                className="rounded-lg text-xs font-medium shadow-none"
+                disabled={nextContent.length === 0 || unchanged}
+                onClick={() => void onEditSave("save")}
+                title={tMessages("editSaveOnlyHint")}
+              >
+                {tMessages("editSaveOnly")}
+              </Button>
+              <Button
                 variant="default"
                 className="rounded-lg text-xs font-medium shadow-none hover:bg-primary/60"
                 disabled={nextContent.length === 0 || unchanged}
-                onClick={() => void onEditSave()}
+                onClick={() => void onEditSave("regenerate")}
+                title={tMessages("editRegenerateHint")}
               >
-                {tCommon("save")}
+                {tMessages("editRegenerate")}
               </Button>
             </div>
           </div>

@@ -3,6 +3,7 @@
 import { CornerUpLeft, Download, Eye, Maximize2, WandSparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -28,7 +29,7 @@ import { StreamdownCheckIcon, StreamdownCopyIcon } from "./streamdown-icons";
 import { sanitizeHTMLStyle } from "./streamdown-style";
 import { UI_BLOCK_FENCE_LANGUAGE, UIBlockHost } from "./ui-blocks";
 
-// 未标注语言的围栏统一按纯文本处理:标签如实显示 text,避免内容被错误地按 Markdown 语法高亮。
+// Fences without a language are treated as plain text: the label shows text as-is, so content isn't wrongly highlighted as Markdown.
 const DEFAULT_CODE_BLOCK_LANGUAGE = "text";
 const CODE_BLOCK_ACTION_BUTTON_CLASSNAME =
   "size-5 cursor-pointer rounded-none p-1 text-muted-foreground transition-all outline-none hover:bg-foreground/[0.04] hover:text-foreground focus-visible:bg-foreground/[0.04] focus-visible:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
@@ -457,6 +458,15 @@ function ExternalLinkSafetyDialog({ isOpen, onClose, onConfirm, url }: ExternalL
   );
 }
 
+function isHTTPURL(url: string): boolean {
+  try {
+    const { protocol } = new URL(url, window.location.origin);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function openExternalURL(url: string) {
   window.open(url, "_blank", "noreferrer");
 }
@@ -659,7 +669,7 @@ export function MarkdownSup({ children, className, node: _node, style, ...props 
 }
 
 export function MarkdownImage({ alt, className, onError, onLoad, src: srcProp, ...props }: MarkdownImageProps) {
-  // Markdown 渲染只产生字符串 src；Blob 形态的 src 不在渲染范围内。
+  // Markdown rendering only produces string src; Blob src is out of scope.
   const src = typeof srcProp === "string" ? srcProp : undefined;
   const t = useTranslations("chat.markdown");
   const insideLink = React.useContext(StreamdownLinkContext);
@@ -740,9 +750,15 @@ export function MarkdownImage({ alt, className, onError, onLoad, src: srcProp, .
     try {
       await downloadMarkdownImageSource(src, resolveMarkdownImageDownloadName(src, alt));
     } catch {
-      openExternalURL(resolvedSrc);
+      // Protected API URLs need the bearer token, so opening them in a new tab would only 401.
+      if (!protectedSrc && isHTTPURL(resolvedSrc)) {
+        // Public hosts often block cross-origin fetches; let the browser download it directly.
+        openExternalURL(resolvedSrc);
+        return;
+      }
+      toast.error(t("downloadImageFailed"));
     }
-  }, [alt, resolvedSrc, src]);
+  }, [alt, protectedSrc, resolvedSrc, src, t]);
 
   const canUseImageActions = !insideLink && !failed && Boolean(displaySrc);
   const canEditImage = Boolean(src && imageActions?.onEditImage && (imageActions.canEditImage?.(src) ?? true));

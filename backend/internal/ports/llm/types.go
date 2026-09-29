@@ -104,7 +104,7 @@ type GenerateInput struct {
 	// 这是服务端能力开关，不从用户 Options 透传，避免改变未显式启用模型的数据保留语义。
 	ResponsesBackground bool
 	// Ephemeral 表示调用方要求无状态推理。支持该语义的 adapter 必须显式关闭
-	// provider 侧响应存储，并忽略 background、previous response 与提示缓存状态。
+	// 提供方侧响应存储，并忽略 background、previous response 与提示缓存状态。
 	// 该字段只约束上游请求，不替代调用方自身的持久化边界。
 	Ephemeral bool
 	// ImageEditMask 仅供图片编辑 adapter 使用，表示透明区域掩码。
@@ -312,7 +312,7 @@ func (e *UpstreamError) Unwrap() error {
 }
 
 // AcceptedRequestError 表示上游已接受请求，或请求已写出但结果未知。
-// 生成请求不具备跨 Provider 幂等性，此类错误不得自动切换路由重试。
+// 生成请求不具备跨提供方幂等性，此类错误不得自动切换路由重试。
 type AcceptedRequestError struct {
 	cause error
 }

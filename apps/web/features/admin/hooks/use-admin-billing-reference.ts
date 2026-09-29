@@ -10,8 +10,8 @@ import {
   listPermissionGroups,
 } from "@/features/admin/api";
 import type { PermissionGroup } from "@/features/admin/api/permission-groups";
-import type { AdminBillingConfigDTO, AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing.types";
-import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
+import type { AdminBillingConfigDTO, AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing-types";
+import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import {
   flattenPaymentSettings,
@@ -19,7 +19,8 @@ import {
   type PaymentSettings,
 } from "@/features/admin/model/billing-settings";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { configuredSettingsMap } from "@/shared/lib/settings-meta";
+import { configuredSettingsMap } from "@/features/admin/utils/settings-meta";
+import { useCapabilities } from "@/shared/capabilities";
 
 type UseAdminBillingReferenceState = {
   plans: AdminBillingPlanDTO[];
@@ -52,6 +53,7 @@ const DEFAULT_BILLING_CONFIG: AdminBillingConfigDTO = {
 };
 
 export function useAdminBillingReference(): UseAdminBillingReferenceState {
+  const { flags: capabilities } = useCapabilities();
   const t = useTranslations("adminBilling.toast");
   const [plans, setPlans] = React.useState<AdminBillingPlanDTO[]>([]);
   const [models, setModels] = React.useState<AdminLLMModelDTO[]>([]);
@@ -74,7 +76,7 @@ export function useAdminBillingReference(): UseAdminBillingReferenceState {
       const [referenceData, billingSettings, groups] = await Promise.all([
         getAdminReferenceData(token),
         listAdminSettingsByNamespace(token, "billing"),
-        listPermissionGroups(token),
+        capabilities.multiUser ? listPermissionGroups(token) : [],
       ]);
       const nextPaymentSettings = flattenPaymentSettings(billingSettings);
       const nextPaymentConfiguredMap = configuredSettingsMap({ billing: billingSettings });
@@ -91,7 +93,7 @@ export function useAdminBillingReference(): UseAdminBillingReferenceState {
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [capabilities.multiUser, t]);
 
   React.useEffect(() => {
     void reload();

@@ -1,4 +1,5 @@
 import { isDesktopApp } from "@/shared/platform/runtime";
+import { isRecord } from "@/shared/lib/type-guards";
 
 export type SessionSnapshot = {
   accessToken: string;
@@ -6,6 +7,14 @@ export type SessionSnapshot = {
 };
 
 export const SESSION_SNAPSHOT_CHANGED_EVENT = "deeix-chat:session-snapshot-changed";
+
+// Typing the event on the window lets listeners read `detail` without casting.
+declare global {
+  // biome-ignore lint/style/useConsistentTypeDefinitions: augmenting the global WindowEventMap requires interface declaration merging.
+  interface WindowEventMap {
+    [SESSION_SNAPSHOT_CHANGED_EVENT]: CustomEvent<SessionSnapshot>;
+  }
+}
 
 /** Emitted when the user signs out and all local credentials must be dropped. */
 export const SESSION_CLEARED_EVENT = "deeix-chat:session-cleared";
@@ -32,11 +41,11 @@ const sessionSnapshot: SessionSnapshot = {
 };
 
 function isSessionSnapshot(value: unknown): value is SessionSnapshot {
-  if (!value || typeof value !== "object") {
+  if (!isRecord(value)) {
     return false;
   }
 
-  const snapshot = value as Partial<SessionSnapshot>;
+  const snapshot = value;
   return typeof snapshot.accessToken === "string" && typeof snapshot.sessionID === "string";
 }
 
@@ -58,9 +67,9 @@ function ensureSessionChannel(): BroadcastChannel | null {
 
   try {
     sessionChannel = new BroadcastChannel(SESSION_CHANNEL_NAME);
-    sessionChannel.onmessage = (event: MessageEvent<SessionChannelMessage>) => {
+    sessionChannel.onmessage = (event: MessageEvent<unknown>) => {
       const message = event.data;
-      if (message?.type !== SESSION_CHANNEL_MESSAGE_TYPE || !isSessionSnapshot(message.snapshot)) {
+      if (!isRecord(message) || message.type !== SESSION_CHANNEL_MESSAGE_TYPE || !isSessionSnapshot(message.snapshot)) {
         return;
       }
       applySessionSnapshot(message.snapshot, { syncPeers: false });

@@ -1,7 +1,5 @@
-"use client";
+import { AdminContentModerationPage } from "@/features/admin";
 
-import { AdminContentModeration } from "@/features/admin/components/sections/content-moderation/admin-content-moderation";
-
-export default function AdminContentModerationPage() {
-  return <AdminContentModeration />;
+export default function Page() {
+  return <AdminContentModerationPage />;
 }

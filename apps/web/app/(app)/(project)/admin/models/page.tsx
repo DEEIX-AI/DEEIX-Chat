@@ -1,5 +1,5 @@
-import { AdminModelsPage as AdminModelsSection } from "@/features/admin/components/sections/models/admin-models";
+import { AdminModelsPage } from "@/features/admin";
 
-export default function AdminModelsPage() {
-  return <AdminModelsSection />;
+export default function Page() {
+  return <AdminModelsPage />;
 }

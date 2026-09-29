@@ -3,20 +3,16 @@
 import { useTranslations } from "next-intl";
 
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import {
-  type ChatFontOption,
-  type ChatFontWeightOption,
+import type {
+  ChatFontOption,
+  ChatFontWeightOption,
 } from "@/features/settings/utils/chat-font";
 import type {
   ChatFontPreview,
   ChatFontWeightPreview,
 } from "@/features/settings/types/settings";
 import { cn } from "@/lib/utils";
-import {
-  CHAT_CONTENT_WIDTH_OPTIONS,
-  type ChatContentWidth,
-  type ChatContentWidthOption,
-} from "@/shared/model/chat-content-width";
+import { CHAT_CONTENT_WIDTH_OPTIONS, type ChatContentWidth, type ChatContentWidthOption } from "@/entities/user-settings";
 
 const CHAT_FONT_OPTIONS: ChatFontPreview[] = [
   { label: "Default", value: "default", fontFamily: "var(--font-sans)", sampleText: "Aa" },

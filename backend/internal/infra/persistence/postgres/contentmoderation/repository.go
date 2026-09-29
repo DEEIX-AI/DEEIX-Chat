@@ -9,20 +9,21 @@ import (
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-// Repo implements repository.ContentModerationRepository.
+// Repo 实现 repository.ContentModerationRepository。
 type Repo struct {
 	db *gorm.DB
 }
 
 var _ repository.ContentModerationRepository = (*Repo)(nil)
 
-// NewRepo creates a content moderation repository.
+// NewRepo 创建内容审核仓储。
 func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
 }
@@ -42,7 +43,7 @@ func (r *Repo) CreateEvent(ctx context.Context, event *domaincm.Event) error {
 }
 
 func (r *Repo) GetEventByPublicID(ctx context.Context, publicID string) (*domaincm.Event, error) {
-	var row model.ContentModerationEvent
+	var row models.ContentModerationEvent
 	if err := r.db.WithContext(ctx).Where("public_id = ?", strings.TrimSpace(publicID)).First(&row).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -55,7 +56,7 @@ func (r *Repo) GetLatestHitEventByRunID(ctx context.Context, runID string) (*dom
 	if runID == "" {
 		return nil, nil
 	}
-	var row model.ContentModerationEvent
+	var row models.ContentModerationEvent
 	err := r.db.WithContext(ctx).
 		Where("run_id = ? AND result = ?", runID, domaincm.ResultHit).
 		Order("id DESC").
@@ -71,7 +72,7 @@ func (r *Repo) GetLatestHitEventByRunID(ctx context.Context, runID string) (*dom
 }
 
 func (r *Repo) ListEvents(ctx context.Context, filter domaincm.EventListFilter) ([]domaincm.Event, int64, error) {
-	q := r.db.WithContext(ctx).Model(&model.ContentModerationEvent{})
+	q := r.db.WithContext(ctx).Model(&models.ContentModerationEvent{})
 	if v := strings.TrimSpace(filter.Query); v != "" {
 		terms := moderationEventExactSearchTerms(v)
 		conditions := []string{
@@ -134,9 +135,13 @@ func (r *Repo) ListEvents(ctx context.Context, filter domaincm.EventListFilter) 
 	}
 	limit := filter.Limit
 	if limit <= 0 {
-		limit = 20
+		limit = pagination.DefaultPageSize
 	}
-	var rows []model.ContentModerationEvent
+	// 仅在 pagination.MaxPageSize 处做防御性截断，与上层分页校验保持一致。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
+	}
+	var rows []models.ContentModerationEvent
 	if err := q.Order("id desc").Offset(filter.Offset).Limit(limit).Find(&rows).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
 	}
@@ -160,7 +165,7 @@ func (r *Repo) ClearExpiredContentByPublicIDs(ctx context.Context, publicIDs []s
 	if len(publicIDs) == 0 {
 		return 0, nil
 	}
-	res := r.db.WithContext(ctx).Model(&model.ContentModerationEvent{}).
+	res := r.db.WithContext(ctx).Model(&models.ContentModerationEvent{}).
 		Where("public_id IN ?", publicIDs).
 		Updates(map[string]any{
 			"encrypted_text":  "",
@@ -175,8 +180,8 @@ func (r *Repo) ListExpiredContentEvents(ctx context.Context, before time.Time, l
 	if limit <= 0 {
 		limit = 100
 	}
-	var rows []model.ContentModerationEvent
-	// Include text ciphertext and image isolation metadata so pure-text hits expire too.
+	var rows []models.ContentModerationEvent
+	// 同时包含文本密文与图片隔离元数据，使纯文本命中也能过期。
 	if err := r.db.WithContext(ctx).
 		Where("content_expires_at <= ? AND (encrypted_text <> '' OR image_count > 0 OR (image_meta_json <> '' AND image_meta_json <> '[]'))", before).
 		Limit(limit).
@@ -191,20 +196,20 @@ func (r *Repo) ListExpiredContentEvents(ctx context.Context, before time.Time, l
 }
 
 func (r *Repo) DeleteExpiredMetadata(ctx context.Context, before time.Time) (int64, error) {
-	// Physical delete: retention policy requires rows to disappear, not soft-delete.
+	// 物理删除：保留策略要求行彻底消失，而非软删除。
 	res := r.db.WithContext(ctx).
 		Unscoped().
 		Where(
 			"metadata_expires_at <= ? AND encrypted_text = '' AND image_count = 0 AND (image_meta_json = '' OR image_meta_json = '[]')",
 			before,
 		).
-		Delete(&model.ContentModerationEvent{})
+		Delete(&models.ContentModerationEvent{})
 	return res.RowsAffected, dberror.Translate(res.Error)
 }
 
 func (r *Repo) IncrementDailyStat(ctx context.Context, input repository.DailyStatIncrement) error {
 	day := input.StatDate.UTC().Truncate(24 * time.Hour)
-	row := model.ContentModerationDailyStat{
+	row := models.ContentModerationDailyStat{
 		StatDate:     day,
 		Direction:    input.Direction,
 		Modality:     input.Modality,
@@ -241,7 +246,7 @@ func (r *Repo) IncrementDailyStat(ctx context.Context, input repository.DailySta
 }
 
 func (r *Repo) ListDailyStats(ctx context.Context, from, to time.Time) ([]domaincm.DailyStat, error) {
-	var rows []model.ContentModerationDailyStat
+	var rows []models.ContentModerationDailyStat
 	if err := r.db.WithContext(ctx).
 		Where("stat_date >= ? AND stat_date <= ?", from.UTC().Truncate(24*time.Hour), to.UTC().Truncate(24*time.Hour)).
 		Order("stat_date asc, direction, modality, result, category").
@@ -259,7 +264,7 @@ func (r *Repo) DeleteDailyStatsBefore(ctx context.Context, before time.Time) (in
 	res := r.db.WithContext(ctx).
 		Unscoped().
 		Where("stat_date < ?", before.UTC().Truncate(24*time.Hour)).
-		Delete(&model.ContentModerationDailyStat{})
+		Delete(&models.ContentModerationDailyStat{})
 	return res.RowsAffected, dberror.Translate(res.Error)
 }
 
@@ -280,13 +285,13 @@ func (r *Repo) UpdateRunModeration(ctx context.Context, runID string, state stri
 	if state == domaincm.ModerationStateBlocked {
 		updates["status"] = domaincm.StatusBlocked
 	}
-	return dberror.Translate(r.db.WithContext(ctx).Model(&model.ConversationRun{}).
+	return dberror.Translate(r.db.WithContext(ctx).Model(&models.ConversationRun{}).
 		Where("run_id = ?", runID).
 		Updates(updates).Error)
 }
 
-// ApplyRunBlock writes blocked message state, revokes assistant attachments, clears
-// assistant text/process traces, and marks the run blocked in a single transaction.
+// ApplyRunBlock 在单个事务中写入消息拦截状态、撤销助手附件、清除
+// 助手文本/过程轨迹，并将 run 标记为已拦截。
 func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool, eventPublicID string, categoriesJSON string) ([]string, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
@@ -295,14 +300,14 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 	fileIDs := make([]string, 0)
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var assistantMessageIDs []uint
-		if err := tx.Model(&model.Message{}).
+		if err := tx.Model(&models.Message{}).
 			Where("run_id = ? AND role = ?", runID, "assistant").
 			Pluck("id", &assistantMessageIDs).Error; err != nil {
 			return err
 		}
 		if len(assistantMessageIDs) > 0 {
 			var attachmentFileIDs []string
-			if err := tx.Model(&model.Attachment{}).
+			if err := tx.Model(&models.Attachment{}).
 				Where("message_id IN ? AND status <> ? AND file_id <> ''", assistantMessageIDs, "deleted").
 				Pluck("file_id", &attachmentFileIDs).Error; err != nil {
 				return err
@@ -319,13 +324,13 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 				seen[fileID] = struct{}{}
 				fileIDs = append(fileIDs, fileID)
 			}
-			if err := tx.Model(&model.Attachment{}).
+			if err := tx.Model(&models.Attachment{}).
 				Where("message_id IN ? AND status <> ?", assistantMessageIDs, "deleted").
 				Update("status", "deleted").Error; err != nil {
 				return err
 			}
 			if len(fileIDs) > 0 {
-				if err := tx.Model(&model.FileObject{}).
+				if err := tx.Model(&models.FileObject{}).
 					Where("file_id IN ?", fileIDs).
 					Updates(map[string]any{
 						"status":  "moderation_blocked",
@@ -343,14 +348,14 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 			"error_code":                 "content_moderation.blocked",
 			"error_message":              "content blocked by moderation",
 		}
-		msgQ := tx.Model(&model.Message{}).Where("run_id = ?", runID)
+		msgQ := tx.Model(&models.Message{}).Where("run_id = ?", runID)
 		if !includeUser {
 			msgQ = msgQ.Where("role = ?", "assistant")
 		}
 		if err := msgQ.Updates(msgUpdates).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&model.Message{}).
+		if err := tx.Model(&models.Message{}).
 			Where("run_id = ? AND role = ?", runID, "assistant").
 			Updates(map[string]any{
 				"content":           "",
@@ -359,9 +364,9 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 			}).Error; err != nil {
 			return err
 		}
-		// Drop user-visible process traces / upstream-think so history cannot rehydrate withdrawn content.
+		// 丢弃用户可见的过程轨迹 / upstream-think，避免历史记录重新还原已撤回的内容。
 		if err := tx.Where("run_id = ? AND event_scope IN ?", runID, []string{"trace_block", "trace_event"}).
-			Delete(&model.ChatRunEvent{}).Error; err != nil {
+			Delete(&models.ChatRunEvent{}).Error; err != nil {
 			return err
 		}
 		runUpdates := map[string]any{
@@ -370,7 +375,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 			"moderation_categories_json": categoriesJSON,
 			"status":                     domaincm.StatusBlocked,
 		}
-		res := tx.Model(&model.ConversationRun{}).
+		res := tx.Model(&models.ConversationRun{}).
 			Where("run_id = ?", runID).
 			Updates(runUpdates)
 		if res.Error != nil {
@@ -389,7 +394,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 
 func (r *Repo) GetRunModerationState(ctx context.Context, runID string) (string, error) {
 	var state string
-	err := r.db.WithContext(ctx).Model(&model.ConversationRun{}).
+	err := r.db.WithContext(ctx).Model(&models.ConversationRun{}).
 		Select("moderation_state").
 		Where("run_id = ?", strings.TrimSpace(runID)).
 		Limit(1).
@@ -402,7 +407,7 @@ func (r *Repo) ListStaleModeratingRuns(ctx context.Context, olderThan time.Time,
 		limit = 100
 	}
 	var runIDs []string
-	err := r.db.WithContext(ctx).Model(&model.ConversationRun{}).
+	err := r.db.WithContext(ctx).Model(&models.ConversationRun{}).
 		Select("run_id").
 		Where("moderation_state IN ? AND updated_at < ?", []string{
 			domaincm.ModerationStateModerating,
@@ -413,9 +418,9 @@ func (r *Repo) ListStaleModeratingRuns(ctx context.Context, olderThan time.Time,
 	return runIDs, dberror.Translate(err)
 }
 
-func toModelEvent(item domaincm.Event) model.ContentModerationEvent {
-	return model.ContentModerationEvent{
-		BaseModel:           model.BaseModel{ID: item.ID, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt},
+func toModelEvent(item domaincm.Event) models.ContentModerationEvent {
+	return models.ContentModerationEvent{
+		BaseModel:           models.BaseModel{ID: item.ID, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt},
 		PublicID:            item.PublicID,
 		UserID:              item.UserID,
 		ConversationID:      item.ConversationID,
@@ -442,7 +447,7 @@ func toModelEvent(item domaincm.Event) model.ContentModerationEvent {
 	}
 }
 
-func toDomainEvent(row model.ContentModerationEvent) domaincm.Event {
+func toDomainEvent(row models.ContentModerationEvent) domaincm.Event {
 	return domaincm.Event{
 		ID:                  row.ID,
 		PublicID:            row.PublicID,
@@ -473,7 +478,7 @@ func toDomainEvent(row model.ContentModerationEvent) domaincm.Event {
 	}
 }
 
-func toDomainStat(row model.ContentModerationDailyStat) domaincm.DailyStat {
+func toDomainStat(row models.ContentModerationDailyStat) domaincm.DailyStat {
 	return domaincm.DailyStat{
 		ID:           row.ID,
 		StatDate:     row.StatDate,

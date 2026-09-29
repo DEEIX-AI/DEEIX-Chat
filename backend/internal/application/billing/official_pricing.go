@@ -22,15 +22,15 @@ const (
 	legacyOfficialPricingField    = "legacy_cache"
 )
 
-// openRouterPricingIgnoredFields are provider-side charges that are handled by
-// another DEEIX billing path instead of the model token price.
+// openRouterPricingIgnoredFields 是由 DEEIX 其他计费路径处理、
+// 而非计入模型 token 价格的提供方侧费用。
 var openRouterPricingIgnoredFields = map[string]struct{}{
 	"web_search": {},
 }
 
-// openRouterPricingConditionalFields change when a price applies. Dropping
-// these conditions and keeping their prices would turn a time-based schedule
-// into a token-only tier, so the affected override is skipped as a whole.
+// openRouterPricingConditionalFields 会改变价格的适用条件。若丢弃
+// 这些条件却保留其价格，会把基于时间的计划变成仅按 token 的阶梯，
+// 因此受影响的覆盖项会被整体跳过。
 var openRouterPricingConditionalFields = map[string]struct{}{
 	"utc_days":  {},
 	"utc_end":   {},
@@ -233,8 +233,7 @@ func (p *openRouterModelPricing) UnmarshalJSON(data []byte) error {
 	}
 	sort.Slice(thresholds, func(i, j int) bool { return thresholds[i] < thresholds[j] })
 	effective := make([]openRouterPricingOverride, 0, len(thresholds))
-	// Evaluate every interval from base prices. Matching entries overwrite
-	// individual keys in source order, including entries sharing a threshold.
+	// 每个区间都从基础价格重新计算；匹配项按来源顺序逐键覆盖，共享同一阈值的条目也按此处理。
 	for _, threshold := range thresholds {
 		tier := base
 		tier.MinPromptTokens = threshold
@@ -301,15 +300,12 @@ func parseOpenRouterPricingOverride(raw json.RawMessage, index int) (openRouterP
 				continue
 			}
 			if _, conditional := openRouterPricingConditionalFields[key]; conditional {
-				// A known schedule cannot be represented by the token-only
-				// tier shape. Retain the base model price, but skip this
-				// conditional override rather than applying it unconditionally.
+				// 已知的条件计价方案无法用仅按 token 的阶梯结构表示：
+				// 保留基础模型价格，跳过此条件覆盖项，而不是无条件地应用它。
 				usable = false
 			}
-			// A tier can still be represented when OpenRouter adds a provider
-			// dimension or another field that this billing form does not store.
-			// Record the field for the UI and omit only that field from the
-			// normalized override. The minimum token threshold remains usable.
+			// OpenRouter 增加提供方维度或本计费表单不存储的其他字段时，阶梯仍可表示：
+			// 记录该字段供 UI 展示，仅从规范化覆盖项中省略它，最小 token 阈值仍然可用。
 			unsupported = append(unsupported, path(key))
 		}
 	}
@@ -498,9 +494,9 @@ func officialPricingResultFromCache(cache openRouterPricingCacheFile, cached boo
 		if legacyCache {
 			unsupportedFields = append(unsupportedFields, legacyOfficialPricingField)
 			item.Pricing.CacheWritePriceBasis = openRouterCacheWritePriceBasis(item.ID)
-			// v3/v4 rewrote Anthropic cache prices and lost source precision.
-			// Old materialized tiers also lost override precedence. Neither
-			// can be recovered reliably without a successful upstream refresh.
+			// v3/v4 重写了 Anthropic 缓存价格并丢失了来源精度。
+			// 旧的物化阶梯也丢失了覆盖优先级。两者
+			// 在没有成功的上游刷新时都无法可靠恢复。
 			if cache.Version >= 3 && isOpenRouterAnthropicModelID(item.ID) {
 				item.Pricing.InputCacheWrite = ""
 				unsupportedFields = append(unsupportedFields, "input_cache_write")

@@ -121,10 +121,6 @@
       }
     }
   },
-  "system": {
-    "searchPlaceholder": "搜索来源、事件、资源、请求 ID、详情",
-    "empty": "暂无系统事件"
-  },
   "tabs": {
     "audit": "操作审计",
     "usage": "模型调用",
@@ -132,8 +128,7 @@
     "orders": "订单记录",
     "redemptions": "兑换记录",
     "conversation": "对话事件",
-    "moderation": "审核事件",
-    "system": "系统事件"
+    "moderation": "审核事件"
   },
   "cleanup": {
     "trigger": "清理日志",
@@ -153,7 +148,7 @@
       "usage": "模型调用",
       "orders": "订单记录",
       "conversation": "对话事件",
-      "system": "系统事件"
+      "moderation": "审核事件"
     },
     "impacts": {
       "audit": "仅删除管理员和用户操作的追踪记录，不会删除用户、会话或其他业务数据。",
@@ -161,7 +156,7 @@
       "usage": "删除用量与费用账本，会影响历史日/月用量、当前周期额度统计和计费追溯，并可能使已清理周期的已用额度下降。",
       "orders": "删除支付订单及回调关联依据，不会撤销已发放的余额或订阅，但旧支付回调可能失败，支付追溯和幂等依据将丢失。",
       "conversation": "删除消息处理轨迹、工具调用和运行事件；会话与消息正文保留，但历史处理过程和工具详情可能不再展示。",
-      "system": "删除系统诊断与故障排查记录，不会改变系统配置或当前运行状态。"
+      "moderation": "删除内容审核事件及其判定结果，不会改变审核配置或当前对话内容。"
     },
     "toast": {
       "sessionExpired": "登录状态已失效",
@@ -175,7 +170,6 @@
     "signInAgain": "请重新登录后再继续操作。",
     "auditLoadFailed": "审计日志加载失败",
     "authLoadFailed": "认证日志加载失败",
-    "systemLoadFailed": "系统事件加载失败",
     "usageLoadFailed": "调用日志加载失败",
     "ordersLoadFailed": "订单记录加载失败",
     "redemptionsLoadFailed": "兑换记录加载失败",
@@ -223,9 +217,6 @@
     "event": "事件",
     "result": "结果",
     "reason": "原因",
-    "level": "级别",
-    "source": "来源",
-    "message": "消息",
     "caller": "调用人",
     "model": "模型",
     "usage": "用量",
@@ -306,18 +297,6 @@
       "streaming": "生成中",
       "completed": "已完成",
       "error": "异常"
-    },
-    "cleanup": {
-      "action": "删除运行轨迹",
-      "title": "删除运行轨迹",
-      "description": "将永久删除所选 {count} 个运行的全部处理轨迹。会话、消息、附件、调用记录和计费数据不受影响。",
-      "confirm": "删除",
-      "deleting": "正在删除",
-      "success": "已删除 {runs} 个运行的 {events} 条轨迹记录",
-      "failed": "运行轨迹删除失败",
-      "maxSelection": "单次最多选择 100 个运行",
-      "selectAll": "选择当前页运行",
-      "selectRun": "选择运行 {runID}"
     }
   },
   "detail": {
@@ -327,8 +306,7 @@
       "usage": "调用日志详情",
       "order": "订单记录详情",
       "redemption": "兑换记录详情",
-      "conversation": "对话事件详情",
-      "system": "系统事件详情"
+      "conversation": "对话事件详情"
     },
     "fallbacks": {
       "authEvent": "认证事件",
@@ -336,7 +314,6 @@
       "order": "订单记录",
       "redemption": "兑换记录",
       "conversationEvent": "对话事件",
-      "systemEvent": "系统事件",
       "auditEvent": "审计事件"
     },
     "blocks": {
@@ -377,9 +354,6 @@
       "result": "结果",
       "reason": "原因",
       "occurredAt": "发生时间",
-      "level": "级别",
-      "source": "来源",
-      "message": "消息",
       "caller": "调用人",
       "conversationID": "会话 ID",
       "callTime": "调用时间",

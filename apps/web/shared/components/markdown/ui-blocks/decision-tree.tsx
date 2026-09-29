@@ -44,7 +44,7 @@ function DecisionTree({ id, props }: UIBlockRenderProps<DecisionTreeProps>) {
       return;
     }
     setDirection(1);
-    setPath((currentPath) => [...currentPath.slice(0, -1), { ...(currentPath[currentPath.length - 1] as { nodeID: string }), choice: option.label }, { nodeID: option.next }]);
+    setPath((currentPath) => [...currentPath.slice(0, -1), { ...currentPath[currentPath.length - 1], choice: option.label }, { nodeID: option.next }]);
   };
 
   return (

@@ -5,77 +5,76 @@ import (
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	domainuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/uicomponent"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/channelconfig"
 	"gorm.io/gorm"
 )
 
-// Models returns all persistent Gorm models used by the application.
+// Models 返回应用使用的全部持久化 Gorm 模型。
 func Models() []any {
 	return []any{
-		&model.User{},
-		&model.UserContactVerification{},
-		&model.UserCredential{},
-		&model.UserSession{},
-		&model.UserAuthEvent{},
-		&model.AuthIdentityProvider{},
-		&model.UserIdentity{},
-		&model.UserTwoFactor{},
-		&model.TrustedDevice{},
-		&model.LLMUpstream{},
-		&model.LLMUpstreamModel{},
-		&model.LLMModelVendor{},
-		&model.LLMModelDisplayGroup{},
-		&model.LLMModelIconAsset{},
-		&model.LLMPlatformModel{},
-		&model.LLMPlatformModelRoute{},
-		&model.MCPServer{},
-		&model.MCPTool{},
-		&model.Conversation{},
-		&model.ConversationProject{},
-		&model.ConversationShare{},
-		&model.Message{},
-		&model.ConversationMessageFeedback{},
-		&model.Attachment{},
-		&model.FileObject{},
-		&model.UserStorageQuota{},
-		&model.ConversationRun{},
-		&model.ContentModerationEvent{},
-		&model.ContentModerationDailyStat{},
-		&model.ChatRunEvent{},
-		&model.ChatContextRecord{},
-		&model.UserMemory{},
-		&model.BillingPlan{},
-		&model.BillingPrice{},
-		&model.Subscription{},
-		&model.PaymentOrder{},
-		&model.BillingAccount{},
-		&model.BalanceTransaction{},
-		&model.UsageReservation{},
-		&model.RedemptionCode{},
-		&model.Redemption{},
-		&model.ModelPricing{},
-		&model.UsageLedger{},
-		&model.AuditLog{},
-		&model.SystemEvent{},
-		&model.Announcement{},
-		&model.AnnouncementUserState{},
-		&model.PromptPreset{},
-		&model.Skill{},
-		&model.UIComponent{},
-		&model.KnowledgeBase{},
-		&model.KnowledgeBaseFile{},
-		&model.ConversationProjectMCPTool{},
-		&model.ConversationProjectSkill{},
-		&model.ConversationProjectKnowledgeBase{},
-		&model.SystemSetting{},
-		&model.UserSetting{},
-		&model.FileChunk{},
-		&model.MessageChunk{},
-		&model.PermissionGroup{},
-		&model.PermissionGroupModelAccess{},
-		&model.PermissionGroupModelRule{},
-		&model.PermissionGroupUserAccess{},
+		&models.User{},
+		&models.UserContactVerification{},
+		&models.UserCredential{},
+		&models.UserSession{},
+		&models.UserAuthEvent{},
+		&models.AuthIdentityProvider{},
+		&models.UserIdentity{},
+		&models.UserTwoFactor{},
+		&models.TrustedDevice{},
+		&models.LLMUpstream{},
+		&models.LLMUpstreamModel{},
+		&models.LLMModelVendor{},
+		&models.LLMModelDisplayGroup{},
+		&models.LLMModelIconAsset{},
+		&models.LLMPlatformModel{},
+		&models.LLMPlatformModelRoute{},
+		&models.MCPServer{},
+		&models.MCPTool{},
+		&models.Conversation{},
+		&models.ConversationProject{},
+		&models.ConversationShare{},
+		&models.Message{},
+		&models.ConversationMessageFeedback{},
+		&models.Attachment{},
+		&models.FileObject{},
+		&models.UserStorageQuota{},
+		&models.ConversationRun{},
+		&models.ContentModerationEvent{},
+		&models.ContentModerationDailyStat{},
+		&models.ChatRunEvent{},
+		&models.ChatContextRecord{},
+		&models.UserMemory{},
+		&models.BillingPlan{},
+		&models.BillingPrice{},
+		&models.Subscription{},
+		&models.PaymentOrder{},
+		&models.BillingAccount{},
+		&models.BalanceTransaction{},
+		&models.UsageReservation{},
+		&models.RedemptionCode{},
+		&models.Redemption{},
+		&models.ModelPricing{},
+		&models.UsageLedger{},
+		&models.AuditLog{},
+		&models.Announcement{},
+		&models.AnnouncementUserState{},
+		&models.PromptPreset{},
+		&models.Skill{},
+		&models.UIComponent{},
+		&models.KnowledgeBase{},
+		&models.KnowledgeBaseFile{},
+		&models.ConversationProjectMCPTool{},
+		&models.ConversationProjectSkill{},
+		&models.ConversationProjectKnowledgeBase{},
+		&models.SystemSetting{},
+		&models.UserSetting{},
+		&models.FileChunk{},
+		&models.MessageChunk{},
+		&models.PermissionGroup{},
+		&models.PermissionGroupModelAccess{},
+		&models.PermissionGroupModelRule{},
+		&models.PermissionGroupUserAccess{},
 	}
 }
 
@@ -84,7 +83,7 @@ func Models() []any {
 func SeedModelVendors(db *gorm.DB) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		for _, item := range domainchannel.BuiltInModelVendors() {
-			entity := model.LLMModelVendor{
+			entity := models.LLMModelVendor{
 				Key:       item.Key,
 				Name:      item.Name,
 				Icon:      item.Icon,
@@ -102,14 +101,14 @@ func SeedModelVendors(db *gorm.DB) error {
 		}
 
 		var vendorKeys []string
-		if err := tx.Model(&model.LLMPlatformModel{}).
+		if err := tx.Model(&models.LLMPlatformModel{}).
 			Distinct("vendor").
 			Where("vendor <> ?", "").
 			Pluck("vendor", &vendorKeys).Error; err != nil {
 			return err
 		}
 		for _, key := range vendorKeys {
-			entity := model.LLMModelVendor{Key: key, Name: key}
+			entity := models.LLMModelVendor{Key: key, Name: key}
 			if err := tx.Where("key = ?", key).Attrs(entity).FirstOrCreate(&entity).Error; err != nil {
 				return err
 			}
@@ -128,11 +127,11 @@ func SeedUIComponents(db *gorm.DB) error {
 		for _, item := range builtin {
 			names = append(names, item.Name)
 		}
-		if err := tx.Where("scope = ? AND name NOT IN ?", domainuicomponent.ScopeBuiltin, names).Delete(&model.UIComponent{}).Error; err != nil {
+		if err := tx.Where("scope = ? AND name NOT IN ?", domainuicomponent.ScopeBuiltin, names).Delete(&models.UIComponent{}).Error; err != nil {
 			return err
 		}
 		for _, item := range builtin {
-			entity := model.UIComponent{
+			entity := models.UIComponent{
 				Scope:          domainuicomponent.ScopeBuiltin,
 				OwnerUserID:    0,
 				Name:           item.Name,
@@ -165,7 +164,7 @@ func SeedUIComponents(db *gorm.DB) error {
 	})
 }
 
-// Migrate creates or updates the baseline schema with Gorm's portable migrator.
+// Migrate 使用 Gorm 的可移植 migrator 创建或更新基线 schema。
 func Migrate(db *gorm.DB) error {
 	for _, item := range Models() {
 		if db.Migrator().HasTable(item) {
@@ -187,8 +186,8 @@ func Migrate(db *gorm.DB) error {
 	return backfillUsageLedgerBillingAt(db)
 }
 
-// invalidateUnsignedFileEmbeddings makes legacy vectors enter the existing reindex flow.
-// Message and memory vectors without a signature stay hidden until naturally regenerated.
+// invalidateUnsignedFileEmbeddings 使旧版向量进入现有的重建索引流程。
+// 无签名的消息与记忆向量在自然重新生成前保持隐藏。
 func invalidateUnsignedFileEmbeddings(db *gorm.DB) error {
 	return db.Exec(`
 		UPDATE file_objects
@@ -205,7 +204,7 @@ func invalidateUnsignedFileEmbeddings(db *gorm.DB) error {
 // backfillContextArtifactMessageIDs 将旧证据统一迁移到产生该证据的助手运行节点。
 // 同一次生成的 user/assistant 消息共享 run_id；仅在唯一匹配助手消息时回填，异常重复 run 数据保持不变。
 func backfillContextArtifactMessageIDs(db *gorm.DB) error {
-	if !db.Migrator().HasTable(&model.ChatContextRecord{}) || !db.Migrator().HasTable(&model.Message{}) {
+	if !db.Migrator().HasTable(&models.ChatContextRecord{}) || !db.Migrator().HasTable(&models.Message{}) {
 		return nil
 	}
 	return db.Exec(`
@@ -251,24 +250,24 @@ func backfillContextArtifactMessageIDs(db *gorm.DB) error {
 }
 
 func backfillUsageLedgerBillingAt(db *gorm.DB) error {
-	if !db.Migrator().HasTable(&model.UsageLedger{}) || !db.Migrator().HasColumn(&model.UsageLedger{}, "billing_at") {
+	if !db.Migrator().HasTable(&models.UsageLedger{}) || !db.Migrator().HasColumn(&models.UsageLedger{}, "billing_at") {
 		return nil
 	}
-	return db.Model(&model.UsageLedger{}).
+	return db.Model(&models.UsageLedger{}).
 		Where("billing_at IS NULL").
 		Update("billing_at", gorm.Expr("created_at")).Error
 }
 
-// CleanupRemovedColumns drops columns that were removed from the Gorm models.
+// CleanupRemovedColumns 删除已从 Gorm 模型中移除的列。
 func CleanupRemovedColumns(db *gorm.DB) error {
-	if err := dropColumns(db, &model.PromptPreset{}, []string{"use_count", "last_used_at", "category", "tags_json"}); err != nil {
+	if err := dropColumns(db, &models.PromptPreset{}, []string{"use_count", "last_used_at", "category", "tags_json"}); err != nil {
 		return err
 	}
-	if err := dropColumns(db, &model.Skill{}, []string{"content", "sections_json"}); err != nil {
+	if err := dropColumns(db, &models.Skill{}, []string{"content", "sections_json"}); err != nil {
 		return err
 	}
 	// discount_percent 从未进入任何计价路径，随字段移除一并清理。
-	if err := dropColumns(db, &model.BillingPlan{}, []string{"discount_percent"}); err != nil {
+	if err := dropColumns(db, &models.BillingPlan{}, []string{"discount_percent"}); err != nil {
 		return err
 	}
 	return nil
@@ -289,13 +288,13 @@ func dropColumns(db *gorm.DB, table any, columns []string) error {
 	return nil
 }
 
-// SeedLLMSettings inserts default LLM runtime settings if they do not exist.
+// SeedLLMSettings 在默认 LLM 运行时设置不存在时插入它们。
 func SeedLLMSettings(db *gorm.DB) error {
 	breakerDefaultsJSON, err := channelconfig.MarshalBreakerDefaults(domainchannel.DefaultBreakerDefaults())
 	if err != nil {
 		return err
 	}
-	settings := []model.SystemSetting{
+	settings := []models.SystemSetting{
 		{
 			Namespace:   "llm",
 			Key:         "circuit_breaker.error_classification",
@@ -335,7 +334,7 @@ func SeedLLMSettings(db *gorm.DB) error {
 	return nil
 }
 
-// SeedPermissionGroups inserts the built-in default permission group if it does not exist.
+// SeedPermissionGroups 在内置默认权限组不存在时插入。
 func SeedPermissionGroups(db *gorm.DB) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		defaultGroup, err := ensureSingleDefaultPermissionGroup(tx)
@@ -349,13 +348,13 @@ func SeedPermissionGroups(db *gorm.DB) error {
 	})
 }
 
-func ensureSingleDefaultPermissionGroup(db *gorm.DB) (*model.PermissionGroup, error) {
-	defaultGroups := make([]model.PermissionGroup, 0)
+func ensureSingleDefaultPermissionGroup(db *gorm.DB) (*models.PermissionGroup, error) {
+	defaultGroups := make([]models.PermissionGroup, 0)
 	if err := db.Where("is_default = ?", true).Order("id ASC").Find(&defaultGroups).Error; err != nil {
 		return nil, err
 	}
 	if len(defaultGroups) == 0 {
-		defaultGroup := model.PermissionGroup{
+		defaultGroup := models.PermissionGroup{
 			Name:        "Default",
 			Description: "All users implicitly belong to this group",
 			IsDefault:   true,
@@ -367,7 +366,7 @@ func ensureSingleDefaultPermissionGroup(db *gorm.DB) (*model.PermissionGroup, er
 	}
 	defaultGroup := defaultGroups[0]
 	if len(defaultGroups) > 1 {
-		if err := db.Model(&model.PermissionGroup{}).
+		if err := db.Model(&models.PermissionGroup{}).
 			Where("is_default = ? AND id <> ?", true, defaultGroup.ID).
 			Update("is_default", false).Error; err != nil {
 			return nil, err
@@ -381,20 +380,20 @@ func seedInitialDefaultModelAccessRule(db *gorm.DB, defaultGroupID uint) error {
 		return nil
 	}
 	var manualCount int64
-	if err := db.Model(&model.PermissionGroupModelAccess{}).Count(&manualCount).Error; err != nil {
+	if err := db.Model(&models.PermissionGroupModelAccess{}).Count(&manualCount).Error; err != nil {
 		return err
 	}
 	if manualCount > 0 {
 		return nil
 	}
 	var ruleCount int64
-	if err := db.Model(&model.PermissionGroupModelRule{}).Count(&ruleCount).Error; err != nil {
+	if err := db.Model(&models.PermissionGroupModelRule{}).Count(&ruleCount).Error; err != nil {
 		return err
 	}
 	if ruleCount > 0 {
 		return nil
 	}
-	rule := model.PermissionGroupModelRule{
+	rule := models.PermissionGroupModelRule{
 		GroupID:  defaultGroupID,
 		RuleType: domainchannel.PermissionGroupModelRuleAll,
 		Value:    "",
@@ -402,25 +401,25 @@ func seedInitialDefaultModelAccessRule(db *gorm.DB, defaultGroupID uint) error {
 	return db.Where(rule).FirstOrCreate(&rule).Error
 }
 
-// SeedBillingCatalog inserts the default plans and prices if the billing catalog is empty.
+// SeedBillingCatalog 在计费目录为空时插入默认套餐与价格。
 func SeedBillingCatalog(db *gorm.DB) error {
 	defaultGroupID, err := defaultPermissionGroupID(db)
 	if err != nil {
 		return err
 	}
 	var planCount int64
-	if err := db.Model(&model.BillingPlan{}).Count(&planCount).Error; err != nil {
+	if err := db.Model(&models.BillingPlan{}).Count(&planCount).Error; err != nil {
 		return err
 	}
 	var priceCount int64
-	if err := db.Model(&model.BillingPrice{}).Count(&priceCount).Error; err != nil {
+	if err := db.Model(&models.BillingPrice{}).Count(&priceCount).Error; err != nil {
 		return err
 	}
 	if planCount > 0 || priceCount > 0 {
 		return bindBillingPlansToDefaultGroup(db, defaultGroupID)
 	}
 
-	plans := []model.BillingPlan{
+	plans := []models.BillingPlan{
 		{
 			Code:                "free",
 			Name:                "Free",
@@ -472,18 +471,18 @@ func SeedBillingCatalog(db *gorm.DB) error {
 			planIDByCode[item.Code] = item.ID
 		}
 
-		prices := []model.BillingPrice{
-			{PlanID: planIDByCode["free"], Code: "free-default", BillingInterval: model.BillingIntervalLifetime, Currency: "USD", AmountCents: 0, IsActive: true, IsDefault: true},
-			{PlanID: planIDByCode["pro"], Code: "pro-monthly", BillingInterval: model.BillingIntervalMonth, Currency: "USD", AmountCents: 2000, IsActive: true, IsDefault: true},
-			{PlanID: planIDByCode["max"], Code: "max-monthly", BillingInterval: model.BillingIntervalMonth, Currency: "USD", AmountCents: 5000, IsActive: true, IsDefault: true},
-			{PlanID: planIDByCode["ultra"], Code: "ultra-monthly", BillingInterval: model.BillingIntervalMonth, Currency: "USD", AmountCents: 20000, IsActive: true, IsDefault: true},
+		prices := []models.BillingPrice{
+			{PlanID: planIDByCode["free"], Code: "free-default", BillingInterval: models.BillingIntervalLifetime, Currency: "USD", AmountCents: 0, IsActive: true, IsDefault: true},
+			{PlanID: planIDByCode["pro"], Code: "pro-monthly", BillingInterval: models.BillingIntervalMonth, Currency: "USD", AmountCents: 2000, IsActive: true, IsDefault: true},
+			{PlanID: planIDByCode["max"], Code: "max-monthly", BillingInterval: models.BillingIntervalMonth, Currency: "USD", AmountCents: 5000, IsActive: true, IsDefault: true},
+			{PlanID: planIDByCode["ultra"], Code: "ultra-monthly", BillingInterval: models.BillingIntervalMonth, Currency: "USD", AmountCents: 20000, IsActive: true, IsDefault: true},
 		}
 		return tx.Create(&prices).Error
 	})
 }
 
 func defaultPermissionGroupID(db *gorm.DB) (*uint, error) {
-	var group model.PermissionGroup
+	var group models.PermissionGroup
 	if err := db.Where("is_default = ?", true).Order("id ASC").First(&group).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -497,17 +496,17 @@ func bindBillingPlansToDefaultGroup(db *gorm.DB, defaultGroupID *uint) error {
 	if defaultGroupID == nil {
 		return nil
 	}
-	return db.Model(&model.BillingPlan{}).
+	return db.Model(&models.BillingPlan{}).
 		Where("permission_group_id IS NULL").
 		Update("permission_group_id", *defaultGroupID).Error
 }
 
 func clearDefaultPermissionGroupUsers(db *gorm.DB) error {
-	defaultGroupIDs := db.Model(&model.PermissionGroup{}).
+	defaultGroupIDs := db.Model(&models.PermissionGroup{}).
 		Select("id").
 		Where("is_default = ?", true)
 	return db.Where("group_id IN (?)", defaultGroupIDs).
-		Delete(&model.PermissionGroupUserAccess{}).Error
+		Delete(&models.PermissionGroupUserAccess{}).Error
 }
 
 func copyUintPointer(value *uint) *uint {

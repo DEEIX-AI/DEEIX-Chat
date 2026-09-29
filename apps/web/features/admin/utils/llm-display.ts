@@ -1,6 +1,6 @@
-import type { AdminLLMAdapter } from "@/features/admin/api/llm.types";
+import type { AdminLLMAdapter } from "@/features/admin/api/llm-types";
 
-// 模型类型枚举；展示文案统一走 i18n（adminModels/adminUpstreams 命名空间下的 kinds.*），此处不维护英文 label。
+// Model kind enum; display labels always go through i18n (kinds.* in the adminModels/adminUpstreams namespaces), so no English labels are kept here.
 export const MODEL_KINDS = [
   "chat",
   "audio",
@@ -10,7 +10,7 @@ export const MODEL_KINDS = [
   "video_extension",
 ] as const;
 
-// 品牌名为专有名词，不参与翻译；"custom" 由调用方走 i18n（compatible.custom）。
+// Brand names are proper nouns and are not translated; "custom" is resolved by callers via i18n (compatible.custom).
 export const COMPATIBLE_OPTIONS = [
   { label: "OpenAI", value: "openai" },
   { label: "Anthropic", value: "anthropic" },
@@ -26,9 +26,9 @@ type ProtocolOption = {
   kinds: readonly string[];
 };
 
-// 协议展示顺序：厂商按 OpenAI → Anthropic → Google → xAI → OpenRouter；
-// 同一厂商内按 Chat Completions → Responses → 图片生成 → 图片编辑 → 视频。
-// 此顺序通过 PROTOCOL_DISPLAY_ORDER 作用于所有协议排序展示。
+// Protocol display order: vendors OpenAI → Anthropic → Google → xAI → OpenRouter;
+// within a vendor, Chat Completions → Responses → image generation → image editing → video.
+// This order applies to all sorted protocol displays via PROTOCOL_DISPLAY_ORDER.
 export const PROTOCOL_OPTIONS: ReadonlyArray<ProtocolOption> = [
   { value: "openai_chat_completions", label: "Chat Completions (OpenAI)", kinds: ["chat"] },
   { value: "openai_responses", label: "Responses (OpenAI)", kinds: ["chat"] },
@@ -70,7 +70,7 @@ const VIDEO_ROUTE_PROTOCOL_PAIRS: ReadonlyArray<readonly [AdminLLMAdapter, Admin
   ["xai_video", "xai_video_extensions"],
 ];
 
-// 协议名为技术专有名词（对应上游 API 端点），保持英文展示，不参与翻译。
+// Protocol names are technical terms (matching upstream API endpoints), shown in English and not translated.
 export function resolveProtocolLabel(protocol: string): string {
   return PROTOCOL_LABELS[protocol] ?? protocol;
 }

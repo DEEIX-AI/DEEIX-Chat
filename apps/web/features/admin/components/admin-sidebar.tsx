@@ -6,8 +6,13 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { AdminUpdateTooltipContent } from "@/features/admin/components/admin-update-tooltip-content";
-import { ADMIN_SECTIONS, type AdminSection } from "@/features/admin/model/admin-sections";
+import { AdminUpdateTooltipContent } from "@/features/admin/components/shared/update-tooltip-content";
+import {
+  ADMIN_SECTIONS,
+  type AdminSection,
+  DEFAULT_ADMIN_SECTION,
+  resolveAdminSectionFromPath,
+} from "@/features/admin/model/admin-sections";
 import {
   getCachedLatestReleaseSnapshot,
   getServerLatestReleaseSnapshot,
@@ -17,34 +22,25 @@ import {
 import { cn } from "@/lib/utils";
 import packageMeta from "@/package.json";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
+import { isSectionAvailable, useCapabilities } from "@/shared/capabilities";
 
 const ADMIN_SECTION_LABEL_KEYS: Record<AdminSection, string> = {
   statistics: "sections.statistics",
-  accounts: "sections.accounts",
+  users: "sections.accounts",
   upstreams: "sections.upstreams",
   models: "sections.models",
   groups: "sections.groups",
-  "tool-settings": "sections.toolSettings",
+  tools: "sections.toolSettings",
   billing: "sections.billing",
   announcements: "sections.announcements",
   logs: "sections.logs",
   "content-moderation": "sections.contentModeration",
-  "login-settings": "sections.loginSettings",
-  "conversation-settings": "sections.conversationSettings",
-  "chat-files": "sections.chatFiles",
+  login: "sections.loginSettings",
+  conversation: "sections.conversationSettings",
+  files: "sections.chatFiles",
   "knowledge-bases": "sections.knowledgeBases",
   about: "sections.about",
 };
-
-function resolveActiveSectionFromPath(pathname: string, basePath: string): AdminSection {
-  const normalizedBasePath = basePath.replace(/\/$/, "");
-  const section = ADMIN_SECTIONS.find((item) => {
-    const href = `${normalizedBasePath}${item.href}`;
-    return pathname === href || pathname.startsWith(`${href}/`);
-  });
-
-  return section?.id ?? "statistics";
-}
 
 export function AdminSidebar({
   basePath,
@@ -55,7 +51,8 @@ export function AdminSidebar({
   const tAbout = useTranslations("adminUsers.aboutPage");
   const { user } = useAuthSession();
   const pathname = usePathname();
-  const activeSection = resolveActiveSectionFromPath(pathname, basePath);
+  const activeSection = resolveAdminSectionFromPath(pathname, basePath)?.id ?? DEFAULT_ADMIN_SECTION;
+  const { flags } = useCapabilities();
   const activeLinkRef = React.useRef<HTMLAnchorElement | null>(null);
   const cachedLatestRelease = React.useSyncExternalStore(
     subscribeLatestReleaseChange,
@@ -63,12 +60,10 @@ export function AdminSidebar({
     getServerLatestReleaseSnapshot,
   );
   const updateRelease = resolveAvailableRelease(packageMeta.version, cachedLatestRelease);
-  const visibleSections = React.useMemo(
-    () => user?.role === "superadmin"
-      ? ADMIN_SECTIONS
-      : ADMIN_SECTIONS.filter((item) => item.id !== "content-moderation"),
-    [user?.role],
-  );
+  const visibleSections = React.useMemo(() => {
+    const sections = ADMIN_SECTIONS.filter((item) => isSectionAvailable(item, flags));
+    return user?.role === "superadmin" ? sections : sections.filter((item) => item.id !== "content-moderation");
+  }, [flags, user?.role]);
   const sectionLabel = React.useCallback(
     (id: AdminSection, fallback: string) => {
       return t(ADMIN_SECTION_LABEL_KEYS[id]) || fallback;

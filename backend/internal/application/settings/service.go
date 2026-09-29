@@ -20,6 +20,7 @@ type Service struct {
 	authSafety        authSafetyService
 	vectorStore       vectorStoreAvailabilityService
 	auditWriter       auditWriter
+	runtime           *config.Runtime
 }
 
 type authSafetyService interface {
@@ -87,8 +88,8 @@ func (s *Service) Seed(ctx context.Context) error {
 	if err := s.repo.UpsertWithDescription(ctx, items); err != nil {
 		return err
 	}
-	// Install replacement defaults before deleting obsolete keys so a partial
-	// startup failure never leaves the deployment without either configuration.
+	// 先安装替代默认值再删除过时键，确保部分
+	// 启动失败时部署不会同时缺失两种配置。
 	for _, item := range obsoleteSettings() {
 		if err := s.repo.Delete(ctx, item.Namespace, item.Key); err != nil {
 			return err
@@ -336,6 +337,10 @@ func (s *Service) BatchUpdate(ctx context.Context, patches []PatchItem) (map[str
 		if err := validatePatchItem(p); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := s.rejectLockedSettings(ctx, patches); err != nil {
+		return nil, err
 	}
 
 	patches, err := s.applyAuthSettingDependencies(ctx, patches)
@@ -638,7 +643,7 @@ func validateEmailVerificationSMTPSettings(next map[string]string) error {
 func (s *Service) applyEmbeddingDependentCascades(ctx context.Context, patches []PatchItem) ([]PatchItem, error) {
 	hasEmbeddingPatch := false
 	for _, item := range patches {
-		if item.Namespace == "file" && (item.Key == "embedding_enabled" || item.Key == "embedding_host" || item.Key == "rag_model") {
+		if item.Namespace == "file" && (item.Key == "embedding_enabled" || item.Key == "embedding_host" || item.Key == "embedding_protocol" || item.Key == "rag_model") {
 			hasEmbeddingPatch = true
 			break
 		}
@@ -709,7 +714,7 @@ func (s *Service) validateEmbeddingDependentSettings(ctx context.Context, patche
 	for _, item := range patches {
 		if item.Namespace == "file" {
 			switch item.Key {
-			case "embedding_enabled", "embedding_host", "rag_model":
+			case "embedding_enabled", "embedding_host", "embedding_protocol", "rag_model":
 				requiresValidation = true
 			}
 		}

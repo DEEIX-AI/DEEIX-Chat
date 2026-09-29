@@ -1,4 +1,4 @@
-package cache
+package redis
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	"github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v8"
 )
 
 const consumeProviderAuthRecordScript = `
@@ -21,11 +21,11 @@ return value
 `
 
 type providerAuthBridge struct {
-	client *redis.Client
+	client *goredis.Client
 }
 
-// NewProviderAuthBridge creates the Redis-backed provider auth bridge store.
-func NewProviderAuthBridge(client *redis.Client) repository.ProviderAuthBridgeRepository {
+// NewProviderAuthBridge 创建基于 Redis 的 provider auth bridge 存储。
+func NewProviderAuthBridge(client *goredis.Client) repository.ProviderAuthBridgeRepository {
 	return &providerAuthBridge{client: client}
 }
 
@@ -69,7 +69,7 @@ func (s *providerAuthBridge) consume(ctx context.Context, key string, destinatio
 		return repository.ErrNotFound
 	}
 	value, err := s.client.Eval(ctx, consumeProviderAuthRecordScript, []string{key}).Text()
-	if errors.Is(err, redis.Nil) {
+	if errors.Is(err, goredis.Nil) {
 		return repository.ErrNotFound
 	}
 	if err != nil {

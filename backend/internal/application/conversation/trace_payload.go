@@ -8,9 +8,9 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 )
 
-// tracePayload is the application-owned trace model. Provider-specific JSON is
-// kept at the protocol boundary; trace state itself is always represented by
-// explicit fields before it is serialized for persistence or events.
+// tracePayload 是应用层自有的 trace 模型。提供方特定的 JSON
+// 保留在协议边界；trace 状态本身在序列化用于持久化或事件前，
+// 始终以显式字段表示。
 type tracePayload struct {
 	FileMode       string                     `json:"file_mode,omitempty"`
 	FileNames      []string                   `json:"file_names,omitempty"`
@@ -70,6 +70,7 @@ type traceCitation struct {
 	ChunkIndex int     `json:"chunk_index,omitempty"`
 	Score      float32 `json:"score,omitempty"`
 	Preview    string  `json:"preview,omitempty"`
+	Modality   string  `json:"modality,omitempty"`
 }
 
 type traceToolCall struct {
@@ -97,8 +98,8 @@ type traceReasoning struct {
 	EncryptedContent string `json:"encrypted_content,omitempty"`
 }
 
-// promptTracePayload is kept separate from the domain display model so
-// persisted legacy payloads can be decoded without an untyped intermediate map.
+// promptTracePayload 与领域展示模型分离，使
+// 持久化的旧版载荷无需经由无类型的中间 map 即可解码。
 type promptTracePayload struct {
 	Mode                   string                    `json:"mode,omitempty"`
 	PromptFingerprint      string                    `json:"promptFingerprint,omitempty"`

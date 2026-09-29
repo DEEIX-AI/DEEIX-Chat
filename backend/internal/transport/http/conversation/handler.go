@@ -188,8 +188,8 @@ func streamErrorPayloadWithResult(err error, result *appconversation.SendMessage
 	return payload
 }
 
-// moderationBlockedStreamPayload is retained for recovery/reconnect assembly only.
-// Live streams receive moderation_blocked via OnEvent after ApplyRunBlock commits.
+// moderationBlockedStreamPayload 仅保留用于恢复/重连时的组装。
+// 实时流在 ApplyRunBlock 提交后通过 OnEvent 接收 moderation_blocked。
 // 此时运行已定稿，可直接按结算结论标注"拦截后上游用量照常计费"。
 func moderationBlockedStreamPayload(result *appconversation.SendMessageResult, authorization *domainbilling.UsageAuthorization) map[string]any {
 	payload := map[string]any{

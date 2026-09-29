@@ -1,4 +1,4 @@
-package db
+package postgres
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/vectorutil"
-	"gorm.io/driver/postgres"
+	gormpostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -76,7 +76,7 @@ func TestEnsurePostgresVectorColumnPreservesLegacyVectors(t *testing.T) {
 	if dsn == "" {
 		t.Skip("set DEEIX_TEST_DATABASE_DSN to run PostgreSQL vector migration integration test")
 	}
-	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	database, err := gorm.Open(gormpostgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}

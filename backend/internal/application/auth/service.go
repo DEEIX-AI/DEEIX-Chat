@@ -103,7 +103,7 @@ func (s *Service) SetLogger(logger *zap.Logger) {
 	s.logger = logger
 }
 
-// SetProviderAuthBridge injects the short-lived OAuth handoff store.
+// SetProviderAuthBridge 注入短时效的 OAuth 交接存储。
 func (s *Service) SetProviderAuthBridge(store repository.ProviderAuthBridgeRepository) {
 	s.providerAuthBridge = store
 }
@@ -469,7 +469,7 @@ type UpdateProfileInput struct {
 	AppearancePreferences *string
 }
 
-// UpdateUsernameInput contains the one-time username change request.
+// UpdateUsernameInput 包含一次性用户名修改请求。
 type UpdateUsernameInput struct {
 	Username string
 }
@@ -549,7 +549,7 @@ func shouldRequireInitialUsername(item domainuser.User, adminUsername string) bo
 	return false
 }
 
-// CompleteOnboarding completes required first-login account setup.
+// CompleteOnboarding 完成首次登录必需的账号设置。
 func (s *Service) CompleteOnboarding(
 	ctx context.Context,
 	userID uint,

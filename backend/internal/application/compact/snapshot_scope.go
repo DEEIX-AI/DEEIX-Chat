@@ -10,8 +10,8 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
-// SnapshotBoundaryIndex returns the covered boundary index when a snapshot can
-// be proven to match the current active branch prefix.
+// SnapshotBoundaryIndex 在能证明快照与当前活动分支前缀匹配时，
+// 返回其覆盖的边界索引。
 func SnapshotBoundaryIndex(messages []domainconversation.Message, snapshot *domainconversation.ContextSnapshot) (int, bool) {
 	if !SnapshotHasCoverage(snapshot) || len(messages) == 0 {
 		return -1, false
@@ -35,12 +35,9 @@ func SnapshotBoundaryIndex(messages []domainconversation.Message, snapshot *doma
 	return -1, false
 }
 
-// SnapshotBoundaryAncestorIndex returns the snapshot boundary index inside a
-// contiguous ancestor path. It is used when the loaded path starts at or after
-// the original branch root, so the full covered-prefix hash cannot be
-// recomputed locally. Parent links are immutable, so a matching boundary
-// message in the current ancestor path proves the snapshot belongs to this
-// branch.
+// SnapshotBoundaryAncestorIndex 返回快照边界在连续祖先路径中的索引。
+// 适用于已加载路径起始于原始分支根或其之后、因而无法在本地重新计算完整覆盖前缀哈希的场景。
+// 父链接不可变，因此只要当前祖先路径中存在匹配的边界消息，即可证明该快照属于此分支。
 func SnapshotBoundaryAncestorIndex(messages []domainconversation.Message, snapshot *domainconversation.ContextSnapshot) (int, bool) {
 	if !SnapshotHasCoverage(snapshot) || len(messages) == 0 {
 		return -1, false
@@ -57,9 +54,9 @@ func SnapshotBoundaryAncestorIndex(messages []domainconversation.Message, snapsh
 	return -1, false
 }
 
-// SnapshotHasCoverage rejects legacy snapshots that do not carry a verifiable
-// branch boundary. Such snapshots may still be shown in traces, but must not
-// replace history in the model prompt.
+// SnapshotHasCoverage 拒绝不带可验证分支边界的
+// 旧版快照。此类快照仍可在 trace 中展示，但不得
+// 替换模型提示词中的历史。
 func SnapshotHasCoverage(snapshot *domainconversation.ContextSnapshot) bool {
 	return snapshot != nil &&
 		strings.TrimSpace(snapshot.SummaryText) != "" &&
@@ -69,16 +66,16 @@ func SnapshotHasCoverage(snapshot *domainconversation.ContextSnapshot) bool {
 		snapshot.CoveredMessageCount > 0
 }
 
-// CoveragePathHash hashes the exact covered prefix of a branch. The hash uses
-// stable message identity and parent links, not message content, so edits create
-// a new message path rather than mutating previous coverage.
+// CoveragePathHash 对分支的精确覆盖前缀计算哈希。该哈希使用
+// 稳定的消息身份与父链接而非消息内容，因此编辑会创建
+// 新的消息路径，而不是改变已有覆盖范围。
 func CoveragePathHash(messages []domainconversation.Message) string {
 	return ExtendCoveragePathHash("", messages)
 }
 
-// ExtendCoveragePathHash appends a new covered segment to an existing coverage
-// hash. This keeps rolling snapshots verifiable even when only the previous
-// boundary-to-current ancestor window is loaded.
+// ExtendCoveragePathHash 将新的覆盖片段追加到已有的覆盖
+// 哈希上。这使滚动快照即使只加载了上一个
+// 边界到当前的祖先窗口，也仍可验证。
 func ExtendCoveragePathHash(previousHash string, messages []domainconversation.Message) string {
 	state := strings.TrimSpace(previousHash)
 	for _, message := range messages {

@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -61,35 +60,29 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import {
-  deleteAdminLLMUpstreamModel,
-  listAdminLLMModelUpstreamSources,
-  openAdminLLMUpstreamModelCircuit,
-  resetAdminLLMUpstreamCircuit,
-  resetAdminLLMUpstreamModelCircuit,
-  updateAdminLLMModelUpstreamSource,
-} from "@/features/admin/api";
 import type {
   AdminLLMModelAccessScope,
   AdminLLMModelCbPolicyMode,
   AdminLLMModelDTO,
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMStatus,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import {
   ADAPTER_LABELS,
   formatDateTime,
   resolveValue,
 } from "@/features/admin/types/llm";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
+import {
+  type InlineSourceEntry,
+  type InlineSourceTarget,
+  useAdminModelsInlineSources,
+} from "@/features/admin/hooks/use-admin-models-inline-sources";
+import { isAdminLLMModelAccessScope } from "@/features/admin/model/admin-unions";
 import { sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
-import { isAdminLLMSourceAvailable } from "@/features/admin/utils/llm-source-availability";
 import { cn } from "@/lib/utils";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { ModelIcon } from "@/shared/components/model-icon";
+import { ModelIcon, parseKindsJSON, resolveModelIconURL, resolveModelIdentity } from "@/entities/model";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
-import { parseKindsJSON } from "@/shared/model/llm-schema";
+import { isString, parseJSON } from "@/shared/lib/type-guards";
 import {
   ModelSourceCircuitDialog,
   type ModelSourceCircuitPayload,
@@ -285,15 +278,7 @@ function SourceStatusText({
   );
 }
 
-type InlineSourceEntry = {
-  items: AdminLLMModelUpstreamSourceDTO[];
-  loading: boolean;
-};
-
-type InlineSourceDeleteTarget = {
-  modelId: number;
-  source: AdminLLMModelUpstreamSourceDTO;
-};
+type InlineSourceDeleteTarget = InlineSourceTarget;
 
 type InlineSourceCircuitTarget = {
   modelId: number;
@@ -345,12 +330,10 @@ type ModelTableRowProps = {
   onInlineSourceDeleteRequest: (target: InlineSourceDeleteTarget) => void;
 };
 
+// Malformed or non-array JSON yields no protocols rather than breaking the row.
 function resolveModelProtocols(item: AdminLLMModelDTO): string[] {
-  try {
-    return item.protocolsJSON ? sortProtocolsForDisplay(JSON.parse(item.protocolsJSON) as string[]) : [];
-  } catch {
-    return [];
-  }
+  const parsed = item.protocolsJSON ? parseJSON(item.protocolsJSON) : undefined;
+  return Array.isArray(parsed) ? sortProtocolsForDisplay(parsed.filter(isString)) : [];
 }
 
 const ModelTableRow = React.memo(function ModelTableRow({
@@ -470,7 +453,9 @@ const ModelTableRow = React.memo(function ModelTableRow({
             <Select
               value={item.accessScope === "internal" ? "internal" : "public"}
               disabled={updatePending}
-              onValueChange={(value) => onToggleAccessScope(item, value as AdminLLMModelAccessScope)}
+              onValueChange={(value) => {
+                if (isAdminLLMModelAccessScope(value)) onToggleAccessScope(item, value);
+              }}
             >
               <SelectTrigger
                 size="sm"
@@ -552,8 +537,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
       </TableRow>
 
       {expanded ? (
-        <>
-          {inlineData?.loading ? (
+          inlineData?.loading ? (
             <TableRow tone="muted">
               <CollapsibleTableCell
                 colSpan={10}
@@ -739,8 +723,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
                 {t("sources.empty")}
               </CollapsibleTableCell>
             </TableRow>
-          )}
-        </>
+          )
       ) : null}
     </React.Fragment>
   );
@@ -770,13 +753,25 @@ export function ModelsTable({
   const [expandedRows, setExpandedRows] = React.useState<Set<number>>(new Set());
   const [openingRows, setOpeningRows] = React.useState<Set<number>>(new Set());
   const [collapsingRows, setCollapsingRows] = React.useState<Set<number>>(new Set());
-  const [inlineSources, setInlineSources] = React.useState<Record<number, InlineSourceEntry>>({});
   const [deleteSourceTarget, setDeleteSourceTarget] = React.useState<InlineSourceDeleteTarget | null>(null);
-  const [deleteSourcePending, setDeleteSourcePending] = React.useState(false);
   const stableDeleteSourceTarget = useDialogSnapshot(deleteSourceTarget);
   const [circuitTarget, setCircuitTarget] = React.useState<InlineSourceCircuitTarget | null>(null);
-  const [circuitPending, setCircuitPending] = React.useState(false);
-  const inlineSourcesRef = React.useRef(inlineSources);
+  const {
+    inlineSources,
+    deleteSourcePending,
+    circuitPending,
+    ensureInlineSources,
+    handleInlineCircuit,
+    handleInlineStatusToggle,
+    saveCircuitSettings,
+    deleteInlineSource,
+  } = useAdminModelsInlineSources({
+    items,
+    circuitBreakerEnabled,
+    onRefreshModels,
+    onSourceAvailabilityChange,
+    onSourceDeleteChange,
+  });
   const collapseTimersRef = React.useRef<Record<number, number>>({});
   const openFramesRef = React.useRef<Record<number, number>>({});
   const virtualRows = useVirtualTableRows(items, {
@@ -788,30 +783,6 @@ export function ModelsTable({
 
   const allModelsSelected = items.length > 0 && items.every((item) => selectedModelIDs.has(item.id));
   const someModelsSelected = items.some((item) => selectedModelIDs.has(item.id));
-
-  React.useEffect(() => {
-    inlineSourcesRef.current = inlineSources;
-  }, [inlineSources]);
-
-  React.useEffect(() => {
-    if (circuitBreakerEnabled) return;
-    setInlineSources((current) =>
-      Object.fromEntries(
-        Object.entries(current).map(([modelID, entry]) => [
-          modelID,
-          {
-            ...entry,
-            items: entry.items.map((source) => ({
-              ...source,
-              circuitOpen: false,
-              circuitUntil: "",
-              circuitScope: "" as const,
-            })),
-          },
-        ]),
-      ),
-    );
-  }, [circuitBreakerEnabled]);
 
   const clearCollapseTimer = React.useCallback((id: number) => {
     const timer = collapseTimersRef.current[id];
@@ -852,24 +823,6 @@ export function ModelsTable({
       return next;
     });
   }, [onSelectedModelIDsChange]);
-
-  const refreshInlineSources = React.useCallback(async (modelId: number) => {
-    const token = await resolveAccessToken();
-    if (!token) return;
-    const data = await listAdminLLMModelUpstreamSources(token, modelId, {
-      page: 1,
-      pageSize: 100,
-    });
-    const nextEntry = { items: data.results, loading: false };
-    inlineSourcesRef.current = {
-      ...inlineSourcesRef.current,
-      [modelId]: nextEntry,
-    };
-    setInlineSources((prev) => ({
-      ...prev,
-      [modelId]: nextEntry,
-    }));
-  }, []);
 
   const handleToggleRow = React.useCallback(
     async (item: AdminLLMModelDTO) => {
@@ -936,205 +889,28 @@ export function ModelsTable({
         });
       });
 
-      if (!inlineSourcesRef.current[item.id]) {
-        const loadingEntry: InlineSourceEntry = { items: [], loading: true };
-        inlineSourcesRef.current = {
-          ...inlineSourcesRef.current,
-          [item.id]: loadingEntry,
-        };
-        setInlineSources((prev) => ({
-          ...prev,
-          [item.id]: loadingEntry,
-        }));
-        try {
-          await refreshInlineSources(item.id);
-        } catch {
-          const failedEntry: InlineSourceEntry = { items: [], loading: false };
-          inlineSourcesRef.current = {
-            ...inlineSourcesRef.current,
-            [item.id]: failedEntry,
-          };
-          setInlineSources((prev) => ({
-            ...prev,
-            [item.id]: failedEntry,
-          }));
-        }
-      }
+      await ensureInlineSources(item.id);
     },
-    [clearCollapseTimer, clearOpenFrame, expandedRows, refreshInlineSources],
-  );
-
-  const handleInlineCircuit = React.useCallback(
-    async (
-      source: AdminLLMModelUpstreamSourceDTO,
-      modelId: number,
-      action: "open" | "reset",
-    ) => {
-      const token = await resolveAccessToken();
-      if (!token) return;
-      const nextSource =
-        action === "open"
-          ? {
-              ...source,
-              circuitOpen: true,
-              circuitUntil: String(Math.floor(Date.now() / 1000) + 24 * 60 * 60),
-              circuitScope: "source" as const,
-            }
-          : { ...source, circuitOpen: false, circuitUntil: "", circuitScope: "" as const };
-      const modelStatus = items.find((item) => item.id === modelId)?.status ?? "inactive";
-      const previousAvailable = isAdminLLMSourceAvailable(source, modelStatus);
-      const nextAvailable = isAdminLLMSourceAvailable(nextSource, modelStatus);
-      setInlineSources((prev) => ({
-        ...prev,
-        [modelId]: {
-          ...(prev[modelId] ?? { items: [], loading: false }),
-          items: (prev[modelId]?.items ?? []).map((item) => (item.id === source.id ? nextSource : item)),
-        },
-      }));
-      onSourceAvailabilityChange?.(modelId, previousAvailable, nextAvailable);
-      try {
-        if (action === "open") {
-          await openAdminLLMUpstreamModelCircuit(token, source.upstreamID, source.id);
-          toast.success(t("toast.circuitOpened"));
-        } else if (source.circuitScope === "upstream") {
-          await resetAdminLLMUpstreamCircuit(token, source.upstreamID);
-          toast.success(t("toast.circuitReset"));
-        } else {
-          await resetAdminLLMUpstreamModelCircuit(token, source.upstreamID, source.id);
-          toast.success(t("toast.circuitReset"));
-        }
-        onRefreshModels?.();
-      } catch (error) {
-        setInlineSources((prev) => ({
-          ...prev,
-          [modelId]: {
-            ...(prev[modelId] ?? { items: [], loading: false }),
-            items: (prev[modelId]?.items ?? []).map((item) => (item.id === source.id ? source : item)),
-          },
-        }));
-        onSourceAvailabilityChange?.(modelId, nextAvailable, previousAvailable);
-        toast.error(t("toast.operationFailed"), { description: resolveAdminErrorMessage(error) });
-      }
-    },
-    [items, onRefreshModels, onSourceAvailabilityChange, t],
-  );
-
-  const handleInlineStatusToggle = React.useCallback(
-    async (source: AdminLLMModelUpstreamSourceDTO, modelId: number) => {
-      const token = await resolveAccessToken();
-      if (!token) return;
-
-      const nextStatus: AdminLLMStatus = source.status === "active" ? "inactive" : "active";
-      const modelStatus = items.find((item) => item.id === modelId)?.status ?? "inactive";
-      const nextSource = { ...source, status: nextStatus };
-      const previousAvailable = isAdminLLMSourceAvailable(source, modelStatus);
-      const nextAvailable = isAdminLLMSourceAvailable(nextSource, modelStatus);
-      setInlineSources((prev) => ({
-        ...prev,
-        [modelId]: {
-          ...(prev[modelId] ?? { items: [], loading: false }),
-          items: (prev[modelId]?.items ?? []).map((item) =>
-            item.id === source.id ? nextSource : item,
-          ),
-        },
-      }));
-      onSourceAvailabilityChange?.(modelId, previousAvailable, nextAvailable);
-      try {
-        const data = await updateAdminLLMModelUpstreamSource(token, modelId, source.id, {
-          status: nextStatus,
-        });
-        setInlineSources((prev) => ({
-          ...prev,
-          [modelId]: {
-            ...(prev[modelId] ?? { items: [], loading: false }),
-            items: (prev[modelId]?.items ?? []).map((item) => (item.id === source.id ? data.source : item)),
-          },
-        }));
-        toast.success(nextStatus === "inactive" ? t("toast.sourceDisabled") : t("toast.sourceEnabled"));
-      } catch (error) {
-        setInlineSources((prev) => ({
-          ...prev,
-          [modelId]: {
-            ...(prev[modelId] ?? { items: [], loading: false }),
-            items: (prev[modelId]?.items ?? []).map((item) => (item.id === source.id ? source : item)),
-          },
-        }));
-        onSourceAvailabilityChange?.(modelId, nextAvailable, previousAvailable);
-        toast.error(t("toast.operationFailed"), { description: resolveAdminErrorMessage(error) });
-      }
-    },
-    [items, onSourceAvailabilityChange, t],
+    [clearCollapseTimer, clearOpenFrame, ensureInlineSources, expandedRows],
   );
 
   const handleInlineCircuitSettingsSave = React.useCallback(async (payload: ModelSourceCircuitPayload) => {
-    if (!circuitTarget || circuitPending) {
+    if (!circuitTarget) {
       return;
     }
-
-    const token = await resolveAccessToken();
-    if (!token) {
-      toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-      return;
-    }
-
-    const { modelId, source } = circuitTarget;
-    setCircuitPending(true);
-    try {
-      const data = await updateAdminLLMModelUpstreamSource(token, modelId, source.id, payload);
-      setInlineSources((prev) => ({
-        ...prev,
-        [modelId]: {
-          ...(prev[modelId] ?? { items: [], loading: false }),
-          items: (prev[modelId]?.items ?? []).map((item) => (item.id === source.id ? data.source : item)),
-        },
-      }));
-      toast.success(t("sources.circuitUpdated"));
+    if (await saveCircuitSettings(circuitTarget, payload)) {
       setCircuitTarget(null);
-    } catch (error) {
-      toast.error(t("toast.routeUpdateFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setCircuitPending(false);
     }
-  }, [circuitPending, circuitTarget, t]);
+  }, [circuitTarget, saveCircuitSettings]);
 
   const handleInlineSourceDelete = React.useCallback(async () => {
-    if (!deleteSourceTarget || deleteSourcePending) {
+    if (!deleteSourceTarget) {
       return;
     }
-
-    const token = await resolveAccessToken();
-    if (!token) {
-      toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-      return;
-    }
-
-    const { modelId, source } = deleteSourceTarget;
-    const previousEntry = inlineSourcesRef.current[modelId] ?? { items: [], loading: false };
-    setDeleteSourcePending(true);
-    setInlineSources((prev) => ({
-      ...prev,
-      [modelId]: {
-        ...(prev[modelId] ?? { items: [], loading: false }),
-        items: (prev[modelId]?.items ?? []).filter((item) => item.id !== source.id),
-      },
-    }));
-    onSourceDeleteChange?.(modelId, source, true);
-
-    try {
-      await deleteAdminLLMUpstreamModel(token, source.upstreamID, source.id);
-      toast.success(t("toast.sourceDeleted"));
+    if (await deleteInlineSource(deleteSourceTarget)) {
       setDeleteSourceTarget(null);
-    } catch (error) {
-      setInlineSources((prev) => ({
-        ...prev,
-        [modelId]: previousEntry,
-      }));
-      onSourceDeleteChange?.(modelId, source, false);
-      toast.error(t("toast.sourceDeleteFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setDeleteSourcePending(false);
     }
-  }, [deleteSourcePending, deleteSourceTarget, onSourceDeleteChange, t]);
+  }, [deleteInlineSource, deleteSourceTarget]);
 
   return (
     <>

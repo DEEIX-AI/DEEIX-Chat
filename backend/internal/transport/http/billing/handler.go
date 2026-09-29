@@ -230,7 +230,10 @@ func (h *Handler) PatchBillingConfig(c *gin.Context) {
 		})
 	}
 	if _, err := h.settings.BatchUpdate(c.Request.Context(), patches); err != nil {
-		if errors.Is(err, appsettings.ErrInvalidSetting) {
+		var disabled *appsettings.FeatureDisabledError
+		if errors.As(err, &disabled) {
+			middleware.WriteFeatureDisabled(c, disabled.Feature, disabled.Keys...)
+		} else if errors.Is(err, appsettings.ErrInvalidSetting) {
 			writeSettingsValidationError(c, err)
 		} else {
 			response.InternalError(c)
@@ -390,8 +393,8 @@ func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 // @Param status query string false "状态：active/inactive"
 // @Param availability query string false "可兑换性：available/expired/exhausted"
 // @Param q query string false "搜索关键词"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} RedemptionCodeListResponseDoc
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/redemption-codes [get]
@@ -853,8 +856,8 @@ func (h *Handler) Subscribe(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param query query string false "搜索模型"
 // @Param status query string false "状态筛选：free/billable"
 // @Param sort query string false "排序：newest/oldest/tokens_desc/cost_desc/latency_desc"
@@ -987,8 +990,8 @@ func (h *Handler) ListDailyUsage(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param q query string false "搜索关键词"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} ModelPricingListResponseDoc
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/model-prices [get]

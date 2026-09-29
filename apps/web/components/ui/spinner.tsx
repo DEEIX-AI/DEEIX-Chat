@@ -1,7 +1,7 @@
 import { Loader2Icon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import * as React from "react"
+import type * as React from "react"
 
 function Spinner({ className, label, ...props }: React.ComponentProps<"svg"> & { label?: string }) {
   const accessibleLabel = label ?? props["aria-label"]

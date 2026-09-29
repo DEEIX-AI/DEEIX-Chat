@@ -1,4 +1,4 @@
-import type { KnowledgeBaseFileDTO } from "@/shared/api/knowledge-bases.types";
+import type { KnowledgeBaseFileDTO } from "@/shared/api/knowledge-bases-types";
 
 export type KnowledgeBaseMode = "user" | "admin";
 

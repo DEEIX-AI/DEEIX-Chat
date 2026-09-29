@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstorage"
 )
 
 func TestRuntimeProviderRequiresFactory(t *testing.T) {
@@ -18,14 +18,14 @@ func TestRuntimeProviderRequiresFactory(t *testing.T) {
 }
 
 func TestRuntimeProviderCachesStoreUntilStorageConfigChanges(t *testing.T) {
-	runtime := config.NewRuntime(config.Config{StorageBackend: objectstore.BackendLocal, StorageRootDir: t.TempDir()})
+	runtime := config.NewRuntime(config.Config{StorageBackend: objectstorage.BackendLocal, StorageRootDir: t.TempDir()})
 	var mu sync.Mutex
 	factoryCalls := 0
-	provider := NewRuntimeProvider(runtime, func(_ context.Context, cfg config.Config) (objectstore.Store, error) {
+	provider := NewRuntimeProvider(runtime, func(_ context.Context, cfg config.Config) (objectstorage.Store, error) {
 		mu.Lock()
 		factoryCalls++
 		mu.Unlock()
-		return objectstore.NewLocal(cfg.StorageRootDir), nil
+		return objectstorage.NewLocal(cfg.StorageRootDir), nil
 	})
 
 	const workers = 16

@@ -3,7 +3,6 @@
 import * as React from "react";
 import { CircleDollarSign, CircleHelp, Save } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,48 +12,16 @@ import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, Tab
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import { listAdminMCPServers, listAdminMCPServerTools, updateAdminMCPTool } from "@/features/admin/api";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import {
+  formatMCPToolPriceInput,
+  mcpToolPriceInputToNanousd,
+  useAdminBillingMcpTools,
+} from "@/features/admin/hooks/use-admin-billing-mcp-tools";
 import { SettingsSection } from "@/shared/components/settings-layout";
 
-type MCPToolPricingRow = {
-  toolID: number;
-  serverID: number;
-  serverName: string;
-  toolLabel: string;
-  toolName: string;
-  toolDescription: string;
-  priceNanousd: number;
-};
+const MCP_PRICING_PAGE_SIZE_DEFAULT = 25;
 
-type MCPServerOption = {
-  id: number;
-  name: string;
-};
-
-const MCP_PRICING_PAGE_SIZES = [25, 50, 100] as const;
-
-function formatMCPToolPriceInput(priceNanousd: number): string {
-  if (!Number.isFinite(priceNanousd) || priceNanousd <= 0) {
-    return "0";
-  }
-  return String(priceNanousd / 1_000_000_000);
-}
-
-function mcpToolPriceInputToNanousd(value: string): number | null {
-  const parsed = Number(value.trim());
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return null;
-  }
-  return Math.round(parsed * 1_000_000_000);
-}
-
-function mcpToolPriceDraftsFrom(rows: MCPToolPricingRow[]): Record<number, string> {
-  return Object.fromEntries(rows.map((row) => [row.toolID, formatMCPToolPriceInput(row.priceNanousd)]));
-}
-
-// BulkActionControlRow 与用户/模型/上游管理的批量菜单保持同一行布局：应用按钮 + 控件。
+// BulkActionControlRow shares the single-row layout of the user/model/upstream bulk menus: apply button + control.
 function BulkActionControlRow({
   icon,
   label,
@@ -88,53 +55,25 @@ function BulkActionControlRow({
 export function BillingMCPToolsSection() {
   const t = useTranslations("adminBilling");
   const tActions = useTranslations("common.actions");
-  const [rows, setRows] = React.useState<MCPToolPricingRow[]>([]);
-  const [servers, setServers] = React.useState<MCPServerOption[]>([]);
-  const [savedPrices, setSavedPrices] = React.useState<Record<number, number>>({});
-  const [priceDrafts, setPriceDrafts] = React.useState<Record<number, string>>({});
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [serverFilter, setServerFilter] = React.useState("");
   const [selectedToolIDs, setSelectedToolIDs] = React.useState<Set<number>>(new Set());
   const [bulkPriceDraft, setBulkPriceDraft] = React.useState("");
   const [page, setPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState<number>(MCP_PRICING_PAGE_SIZES[0]);
-
-  const load = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const serverItems = await listAdminMCPServers(token);
-      const toolLists = await Promise.all(serverItems.map((server) => listAdminMCPServerTools(token, server.id)));
-      const nextRows = serverItems.flatMap((server, index) => toolLists[index].map((tool) => ({
-        toolID: tool.id,
-        serverID: server.id,
-        serverName: server.name,
-        toolLabel: tool.displayName?.trim() || tool.name,
-        toolName: tool.name,
-        toolDescription: tool.description?.trim() ?? "",
-        priceNanousd: tool.priceNanousd,
-      })));
-      setServers(serverItems.map((server) => ({ id: server.id, name: server.name })));
-      setRows(nextRows);
-      setSavedPrices(Object.fromEntries(nextRows.map((row) => [row.toolID, row.priceNanousd])));
-      setPriceDrafts(mcpToolPriceDraftsFrom(nextRows));
-      setSelectedToolIDs(new Set());
-    } catch (error) {
-      toast.error(t("toast.mcpToolsLoadFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  React.useEffect(() => {
-    void load();
-  }, [load]);
+  const [pageSize, setPageSize] = React.useState(MCP_PRICING_PAGE_SIZE_DEFAULT);
+  const clearSelection = React.useCallback(() => setSelectedToolIDs(new Set()), []);
+  const {
+    rows,
+    servers,
+    priceDrafts,
+    loading,
+    saving,
+    changedRows,
+    load,
+    save,
+    updatePriceDraft,
+    applyPriceToTools,
+  } = useAdminBillingMcpTools({ onLoaded: clearSelection });
 
   const filteredRows = React.useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -204,34 +143,21 @@ export function BillingMCPToolsSection() {
 
   const bulkPriceNanousd = mcpToolPriceInputToNanousd(bulkPriceDraft);
 
-  // 批量设置只更新本地草稿，与单行编辑一致，统一由右上角保存按钮持久化。
+  // Bulk edits only update the local draft, like single-row edits; the top-right Save button persists everything.
   const applyBulkPrice = React.useCallback(() => {
     if (bulkPriceNanousd === null || bulkPriceDraft.trim() === "" || selectedToolIDs.size === 0) {
       return;
     }
-    setRows((current) => current.map((row) => (
-      selectedToolIDs.has(row.toolID) ? { ...row, priceNanousd: bulkPriceNanousd } : row
-    )));
-    setPriceDrafts((current) => {
-      const next = { ...current };
-      for (const toolID of selectedToolIDs) {
-        next[toolID] = formatMCPToolPriceInput(bulkPriceNanousd);
-      }
-      return next;
-    });
+    applyPriceToTools(selectedToolIDs, bulkPriceNanousd);
     setSelectedToolIDs(new Set());
-  }, [bulkPriceDraft, bulkPriceNanousd, selectedToolIDs]);
+  }, [applyPriceToTools, bulkPriceDraft, bulkPriceNanousd, selectedToolIDs]);
 
-  const changedRows = React.useMemo(
-    () => rows.filter((row) => row.priceNanousd !== (savedPrices[row.toolID] ?? 0)),
-    [rows, savedPrices],
-  );
   const pricingActions = changedRows.length > 0 ? (
     <Button
       type="button"
       size="sm"
       disabled={loading || saving}
-      onClick={() => void handleSave()}
+      onClick={() => void save()}
     >
       {saving ? <SpinnerLabel>{tActions("saving")}</SpinnerLabel> : (
         <>
@@ -241,43 +167,6 @@ export function BillingMCPToolsSection() {
       )}
     </Button>
   ) : null;
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const savedTools = await Promise.all(changedRows.map((row) => (
-        updateAdminMCPTool(token, row.toolID, { priceNanousd: row.priceNanousd })
-      )));
-      const savedPriceByID = new Map(savedTools.map((tool) => [tool.id, tool.priceNanousd]));
-      setRows((current) => current.map((row) => (
-        savedPriceByID.has(row.toolID) ? { ...row, priceNanousd: savedPriceByID.get(row.toolID) ?? row.priceNanousd } : row
-      )));
-      setSavedPrices((current) => {
-        const next = { ...current };
-        for (const [toolID, priceNanousd] of savedPriceByID) {
-          next[toolID] = priceNanousd;
-        }
-        return next;
-      });
-      setPriceDrafts((current) => {
-        const next = { ...current };
-        for (const [toolID, priceNanousd] of savedPriceByID) {
-          next[toolID] = formatMCPToolPriceInput(priceNanousd);
-        }
-        return next;
-      });
-      toast.success(t("toast.mcpToolPricingSaved"));
-    } catch (error) {
-      toast.error(t("toast.mcpToolPricingSaveFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-    } finally {
-      setSaving(false);
-    }
-  }
 
   const sectionTitle = (
     <span className="inline-flex items-center gap-1">
@@ -413,20 +302,7 @@ export function BillingMCPToolsSection() {
                           className="h-7 w-24 text-right font-mono text-xs"
                           disabled={loading || saving}
                           aria-label={`${row.serverName} ${row.toolLabel} ${t("toolPricing.price")}`}
-                          onChange={(event) => {
-                            const nextDraft = event.target.value;
-                            const nextNanousd = mcpToolPriceInputToNanousd(nextDraft);
-                            setPriceDrafts((current) => ({
-                              ...current,
-                              [row.toolID]: nextDraft,
-                            }));
-                            if (nextNanousd === null) {
-                              return;
-                            }
-                            setRows((current) => current.map((item) => (
-                              item.toolID === row.toolID ? { ...item, priceNanousd: nextNanousd } : item
-                            )));
-                          }}
+                          onChange={(event) => updatePriceDraft(row.toolID, event.target.value)}
                         />
                         <span className="whitespace-nowrap text-muted-foreground">
                           / {t("toolPricing.units.call")}
@@ -445,7 +321,6 @@ export function BillingMCPToolsSection() {
           page={page}
           pageCount={pageCount}
           pageSize={pageSize}
-          pageSizeOptions={MCP_PRICING_PAGE_SIZES}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
           loading={loading}

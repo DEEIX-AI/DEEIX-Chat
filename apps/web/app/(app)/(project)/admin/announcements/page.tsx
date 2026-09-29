@@ -1,5 +1,5 @@
-import { AdminAnnouncementsPage } from "@/features/admin/components/sections/announcements/admin-announcements";
+import { AdminAnnouncementsPage } from "@/features/admin";
 
-export default function AdminAnnouncementsRoute() {
+export default function Page() {
   return <AdminAnnouncementsPage />;
 }

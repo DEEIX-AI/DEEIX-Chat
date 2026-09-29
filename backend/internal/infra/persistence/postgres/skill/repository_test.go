@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -21,11 +21,11 @@ func TestDeleteSkillCleansConversationProjectAssociations(t *testing.T) {
 	t.Cleanup(func() {
 		_ = sqlDB.Close()
 	})
-	if err = db.AutoMigrate(&model.Skill{}, &model.ConversationProjectSkill{}); err != nil {
+	if err = db.AutoMigrate(&models.Skill{}, &models.ConversationProjectSkill{}); err != nil {
 		t.Fatalf("migrate sqlite: %v", err)
 	}
 
-	skill := model.Skill{
+	skill := models.Skill{
 		Scope:       "user",
 		OwnerUserID: 1,
 		Title:       "Project skill",
@@ -35,7 +35,7 @@ func TestDeleteSkillCleansConversationProjectAssociations(t *testing.T) {
 	if err = db.Create(&skill).Error; err != nil {
 		t.Fatalf("create skill: %v", err)
 	}
-	if err = db.Create(&model.ConversationProjectSkill{ProjectID: 9, SkillID: skill.ID}).Error; err != nil {
+	if err = db.Create(&models.ConversationProjectSkill{ProjectID: 9, SkillID: skill.ID}).Error; err != nil {
 		t.Fatalf("create project Skill association: %v", err)
 	}
 
@@ -44,7 +44,7 @@ func TestDeleteSkillCleansConversationProjectAssociations(t *testing.T) {
 	}
 
 	var associationCount int64
-	if err = db.Model(&model.ConversationProjectSkill{}).Where("skill_id = ?", skill.ID).Count(&associationCount).Error; err != nil {
+	if err = db.Model(&models.ConversationProjectSkill{}).Where("skill_id = ?", skill.ID).Count(&associationCount).Error; err != nil {
 		t.Fatalf("count project Skill associations: %v", err)
 	}
 	if associationCount != 0 {

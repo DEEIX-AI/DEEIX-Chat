@@ -8,7 +8,7 @@ import type {
   FileObjectDTO,
   FileProcessingStatusDTO,
   UploadFileResult,
-} from "@/shared/api/file.types";
+} from "@/shared/api/file-types";
 import {
   ApiNetworkError,
   apiFetch,

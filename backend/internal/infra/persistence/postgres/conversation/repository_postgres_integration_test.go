@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -23,32 +23,32 @@ func TestSearchMessageChunksFiltersPostgresBranchBeforeTopK(t *testing.T) {
 
 	db, cleanup := openConversationPostgresIntegrationDB(t, dsn)
 	t.Cleanup(cleanup)
-	if err := db.AutoMigrate(&model.Message{}, &model.MessageChunk{}); err != nil {
+	if err := db.AutoMigrate(&models.Message{}, &models.MessageChunk{}); err != nil {
 		t.Fatalf("migrate conversation vector models: %v", err)
 	}
 	if err := db.Exec(`ALTER TABLE chat_message_chunks ADD COLUMN IF NOT EXISTS embedding vector`).Error; err != nil {
 		t.Fatalf("add message embedding column: %v", err)
 	}
 
-	root := model.Message{ConversationID: 20, UserID: 1, PublicID: "msg_pg_vector_root", Role: "user", Status: "success"}
+	root := models.Message{ConversationID: 20, UserID: 1, PublicID: "msg_pg_vector_root", Role: "user", Status: "success"}
 	if err := db.Create(&root).Error; err != nil {
 		t.Fatalf("create root message: %v", err)
 	}
-	active := model.Message{
+	active := models.Message{
 		ConversationID: 20, UserID: 1, PublicID: "msg_pg_vector_active", ParentMessageID: &root.ID,
 		Role: "assistant", Status: "success",
 	}
 	if err := db.Create(&active).Error; err != nil {
 		t.Fatalf("create active message: %v", err)
 	}
-	sibling := model.Message{
+	sibling := models.Message{
 		ConversationID: 20, UserID: 1, PublicID: "msg_pg_vector_sibling", ParentMessageID: &root.ID,
 		Role: "assistant", BranchReason: "retry", Status: "success",
 	}
 	if err := db.Create(&sibling).Error; err != nil {
 		t.Fatalf("create sibling message: %v", err)
 	}
-	leaf := model.Message{
+	leaf := models.Message{
 		ConversationID: 20, UserID: 1, PublicID: "msg_pg_vector_leaf", ParentMessageID: &active.ID,
 		Role: "user", Status: "pending",
 	}
@@ -56,7 +56,7 @@ func TestSearchMessageChunksFiltersPostgresBranchBeforeTopK(t *testing.T) {
 		t.Fatalf("create leaf message: %v", err)
 	}
 
-	chunks := []model.MessageChunk{
+	chunks := []models.MessageChunk{
 		{ConversationID: 20, MessageID: active.ID, UserID: 1, Role: "assistant", Content: "active branch target", EmbeddingSignature: embeddingSignature},
 		{ConversationID: 20, MessageID: sibling.ID, UserID: 1, Role: "assistant", Content: "closer sibling target", EmbeddingSignature: embeddingSignature},
 		{ConversationID: 20, MessageID: root.ID, UserID: 1, Role: "user", Content: "legacy signature target", EmbeddingSignature: "other-model@1536"},

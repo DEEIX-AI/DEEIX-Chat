@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -302,12 +302,12 @@ func TestReplaceServerToolsPreservesLegacyMetadataAfterConfirmation(t *testing.T
 	if err != nil || len(tools) != 2 {
 		t.Fatalf("list initial tools = %#v, error = %v", tools, err)
 	}
-	if err = db.Model(&model.MCPTool{}).
+	if err = db.Model(&models.MCPTool{}).
 		Where("server_id = ?", server.ID).
 		UpdateColumn("metadata_customized", nil).Error; err != nil {
 		t.Fatalf("simulate legacy metadata state: %v", err)
 	}
-	if err = db.Model(&model.MCPTool{}).
+	if err = db.Model(&models.MCPTool{}).
 		Where("server_id = ? AND name = ?", server.ID, "tool_a").
 		UpdateColumns(map[string]any{
 			"display_name": "Existing title",
@@ -375,7 +375,7 @@ func TestRemovingMCPToolsCleansConversationProjectAssociations(t *testing.T) {
 		t.Fatalf("list tools: %v", err)
 	}
 	for _, tool := range tools {
-		if err = db.Create(&model.ConversationProjectMCPTool{ProjectID: 9, ToolID: tool.ID}).Error; err != nil {
+		if err = db.Create(&models.ConversationProjectMCPTool{ProjectID: 9, ToolID: tool.ID}).Error; err != nil {
 			t.Fatalf("create project MCP association: %v", err)
 		}
 	}
@@ -385,7 +385,7 @@ func TestRemovingMCPToolsCleansConversationProjectAssociations(t *testing.T) {
 	}, false); err != nil {
 		t.Fatalf("replace tools with removal: %v", err)
 	}
-	var associations []model.ConversationProjectMCPTool
+	var associations []models.ConversationProjectMCPTool
 	if err = db.Order("tool_id ASC").Find(&associations).Error; err != nil {
 		t.Fatalf("list project MCP associations: %v", err)
 	}
@@ -397,7 +397,7 @@ func TestRemovingMCPToolsCleansConversationProjectAssociations(t *testing.T) {
 		t.Fatalf("DeleteServer() error = %v", err)
 	}
 	var associationCount int64
-	if err = db.Model(&model.ConversationProjectMCPTool{}).Count(&associationCount).Error; err != nil {
+	if err = db.Model(&models.ConversationProjectMCPTool{}).Count(&associationCount).Error; err != nil {
 		t.Fatalf("count project MCP associations: %v", err)
 	}
 	if associationCount != 0 {
@@ -505,24 +505,24 @@ func openMCPSQLiteTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.MCPServer{}, &model.MCPTool{}, &model.ConversationProjectMCPTool{}); err != nil {
+	if err := db.AutoMigrate(&models.MCPServer{}, &models.MCPTool{}, &models.ConversationProjectMCPTool{}); err != nil {
 		t.Fatalf("migrate sqlite: %v", err)
 	}
 	return db
 }
 
-func createMCPServer(t *testing.T, db *gorm.DB, name string) model.MCPServer {
+func createMCPServer(t *testing.T, db *gorm.DB, name string) models.MCPServer {
 	t.Helper()
-	server := model.MCPServer{Name: name, BaseURL: "https://example.com/mcp", HeadersJSON: "{}", Status: "active"}
+	server := models.MCPServer{Name: name, BaseURL: "https://example.com/mcp", HeadersJSON: "{}", Status: "active"}
 	if err := db.Create(&server).Error; err != nil {
 		t.Fatalf("create mcp server: %v", err)
 	}
 	return server
 }
 
-func loadStoredMCPTool(t *testing.T, db *gorm.DB, toolID uint) model.MCPTool {
+func loadStoredMCPTool(t *testing.T, db *gorm.DB, toolID uint) models.MCPTool {
 	t.Helper()
-	var tool model.MCPTool
+	var tool models.MCPTool
 	if err := db.First(&tool, "id = ?", toolID).Error; err != nil {
 		t.Fatalf("load stored MCP tool: %v", err)
 	}

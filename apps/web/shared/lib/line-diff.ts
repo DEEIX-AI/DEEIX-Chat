@@ -18,8 +18,8 @@ export function diffLines(before: string, after: string): DiffLine[] {
   // lcs[i][j] = LCS length of a[i..] and b[j..]
   const lcs: Uint16Array[] = Array.from({ length: a.length + 1 }, () => new Uint16Array(b.length + 1));
   for (let i = a.length - 1; i >= 0; i -= 1) {
-    const row = lcs[i] as Uint16Array;
-    const next = lcs[i + 1] as Uint16Array;
+    const row = lcs[i];
+    const next = lcs[i + 1];
     for (let j = b.length - 1; j >= 0; j -= 1) {
       row[j] = a[i] === b[j] ? (next[j + 1] ?? 0) + 1 : Math.max(next[j] ?? 0, row[j + 1] ?? 0);
     }
@@ -66,8 +66,8 @@ export function diffWords(before: string, after: string): { before: DiffSegment[
   }
   const lcs: Uint16Array[] = Array.from({ length: a.length + 1 }, () => new Uint16Array(b.length + 1));
   for (let i = a.length - 1; i >= 0; i -= 1) {
-    const row = lcs[i] as Uint16Array;
-    const next = lcs[i + 1] as Uint16Array;
+    const row = lcs[i];
+    const next = lcs[i + 1];
     for (let j = b.length - 1; j >= 0; j -= 1) {
       row[j] = a[i] === b[j] ? (next[j + 1] ?? 0) + 1 : Math.max(next[j] ?? 0, row[j + 1] ?? 0);
     }

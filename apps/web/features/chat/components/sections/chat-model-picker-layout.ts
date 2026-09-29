@@ -1,3 +1,5 @@
+import { isFiniteNumber } from "@/shared/lib/type-guards";
+
 export function resolveDesktopMenuListMaxHeight(maxPanelHeight: number, verticalChrome: number): number {
   return Math.max(0, maxPanelHeight - verticalChrome);
 }
@@ -21,17 +23,14 @@ export function resolveDesktopModelMenuListMaxHeight(input: {
 }): number {
   const viewportHeight = Math.max(0, input.viewportBottom - input.viewportTop);
 
-  const hasTrigger =
-    typeof input.triggerTop === "number" &&
-    Number.isFinite(input.triggerTop) &&
-    typeof input.triggerBottom === "number" &&
-    Number.isFinite(input.triggerBottom);
+  const { triggerTop, triggerBottom } = input;
+  const hasTrigger = isFiniteNumber(triggerTop) && isFiniteNumber(triggerBottom);
 
   const spaceBelowTrigger = hasTrigger
-    ? input.viewportBottom - (input.triggerBottom as number) - input.sideOffset
+    ? input.viewportBottom - triggerBottom - input.sideOffset
     : viewportHeight;
   const spaceAboveTrigger = hasTrigger
-    ? (input.triggerTop as number) - input.viewportTop - input.sideOffset
+    ? triggerTop - input.viewportTop - input.sideOffset
     : viewportHeight;
   const preferredSideSpace = Math.max(spaceBelowTrigger, spaceAboveTrigger, 0);
   const maxPanelHeight = Math.min(viewportHeight, preferredSideSpace || viewportHeight);

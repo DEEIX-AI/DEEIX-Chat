@@ -13,13 +13,11 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	applogcleanup "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/logcleanup"
-	systemeventapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
 	userapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/userview"
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	domainsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/systemevent"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -48,10 +46,6 @@ type auditService interface {
 	List(ctx context.Context, page int, pageSize int, filter auditapp.ListFilter) ([]domainaudit.Log, int64, error)
 }
 
-type systemEventService interface {
-	List(ctx context.Context, page int, pageSize int, filter systemeventapp.ListFilter) ([]domainsystemevent.Event, int64, error)
-}
-
 type usageLogService interface {
 	ListUsageLogs(ctx context.Context, page int, pageSize int, filter billing.UsageLogListFilter) ([]domainbilling.UsageLedger, int64, error)
 }
@@ -72,7 +66,6 @@ type conversationEventService interface {
 
 type logCleanupService interface {
 	Cleanup(ctx context.Context, input applogcleanup.Input) (*applogcleanup.Result, error)
-	CleanupConversationRuns(ctx context.Context, input applogcleanup.ConversationRunInput) (*applogcleanup.ConversationRunResult, error)
 }
 
 type authSecurityService interface {
@@ -84,7 +77,6 @@ type authSecurityService interface {
 type Service struct {
 	userService                                userService
 	auditService                               auditService
-	systemEventService                         systemEventService
 	usageLogService                            usageLogService
 	usageStatisticsService                     usageStatisticsService
 	orderLogService                            orderLogService
@@ -200,11 +192,6 @@ func (s *Service) SetOpenWebUIRowLoader(loader openWebUIRowLoader) {
 // SetAuthSecurityService 注入认证安全校验能力。
 func (s *Service) SetAuthSecurityService(service authSecurityService) {
 	s.authSecurityService = service
-}
-
-// SetSystemEventService 注入系统事件查询能力。
-func (s *Service) SetSystemEventService(service systemEventService) {
-	s.systemEventService = service
 }
 
 // SetUsageLogService 注入调用日志查询能力。

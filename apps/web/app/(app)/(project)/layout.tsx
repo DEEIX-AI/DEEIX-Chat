@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { ProjectWorkspace } from "@/features/layouts";
+import { ProjectWorkspace } from "@/features/shell";
 
 export default function ProjectRouteLayout({ children }: { children: ReactNode }) {
   return <ProjectWorkspace>{children}</ProjectWorkspace>;

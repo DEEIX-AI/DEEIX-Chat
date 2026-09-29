@@ -82,7 +82,7 @@ func (s *Service) SetFileContentOpener(opener fileContentOpener) {
 	s.fileOpener = opener
 }
 
-// SetFileUploader injects the shared upload pipeline used for platform-owned assets.
+// SetFileUploader 注入用于平台自有资源的共享上传管道。
 func (s *Service) SetFileUploader(uploader fileUploader) {
 	s.fileUploader = uploader
 }

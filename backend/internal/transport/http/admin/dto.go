@@ -10,7 +10,6 @@ import (
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	domainsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/systemevent"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 )
 
@@ -69,11 +68,6 @@ type ImportOpenWebUIUsersRequest struct {
 type CleanupLogsRequest struct {
 	Type   string `json:"type" binding:"required"`
 	Before string `json:"before" binding:"required"`
-}
-
-// CleanupConversationRunsRequest 管理员按运行清理对话事件请求。
-type CleanupConversationRunsRequest struct {
-	RunIDs []string `json:"runIDs" binding:"required,min=1,max=100,dive,required,max=64"`
 }
 
 // CreatePermissionGroupRequest 创建权限组请求。
@@ -191,12 +185,6 @@ type CleanupLogsResponse struct {
 	DeletedCount int64     `json:"deletedCount"`
 }
 
-// CleanupConversationRunsResponse 管理员按运行清理对话事件响应。
-type CleanupConversationRunsResponse struct {
-	RunCount     int   `json:"runCount"`
-	DeletedCount int64 `json:"deletedCount"`
-}
-
 // ImportOpenWebUIUsersResponse 从 OpenWebUI 导入用户响应。
 type ImportOpenWebUIUsersResponse struct {
 	Source                      string `json:"source"`
@@ -245,22 +233,6 @@ type AuditLogResponse struct {
 	DetailJSON       string    `json:"detailJSON"`
 	CreatedAt        time.Time `json:"createdAt"`
 	UpdatedAt        time.Time `json:"updatedAt"`
-}
-
-// SystemEventResponse 系统事件响应。
-type SystemEventResponse struct {
-	ID         uint      `json:"id"`
-	RequestID  string    `json:"requestID"`
-	TraceID    string    `json:"traceID"`
-	Level      string    `json:"level"`
-	Source     string    `json:"source"`
-	Event      string    `json:"event"`
-	Resource   string    `json:"resource"`
-	ResourceID string    `json:"resourceID"`
-	Message    string    `json:"message"`
-	DetailJSON string    `json:"detailJSON"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
 // UsageLogResponse 调用日志响应。
@@ -560,6 +532,12 @@ type ResetUserPasswordResponseDoc struct {
 	Data     ResetUserPasswordResponse `json:"data"`
 }
 
+// ResetUserTwoFactorResponseDoc 管理员重置用户双因素认证响应。
+type ResetUserTwoFactorResponseDoc struct {
+	ErrorMsg string                     `json:"errorMsg"`
+	Data     ResetUserTwoFactorResponse `json:"data"`
+}
+
 // DeleteUserResponseDoc 管理员删除用户响应。
 type DeleteUserResponseDoc struct {
 	ErrorMsg string             `json:"errorMsg"`
@@ -608,12 +586,6 @@ type CleanupLogsResponseDoc struct {
 	Data     CleanupLogsResponse `json:"data"`
 }
 
-// CleanupConversationRunsResponseDoc 管理员按运行清理对话事件响应。
-type CleanupConversationRunsResponseDoc struct {
-	ErrorMsg string                          `json:"errorMsg"`
-	Data     CleanupConversationRunsResponse `json:"data"`
-}
-
 // ImportOpenWebUIUsersResponseDoc 从 OpenWebUI 导入用户响应。
 type ImportOpenWebUIUsersResponseDoc struct {
 	ErrorMsg string                       `json:"errorMsg"`
@@ -635,15 +607,6 @@ type AuditLogListResponseDoc struct {
 	Data     struct {
 		Total   int64              `json:"total"`
 		Results []AuditLogResponse `json:"results"`
-	} `json:"data"`
-}
-
-// SystemEventListResponseDoc 系统事件分页响应。
-type SystemEventListResponseDoc struct {
-	ErrorMsg string `json:"errorMsg"`
-	Data     struct {
-		Total   int64                 `json:"total"`
-		Results []SystemEventResponse `json:"results"`
 	} `json:"data"`
 }
 
@@ -811,23 +774,6 @@ func toAuditLogResponse(l domainaudit.Log, label appadmin.UserLabel) AuditLogRes
 		DetailJSON:       l.DetailJSON,
 		CreatedAt:        l.CreatedAt,
 		UpdatedAt:        l.UpdatedAt,
-	}
-}
-
-func toSystemEventResponse(item domainsystemevent.Event) SystemEventResponse {
-	return SystemEventResponse{
-		ID:         item.ID,
-		RequestID:  item.RequestID,
-		TraceID:    item.TraceID,
-		Level:      item.Level,
-		Source:     item.Source,
-		Event:      item.Event,
-		Resource:   item.Resource,
-		ResourceID: item.ResourceID,
-		Message:    item.Message,
-		DetailJSON: item.DetailJSON,
-		CreatedAt:  item.CreatedAt,
-		UpdatedAt:  item.UpdatedAt,
 	}
 }
 

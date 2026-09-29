@@ -13,8 +13,7 @@ import type {
   ChatMentionMenuTabInfo,
 } from "@/features/chat/hooks/use-chat-mention-menu";
 import { cn } from "@/lib/utils";
-import { ModelIcon } from "@/shared/components/model-icon";
-import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
+import { ModelIcon, resolveModelIconURL, resolveModelIdentity } from "@/entities/model";
 
 type ChatMentionMenuTranslator = (key: string, values?: Record<string, string | number>) => string;
 

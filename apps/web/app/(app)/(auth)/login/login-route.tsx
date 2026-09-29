@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 
-import { LoginPage } from "@/features/auth/components/login-page";
+import { LoginPage } from "@/features/auth";
 import { normalizeAuthNextPath } from "@/shared/auth/local-path";
 
 export function LoginRoute() {

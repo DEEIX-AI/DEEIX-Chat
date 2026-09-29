@@ -16,7 +16,7 @@ import (
 	"time"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstorage"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/google/uuid"
@@ -184,7 +184,7 @@ func (s *Service) UploadModelIconAsset(ctx context.Context, actorUserID uint, re
 
 func (s *Service) prepareModelIconAssetUpload(
 	ctx context.Context,
-	store objectstore.Store,
+	store objectstorage.Store,
 	item *domainchannel.ModelIconAsset,
 	data []byte,
 	leaseExpiresAt time.Time,
@@ -316,7 +316,7 @@ func (s *Service) OpenModelIconAsset(ctx context.Context, info ModelIconAssetInf
 	}
 	reader, objectInfo, err := store.Open(ctx, info.StoragePath)
 	if err != nil {
-		if errors.Is(err, objectstore.ErrNotFound) {
+		if errors.Is(err, objectstorage.ErrNotFound) {
 			return nil, ErrModelIconAssetNotFound
 		}
 		return nil, err
@@ -371,7 +371,7 @@ func modelIconStoragePath(hash string, extension string) string {
 	return fmt.Sprintf("model-icons/%s/%s%s", hash[:2], hash, extension)
 }
 
-func ensureModelIconObject(ctx context.Context, store objectstore.Store, item *domainchannel.ModelIconAsset, data []byte) error {
+func ensureModelIconObject(ctx context.Context, store objectstorage.Store, item *domainchannel.ModelIconAsset, data []byte) error {
 	reader, _, err := store.Open(ctx, item.StoragePath)
 	if err == nil {
 		stored, readErr := io.ReadAll(io.LimitReader(reader, MaxModelIconBytes+1))
@@ -379,10 +379,10 @@ func ensureModelIconObject(ctx context.Context, store objectstore.Store, item *d
 		if readErr == nil && closeErr == nil && bytes.Equal(stored, data) {
 			return nil
 		}
-	} else if !errors.Is(err, objectstore.ErrNotFound) {
+	} else if !errors.Is(err, objectstorage.ErrNotFound) {
 		return fmt.Errorf("open existing model icon: %w", err)
 	}
-	if _, err = store.Put(ctx, item.StoragePath, bytes.NewReader(data), objectstore.PutOptions{
+	if _, err = store.Put(ctx, item.StoragePath, bytes.NewReader(data), objectstorage.PutOptions{
 		SizeBytes: int64(len(data)), ContentType: item.ContentType,
 	}); err != nil {
 		return fmt.Errorf("restore model icon: %w", err)
@@ -423,7 +423,7 @@ func (s *Service) reserveModelIconReference(ctx context.Context, icon string) er
 	return nil
 }
 
-func (s *Service) cleanupExpiredModelIconAssets(ctx context.Context, store objectstore.Store, expiredBefore time.Time) error {
+func (s *Service) cleanupExpiredModelIconAssets(ctx context.Context, store objectstorage.Store, expiredBefore time.Time) error {
 	items, err := s.iconAssetRepo.ListExpiredModelIconAssets(ctx, expiredBefore, modelIconCleanupBatch)
 	if err != nil {
 		return err
@@ -461,7 +461,7 @@ func (s *Service) cleanupExpiredModelIconAssets(ctx context.Context, store objec
 				continue
 			}
 		}
-		if deleteErr := store.Delete(ctx, item.StoragePath); deleteErr != nil && !errors.Is(deleteErr, objectstore.ErrNotFound) {
+		if deleteErr := store.Delete(ctx, item.StoragePath); deleteErr != nil && !errors.Is(deleteErr, objectstorage.ErrNotFound) {
 			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("delete model icon object %s: %w", item.PublicID, deleteErr))
 			continue
 		}

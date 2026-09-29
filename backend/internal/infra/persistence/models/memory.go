@@ -1,4 +1,4 @@
-package model
+package models
 
 // UserMemory 记录用户长期个性化记忆。
 type UserMemory struct {

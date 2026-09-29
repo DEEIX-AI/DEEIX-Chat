@@ -1,4 +1,4 @@
-import { AdminStatisticsPage } from "@/features/admin/components/sections/statistics/admin-statistics";
+import { AdminStatisticsPage } from "@/features/admin";
 
 export default function Page() {
   return <AdminStatisticsPage />;

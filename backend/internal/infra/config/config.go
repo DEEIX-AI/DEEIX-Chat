@@ -66,6 +66,15 @@ const (
 	EmbeddingDimensionsPolicySend = "send"
 	// EmbeddingDimensionsPolicyOmit 省略 dimensions 参数，返回向量仍按 EmbeddingOutputDimensions 校验。
 	EmbeddingDimensionsPolicyOmit = "omit"
+
+	// EmbeddingProtocolOpenAI 为 OpenAI 兼容的 /embeddings 文本协议。
+	EmbeddingProtocolOpenAI = "openai"
+	// EmbeddingProtocolGemini 为 Google Generative Language 的 batchEmbedContents 协议，支持图片输入。
+	EmbeddingProtocolGemini = "gemini"
+	// EmbeddingProtocolVoyage 为 Voyage AI 的 /multimodalembeddings 协议，支持图片输入。
+	EmbeddingProtocolVoyage = "voyage"
+	// EmbeddingProtocolJina 为 Jina AI 的 /embeddings 协议（对象数组输入），支持图片输入。
+	EmbeddingProtocolJina = "jina"
 )
 
 // DefaultModelOptionAllowedPathsJSON 返回用户可透传模型参数的默认白名单。
@@ -534,6 +543,7 @@ type Config struct {
 	ExtractLLMOCRPrompt               string // LLM OCR 提示词
 	EmbeddingEnabled                  bool   // 是否启用 Embedding 服务
 	EmbeddingHost                     string // Embedding HTTP 服务地址
+	EmbeddingProtocol                 string // Embedding 请求协议：openai / gemini / voyage / jina
 	EmbeddingKey                      string // Embedding HTTP 服务鉴权 Key，可选
 	EmbeddingTimeoutSeconds           int    // Embedding 请求超时（秒）
 	EmbeddingOutputDimensions         int    // 写库/检索统一输出维度
@@ -567,13 +577,11 @@ type Config struct {
 	// Token 预算感知上下文截断
 	ContextTokenBudgetEnabled bool // 是否按 Token 预算截断上下文（替代消息数截断）
 	// 消息历史 Embedding（语义上下文召回）
-	MessageEmbeddingEnabled        bool // 是否对每轮消息异步生成向量嵌入
-	SemanticContextEnabled         bool // 是否在上下文组装时加入语义召回片段
-	ProcessTraceEnabled            bool // 是否启用消息处理轨迹
-	ProcessTraceVisibleToUser      bool // 是否向聊天页暴露处理轨迹
-	ProcessTraceStoreUpstreamThink bool // 是否持久化上游 think
-	ProcessTracePersistInflight    bool // 是否在流式阶段持久化轨迹
-	ContextArtifactRetentionDays   int  // 上下文证据保留天数，<=0 表示不自动过期
+	MessageEmbeddingEnabled      bool // 是否对每轮消息异步生成向量嵌入
+	SemanticContextEnabled       bool // 是否在上下文组装时加入语义召回片段
+	ProcessTraceEnabled          bool // 是否启用消息处理轨迹
+	ProcessTracePersistInflight  bool // 是否在流式阶段持久化轨迹
+	ContextArtifactRetentionDays int  // 上下文证据保留天数，<=0 表示不自动过期
 	// MCP 配置
 	MCPEnable                     bool
 	MCPToolTimeoutSeconds         int
@@ -778,6 +786,7 @@ func Load() Config {
 		EmbeddingTimeoutSeconds:           60,
 		EmbeddingOutputDimensions:         1536,
 		EmbeddingDimensionsPolicy:         EmbeddingDimensionsPolicySend,
+		EmbeddingProtocol:                 EmbeddingProtocolOpenAI,
 		EmbeddingNormalize:                true,
 		EmbedTriggerOnUpload:              true,
 		EmbedChunkSizeTokens:              1024,
@@ -802,8 +811,6 @@ func Load() Config {
 		MessageEmbeddingEnabled:           false, // 默认关闭，需要 embedding 服务就绪后开启
 		SemanticContextEnabled:            false,
 		ProcessTraceEnabled:               true,
-		ProcessTraceVisibleToUser:         true,
-		ProcessTraceStoreUpstreamThink:    true,
 		ProcessTracePersistInflight:       true,
 		ContextArtifactRetentionDays:      90,
 		MCPEnable:                         false,

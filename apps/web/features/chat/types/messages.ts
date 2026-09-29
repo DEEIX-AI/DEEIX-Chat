@@ -1,4 +1,4 @@
-import type { UpstreamDebugInfo } from "@/shared/api/conversation.types";
+import type { UpstreamDebugInfo } from "@/shared/api/conversation-types";
 
 export type MessageAttachment = {
   fileID: string;
@@ -35,6 +35,8 @@ export type RAGCitation = {
   chunk_index: number;
   score: number;
   preview: string;
+  /** "image" when the vector came from the file's pixels rather than extracted text. */
+  modality?: "text" | "image";
 };
 
 export type ChatTraceBlock = {
@@ -125,6 +127,13 @@ export type ChatBillingCost = {
 };
 
 export type ImageLoadingAspectRatio = "wide" | "portrait" | "square";
+
+/**
+ * How an edited user message is applied: "regenerate" starts a new branch and
+ * asks the model again; "save" rewrites the message in place and keeps every
+ * later message untouched.
+ */
+export type UserMessageEditMode = "regenerate" | "save";
 
 export type ChatAreaMessage = {
   key: string;

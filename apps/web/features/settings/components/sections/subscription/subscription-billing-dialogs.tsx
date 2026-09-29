@@ -12,7 +12,7 @@ import {
   billingDisplayInputSymbol,
   formatProviderPaymentAmountFromUSD,
 } from "@/features/settings/model/subscription-format";
-import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
+import type { BillingDisplayOptions } from "@/entities/billing";
 
 type PaymentProvider = "stripe" | "epay";
 

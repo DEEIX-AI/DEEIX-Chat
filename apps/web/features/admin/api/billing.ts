@@ -1,5 +1,5 @@
 import { authedRequest } from "@/shared/api/authed-client";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 import type {
   AdminBillingConfigData,
   AdminBillingAccountData,
@@ -22,7 +22,7 @@ import type {
   UpdateAdminBillingPlanRequest,
   UpdateAdminBillingAccountBalanceRequest,
   UpsertAdminModelPricingRequest,
-} from "@/features/admin/api/billing.types";
+} from "@/features/admin/api/billing-types";
 
 import { normalizeAdminPagePayload, resolveAdminPage, type AdminPageOptions } from "./shared";
 

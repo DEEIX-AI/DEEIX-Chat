@@ -10,13 +10,12 @@ import { InputGroupButton } from "@/components/ui/input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  MAX_SELECTED_KNOWLEDGE_BASES,
+  useChatKnowledgeBaseCatalog,
+} from "@/features/chat/hooks/use-chat-knowledge-base-catalog";
 import { cn } from "@/lib/utils";
-import { listVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
-import type { KnowledgeBaseDTO } from "@/shared/api/knowledge-bases.types";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
-
-const MAX_SELECTED_KNOWLEDGE_BASES = 8;
 
 export function ChatKnowledgeBases({
   selectedIDs,
@@ -35,97 +34,8 @@ export function ChatKnowledgeBases({
 }) {
   const t = useTranslations("chat.composer");
   const { knowledgeBaseEnabled } = useFeaturePolicy();
-  const [open, setOpen] = React.useState(false);
-  const [loading, setLoading] = React.useState(false);
-  const [loadingMore, setLoadingMore] = React.useState(false);
-  const [items, setItems] = React.useState<KnowledgeBaseDTO[]>([]);
-  const [page, setPage] = React.useState(1);
-  const [total, setTotal] = React.useState(0);
-  const [query, setQuery] = React.useState("");
-  const openRef = React.useRef(open);
-  const requestVersionRef = React.useRef(0);
-  const requestControllerRef = React.useRef<AbortController | null>(null);
-  const selectedIDsRef = React.useRef(selectedIDs);
-  const onChangeRef = React.useRef(onChange);
-  const translationRef = React.useRef(t);
-
-  openRef.current = open;
-  selectedIDsRef.current = selectedIDs;
-  onChangeRef.current = onChange;
-  translationRef.current = t;
-
-  const loadCatalog = React.useCallback(async (nextQuery: string, nextPage = 1) => {
-    const requestVersion = ++requestVersionRef.current;
-    requestControllerRef.current?.abort();
-    const requestController = new AbortController();
-    requestControllerRef.current = requestController;
-    if (nextPage === 1) setLoading(true);
-    else setLoadingMore(true);
-    try {
-      const token = await resolveAccessToken();
-      if (requestController.signal.aborted) return;
-      if (!token) throw new Error("missing access token");
-      const [catalog, selected] = await Promise.all([
-        listVisibleKnowledgeBases(token, {
-          query: nextQuery,
-          page: nextPage,
-          pageSize: 50,
-        }, requestController.signal),
-        nextPage === 1 && selectedIDsRef.current.length > 0
-          ? listVisibleKnowledgeBases(token, {
-              ids: selectedIDsRef.current.slice(0, MAX_SELECTED_KNOWLEDGE_BASES),
-              pageSize: MAX_SELECTED_KNOWLEDGE_BASES,
-            }, requestController.signal)
-          : Promise.resolve({ results: [], total: 0 }),
-      ]);
-      if (requestController.signal.aborted || requestVersionRef.current !== requestVersion) return;
-      setItems((current) => {
-        const next = nextPage === 1 ? catalog.results.slice() : [...current, ...catalog.results];
-        const seen = new Set(next.map((item) => item.publicID));
-        for (const item of selected.results) {
-          if (!seen.has(item.publicID)) next.push(item);
-        }
-        return next;
-      });
-      setPage(nextPage);
-      setTotal(catalog.total);
-
-      const readyIDs = new Set(
-        selected.results.filter((item) => item.readyFileCount > 0).map((item) => item.publicID),
-      );
-      const currentIDs = selectedIDsRef.current;
-      if (nextPage === 1 && currentIDs.length > 0) {
-        const nextIDs = currentIDs.filter((id) => readyIDs.has(id));
-        if (nextIDs.length !== currentIDs.length) onChangeRef.current(nextIDs);
-      }
-    } catch {
-      if (!requestController.signal.aborted && openRef.current && requestVersionRef.current === requestVersion) {
-        toast.error(translationRef.current("knowledgeBaseLoadFailed"));
-      }
-    } finally {
-      if (requestControllerRef.current === requestController) {
-        requestControllerRef.current = null;
-      }
-      if (!requestController.signal.aborted && requestVersionRef.current === requestVersion) {
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    }
-  }, []);
-
-  React.useEffect(() => {
-    return () => requestControllerRef.current?.abort();
-  }, []);
-
-  React.useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    const timer = window.setTimeout((): void => void loadCatalog(query.trim(), 1), 200);
-    return () => {
-      window.clearTimeout(timer);
-      requestControllerRef.current?.abort();
-    };
-  }, [loadCatalog, open, query]);
+  const { open, handleOpenChange, query, setQuery, items, loading, loadingMore, hasMore, loadMore } =
+    useChatKnowledgeBaseCatalog({ selectedIDs, onChange });
 
   React.useEffect(() => {
     if (available === false && selectedIDs.length > 0) {
@@ -164,15 +74,7 @@ export function ChatKnowledgeBases({
   if (!knowledgeBaseEnabled) return null;
 
   return (
-    <Popover open={open} onOpenChange={(nextOpen) => {
-      setOpen(nextOpen);
-      openRef.current = nextOpen;
-      if (!nextOpen) {
-        requestControllerRef.current?.abort();
-        requestControllerRef.current = null;
-        setQuery("");
-      }
-    }}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
@@ -217,14 +119,14 @@ export function ChatKnowledgeBases({
         onMouseDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
         onPointerDownOutside={(event) => {
-          const target = event.target as HTMLElement | null;
-          if (target?.closest("[data-knowledge-bases-popover-content]")) {
+          const target = event.target;
+          if (target instanceof Element && target.closest("[data-knowledge-bases-popover-content]")) {
             event.preventDefault();
           }
         }}
         onFocusOutside={(event) => {
-          const target = event.target as HTMLElement | null;
-          if (target?.closest("[data-knowledge-bases-popover-content]")) {
+          const target = event.target;
+          if (target instanceof Element && target.closest("[data-knowledge-bases-popover-content]")) {
             event.preventDefault();
           }
         }}
@@ -299,12 +201,12 @@ export function ChatKnowledgeBases({
           }) : (
             <p className="px-2 py-6 text-center text-xs text-muted-foreground">{t("knowledgeBaseEmpty")}</p>
           )}
-          {page * 50 < total ? (
+          {hasMore ? (
             <button
               type="button"
               className="flex h-7 w-full items-center justify-center rounded-md text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none"
               disabled={loadingMore}
-              onClick={() => void loadCatalog(query.trim(), page + 1)}
+              onClick={loadMore}
             >
               {loadingMore ? <Spinner className="size-3" /> : t("knowledgeBaseLoadMore")}
             </button>

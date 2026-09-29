@@ -117,8 +117,8 @@ func (s *Service) StreamTemporaryChat(
 	if err != nil {
 		return nil, err
 	}
-	// Attachment processors depend on persisted file IDs. Request-scoped temporary
-	// attachments are injected directly into the model context instead.
+	// 附件处理器依赖持久化的文件 ID。请求作用域的临时
+	// 附件改为直接注入模型上下文。
 	toolRuntime = toolRuntime.withoutAttachmentProcessor()
 	skillPrompts, err := s.resolveSkillPrompts(ctx, SendMessageInput{
 		UserID:   input.UserID,
@@ -328,8 +328,8 @@ func wrapTemporaryGenerationError(err error) error {
 	return wrapUpstreamRequestError(err)
 }
 
-// enforceTemporaryGenerateInput is the final privacy boundary before every
-// upstream call, including follow-up calls after tool execution.
+// enforceTemporaryGenerateInput 是每次上游调用前的最终隐私边界，
+// 包括工具执行后的后续调用。
 func enforceTemporaryGenerateInput(input llm.GenerateInput) llm.GenerateInput {
 	input.Ephemeral = true
 	input.PreviousResponseID = ""

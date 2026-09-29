@@ -1,0 +1,241 @@
+import type { PublicModelPricingDTO } from "@/shared/api/model-types";
+
+export type BillingCacheWriteSnapshot = {
+  provider_protocol?: string;
+  cache_timeout?: string;
+  fast_mode?: boolean;
+  billing_speed?: string;
+  billing_service_tier?: string;
+  rate_multiplier?: number;
+  schedule_period_name?: string;
+  schedule_rate_percent?: number;
+  cache_write_5m_tokens?: number;
+  cache_write_1h_tokens?: number;
+  cache_write_5m_multiplier?: number;
+  cache_write_1h_multiplier?: number;
+};
+
+export type BillingDisplayLabels = {
+  cacheWrite: string;
+  cacheWrite5m: string;
+  cacheWrite1h: string;
+  cacheWrite5m1h: string;
+  claudeCacheWriteMixedNote: (multiplier: string) => string;
+  claudeCacheWriteNote: (timeout: "5m" | "1h", multiplier: string) => string;
+  claudeFastModeNote: (multiplier: string) => string;
+  openaiServiceTierNote: (tier: string, multiplier: string) => string;
+  scheduleRateNote: (period: string, multiplier: string) => string;
+  cacheWritePricingLabel: string;
+  cacheWritePricingNote: string;
+};
+
+export type BillingDisplayCurrency = "USD" | "CNY";
+
+export type BillingDisplayOptions = {
+  currency: BillingDisplayCurrency;
+  usdToCnyRate?: number | null;
+};
+
+const DEFAULT_BILLING_DISPLAY_LABELS: BillingDisplayLabels = {
+  cacheWrite: "Cache write",
+  cacheWrite5m: "Cache write 5m",
+  cacheWrite1h: "Cache write 1h",
+  cacheWrite5m1h: "Cache write 5m/1h",
+  claudeCacheWriteMixedNote: (multiplier) => `Claude cache write uses configured pricing at ${multiplier}`,
+  claudeCacheWriteNote: (timeout, multiplier) => `Claude ${timeout} cache write uses configured pricing at ${multiplier}`,
+  claudeFastModeNote: (multiplier) => `Claude Fast Mode bills input, output, and cache usage at ${multiplier}`,
+  openaiServiceTierNote: (tier, multiplier) => `OpenAI service_tier=${tier} bills at ${multiplier}`,
+  scheduleRateNote: (period, multiplier) => `Time-of-day rate "${period}" applies ${multiplier}`,
+  cacheWritePricingLabel: "Cache write 5m",
+  cacheWritePricingNote: "Claude cache read uses configured pricing; cache write 5m uses 1.25x, 1h uses 2x, and Fast Mode applies another 6x on top.",
+};
+
+export function normalizeBillingDisplayCurrency(value: string | undefined | null): BillingDisplayCurrency {
+  return value === "CNY" ? "CNY" : "USD";
+}
+
+function resolveDisplayAmountFromUSD(value: number, options: BillingDisplayOptions): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  if (resolveEffectiveBillingDisplayCurrency(options) !== "CNY") {
+    return value;
+  }
+  return value * Number(options.usdToCnyRate);
+}
+
+function resolveSignedDisplayAmountFromUSD(value: number, options: BillingDisplayOptions): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (resolveEffectiveBillingDisplayCurrency(options) !== "CNY") {
+    return value;
+  }
+  return value * Number(options.usdToCnyRate);
+}
+
+function resolveEffectiveBillingDisplayCurrency(options: BillingDisplayOptions): BillingDisplayCurrency {
+  if (options.currency !== "CNY") {
+    return "USD";
+  }
+  const rate = Number(options.usdToCnyRate);
+  return Number.isFinite(rate) && rate > 0 ? "CNY" : "USD";
+}
+
+function billingCurrencySymbol(currency: BillingDisplayCurrency): string {
+  return currency === "CNY" ? "¥" : "$";
+}
+
+export function formatBillingDisplayAmountFromUSD(
+  value: number,
+  options: BillingDisplayOptions,
+  digits: Intl.NumberFormatOptions,
+): string {
+  const amount = resolveDisplayAmountFromUSD(value, options);
+  const symbol = billingCurrencySymbol(resolveEffectiveBillingDisplayCurrency(options));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return `${symbol}${(0).toLocaleString("en-US", digits)}`;
+  }
+  return `${symbol}${amount.toLocaleString("en-US", digits)}`;
+}
+
+export function formatBillingDisplayUnitPriceFromUSD(value: number, options: BillingDisplayOptions): string {
+  return formatBillingDisplayAmountFromUSD(value, options, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+export function formatBillingDisplayPreciseAmountFromUSD(value: number, options: BillingDisplayOptions): string {
+  return formatBillingDisplayAmountFromUSD(value, options, {
+    minimumFractionDigits: 6,
+    maximumFractionDigits: 6,
+  });
+}
+
+export function formatBillingDisplayBalanceFromUSD(value: number, options: BillingDisplayOptions): string {
+  const amount = resolveSignedDisplayAmountFromUSD(value, options);
+  const symbol = billingCurrencySymbol(resolveEffectiveBillingDisplayCurrency(options));
+  const sign = amount < 0 ? "-" : "";
+  return `${sign}${symbol}${Math.abs(amount).toLocaleString("en-US", {
+    minimumFractionDigits: 6,
+    maximumFractionDigits: 6,
+  })}`;
+}
+
+export function formatBillingDisplayCompactAmountFromUSD(
+  value: number,
+  options: BillingDisplayOptions,
+  minimumDisplayAmount = 0.000001,
+): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return `${billingCurrencySymbol(resolveEffectiveBillingDisplayCurrency(options))}0`;
+  }
+  const symbol = billingCurrencySymbol(resolveEffectiveBillingDisplayCurrency(options));
+  const displayValue = resolveDisplayAmountFromUSD(value, options);
+  if (displayValue > 0 && displayValue < minimumDisplayAmount) {
+    return `< ${symbol}${minimumDisplayAmount.toLocaleString("en-US", { maximumFractionDigits: 6 })}`;
+  }
+  return `${symbol}${displayValue.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6,
+  })}`;
+}
+
+export function isAnthropicBillingSnapshot(snapshot: BillingCacheWriteSnapshot): boolean {
+  return String(snapshot.provider_protocol || "").trim() === "anthropic_messages";
+}
+
+export function anthropicCacheTimeoutLabel(snapshot: BillingCacheWriteSnapshot): "5m" | "1h" {
+  return String(snapshot.cache_timeout || "").trim().toLowerCase() === "1h" ? "1h" : "5m";
+}
+
+export function hasAnthropicMessagesProtocol(protocols: readonly string[] | null | undefined): boolean {
+  return Array.isArray(protocols) && protocols.some((protocol) => String(protocol || "").trim() === "anthropic_messages");
+}
+
+export function cacheWriteBillingLabel(snapshot: BillingCacheWriteSnapshot, labels: BillingDisplayLabels = DEFAULT_BILLING_DISPLAY_LABELS): string {
+  if (!isAnthropicBillingSnapshot(snapshot)) {
+    return labels.cacheWrite;
+  }
+  if ((snapshot.cache_write_5m_tokens || 0) > 0 && (snapshot.cache_write_1h_tokens || 0) > 0) {
+    return labels.cacheWrite5m1h;
+  }
+  return anthropicCacheTimeoutLabel(snapshot) === "1h" ? labels.cacheWrite1h : labels.cacheWrite5m;
+}
+
+export function cacheWriteBillingNote(snapshot: BillingCacheWriteSnapshot, labels: BillingDisplayLabels = DEFAULT_BILLING_DISPLAY_LABELS): string | null {
+  if (!isAnthropicBillingSnapshot(snapshot)) {
+    return null;
+  }
+  const mixedCacheWrite = (snapshot.cache_write_5m_tokens || 0) > 0 && (snapshot.cache_write_1h_tokens || 0) > 0;
+  const timeout = anthropicCacheTimeoutLabel(snapshot);
+  // Snapshots without explicit multipliers predate imported cache price bases.
+  const fiveMinutes = formatRateMultiplier(snapshot.cache_write_5m_multiplier ?? 1.25);
+  const oneHour = formatRateMultiplier(snapshot.cache_write_1h_multiplier ?? 2);
+  const multiplier = mixedCacheWrite ? `5m ${fiveMinutes}, 1h ${oneHour}` : timeout === "1h" ? oneHour : fiveMinutes;
+  return mixedCacheWrite ? labels.claudeCacheWriteMixedNote(multiplier) : labels.claudeCacheWriteNote(timeout, multiplier);
+}
+
+export function billingRateMultiplierNote(snapshot: BillingCacheWriteSnapshot, labels: BillingDisplayLabels = DEFAULT_BILLING_DISPLAY_LABELS): string | null {
+  const multiplier = Number(snapshot.rate_multiplier || 0);
+  if (!Number.isFinite(multiplier) || multiplier <= 0 || Math.abs(multiplier - 1) < 0.000001) {
+    return null;
+  }
+  if (isAnthropicBillingSnapshot(snapshot) && (snapshot.fast_mode || String(snapshot.billing_speed || "").trim() === "fast")) {
+    return labels.claudeFastModeNote(formatRateMultiplier(multiplier));
+  }
+  if (String(snapshot.provider_protocol || "").trim() === "openai_responses" || String(snapshot.provider_protocol || "").trim() === "openai_chat_completions") {
+    const tier = String(snapshot.billing_service_tier || "").trim();
+    if (tier === "priority" || tier === "flex") {
+      return labels.openaiServiceTierNote(tier, formatRateMultiplier(multiplier));
+    }
+  }
+  return null;
+}
+
+// Rate multipliers always read as "1.20x" / "2.00x" so columns of them line up.
+export function formatRateMultiplier(value: number): string {
+  return `${(Number.isFinite(value) ? value : 1).toFixed(2)}x`;
+}
+
+// The time-of-day period recorded in the ledger snapshot, if one applied.
+export function billingScheduleNote(snapshot: BillingCacheWriteSnapshot, labels: BillingDisplayLabels = DEFAULT_BILLING_DISPLAY_LABELS): string | null {
+  const period = String(snapshot.schedule_period_name || "").trim();
+  const percent = Number(snapshot.schedule_rate_percent || 0);
+  if (!period || !Number.isFinite(percent) || percent <= 0) {
+    return null;
+  }
+  return labels.scheduleRateNote(period, formatRateMultiplier(percent / 100));
+}
+
+export function cacheWritePricingLabel(protocols: readonly string[] | null | undefined, labels: BillingDisplayLabels = DEFAULT_BILLING_DISPLAY_LABELS): string {
+  return hasAnthropicMessagesProtocol(protocols) ? labels.cacheWritePricingLabel : labels.cacheWrite;
+}
+
+type CacheWritePricingMultipliers = Pick<PublicModelPricingDTO, "cacheWrite5mMultiplier" | "cacheWrite1hMultiplier">;
+
+export function cacheWritePricingNote(
+  protocols: readonly string[] | null | undefined,
+  pricing: CacheWritePricingMultipliers,
+  labels: BillingDisplayLabels = DEFAULT_BILLING_DISPLAY_LABELS,
+): string | null {
+  if (!hasAnthropicMessagesProtocol(protocols)) return null;
+  return labels.claudeCacheWriteMixedNote(`5m ${formatRateMultiplier(pricing.cacheWrite5mMultiplier)}, 1h ${formatRateMultiplier(pricing.cacheWrite1hMultiplier)}`);
+}
+
+export function resolveCacheWritePricingUSD(
+  protocols: readonly string[] | null | undefined,
+  configuredCacheWriteUSDPerMTokens: number,
+  pricing: CacheWritePricingMultipliers,
+  cacheTimeout: "5m" | "1h" = "5m",
+): number {
+  if (!hasAnthropicMessagesProtocol(protocols)) {
+    return configuredCacheWriteUSDPerMTokens;
+  }
+  if (!Number.isFinite(configuredCacheWriteUSDPerMTokens) || configuredCacheWriteUSDPerMTokens <= 0) {
+    return 0;
+  }
+  const multiplier = cacheTimeout === "1h" ? pricing.cacheWrite1hMultiplier : pricing.cacheWrite5mMultiplier;
+  return configuredCacheWriteUSDPerMTokens * multiplier;
+}

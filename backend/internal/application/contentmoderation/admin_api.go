@@ -4,21 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 	"time"
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 )
 
-// StatsFilter bounds the admin stats query.
+// StatsFilter 限定管理员统计查询范围。
 type StatsFilter struct {
 	From *time.Time
 	To   *time.Time
 }
 
-// EventListInput is the super-admin events query.
+// EventListInput 是超级管理员事件查询参数。
 type EventListInput struct {
 	Query     string
 	Direction string
@@ -33,7 +34,7 @@ type EventListInput struct {
 	PageSize  int
 }
 
-// EventDetail is the super-admin detail payload (may include decrypted text).
+// EventDetail 是超级管理员详情载荷（可能包含解密后的文本）。
 type EventDetail struct {
 	Event           domaincm.Event
 	CategoryScores  map[string]float64
@@ -43,7 +44,7 @@ type EventDetail struct {
 	Images          []domaincm.IsolatedImageMeta
 }
 
-// GetStats returns anonymous aggregates for the last 90 days (admin+).
+// GetStats 返回最近 90 天的匿名聚合数据（admin 及以上）。
 func (s *Service) GetStats(ctx context.Context, actorRole string, filter StatsFilter) ([]domaincm.DailyStat, error) {
 	if !isAdminRole(actorRole) {
 		return nil, ErrAdminRequired
@@ -67,7 +68,7 @@ func (s *Service) GetStats(ctx context.Context, actorRole string, filter StatsFi
 	return s.repo.ListDailyStats(ctx, from, to)
 }
 
-// ListEvents lists retained moderation decision metadata for super-admin.
+// ListEvents 为超级管理员列出保留的审核决策元数据。
 func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventListInput) ([]domaincm.Event, int64, error) {
 	if !isSuperAdmin(actorRole) {
 		return nil, 0, ErrSuperAdminRequired
@@ -95,17 +96,7 @@ func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventL
 	if len(query) > 200 {
 		return nil, 0, ErrInvalidEventFilter
 	}
-	page := input.Page
-	if page < 1 {
-		page = 1
-	}
-	pageSize := input.PageSize
-	if pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 1000 {
-		pageSize = 1000
-	}
+	offset, limit := pagination.Offset(input.Page, input.PageSize)
 	return s.repo.ListEvents(ctx, domaincm.EventListFilter{
 		Query:     query,
 		Direction: direction,
@@ -116,12 +107,12 @@ func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventL
 		RunID:     strings.TrimSpace(input.RunID),
 		From:      input.From,
 		To:        input.To,
-		Offset:    (page - 1) * pageSize,
-		Limit:     pageSize,
+		Offset:    offset,
+		Limit:     limit,
 	})
 }
 
-// GetEventDetail returns decrypted text when still retained.
+// GetEventDetail 在文本仍被保留时返回解密后的文本。
 func (s *Service) GetEventDetail(
 	ctx context.Context,
 	actorRole string,
@@ -156,7 +147,7 @@ func (s *Service) GetEventDetail(
 	return detail, nil
 }
 
-// OpenEventImage decrypts an isolated image for super-admin streaming.
+// OpenEventImage 解密隔离图片，供超级管理员流式读取。
 func (s *Service) OpenEventImage(
 	ctx context.Context,
 	actorRole string,
@@ -191,7 +182,7 @@ func (s *Service) OpenEventImage(
 	if err != nil {
 		return nil, "", err
 	}
-	// Isolated images are stored as encryptBytes payloads (v1: base64), not UTF-8 text.
+	// 隔离图片以 encryptBytes 载荷（v1: base64）存储，而非 UTF-8 文本。
 	plain, err := s.decryptBytes(string(raw))
 	if err != nil {
 		return nil, "", err
@@ -199,7 +190,7 @@ func (s *Service) OpenEventImage(
 	return plain, textutil.FirstNonEmpty(meta.MimeType, "image/png"), nil
 }
 
-// CategoryCatalog returns category lists for the admin UI.
+// CategoryCatalog 返回管理界面使用的类别列表。
 func CategoryCatalog() map[string][]string {
 	return map[string][]string{
 		"text":  AllTextCategories(),

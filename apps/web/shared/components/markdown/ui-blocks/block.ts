@@ -1,4 +1,7 @@
-import type { Issue, Schema, ValidationResult } from "./schema";
+import * as React from "react";
+
+import { isRecord } from "@/shared/lib/type-guards";
+import type { Issue, Schema } from "./schema";
 import { s, validate } from "./schema";
 
 export const UI_BLOCK_FENCE_LANGUAGE = "deeix-ui";
@@ -57,8 +60,8 @@ export function parseUIBlock(raw: string, streaming: boolean): ParsedUIBlock {
   if (!shape.ok) {
     return { status: "invalid", issues: shape.issues, raw };
   }
-  const source = normalized as Record<string, unknown>;
-  if (typeof source.props !== "object" || source.props === null || Array.isArray(source.props)) {
+  const source = isRecord(normalized) ? normalized : {};
+  if (!isRecord(source.props)) {
     return { status: "invalid", issues: [{ path: "$.props", message: "expected object" }], raw };
   }
   return {
@@ -167,10 +170,10 @@ function bracesBalanced(text: string): boolean {
 // Models routinely quote numbers ("1") or omit the version. Both are
 // unambiguous, so normalise them instead of failing the whole block.
 function normalizeEnvelope(json: unknown): unknown {
-  if (typeof json !== "object" || json === null || Array.isArray(json)) {
+  if (!isRecord(json)) {
     return json;
   }
-  const source = { ...(json as Record<string, unknown>) };
+  const source = { ...json };
   if (source.version === undefined || source.version === null) {
     source.version = 1;
   } else if (typeof source.version === "string") {
@@ -209,20 +212,43 @@ export type UIBlockDefinition<P = unknown> = {
   sandbox?: { source: string; title: string };
 };
 
-export type UIBlockRegistry = Map<string, UIBlockDefinition>;
+export type UIBlockRenderResult = { ok: true; element: React.ReactElement } | { ok: false; issues: Issue[] };
+
+// A definition with its props type erased. Each builtin has its own props type,
+// so the registry cannot hold them under one `UIBlockDefinition<P>`; instead the
+// typed component is closed over and only ever receives props its schema accepted.
+export type RegisteredUIBlock = {
+  name: string;
+  version: number;
+  Skeleton: React.ComponentType<UIBlockSkeletonProps>;
+  render: (id: string, props: unknown) => UIBlockRenderResult;
+};
+
+export function registerUIBlock<P>(definition: UIBlockDefinition<P>): RegisteredUIBlock {
+  return {
+    name: definition.name,
+    version: definition.version,
+    Skeleton: definition.Skeleton,
+    render: (id, props) => {
+      const validated = validate<P>(definition.schema, props);
+      if (!validated.ok) {
+        return validated;
+      }
+      return { ok: true, element: React.createElement(definition.Component, { id, props: validated.value, definition }) };
+    },
+  };
+}
+
+export type UIBlockRegistry = Map<string, RegisteredUIBlock>;
 
 function registryKey(name: string, version: number): string {
   return `${name}@${version}`;
 }
 
-export function createRegistry(definitions: readonly UIBlockDefinition[]): UIBlockRegistry {
+export function createRegistry(definitions: readonly RegisteredUIBlock[]): UIBlockRegistry {
   return new Map(definitions.map((definition) => [registryKey(definition.name, definition.version), definition]));
 }
 
-export function resolveDefinition(registry: UIBlockRegistry, name: string, version: number): UIBlockDefinition | undefined {
+export function resolveDefinition(registry: UIBlockRegistry, name: string, version: number): RegisteredUIBlock | undefined {
   return registry.get(registryKey(name, version));
-}
-
-export function validateProps<P>(definition: UIBlockDefinition<P>, props: unknown): ValidationResult<P> {
-  return validate<P>(definition.schema, props);
 }

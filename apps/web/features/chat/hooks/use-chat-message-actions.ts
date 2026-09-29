@@ -10,10 +10,10 @@ import {
 } from "@/features/chat/model/message-submit";
 import type { QueuedChatSubmission } from "@/features/chat/model/message-submit-branching";
 import type { PendingAttachment } from "@/features/chat/types/chat-runtime";
-import type { ChatAreaMessage } from "@/features/chat/types/messages";
+import type { ChatAreaMessage, UserMessageEditMode } from "@/features/chat/types/messages";
 import { resolveErrorMessage } from "@/features/chat/utils/chat-runtime";
 import { deleteConversationMessage, forkConversationFromMessage, updateMessage } from "@/shared/api/conversation";
-import type { ConversationDTO, MessageDTO } from "@/shared/api/conversation.types";
+import type { ConversationDTO, MessageDTO } from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
 export type SubmitChatMessageInput = {
@@ -31,8 +31,8 @@ function buildContinueGenerationPrompt(t: ReturnType<typeof useTranslations>): s
 }
 
 /**
- * 消息级动作：重试用户/助手消息、继续被中断的生成、编辑用户/助手消息、
- * 从消息 fork 新会话、在同级分支间切换。
+ * Message-level actions: retry user/assistant messages, continue interrupted generations, edit user/assistant messages,
+ * fork a new conversation from a message, and switch between sibling branches.
  */
 export function useChatMessageActions({
   submitMessage,
@@ -118,8 +118,36 @@ export function useChatMessageActions({
     [submitMessage, t],
   );
 
+  const saveMessageInPlace = React.useCallback(
+    async (message: ChatAreaMessage, content: string, failureKey: "editReplyFailed" | "editMessageFailed") => {
+      const messagePublicID = resolvePersistedPublicID(message.publicID);
+      const nextContent = content.trim();
+      if (!messagePublicID || !nextContent) {
+        toast.error(t(failureKey), { description: t("continueReplyUnavailable") });
+        return false;
+      }
+      const token = await resolveAccessToken();
+      if (!token) {
+        toast.error(t(failureKey), { description: t("signInRequired") });
+        return false;
+      }
+      try {
+        const updated = await updateMessage(token, messagePublicID, { content: nextContent });
+        replaceMessage(updated);
+        return true;
+      } catch {
+        toast.error(t(failureKey), { description: t("retryLater") });
+        return false;
+      }
+    },
+    [replaceMessage, t],
+  );
+
   const onEditUserMessage = React.useCallback(
-    async (message: ChatAreaMessage, content: string) => {
+    async (message: ChatAreaMessage, content: string, mode: UserMessageEditMode) => {
+      if (mode === "save") {
+        return saveMessageInPlace(message, content, "editMessageFailed");
+      }
       const sourceMessagePublicID = resolvePersistedPublicID(message.publicID);
       if (!sourceMessagePublicID) {
         toast.error(t("retryReplyFailed"), { description: t("continueReplyUnavailable") });
@@ -135,32 +163,12 @@ export function useChatMessageActions({
       });
       return ok;
     },
-    [submitMessage, t],
+    [saveMessageInPlace, submitMessage, t],
   );
 
   const onEditAssistantMessage = React.useCallback(
-    async (message: ChatAreaMessage, content: string) => {
-      const messagePublicID = resolvePersistedPublicID(message.publicID);
-      const nextContent = content.trim();
-      if (!messagePublicID || !nextContent) {
-        toast.error(t("editReplyFailed"), { description: t("continueReplyUnavailable") });
-        return false;
-      }
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("editReplyFailed"), { description: t("signInRequired") });
-        return false;
-      }
-      try {
-        const updated = await updateMessage(token, messagePublicID, { content: nextContent });
-        replaceMessage(updated);
-        return true;
-      } catch {
-        toast.error(t("editReplyFailed"), { description: t("retryLater") });
-        return false;
-      }
-    },
-    [replaceMessage, t],
+    (message: ChatAreaMessage, content: string) => saveMessageInPlace(message, content, "editReplyFailed"),
+    [saveMessageInPlace],
   );
 
   const onForkMessage = React.useCallback(
@@ -203,7 +211,7 @@ export function useChatMessageActions({
       }
       try {
         await deleteConversationMessage(token, conversationPublicID, messagePublicID);
-        // splice 会让后续消息向前衔接、分支选择自动收敛，全量刷新即可。
+        // splice reconnects subsequent messages and branch selection converges on its own, so a full refresh suffices.
         reload();
       } catch (error) {
         toast.error(t("deleteMessageFailed"), {

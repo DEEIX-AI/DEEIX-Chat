@@ -15,7 +15,14 @@
     "invalidUrl": "请输入完整地址，需包含 https:// 或 http://",
     "unexpectedStatus": "服务器返回状态码 {status}",
     "networkError": "无法连接服务器",
+    "timeout": "服务器在 {seconds} 秒内未响应",
     "bootstrapFailed": "无法连接已配置的服务器",
-    "alreadyOpen": "该服务器已在其他标签页打开"
+    "alreadyOpen": "该服务器已在其他标签页打开",
+    "localModeDisabled": "你的组织已关闭本机模式",
+    "serverLocked": "你的组织仅允许使用预设的服务器地址"
+  },
+  "policy": {
+    "managed": "由你的组织管理",
+    "localModeDisabled": "你的组织已关闭本机模式"
   }
 }

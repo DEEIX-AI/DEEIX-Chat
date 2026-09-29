@@ -23,7 +23,7 @@ import { TwoFactorDialog } from "@/features/settings/components/sections/account
 import { SecurityVerificationDialog } from "@/features/settings/components/sections/account/account-verification-dialog";
 import { useSettingsAccount } from "@/features/settings/hooks/use-settings-account";
 import { shouldUseEmailBootstrap } from "@/features/settings/model/account-settings";
-import type { SecurityVerificationMethod } from "@/shared/api/auth.types";
+import type { SecurityVerificationMethod } from "@/shared/api/auth-types";
 import {
   SettingsPage,
   SettingsSectionSeparator,
@@ -31,6 +31,7 @@ import {
 import { AccountActiveSessionsSection } from "./account-active-sessions";
 import { AccountIdentitiesSection } from "./account-identities";
 import { AccountOverviewSection } from "./account-overview";
+import { FeatureGate } from "@/shared/capabilities";
 
 export function SettingsAccount() {
   const t = useTranslations("settings.accountPage");
@@ -166,10 +167,9 @@ export function SettingsAccount() {
         onOpenDeleteDialog={() => setDeleteDialogOpen(true)}
       />
 
-      <SettingsSectionSeparator />
-
       {identityProviders.length > 0 ? (
-        <>
+        <FeatureGate feature="identityProviders">
+          <SettingsSectionSeparator />
           <AccountIdentitiesSection
             loading={loading}
             identities={identities}
@@ -180,16 +180,18 @@ export function SettingsAccount() {
             onBindIdentity={(provider) => void handleBindIdentity(provider)}
             onDeleteIdentity={(identity) => void handleDeleteIdentity(identity)}
           />
-          <SettingsSectionSeparator />
-        </>
+        </FeatureGate>
       ) : null}
 
-      <AccountActiveSessionsSection
-        sessions={sessions}
-        loading={loading}
-        revokingSessionID={revokingSessionID}
-        onLogoutSession={(session) => void handleLogoutSession(session)}
-      />
+      <FeatureGate feature="accountSecurity">
+        <SettingsSectionSeparator />
+        <AccountActiveSessionsSection
+          sessions={sessions}
+          loading={loading}
+          revokingSessionID={revokingSessionID}
+          onLogoutSession={(session) => void handleLogoutSession(session)}
+        />
+      </FeatureGate>
 
       <ChangePasswordDialog
         open={passwordDialogOpen}

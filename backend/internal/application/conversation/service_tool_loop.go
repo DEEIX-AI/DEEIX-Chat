@@ -55,10 +55,10 @@ func syncUpstreamOutputTrace(traceRecorder *messageTraceRecorder, output *llm.Ge
 	return assistantText, serverToolRows
 }
 
-// finalizeStreamingOutputTrace reconciles the final reasoning snapshot without
-// replaying trace events already emitted by the stream. Some adapters expose
-// server-side tools only in the final output; those rows are added exactly once
-// when no live server-tool event was observed for the call.
+// finalizeStreamingOutputTrace 对最终推理快照进行对账，且不
+// 重放流中已发出的 trace 事件。部分适配器仅在最终输出中
+// 暴露服务端工具；当某次调用未观察到实时服务端工具事件时，
+// 这些行恰好补充一次。
 func finalizeStreamingOutputTrace(traceRecorder *messageTraceRecorder, output *llm.GenerateOutput, runID string, observedServerTools map[string]string) {
 	if traceRecorder == nil || output == nil {
 		return

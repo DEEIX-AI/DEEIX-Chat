@@ -15,7 +15,7 @@ func TestCreateCheckoutBuildsClassicEPayRequest(t *testing.T) {
 		PaymentType:    "alipay",
 		OrderNo:        "order-123",
 		NotifyURL:      "https://api.example.com/api/v1/billing/payments/epay/notify",
-		ReturnURL:      "https://chat.example.com/setting/subscription?payment=success",
+		ReturnURL:      "https://chat.example.com/settings/subscription?payment=success",
 		PayCurrency:    "CNY",
 		PayAmountCents: 1234,
 		ProductName:    "测试套餐",
@@ -44,7 +44,7 @@ func TestCreateCheckoutBuildsClassicEPayRequest(t *testing.T) {
 		}
 	}
 	providedSign := query.Get("sign")
-	const expectedSign = "145ce27900fbe84c65702eea6b2c5218"
+	const expectedSign = "852dfc90d3a33877f985021d960a3646"
 	if providedSign != expectedSign {
 		t.Fatalf("sign = %q, want %q", providedSign, expectedSign)
 	}

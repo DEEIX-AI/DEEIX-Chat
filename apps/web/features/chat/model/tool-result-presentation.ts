@@ -1,3 +1,5 @@
+import { parseJSON } from "@/shared/lib/type-guards";
+
 export type ToolResultCategory = "web_search" | "code_execution" | "image_generation" | "shell" | "generic";
 
 export type ToolResultDescriptor = {
@@ -74,7 +76,8 @@ export function parseToolPayload(value: string | undefined): unknown {
   const text = value?.trim();
   if (!text) return null;
   try {
-    return JSON.parse(text) as unknown;
+    const parsed: unknown = JSON.parse(text);
+    return parsed;
   } catch {
     return text;
   }
@@ -89,11 +92,7 @@ function parseEmbeddedJSON(value: string): unknown {
   ) {
     return null;
   }
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return null;
-  }
+  return parseJSON(text) ?? null;
 }
 
 export function walkToolPayload(value: unknown, visit: (item: unknown, key?: string) => void) {
@@ -129,7 +128,7 @@ export function walkToolPayload(value: unknown, visit: (item: unknown, key?: str
       continue;
     }
 
-    for (const [key, item] of Object.entries(current.value as Record<string, unknown>)) {
+    for (const [key, item] of Object.entries(current.value)) {
       if (traversed + pending.length >= TOOL_PAYLOAD_MAX_NODES) break;
       pending.push({ value: item, key, depth: current.depth + 1 });
     }

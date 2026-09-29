@@ -8,8 +8,8 @@ import type {
   AdminRapidOCRRuntimeView,
   AdminTesseractRuntimeView,
   AdminTikaRuntimeView,
-} from "@/features/admin/api/admin.types";
-import type { PatchSettingsRequest, SettingItem, SettingsGrouped } from "@/shared/api/settings.types";
+} from "@/features/admin/api/admin-types";
+import type { PatchSettingsRequest, SettingItem, SettingsGrouped } from "@/shared/api/settings-types";
 
 export async function listAdminSettings(accessToken: string): Promise<SettingsGrouped> {
   return authedRequest<SettingsGrouped>(

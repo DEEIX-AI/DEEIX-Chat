@@ -7,10 +7,10 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-export interface GripVerticalIconHandle {
+export type GripVerticalIconHandle = {
   startAnimation: () => void;
   stopAnimation: () => void;
-}
+};
 
 interface GripVerticalIconProps extends HTMLAttributes<HTMLDivElement> {
   size?: number;
@@ -97,6 +97,7 @@ const GripVerticalIcon = forwardRef<
       {...props}
     >
       <svg
+        aria-hidden="true"
         fill="none"
         height={size}
         stroke="currentColor"

@@ -9,16 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import {
-  canonicalClock,
-  createSchedulePeriodForm,
-  isOvernightPeriod,
-  normalizeSchedulePeriods,
-  SCHEDULE_PERIOD_LIMITS,
-  type SchedulePeriodForm,
-  type SchedulePeriodIssue,
-  WEEKDAY_ORDER,
-} from "@/shared/model/schedule-pricing";
+import { canonicalClock, createSchedulePeriodForm, isOvernightPeriod, normalizeSchedulePeriods, SCHEDULE_PERIOD_LIMITS, type SchedulePeriodForm, type SchedulePeriodIssue, WEEKDAY_ORDER } from "@/entities/billing";
 
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
@@ -74,7 +65,7 @@ export function BillingScheduleEditor({
           <p className="text-xs font-medium">{t("title")}</p>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex text-muted-foreground" aria-label={t("hint")}>
+              <span className="inline-flex text-muted-foreground" role="img" aria-label={t("hint")}>
                 <Info className="size-3.5" strokeWidth={1.5} />
               </span>
             </TooltipTrigger>

@@ -278,8 +278,8 @@ func (s *Service) sendMessageInternal(
 				retainedOutput = true
 				applyRetainedGenerationRunUsage(run, retained, len(toolCallRows), startedAt)
 			}
-			// Input checks and any retained visible output continue after
-			// cancel/interrupt/error; either surface may still block the turn.
+			// 在取消/中断/出错后，输入检查及任何保留的可见输出
+			// 仍会继续审核；任一检查面都可能拦截该轮次。
 			if moderationCoord != nil {
 				if result == nil && userMessage != nil && assistantMessage != nil {
 					result = &SendMessageResult{
@@ -620,7 +620,9 @@ func (s *Service) sendMessageInternal(
 	userCtx.RAGNotice = rag.notice
 	stableFullContextAttachments := append([]AttachmentInput{}, fileContextPlan.FullAttachments...)
 	stableFullContextAttachments = append(stableFullContextAttachments, ragFallbackEvidenceAttachments(rag.retrievalFallbacks)...)
-	userCtx.Attachments = imageAttachmentsForCurrentUser(stableFullContextAttachments)
+	// 检索命中的图片随本轮消息发送，但不进入稳定上下文：它随查询变化，不能参与前缀缓存指纹。
+	turnImageAttachments := append(append([]AttachmentInput{}, stableFullContextAttachments...), rag.imageEvidence...)
+	userCtx.Attachments = imageAttachmentsForCurrentUser(turnImageAttachments)
 	userCtx.RAGChunks = ragContextChunks
 	assistantMessage.KnowledgeSources = messageKnowledgeSourcesFromRAGChunks(ragContextChunks)
 	// 语义召回注入：收集异步结果（与 RAG 解耦，独立运行）。
@@ -1207,7 +1209,7 @@ func (s *Service) sendMessageInternal(
 		StartedAt:             startedAt,
 		postBillingCompaction: postBillingCompaction,
 	}
-	// Soft moderation barrier: show checking, then block or pass.
+	// 软审核屏障：先显示检查中，再拦截或放行。
 	if moderationCoord != nil {
 		outputImages := s.loadOutputImagesForModeration(ctx, moderationCoord, input.UserID, assistantMessage.Attachments)
 		s.completeModerationAfterSuccess(ctx, completeModerationAfterSuccessInput{
@@ -1234,6 +1236,7 @@ func messageKnowledgeSourcesFromRAGChunks(chunks []model.RAGChunk) []model.Messa
 			ChunkIndex: chunk.ChunkIndex,
 			Score:      chunk.Score,
 			Preview:    textutil.CompactSnippet(chunk.Content, 100),
+			Modality:   chunk.Modality,
 		})
 	}
 	return sources

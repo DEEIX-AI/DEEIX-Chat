@@ -1,11 +1,11 @@
 import { Suspense } from "react";
 
-import { AdminLogsPage as AdminLogsSection } from "@/features/admin/components/sections/logs/admin-logs";
+import { AdminLogsPage } from "@/features/admin";
 
-export default function AdminLogsPage() {
+export default function Page() {
   return (
     <Suspense fallback={null}>
-      <AdminLogsSection />
+      <AdminLogsPage />
     </Suspense>
   );
 }

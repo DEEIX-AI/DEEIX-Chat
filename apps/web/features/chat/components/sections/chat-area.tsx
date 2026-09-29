@@ -19,7 +19,7 @@ import {
   ChatInlineAlertCard,
   ChatMessageBot,
 } from "@/features/chat/components/message/message-bot";
-import { type AssistantReaction } from "@/features/chat/components/message/message-meta";
+import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
 import { ChatMessageUser } from "@/features/chat/components/message/message-user";
 import { ChatLabel } from "@/features/chat/components/sections/chat-label";
 import {
@@ -33,16 +33,16 @@ import type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts
 import { areChatAreaMessagesRenderEqual } from "@/features/chat/model/chat-message-render";
 import { MAX_SCREENSHOT_MESSAGES } from "@/features/chat/model/conversation-screenshot";
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
-import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
+import type { ChatAreaMessage, MessageAttachment, UserMessageEditMode } from "@/features/chat/types/messages";
 import { cn } from "@/lib/utils";
 import { AppLogo, DeeixLogo } from "@/shared/components/app-logo";
-import { ConversationShareExportIconDropdown } from "@/shared/components/conversation-share-export-menu";
+import { ConversationShareExportIconDropdown } from "@/entities/conversation";
 import { useCopyAction } from "@/shared/components/copy-action";
-import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
+import type { FileContentLoader } from "@/entities/file";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
 import { useBranding } from "@/shared/config/branding-provider";
-import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
+import type { BillingDisplayCurrency } from "@/entities/billing";
 
 function LiveMessageFollower({ activeKey }: { activeKey: string }): null {
   const { scrollToEnd } = useMessageScroller();
@@ -97,7 +97,7 @@ type ChatAreaProps = {
   onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
-  onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
+  onEditUserMessage: (message: ChatAreaMessage, content: string, mode: UserMessageEditMode) => Promise<boolean> | boolean;
   onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onDeleteMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   modelOptions: ChatModelOption[];
@@ -127,6 +127,7 @@ type ChatAreaProps = {
   showLatency?: boolean;
   showTokenUsage?: boolean;
   showBillingCost?: boolean;
+  showProcessTrace?: boolean;
   billingDisplayCurrency?: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate?: number | null;
   splitRightInset?: boolean;
@@ -288,6 +289,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   showLatency,
   showTokenUsage,
   showBillingCost,
+  showProcessTrace,
   billingDisplayCurrency,
   billingDisplayUsdToCnyRate,
   contentWidthClassName,
@@ -303,7 +305,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
-  onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
+  onEditUserMessage: (message: ChatAreaMessage, content: string, mode: UserMessageEditMode) => Promise<boolean> | boolean;
   onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onDeleteMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   modelOptions: ChatModelOption[];
@@ -324,6 +326,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   showLatency: boolean;
   showTokenUsage: boolean;
   showBillingCost: boolean;
+  showProcessTrace: boolean;
   billingDisplayCurrency: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate: number | null;
   contentWidthClassName: string;
@@ -426,6 +429,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         showLatency={showLatency}
         showTokenUsage={showTokenUsage}
         showBillingCost={showBillingCost}
+        showProcessTrace={showProcessTrace}
         billingDisplayCurrency={billingDisplayCurrency}
         billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
         readOnly={readOnly}
@@ -460,6 +464,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.showLatency === next.showLatency &&
   previous.showTokenUsage === next.showTokenUsage &&
   previous.showBillingCost === next.showBillingCost &&
+  previous.showProcessTrace === next.showProcessTrace &&
   previous.billingDisplayCurrency === next.billingDisplayCurrency &&
   previous.billingDisplayUsdToCnyRate === next.billingDisplayUsdToCnyRate &&
   previous.contentWidthClassName === next.contentWidthClassName &&
@@ -521,6 +526,7 @@ export function ChatArea({
   showLatency = true,
   showTokenUsage = true,
   showBillingCost = false,
+  showProcessTrace = true,
   billingDisplayCurrency = "USD",
   billingDisplayUsdToCnyRate = null,
   splitRightInset = false,
@@ -709,6 +715,7 @@ export function ChatArea({
                       showLatency={showLatency}
                       showTokenUsage={showTokenUsage}
                       showBillingCost={showBillingCost}
+                      showProcessTrace={showProcessTrace}
                       billingDisplayCurrency={billingDisplayCurrency}
                       billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
                       contentWidthClassName={contentWidthClassName}

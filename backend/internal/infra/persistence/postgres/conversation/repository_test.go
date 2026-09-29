@@ -10,7 +10,7 @@ import (
 	"time"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -18,7 +18,7 @@ import (
 
 func TestReplaceActiveConversationShareReportsMissingSchemaColumn(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
-	if err := db.Migrator().DropColumn(&model.ConversationShare{}, "default_message_ids_json"); err != nil {
+	if err := db.Migrator().DropColumn(&models.ConversationShare{}, "default_message_ids_json"); err != nil {
 		t.Fatalf("drop legacy share column: %v", err)
 	}
 
@@ -88,7 +88,7 @@ func TestConversationRunClaimIsUniqueAndOwnershipCannotBeTransferred(t *testing.
 		t.Fatalf("update missing run error=%v, want ErrNotFound", err)
 	}
 
-	var stored model.ConversationRun
+	var stored models.ConversationRun
 	if err := db.Where("run_id = ?", run.RunID).Take(&stored).Error; err != nil {
 		t.Fatalf("load stored run: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestCreateContextArtifactsRejectsIncompleteOwnerScope(t *testing.T) {
 
 func TestCreateContextArtifactsNormalizesRunOwner(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
-	if err := db.AutoMigrate(&model.ChatContextRecord{}); err != nil {
+	if err := db.AutoMigrate(&models.ChatContextRecord{}); err != nil {
 		t.Fatalf("migrate context records: %v", err)
 	}
 	repo := NewRepo(db)
@@ -150,7 +150,7 @@ func TestCreateContextArtifactsNormalizesRunOwner(t *testing.T) {
 
 func TestListRecentContextArtifactsFiltersBranchBeforeLimit(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
-	if err := db.AutoMigrate(&model.Message{}, &model.ChatContextRecord{}); err != nil {
+	if err := db.AutoMigrate(&models.Message{}, &models.ChatContextRecord{}); err != nil {
 		t.Fatalf("migrate context records: %v", err)
 	}
 	repo := NewRepo(db)
@@ -158,9 +158,9 @@ func TestListRecentContextArtifactsFiltersBranchBeforeLimit(t *testing.T) {
 	rootMessageID := uint(1)
 	activeOwnerID := uint(10)
 	leafMessageID := uint(12)
-	branchMessages := []model.Message{
+	branchMessages := []models.Message{
 		{
-			BaseModel:      model.BaseModel{ID: rootMessageID},
+			BaseModel:      models.BaseModel{ID: rootMessageID},
 			ConversationID: 7,
 			UserID:         1,
 			PublicID:       "msg_branch_root",
@@ -168,7 +168,7 @@ func TestListRecentContextArtifactsFiltersBranchBeforeLimit(t *testing.T) {
 			Status:         "success",
 		},
 		{
-			BaseModel:       model.BaseModel{ID: activeOwnerID},
+			BaseModel:       models.BaseModel{ID: activeOwnerID},
 			ConversationID:  7,
 			UserID:          1,
 			PublicID:        "msg_artifact_owner",
@@ -178,7 +178,7 @@ func TestListRecentContextArtifactsFiltersBranchBeforeLimit(t *testing.T) {
 			Status:          "success",
 		},
 		{
-			BaseModel:       model.BaseModel{ID: leafMessageID},
+			BaseModel:       models.BaseModel{ID: leafMessageID},
 			ConversationID:  7,
 			UserID:          1,
 			PublicID:        "msg_branch_leaf",
@@ -188,8 +188,8 @@ func TestListRecentContextArtifactsFiltersBranchBeforeLimit(t *testing.T) {
 		},
 	}
 	for index := 0; index < 31; index++ {
-		branchMessages = append(branchMessages, model.Message{
-			BaseModel:       model.BaseModel{ID: uint(100 + index)},
+		branchMessages = append(branchMessages, models.Message{
+			BaseModel:       models.BaseModel{ID: uint(100 + index)},
 			ConversationID:  7,
 			UserID:          1,
 			PublicID:        fmt.Sprintf("msg_sibling_%d", index),
@@ -202,7 +202,7 @@ func TestListRecentContextArtifactsFiltersBranchBeforeLimit(t *testing.T) {
 		t.Fatalf("create branch messages: %v", err)
 	}
 
-	items := []model.ChatContextRecord{
+	items := []models.ChatContextRecord{
 		{
 			RecordType:     chatContextRecordArtifact,
 			ConversationID: 7,
@@ -237,7 +237,7 @@ func TestListRecentContextArtifactsFiltersBranchBeforeLimit(t *testing.T) {
 		},
 	}
 	for index := 0; index < 31; index++ {
-		items = append(items, model.ChatContextRecord{
+		items = append(items, models.ChatContextRecord{
 			RecordType:     chatContextRecordArtifact,
 			ConversationID: 7,
 			MessageID:      uint(100 + index),
@@ -273,7 +273,7 @@ func TestConversationProjectDefaultsRoundTripAndDelete(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
-	knowledgeBases := []model.KnowledgeBase{
+	knowledgeBases := []models.KnowledgeBase{
 		{PublicID: "kb_default_one", Scope: "builtin", Name: "Default one", Enabled: true},
 		{PublicID: "kb_default_two", Scope: "user", OwnerUserID: 1, Name: "Default two", Enabled: true},
 	}
@@ -318,14 +318,14 @@ func TestConversationProjectDefaultsRoundTripAndDelete(t *testing.T) {
 		DefaultKnowledgeBaseIDs: []string{"kb_other_user"},
 		Status:                  "active",
 	}
-	if err = db.Create(&model.KnowledgeBase{PublicID: "kb_other_user", Scope: "user", OwnerUserID: 2, Name: "Other user", Enabled: true}).Error; err != nil {
+	if err = db.Create(&models.KnowledgeBase{PublicID: "kb_other_user", Scope: "user", OwnerUserID: 2, Name: "Other user", Enabled: true}).Error; err != nil {
 		t.Fatalf("seed other user's knowledge base: %v", err)
 	}
 	if err = repo.CreateConversationProject(ctx, &badProject); !errors.Is(err, repository.ErrNotFound) {
 		t.Fatalf("CreateConversationProject(other user's knowledge base) error = %v, want ErrNotFound", err)
 	}
 	var badProjectCount int64
-	if err = db.Model(&model.ConversationProject{}).Where("public_id = ?", badProject.PublicID).Count(&badProjectCount).Error; err != nil {
+	if err = db.Model(&models.ConversationProject{}).Where("public_id = ?", badProject.PublicID).Count(&badProjectCount).Error; err != nil {
 		t.Fatalf("count rolled back project: %v", err)
 	}
 	if badProjectCount != 0 {
@@ -357,19 +357,19 @@ func TestConversationProjectDefaultsRoundTripAndDelete(t *testing.T) {
 		t.Fatalf("DeleteConversationProjectByPublicID() error = %v", err)
 	}
 	var associationCount int64
-	if err = db.Model(&model.ConversationProjectMCPTool{}).Where("project_id = ?", project.ID).Count(&associationCount).Error; err != nil {
+	if err = db.Model(&models.ConversationProjectMCPTool{}).Where("project_id = ?", project.ID).Count(&associationCount).Error; err != nil {
 		t.Fatalf("count project MCP associations: %v", err)
 	}
 	if associationCount != 0 {
 		t.Fatalf("project MCP association count = %d, want 0", associationCount)
 	}
-	if err = db.Model(&model.ConversationProjectSkill{}).Where("project_id = ?", project.ID).Count(&associationCount).Error; err != nil {
+	if err = db.Model(&models.ConversationProjectSkill{}).Where("project_id = ?", project.ID).Count(&associationCount).Error; err != nil {
 		t.Fatalf("count project Skill associations: %v", err)
 	}
 	if associationCount != 0 {
 		t.Fatalf("project Skill association count = %d, want 0", associationCount)
 	}
-	if err = db.Model(&model.ConversationProjectKnowledgeBase{}).Where("project_id = ?", project.ID).Count(&associationCount).Error; err != nil {
+	if err = db.Model(&models.ConversationProjectKnowledgeBase{}).Where("project_id = ?", project.ID).Count(&associationCount).Error; err != nil {
 		t.Fatalf("count project knowledge base associations: %v", err)
 	}
 	if associationCount != 0 {
@@ -383,7 +383,7 @@ func TestListConversationEventLogsHydratesRunRouteSnapshot(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	run := model.ConversationRun{
+	run := models.ConversationRun{
 		RunID:             "run_with_route",
 		UserID:            1,
 		ConversationID:    2,
@@ -399,7 +399,7 @@ func TestListConversationEventLogsHydratesRunRouteSnapshot(t *testing.T) {
 		t.Fatalf("create conversation run: %v", err)
 	}
 
-	events := []model.ChatRunEvent{
+	events := []models.ChatRunEvent{
 		{
 			ConversationID: 2,
 			UserID:         1,
@@ -456,7 +456,7 @@ func TestConversationEventLogListAndDetailBoundPayloads(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	largePayload := strings.Repeat("x", maxConversationEventDetailJSONBytes+1)
-	events := []model.ChatRunEvent{
+	events := []models.ChatRunEvent{
 		{
 			ConversationID:  1,
 			UserID:          1,
@@ -549,7 +549,7 @@ func TestConversationToolCallDetailReturnsRawResultUpToEightMegabytes(t *testing
 	omittedOutput := strings.Repeat("y", maxConversationToolCallDetailJSONBytes+1)
 	combinedOutput := strings.Repeat("o", maxConversationToolCallDetailJSONBytes/2)
 	combinedError := strings.Repeat("e", maxConversationToolCallDetailJSONBytes/2+1)
-	events := []model.ChatRunEvent{
+	events := []models.ChatRunEvent{
 		{
 			UserID:     1,
 			RunID:      "run_visible_tool_result",
@@ -626,7 +626,7 @@ func TestConversationMessageTraceReadsBoundPayloads(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	largePayload := strings.Repeat("x", maxConversationEventDetailJSONBytes+1)
-	items := []model.ChatRunEvent{
+	items := []models.ChatRunEvent{
 		{
 			MessageID:       11,
 			RunID:           "run_trace_block_large",
@@ -673,7 +673,7 @@ func TestListMessagesBeforeIDReturnsPreviousWindowAscending(t *testing.T) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	conversation := model.Conversation{
+	conversation := models.Conversation{
 		UserID:     1,
 		PublicID:   "conv_before",
 		Title:      "before window",
@@ -685,10 +685,10 @@ func TestListMessagesBeforeIDReturnsPreviousWindowAscending(t *testing.T) {
 		t.Fatalf("create conversation: %v", err)
 	}
 
-	messages := make([]model.Message, 0, 5)
+	messages := make([]models.Message, 0, 5)
 	var parentID *uint
 	for index := 1; index <= 5; index++ {
-		message := model.Message{
+		message := models.Message{
 			ConversationID:  conversation.ID,
 			UserID:          1,
 			PublicID:        fmt.Sprintf("msg_%d", index),
@@ -731,7 +731,7 @@ func TestListMessageAncestorsMatchesFullColumnLoad(t *testing.T) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	conversation := model.Conversation{
+	conversation := models.Conversation{
 		UserID:     1,
 		PublicID:   "conv_ancestors_columns",
 		Title:      "ancestors columns",
@@ -743,7 +743,7 @@ func TestListMessageAncestorsMatchesFullColumnLoad(t *testing.T) {
 		t.Fatalf("create conversation: %v", err)
 	}
 
-	root := model.Message{
+	root := models.Message{
 		ConversationID: conversation.ID,
 		UserID:         1,
 		PublicID:       "msg_columns_root",
@@ -760,7 +760,7 @@ func TestListMessageAncestorsMatchesFullColumnLoad(t *testing.T) {
 	editedAt := time.Now().UTC().Truncate(time.Second)
 	sourceID := root.ID
 	// 所有可空/可选列都填非零值，任何一列被 CTE 丢弃都会在比对中暴露。
-	leaf := model.Message{
+	leaf := models.Message{
 		ConversationID:   conversation.ID,
 		UserID:           1,
 		PublicID:         "msg_columns_leaf",
@@ -818,7 +818,7 @@ func TestListMessageAncestorsPreservesReasoningContent(t *testing.T) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	conversation := model.Conversation{
+	conversation := models.Conversation{
 		UserID:     1,
 		PublicID:   "conv_ancestors_reasoning",
 		Title:      "ancestors reasoning",
@@ -831,7 +831,7 @@ func TestListMessageAncestorsPreservesReasoningContent(t *testing.T) {
 	}
 
 	var parentID *uint
-	messages := make([]model.Message, 0, 4)
+	messages := make([]models.Message, 0, 4)
 	for index := 1; index <= 4; index++ {
 		role := "user"
 		reasoning := ""
@@ -839,7 +839,7 @@ func TestListMessageAncestorsPreservesReasoningContent(t *testing.T) {
 			role = "assistant"
 			reasoning = fmt.Sprintf("reasoning %d", index)
 		}
-		message := model.Message{
+		message := models.Message{
 			ConversationID:   conversation.ID,
 			UserID:           1,
 			PublicID:         fmt.Sprintf("msg_reasoning_%d", index),
@@ -885,7 +885,7 @@ func TestUpdateAssistantMessageCompletionPersistsReasoningAndKnowledgeSources(t 
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	conversation := model.Conversation{
+	conversation := models.Conversation{
 		UserID:     1,
 		PublicID:   "conv_reasoning_completion",
 		Title:      "reasoning completion",
@@ -896,7 +896,7 @@ func TestUpdateAssistantMessageCompletionPersistsReasoningAndKnowledgeSources(t 
 	if err := db.Create(&conversation).Error; err != nil {
 		t.Fatalf("create conversation: %v", err)
 	}
-	message := model.Message{
+	message := models.Message{
 		ConversationID: conversation.ID,
 		UserID:         1,
 		PublicID:       "msg_reasoning_completion",
@@ -944,7 +944,7 @@ func TestUpdateConversationMetadataSQLiteUsesPortableTrim(t *testing.T) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	conversation := model.Conversation{
+	conversation := models.Conversation{
 		UserID:     1,
 		PublicID:   "conv_metadata_sqlite",
 		Title:      " 新对话 ",
@@ -970,7 +970,7 @@ func TestUpdateConversationMetadataSQLiteUsesPortableTrim(t *testing.T) {
 func TestUpdateConversationLabelsAppliesGeneratedLabelsWhenEligible(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)
-	conversation := model.Conversation{
+	conversation := models.Conversation{
 		PublicID:   "generated-label-eligible",
 		UserID:     1,
 		Title:      "已有标题",
@@ -994,7 +994,7 @@ func TestUpdateConversationLabelsAppliesGeneratedLabelsWhenEligible(t *testing.T
 func TestUpdateConversationLabelsByPublicIDIsUserScopedAndMarksManualManagement(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)
-	conversation := model.Conversation{
+	conversation := models.Conversation{
 		PublicID:   "manual-label-user-scope",
 		UserID:     1,
 		Title:      "已有标题",
@@ -1021,7 +1021,7 @@ func TestUpdateConversationLabelsByPublicIDIsUserScopedAndMarksManualManagement(
 func TestUpdateConversationLabelsGeneratedLabelsDoNotOverwriteManualLabels(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)
-	conversation := model.Conversation{
+	conversation := models.Conversation{
 		PublicID:              "generated-label-race",
 		UserID:                1,
 		Title:                 "已有标题",
@@ -1052,7 +1052,7 @@ func TestUpdateConversationLabelsGeneratedLabelsDoNotOverwriteManualLabels(t *te
 func TestUpdateConversationLabelsGeneratedLabelsDoNotRestoreManuallyClearedLabels(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)
-	conversation := model.Conversation{
+	conversation := models.Conversation{
 		PublicID:              "generated-label-manual-clear-race",
 		UserID:                1,
 		Title:                 "已有标题",
@@ -1085,7 +1085,7 @@ func TestUpdateConversationMetadataCanReplaceAutomaticFallbackTitle(t *testing.T
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	conversation := model.Conversation{
+	conversation := models.Conversation{
 		UserID:     1,
 		PublicID:   "conv_metadata_fallback",
 		Title:      "画一张城市夜景",
@@ -1108,7 +1108,7 @@ func TestUpdateConversationMetadataCanReplaceAutomaticFallbackTitle(t *testing.T
 		t.Fatalf("updated title = %q, want %q", updated.Title, "城市夜景图像生成")
 	}
 
-	if err := db.Model(&model.Conversation{}).Where("id = ?", conversation.ID).Update("title", "手动标题").Error; err != nil {
+	if err := db.Model(&models.Conversation{}).Where("id = ?", conversation.ID).Update("title", "手动标题").Error; err != nil {
 		t.Fatalf("set manual title: %v", err)
 	}
 	updated, err = repo.UpdateConversationMetadata(ctx, conversation.ID, repository.ConversationMetadataPatch{
@@ -1128,7 +1128,7 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	project := model.ConversationProject{
+	project := models.ConversationProject{
 		UserID:      1,
 		PublicID:    "proj_research",
 		Name:        "Research Notes",
@@ -1139,7 +1139,7 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		t.Fatalf("create project: %v", err)
 	}
 
-	projectConversation := model.Conversation{
+	projectConversation := models.Conversation{
 		UserID:     1,
 		ProjectID:  &project.ID,
 		PublicID:   "conv_project_search",
@@ -1150,7 +1150,7 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		SessionKey: "session_project_search",
 		Status:     "active",
 	}
-	titleConversation := model.Conversation{
+	titleConversation := models.Conversation{
 		UserID:     1,
 		PublicID:   "conv_title_search",
 		Title:      "Quarterly Budget",
@@ -1160,7 +1160,7 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		SessionKey: "session_title_search",
 		Status:     "active",
 	}
-	messageConversation := model.Conversation{
+	messageConversation := models.Conversation{
 		UserID:     1,
 		PublicID:   "conv_message_search",
 		Title:      "Ordinary chat",
@@ -1170,7 +1170,7 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		SessionKey: "session_message_search",
 		Status:     "active",
 	}
-	toolOnlyConversation := model.Conversation{
+	toolOnlyConversation := models.Conversation{
 		UserID:     1,
 		PublicID:   "conv_tool_only_search",
 		Title:      "Tool output",
@@ -1180,7 +1180,7 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		SessionKey: "session_tool_only_search",
 		Status:     "active",
 	}
-	wildcardConversation := model.Conversation{
+	wildcardConversation := models.Conversation{
 		UserID:     1,
 		PublicID:   "conv_literal_wildcard_search",
 		Title:      "Progress 100%",
@@ -1190,7 +1190,7 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		SessionKey: "session_literal_wildcard_search",
 		Status:     "active",
 	}
-	otherUserConversation := model.Conversation{
+	otherUserConversation := models.Conversation{
 		UserID:     2,
 		PublicID:   "conv_other_user",
 		Title:      "Private Budget",
@@ -1200,7 +1200,7 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		SessionKey: "session_other_user",
 		Status:     "active",
 	}
-	for _, conversation := range []model.Conversation{
+	for _, conversation := range []models.Conversation{
 		projectConversation,
 		titleConversation,
 		messageConversation,
@@ -1213,11 +1213,11 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 		}
 	}
 
-	var messageTarget model.Conversation
+	var messageTarget models.Conversation
 	if err := db.Where("public_id = ?", "conv_message_search").First(&messageTarget).Error; err != nil {
 		t.Fatalf("load message target: %v", err)
 	}
-	if err := db.Create(&model.Message{
+	if err := db.Create(&models.Message{
 		ConversationID: messageTarget.ID,
 		UserID:         1,
 		PublicID:       "msg_search",
@@ -1229,11 +1229,11 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 	}).Error; err != nil {
 		t.Fatalf("create message: %v", err)
 	}
-	var toolOnlyTarget model.Conversation
+	var toolOnlyTarget models.Conversation
 	if err := db.Where("public_id = ?", "conv_tool_only_search").First(&toolOnlyTarget).Error; err != nil {
 		t.Fatalf("load tool-only target: %v", err)
 	}
-	if err := db.Create(&model.Message{
+	if err := db.Create(&models.Message{
 		ConversationID: toolOnlyTarget.ID,
 		UserID:         1,
 		PublicID:       "msg_tool_only_search",
@@ -1292,9 +1292,9 @@ func TestListConversationsForSearchReturnsOrderedWindowWithoutStatusFiltering(t 
 	ctx := context.Background()
 	now := time.Now()
 
-	items := []model.Conversation{
+	items := []models.Conversation{
 		{
-			BaseModel:  model.BaseModel{UpdatedAt: now.Add(-2 * time.Hour)},
+			BaseModel:  models.BaseModel{UpdatedAt: now.Add(-2 * time.Hour)},
 			UserID:     1,
 			PublicID:   "conv_search_oldest",
 			Title:      "Needle oldest",
@@ -1305,7 +1305,7 @@ func TestListConversationsForSearchReturnsOrderedWindowWithoutStatusFiltering(t 
 			Status:     "active",
 		},
 		{
-			BaseModel:  model.BaseModel{UpdatedAt: now.Add(-time.Hour)},
+			BaseModel:  models.BaseModel{UpdatedAt: now.Add(-time.Hour)},
 			UserID:     1,
 			PublicID:   "conv_search_middle",
 			Title:      "Needle middle",
@@ -1316,7 +1316,7 @@ func TestListConversationsForSearchReturnsOrderedWindowWithoutStatusFiltering(t 
 			Status:     "archived",
 		},
 		{
-			BaseModel:  model.BaseModel{UpdatedAt: now},
+			BaseModel:  models.BaseModel{UpdatedAt: now},
 			UserID:     1,
 			PublicID:   "conv_search_latest",
 			Title:      "Needle latest",
@@ -1345,7 +1345,7 @@ func TestListLatestBranchPreviewMessagesReturnsLatestVisibleWindow(t *testing.T)
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	conversation := model.Conversation{
+	conversation := models.Conversation{
 		UserID:     1,
 		PublicID:   "conv_latest_branch_preview",
 		Title:      "Latest branch preview",
@@ -1359,9 +1359,9 @@ func TestListLatestBranchPreviewMessagesReturnsLatestVisibleWindow(t *testing.T)
 		t.Fatalf("create conversation: %v", err)
 	}
 
-	createMessage := func(publicID string, role string, parentID *uint) model.Message {
+	createMessage := func(publicID string, role string, parentID *uint) models.Message {
 		t.Helper()
-		item := model.Message{
+		item := models.Message{
 			ConversationID:  conversation.ID,
 			UserID:          1,
 			PublicID:        publicID,
@@ -1428,7 +1428,7 @@ func openConversationRepositoryTestDB(t *testing.T) *gorm.DB {
 			_ = sqlDB.Close()
 		}
 	})
-	if err := db.AutoMigrate(&model.Conversation{}, &model.ConversationProject{}, &model.ConversationProjectMCPTool{}, &model.ConversationProjectSkill{}, &model.KnowledgeBase{}, &model.ConversationProjectKnowledgeBase{}, &model.ConversationShare{}, &model.Message{}, &model.Attachment{}, &model.FileObject{}, &model.ConversationRun{}, &model.ChatRunEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.Conversation{}, &models.ConversationProject{}, &models.ConversationProjectMCPTool{}, &models.ConversationProjectSkill{}, &models.KnowledgeBase{}, &models.ConversationProjectKnowledgeBase{}, &models.ConversationShare{}, &models.Message{}, &models.Attachment{}, &models.FileObject{}, &models.ConversationRun{}, &models.ChatRunEvent{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	return db
@@ -1442,8 +1442,8 @@ func TestListMessageAncestorsStopsAtConversationBoundary(t *testing.T) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	makeConversation := func(publicID string) model.Conversation {
-		conversation := model.Conversation{
+	makeConversation := func(publicID string) models.Conversation {
+		conversation := models.Conversation{
 			UserID: 1, PublicID: publicID, Title: publicID,
 			LabelsJSON: "[]", SessionKey: "session_" + publicID, Status: "active",
 		}
@@ -1456,7 +1456,7 @@ func TestListMessageAncestorsStopsAtConversationBoundary(t *testing.T) {
 	own := makeConversation("conv_own")
 
 	// 另一个会话中的消息，内容不应被泄漏到本会话的祖先链里。
-	foreignMessage := model.Message{
+	foreignMessage := models.Message{
 		ConversationID: foreign.ID, UserID: 1, PublicID: "msg_foreign",
 		Role: "assistant", ContentType: "text", Content: "FOREIGN_SECRET",
 		ReasoningContent: "FOREIGN_REASONING", BranchReason: "default", Status: "success",
@@ -1465,7 +1465,7 @@ func TestListMessageAncestorsStopsAtConversationBoundary(t *testing.T) {
 		t.Fatalf("create foreign message: %v", err)
 	}
 
-	leaf := model.Message{
+	leaf := models.Message{
 		ConversationID: own.ID, UserID: 1, PublicID: "msg_own_leaf",
 		ParentMessageID: &foreignMessage.ID,
 		Role:            "user", ContentType: "text", Content: "own leaf",
@@ -1494,7 +1494,7 @@ func TestListMessageAncestorsStopsAtConversationBoundary(t *testing.T) {
 
 func TestListRecentContextArtifactsUsesCTEForLongBranchAndSnapshotBoundary(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
-	if err := db.AutoMigrate(&model.Message{}, &model.ChatContextRecord{}); err != nil {
+	if err := db.AutoMigrate(&models.Message{}, &models.ChatContextRecord{}); err != nil {
 		t.Fatalf("migrate context records: %v", err)
 	}
 	repo := NewRepo(db)
@@ -1503,12 +1503,12 @@ func TestListRecentContextArtifactsUsesCTEForLongBranchAndSnapshotBoundary(t *te
 
 	const branchLength = 1205
 	var parentMessageID *uint
-	branchMessages := make([]model.Message, 0, branchLength)
+	branchMessages := make([]models.Message, 0, branchLength)
 	branchMessageIDs := make([]uint, 0, branchLength)
 	for index := 0; index < branchLength; index++ {
 		messageID := uint(10_000 + index)
-		message := model.Message{
-			BaseModel:       model.BaseModel{ID: messageID},
+		message := models.Message{
+			BaseModel:       models.BaseModel{ID: messageID},
 			ConversationID:  conversationID,
 			UserID:          1,
 			PublicID:        fmt.Sprintf("msg_context_long_%d", index),
@@ -1526,7 +1526,7 @@ func TestListRecentContextArtifactsUsesCTEForLongBranchAndSnapshotBoundary(t *te
 	if err := db.CreateInBatches(&branchMessages, 50).Error; err != nil {
 		t.Fatalf("create %d branch messages: %v", branchLength, err)
 	}
-	sibling := model.Message{
+	sibling := models.Message{
 		ConversationID:  conversationID,
 		UserID:          1,
 		PublicID:        "msg_context_long_sibling",
@@ -1540,7 +1540,7 @@ func TestListRecentContextArtifactsUsesCTEForLongBranchAndSnapshotBoundary(t *te
 	if err := db.Create(&sibling).Error; err != nil {
 		t.Fatalf("create sibling: %v", err)
 	}
-	artifacts := []model.ChatContextRecord{
+	artifacts := []models.ChatContextRecord{
 		{
 			RecordType: chatContextRecordArtifact, ConversationID: conversationID, MessageID: branchMessageIDs[1], UserID: 1,
 			Kind: string(domainconversation.ContextArtifactToolResult), SourceType: "tool_call", SourceID: "covered", Content: "covered evidence",
@@ -1599,20 +1599,20 @@ func TestListRecentContextArtifactsUsesCTEForLongBranchAndSnapshotBoundary(t *te
 
 func TestListRecentContextArtifactsHistoricalScopeTerminatesCycle(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
-	if err := db.AutoMigrate(&model.Message{}, &model.ChatContextRecord{}); err != nil {
+	if err := db.AutoMigrate(&models.Message{}, &models.ChatContextRecord{}); err != nil {
 		t.Fatalf("migrate context records: %v", err)
 	}
 	repo := NewRepo(db)
 	ctx := context.Background()
 	conversationID := uint(88)
-	first := model.Message{
+	first := models.Message{
 		ConversationID: conversationID, UserID: 1, PublicID: "msg_scope_cycle_first",
 		Role: "assistant", ContentType: "text", Content: "first", BranchReason: "default", Status: "success",
 	}
 	if err := db.Create(&first).Error; err != nil {
 		t.Fatalf("create first message: %v", err)
 	}
-	second := model.Message{
+	second := models.Message{
 		ConversationID: conversationID, UserID: 1, PublicID: "msg_scope_cycle_second",
 		ParentMessageID: &first.ID,
 		Role:            "user", ContentType: "text", Content: "second", BranchReason: "default", Status: "success",
@@ -1623,7 +1623,7 @@ func TestListRecentContextArtifactsHistoricalScopeTerminatesCycle(t *testing.T) 
 	if err := db.Model(&first).Update("parent_message_id", second.ID).Error; err != nil {
 		t.Fatalf("create cycle: %v", err)
 	}
-	artifact := model.ChatContextRecord{
+	artifact := models.ChatContextRecord{
 		RecordType: chatContextRecordArtifact, ConversationID: conversationID, MessageID: first.ID, UserID: 1,
 		Kind: string(domainconversation.ContextArtifactToolResult), SourceType: "tool_call", SourceID: "cycle", Content: "cycle evidence",
 	}
@@ -1646,18 +1646,18 @@ func TestListRecentContextArtifactsHistoricalScopeTerminatesCycle(t *testing.T) 
 
 func TestHistoricalMessageScopeStopsAtUserBoundary(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
-	if err := db.AutoMigrate(&model.Message{}); err != nil {
+	if err := db.AutoMigrate(&models.Message{}); err != nil {
 		t.Fatalf("migrate messages: %v", err)
 	}
 	conversationID := uint(89)
-	ownerAncestor := model.Message{
+	ownerAncestor := models.Message{
 		ConversationID: conversationID, UserID: 1, PublicID: "msg_scope_owner_ancestor",
 		Role: "assistant", ContentType: "text", Content: "owner ancestor", BranchReason: "default", Status: "success",
 	}
 	if err := db.Create(&ownerAncestor).Error; err != nil {
 		t.Fatalf("create owner ancestor: %v", err)
 	}
-	foreignParent := model.Message{
+	foreignParent := models.Message{
 		ConversationID: conversationID, UserID: 2, PublicID: "msg_scope_foreign_parent",
 		ParentMessageID: &ownerAncestor.ID,
 		Role:            "assistant", ContentType: "text", Content: "foreign parent", BranchReason: "default", Status: "success",
@@ -1665,7 +1665,7 @@ func TestHistoricalMessageScopeStopsAtUserBoundary(t *testing.T) {
 	if err := db.Create(&foreignParent).Error; err != nil {
 		t.Fatalf("create foreign parent: %v", err)
 	}
-	leaf := model.Message{
+	leaf := models.Message{
 		ConversationID: conversationID, UserID: 1, PublicID: "msg_scope_owner_leaf",
 		ParentMessageID: &foreignParent.ID,
 		Role:            "user", ContentType: "text", Content: "owner leaf", BranchReason: "default", Status: "pending",

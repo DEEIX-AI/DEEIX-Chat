@@ -1,4 +1,4 @@
-package model
+package models
 
 // Skill 记录平台内置和用户自定义的 SKILL.md 能力包。
 type Skill struct {

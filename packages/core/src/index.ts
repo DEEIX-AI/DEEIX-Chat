@@ -16,5 +16,13 @@ export type {
   SessionStore,
   WithAuthRetryOptions,
 } from "./auth/refresh.ts";
+export {
+  ALL_ENABLED,
+  FEATURE_DISABLED_ERROR_CODE,
+  FEATURE_NAMES,
+  disabledFeatureOf,
+  resolveCapabilities,
+} from "./capabilities/capabilities.ts";
+export type { CapabilityFlags, Feature } from "./capabilities/capabilities.ts";
 export { normalizeApiBaseUrl, resolveApiBaseUrl } from "./server/url.ts";
 export type { ResolveApiBaseUrlInput } from "./server/url.ts";

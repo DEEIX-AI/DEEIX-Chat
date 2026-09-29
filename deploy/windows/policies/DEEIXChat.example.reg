@@ -1,0 +1,18 @@
+Windows Registry Editor Version 5.00
+
+; DEEIX Chat enterprise policy - example. Same values as the ADMX template
+; (DEEIXChat.admx). Import from an elevated prompt: reg import DEEIXChat.example.reg
+; HKEY_LOCAL_MACHINE applies to every user of the computer and wins over
+; HKEY_CURRENT_USER\SOFTWARE\Policies\DEEIX\Chat value by value.
+; Delete a value (or the key) to return to the default. Restart DEEIX Chat
+; after a change.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\DEEIX\Chat]
+; Server address prefilled on the setup screen: http(s) origin, no path.
+"DefaultServerUrl"="https://chat.example.com"
+; 1 = only DefaultServerUrl may be used (also disables local mode).
+"LockServerUrl"=dword:00000001
+; 1 = hide and refuse the built-in local server.
+"DisableLocalMode"=dword:00000001
+; 1 = never check for updates (deliver versions through your software distribution).
+"DisableAutoUpdate"=dword:00000001

@@ -4,9 +4,9 @@ import type {
   ImageLoadingAspectRatio,
   MessageAttachment,
 } from "@/features/chat/types/messages";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
-import type { PublicModelPricingDTO } from "@/shared/api/model.types";
-import type { ModelNativeToolConfig } from "@/shared/lib/model-option-policy";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
+import type { PublicModelPricingDTO } from "@/shared/api/model-types";
+import type { ModelNativeToolConfig } from "@/entities/model";
 
 export type ViewerProfile = {
   name: string;
@@ -39,7 +39,9 @@ export type ModelMediaTaskConfig = {
   optionControls: ModelOptionControl[];
 };
 
-export type ModelOptionControlType = "boolean" | "number" | "select" | "text";
+export const MODEL_OPTION_CONTROL_TYPES = ["boolean", "number", "select", "text"] as const;
+
+export type ModelOptionControlType = (typeof MODEL_OPTION_CONTROL_TYPES)[number];
 
 export type ModelOptionControl = {
   path: string;

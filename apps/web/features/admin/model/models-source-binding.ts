@@ -3,7 +3,7 @@ import type {
   AdminLLMStatus,
   AdminLLMUpstreamModelDTO,
   BindAdminLLMModelUpstreamSourceRequest,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 
 export type ModelSourceBindDraft = {
   upstreamID: string;

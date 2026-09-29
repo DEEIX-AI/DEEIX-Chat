@@ -1,4 +1,4 @@
-import * as React from "react";
+import type * as React from "react";
 
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";

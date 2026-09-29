@@ -8,7 +8,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
-// Cache implements the repository cache interfaces for single-process deployments.
+// Cache 为单进程部署实现仓储层缓存接口。
 type Cache struct {
 	mu  sync.Mutex
 	ops uint64
@@ -49,7 +49,7 @@ type expiringRAG struct {
 	expiresAt time.Time
 }
 
-// New creates an in-memory cache backend.
+// New 创建内存缓存后端。
 func New() *Cache {
 	return &Cache{
 		settings:                 map[string]expiringString{},
@@ -72,27 +72,27 @@ func New() *Cache {
 	}
 }
 
-// NewSettingsCache returns the settings cache interface.
+// NewSettingsCache 返回设置缓存接口。
 func NewSettingsCache(cache *Cache) repository.SettingsCacheRepository {
 	return cache
 }
 
-// NewConversationCache returns the conversation cache interface.
+// NewConversationCache 返回会话缓存接口。
 func NewConversationCache(cache *Cache) repository.ConversationCacheRepository {
 	return cache
 }
 
-// NewChannelCache returns the channel cache interface.
+// NewChannelCache 返回渠道缓存接口。
 func NewChannelCache(cache *Cache) repository.ChannelCacheRepository {
 	return cache
 }
 
-// NewRateLimiter returns a single-process HTTP rate limiter.
+// NewRateLimiter 返回单进程 HTTP 限流器。
 func NewRateLimiter(cache *Cache) *Cache {
 	return cache
 }
 
-// NewProviderAuthBridge returns the single-process provider auth bridge store.
+// NewProviderAuthBridge 返回单进程的 provider auth bridge 存储。
 func NewProviderAuthBridge(cache *Cache) repository.ProviderAuthBridgeRepository {
 	return cache
 }

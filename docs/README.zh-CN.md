@@ -353,7 +353,7 @@ docker compose -f services/docling/docker-compose.yml up -d --build
    | --- | --- |
    | `/_next/static/*` | 缓存 1 年，并启用 immutable 静态资源缓存。 |
    | `/logo*.svg`、`/*.ico`、`/*.png`、`/*.jpg`、`/*.webp`、`/*.woff2` | 缓存 1 天到 30 天。 |
-   | `/`、`/*.html`、`/login*`、`/auth*`、`/chat*`、`/recent*`、`/files*`、`/knowledges*`、`/skills-prompt*`、`/setting*`、`/admin*`、`/share*`、`/preview*` | 不做长期缓存，建议使用 `no-cache` 或较短 TTL。 |
+   | `/`、`/*.html`、`/login*`、`/auth*`、`/chat*`、`/recent*`、`/files*`、`/knowledge-bases*`、`/library*`、`/settings*`、`/admin*`、`/share*`、`/preview*` | 不做长期缓存，建议使用 `no-cache` 或较短 TTL。 |
    | `/api/*`、`/healthz`、`/readyz`、`/swagger/*` | 绕过 CDN 缓存，并完整转发请求头、方法、查询参数和请求体。 |
 
    如果 CDN 从对象存储托管 `apps/web/out`，需要开启路由回退，让无扩展名地址能命中导出的 `index.html`，例如 `/chat` -> `/chat/index.html`。
@@ -467,13 +467,13 @@ docker compose logs app
 
 ### Web、App 与桌面端 OAuth 回调
 
-启用第三方授权桥前，请先把 `PUBLIC_API_BASE_URL` 配置为外部可访问的 API 地址。每个 OIDC/OAuth2 身份源都应登记后台身份源弹窗展示的服务器回调：
+第三方登录要求 `PUBLIC_API_BASE_URL` 为外部可访问的 API 地址。每个 OIDC/OAuth2 身份源只需登记后台身份源弹窗展示的这一个服务器回调：
 
 ```text
 <PUBLIC_API_BASE_URL>/api/v1/auth/providers/<provider-slug>/callback
 ```
 
-Web、App 与桌面端会自动复用当前实例的这个回调。外部身份源的授权码和 Client Secret 始终留在用户自己的服务器；公共客户端只会收到一个短时、单次使用并绑定 PKCE verifier 的 DEEIX 授权码。如果仍需使用账号身份绑定或兼容旧版 Web 客户端，请同时保留后台展示的旧版 Web 回调地址。
+Web、App 与桌面端的登录、注册和账号身份绑定都走这一个回调。外部身份源的授权码和 Client Secret 始终留在用户自己的服务器；公共客户端只会收到一个短时、单次使用并绑定 PKCE verifier 的 DEEIX 授权码。未配置 `PUBLIC_API_BASE_URL` 时第三方登录不可用，管理后台会给出提示。
 
 ## 功能指南
 
@@ -498,7 +498,7 @@ Web、App 与桌面端会自动复用当前实例的这个回调。外部身份�
 - [管理指南](https://deeix.com/zh/docs/deeix-chat/admin-accounts)
 - [进阶指南](https://deeix.com/zh/docs/deeix-chat/advanced-capabilities-passthrough-tools)
 - 后端说明：[backend/README.md](../backend/README.md)
-- 后端规范：[backend/docs/README.md](../backend/docs/README.md)
+- API 文档索引：[backend/docs/README.md](../backend/docs/README.md)
 - 前端说明：[apps/web/README.md](../apps/web/README.md)
 - API 契约包：[packages/api-contract/README.md](../packages/api-contract/README.md)
 - 贡献指南：[CONTRIBUTING.md](../.github/CONTRIBUTING.md)

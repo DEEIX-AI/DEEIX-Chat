@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/sqlitevec"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
@@ -25,10 +25,10 @@ func TestSQLiteVectorStoreSearchesFileAndMessageChunks(t *testing.T) {
 	if !available {
 		t.Fatal("expected sqlite vector store to be available")
 	}
-	files := []model.FileObject{
-		{BaseModel: model.BaseModel{ID: 10}, FileID: "file_10", UserID: 1, Status: "active", EmbedStatus: "processing", EmbedSignature: embeddingSignature},
-		{BaseModel: model.BaseModel{ID: 11}, FileID: "file_11", UserID: 2, Status: "active", EmbedStatus: "processing", EmbedSignature: embeddingSignature},
-		{BaseModel: model.BaseModel{ID: 12}, FileID: "file_12", UserID: 2, Status: "active", EmbedStatus: "processing", EmbedSignature: embeddingSignature},
+	files := []models.FileObject{
+		{BaseModel: models.BaseModel{ID: 10}, FileID: "file_10", UserID: 1, Status: "active", EmbedStatus: "processing", EmbedSignature: embeddingSignature},
+		{BaseModel: models.BaseModel{ID: 11}, FileID: "file_11", UserID: 2, Status: "active", EmbedStatus: "processing", EmbedSignature: embeddingSignature},
+		{BaseModel: models.BaseModel{ID: 12}, FileID: "file_12", UserID: 2, Status: "active", EmbedStatus: "processing", EmbedSignature: embeddingSignature},
 	}
 	if err := db.Create(&files).Error; err != nil {
 		t.Fatalf("create vector test files: %v", err)
@@ -58,11 +58,11 @@ func TestSQLiteVectorStoreSearchesFileAndMessageChunks(t *testing.T) {
 	if published, err := repo.ReplaceFileChunks(ctx, 11, embeddingSignature, otherOwnerChunks, [][]float32{{0.9, 0.1, 0}}); err != nil || !published {
 		t.Fatalf("ReplaceFileChunks(other owner) error = %v", err)
 	}
-	builtinBase := model.KnowledgeBase{PublicID: "builtin", Scope: "builtin", Name: "Built in", Enabled: true}
+	builtinBase := models.KnowledgeBase{PublicID: "builtin", Scope: "builtin", Name: "Built in", Enabled: true}
 	if err := db.Create(&builtinBase).Error; err != nil {
 		t.Fatalf("create built-in knowledge base: %v", err)
 	}
-	if err := db.Create(&model.KnowledgeBaseFile{KnowledgeBaseID: builtinBase.ID, FileObjectID: 11}).Error; err != nil {
+	if err := db.Create(&models.KnowledgeBaseFile{KnowledgeBaseID: builtinBase.ID, FileObjectID: 11}).Error; err != nil {
 		t.Fatalf("link built-in knowledge base file: %v", err)
 	}
 	privateChunks := []domainconversation.FileChunk{
@@ -114,21 +114,21 @@ func TestSQLiteVectorStoreSearchesFileAndMessageChunks(t *testing.T) {
 	}
 	rootMessageID := uint(29)
 	activeMessageID := uint(30)
-	branchMessages := []model.Message{
+	branchMessages := []models.Message{
 		{
-			BaseModel: model.BaseModel{ID: rootMessageID}, ConversationID: 20, UserID: 1,
+			BaseModel: models.BaseModel{ID: rootMessageID}, ConversationID: 20, UserID: 1,
 			PublicID: "msg_vector_root", Role: "user", Status: "success",
 		},
 		{
-			BaseModel: model.BaseModel{ID: activeMessageID}, ConversationID: 20, UserID: 1,
+			BaseModel: models.BaseModel{ID: activeMessageID}, ConversationID: 20, UserID: 1,
 			PublicID: "msg_vector_active", ParentMessageID: &rootMessageID, Role: "assistant", Status: "success",
 		},
 		{
-			BaseModel: model.BaseModel{ID: 31}, ConversationID: 20, UserID: 1,
+			BaseModel: models.BaseModel{ID: 31}, ConversationID: 20, UserID: 1,
 			PublicID: "msg_vector_sibling", ParentMessageID: &rootMessageID, Role: "assistant", Status: "success",
 		},
 		{
-			BaseModel: model.BaseModel{ID: 32}, ConversationID: 20, UserID: 1,
+			BaseModel: models.BaseModel{ID: 32}, ConversationID: 20, UserID: 1,
 			PublicID: "msg_vector_leaf", ParentMessageID: &activeMessageID, Role: "user", Status: "pending",
 		},
 	}
@@ -181,15 +181,15 @@ func TestSQLiteVectorStoreSearchesFileAndMessageChunks(t *testing.T) {
 func TestMarkEmbeddedFilesStaleKeepsCurrentSignatureReady(t *testing.T) {
 	db := openConversationSQLiteVectorTestDB(t)
 	repo := NewRepo(db)
-	files := []model.FileObject{
-		{BaseModel: model.BaseModel{ID: 101}, FileID: "old-ready", UserID: 1, FileName: "old.txt", Status: "active", EmbedStatus: "ready"},
-		{BaseModel: model.BaseModel{ID: 102}, FileID: "current-ready", UserID: 1, FileName: "current.txt", Status: "active", EmbedStatus: "ready"},
-		{BaseModel: model.BaseModel{ID: 103}, FileID: "old-processing", UserID: 1, FileName: "processing.txt", Status: "active", EmbedStatus: "processing"},
+	files := []models.FileObject{
+		{BaseModel: models.BaseModel{ID: 101}, FileID: "old-ready", UserID: 1, FileName: "old.txt", Status: "active", EmbedStatus: "ready"},
+		{BaseModel: models.BaseModel{ID: 102}, FileID: "current-ready", UserID: 1, FileName: "current.txt", Status: "active", EmbedStatus: "ready"},
+		{BaseModel: models.BaseModel{ID: 103}, FileID: "old-processing", UserID: 1, FileName: "processing.txt", Status: "active", EmbedStatus: "processing"},
 	}
 	if err := db.Create(&files).Error; err != nil {
 		t.Fatalf("create files: %v", err)
 	}
-	chunks := []model.FileChunk{
+	chunks := []models.FileChunk{
 		{FileObjID: files[0].ID, UserID: 1, ChunkIndex: 0, Content: "old", EmbeddingSignature: "old-space"},
 		{FileObjID: files[1].ID, UserID: 1, ChunkIndex: 0, Content: "current", EmbeddingSignature: "current-space"},
 		{FileObjID: files[2].ID, UserID: 1, ChunkIndex: 0, Content: "old processing", EmbeddingSignature: "old-space"},
@@ -206,7 +206,7 @@ func TestMarkEmbeddedFilesStaleKeepsCurrentSignatureReady(t *testing.T) {
 		t.Fatalf("updated = %d, want 2", updated)
 	}
 	statuses := make(map[string]string, len(files))
-	var got []model.FileObject
+	var got []models.FileObject
 	if err = db.Order("id ASC").Find(&got).Error; err != nil {
 		t.Fatalf("load files: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestFileEmbeddingQueueStateAndProcessingProjection(t *testing.T) {
 	db := openConversationSQLiteVectorTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
-	file := model.FileObject{
+	file := models.FileObject{
 		FileID:          "file_queue_state",
 		UserID:          7,
 		FileName:        "manual.md",
@@ -262,7 +262,7 @@ func TestFileEmbeddingQueueStateAndProcessingProjection(t *testing.T) {
 	if err != nil || !claimed {
 		t.Fatalf("claim queued embedding: claimed=%v err=%v", claimed, err)
 	}
-	var stored model.FileObject
+	var stored models.FileObject
 	if err = db.Where("id = ?", file.ID).Take(&stored).Error; err != nil {
 		t.Fatalf("load claimed file: %v", err)
 	}
@@ -275,7 +275,7 @@ func TestFileEmbeddingGenerationRejectsSupersededPublisher(t *testing.T) {
 	db := openConversationSQLiteVectorTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
-	file := model.FileObject{
+	file := models.FileObject{
 		FileID:         "file_generation",
 		UserID:         1,
 		Status:         "active",
@@ -306,7 +306,7 @@ func TestFileEmbeddingGenerationRejectsSupersededPublisher(t *testing.T) {
 		t.Fatalf("current status update must succeed: updated=%v err=%v", updated, updateErr)
 	}
 
-	var stored model.FileChunk
+	var stored models.FileChunk
 	if err := db.Where("file_obj_id = ?", file.ID).Take(&stored).Error; err != nil {
 		t.Fatalf("load current chunk: %v", err)
 	}
@@ -329,12 +329,12 @@ func openConversationSQLiteVectorTestDB(t *testing.T) *gorm.DB {
 		}
 	})
 	if err := db.AutoMigrate(
-		&model.FileObject{},
-		&model.FileChunk{},
-		&model.MessageChunk{},
-		&model.Message{},
-		&model.KnowledgeBase{},
-		&model.KnowledgeBaseFile{},
+		&models.FileObject{},
+		&models.FileChunk{},
+		&models.MessageChunk{},
+		&models.Message{},
+		&models.KnowledgeBase{},
+		&models.KnowledgeBaseFile{},
 	); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}

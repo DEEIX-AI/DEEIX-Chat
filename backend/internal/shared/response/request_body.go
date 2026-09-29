@@ -28,7 +28,7 @@ type RequestBodyFieldError struct {
 	Message string `json:"message"`
 }
 
-// InvalidRequestBody writes a standardized request-body validation response.
+// InvalidRequestBody 写入标准化的请求体校验失败响应。
 func InvalidRequestBody(c *gin.Context, err error) {
 	msg, details := invalidRequestBodyMessageAndDetails(err)
 	c.JSON(400, Envelope{

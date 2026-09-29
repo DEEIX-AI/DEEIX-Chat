@@ -1,4 +1,4 @@
-import type { AdminOfficialPricingCatalogItemDTO } from "@/features/admin/api/billing.types";
+import type { AdminOfficialPricingCatalogItemDTO } from "@/features/admin/api/billing-types";
 
 const VENDOR_PREFIXES: Record<string, string[]> = {
   anthropic: ["anthropic"],
@@ -81,7 +81,7 @@ function matchOpenRouterModelCatalogItem(
     return matches[0] ?? null;
   }
 
-  // 同名模型可能由多个组织发布，优先使用已配置厂商消歧；仍有歧义时不猜测。
+  // Models with the same name may be published by multiple orgs; disambiguate by the configured vendor first, and don't guess if still ambiguous.
   const prefixes = new Set([
     identifierSignature(providerSegment(model)),
     ...(VENDOR_PREFIXES[normalize(vendor)] ?? []).map(identifierSignature),

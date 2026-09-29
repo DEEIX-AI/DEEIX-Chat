@@ -137,7 +137,9 @@
     "registrationControlFor": "{name} registration control",
     "edit": "Edit identity provider",
     "delete": "Delete identity provider",
-    "empty": "No identity providers"
+    "empty": "No identity providers",
+    "bridgeMissingTitle": "Third-party sign-in is unavailable",
+    "bridgeMissingDescription": "PUBLIC_API_BASE_URL is not set on the server, so provider callback URLs cannot be generated. Set it in the server environment or config.yaml, restart, then register the callback URL shown below with each provider."
   },
   "providerDialog": {
     "createTitle": "Add identity provider",
@@ -146,8 +148,7 @@
     "loginControlDescription": "Allow platform sign-in.",
     "registrationControlDescription": "Allow automatic account creation.",
     "callbackURL": "Callback URL",
-    "serverCallbackURL": "Server callback URL (recommended)",
-    "legacyWebCallbackURL": "Legacy Web callback URL (deprecated soon)",
+    "callbackURLUnavailable": "Set PUBLIC_API_BASE_URL to generate the callback URL",
     "copyCallbackURL": "Copy URL",
     "logoURL": "Logo URL",
     "clientID": "Client ID",
@@ -210,5 +211,11 @@
     "providerOrderUpdated": "Identity provider order updated",
     "providerOrderSaveFailed": "Failed to save identity provider order",
     "callbackCopied": "Callback URL copied"
+  },
+  "bridgeNotice": {
+    "title": "Third-party sign-in is unavailable",
+    "description": "Identity providers are configured, but the server has no PUBLIC_API_BASE_URL, so users cannot sign in or link accounts through them. Set it and restart the server to restore sign-in.",
+    "dismiss": "Not again this session",
+    "openSettings": "Open login settings"
   }
 }

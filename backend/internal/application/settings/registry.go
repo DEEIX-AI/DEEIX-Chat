@@ -8,7 +8,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
+	extractionport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extraction"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
 )
 
@@ -253,7 +253,7 @@ var settingSpecs = []settingSpec{
 	{Namespace: "extract", Key: "aliyun_ocr_timeout_seconds", ValueType: "int", Default: "60", Description: "阿里云 OCR 请求超时(秒)，默认 60s",
 		Validate: intRange(1, 600), Apply: applyField(func(c *config.Config) *int { return &c.ExtractAliyunOCRTimeoutSeconds }, toInt)},
 	{Namespace: "extract", Key: "mineru_source", ValueType: "string", Default: "cloud", Description: "MinerU 服务类型(cloud/self_hosted)",
-		Validate: oneOf(extractport.MinerUSourceCloud, extractport.MinerUSourceSelfHosted), Apply: applyField(func(c *config.Config) *string { return &c.ExtractMinerUSource }, rawText)},
+		Validate: oneOf(extractionport.MinerUSourceCloud, extractionport.MinerUSourceSelfHosted), Apply: applyField(func(c *config.Config) *string { return &c.ExtractMinerUSource }, rawText)},
 	{Namespace: "extract", Key: "mineru_base_url", ValueType: "string", Default: "https://mineru.net/api/v4", Description: "MinerU 服务地址，默认 https://mineru.net/api/v4",
 		Validate: optionalHTTPURL(), Apply: applyField(func(c *config.Config) *string { return &c.ExtractMinerUBaseURL }, rawText)},
 	{Namespace: "extract", Key: "mineru_file_types", ValueType: "string", Default: "pdf,word,presentation", Description: "MinerU 处理的文件类型，逗号分隔：pdf,word,presentation,excel",
@@ -286,6 +286,8 @@ var settingSpecs = []settingSpec{
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.EmbeddingEnabled }, toBool)},
 	{Namespace: "file", Key: "embedding_host", ValueType: "string", Default: "", Description: "Embedding HTTP 服务地址，本地或远程均可",
 		Validate: optionalTrustedHTTPURL(), Apply: applyField(func(c *config.Config) *string { return &c.EmbeddingHost }, rawText)},
+	{Namespace: "file", Key: "embedding_protocol", ValueType: "string", Default: config.EmbeddingProtocolOpenAI, Description: "Embedding 请求协议：openai=OpenAI 兼容文本接口；gemini / voyage / jina 支持图片输入",
+		Validate: oneOf(config.EmbeddingProtocolOpenAI, config.EmbeddingProtocolGemini, config.EmbeddingProtocolVoyage, config.EmbeddingProtocolJina), Apply: applyField(func(c *config.Config) *string { return &c.EmbeddingProtocol }, rawText)},
 	{Namespace: "file", Key: "embedding_key", ValueType: "string", Default: "", Description: "Embedding HTTP 服务鉴权 Key，可留空", Sensitive: true,
 		Apply: applyField(func(c *config.Config) *string { return &c.EmbeddingKey }, rawText)},
 	{Namespace: "file", Key: "embedding_timeout_seconds", ValueType: "int", Default: "60", Description: "Embedding 请求超时时间(秒)",
@@ -352,10 +354,6 @@ var settingSpecs = []settingSpec{
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.SemanticContextEnabled }, toBool)},
 	{Namespace: "chat", Key: "process_trace_enabled", ValueType: "bool", Default: "true", Description: "启用聊天页处理轨迹",
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.ProcessTraceEnabled }, toBool)},
-	{Namespace: "chat", Key: "process_trace_visible_to_user", ValueType: "bool", Default: "true", Description: "向聊天页展示处理轨迹",
-		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.ProcessTraceVisibleToUser }, toBool)},
-	{Namespace: "chat", Key: "process_trace_store_upstream_think", ValueType: "bool", Default: "true", Description: "持久化模型思考原文",
-		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.ProcessTraceStoreUpstreamThink }, toBool)},
 	{Namespace: "chat", Key: "process_trace_persist_inflight", ValueType: "bool", Default: "true", Description: "流式阶段增量持久化处理轨迹",
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.ProcessTracePersistInflight }, toBool)},
 	{Namespace: "chat", Key: "context_artifact_retention_days", ValueType: "int", Default: "90", Description: "上下文证据保留天数，<=0 表示不自动过期",

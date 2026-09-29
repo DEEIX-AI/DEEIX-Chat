@@ -69,7 +69,7 @@ type ActiveSessionListResult struct {
 	Results []ActiveSessionResult
 }
 
-// TwoFactorStatusResult describes the current two-factor authentication state.
+// TwoFactorStatusResult 描述当前双因素认证状态。
 type TwoFactorStatusResult struct {
 	Available     bool
 	TOTPEnabled   bool
@@ -78,14 +78,14 @@ type TwoFactorStatusResult struct {
 	EnabledAt     *time.Time
 }
 
-// TwoFactorSetupStartResult contains the temporary setup secret and expiry.
+// TwoFactorSetupStartResult 包含临时设置密钥及其过期时间。
 type TwoFactorSetupStartResult struct {
 	Secret     string
 	OTPAuthURL string
 	ExpiresAt  time.Time
 }
 
-// TwoFactorSetupConfirmResult contains recovery codes issued after setup.
+// TwoFactorSetupConfirmResult 包含设置完成后签发的恢复码。
 type TwoFactorSetupConfirmResult struct {
 	RecoveryCodes []string
 	Status        TwoFactorStatusResult

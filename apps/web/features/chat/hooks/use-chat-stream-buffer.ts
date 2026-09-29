@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { clearLiveUpstreamThinkTrace, upsertLiveUpstreamThinkTrace } from "@/features/chat/model/upstream-think-store";
 import type { PendingExchangeMap } from "@/features/chat/types/chat-runtime";
-import type { StreamMessageEvent } from "@/shared/api/conversation.types";
+import type { StreamMessageEvent } from "@/shared/api/conversation-types";
 
 const STREAM_TEXT_FLUSH_INTERVAL_MS = 50;
 const STREAM_THINK_FLUSH_INTERVAL_MS = 40;

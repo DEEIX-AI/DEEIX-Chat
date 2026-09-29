@@ -9,9 +9,17 @@ import { Button } from "@/components/ui/button";
 import type { FilePreviewState } from "@/features/files/hooks/use-file-preview";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { cn } from "@/lib/utils";
-import type { FileObjectDTO } from "@/shared/api/file.types";
-import { formatBytes, formatDateTime, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
-import { canManuallyVectorizeFile, isVectorIndexOutdated, resolveFileProcessingBadge, resolveFileProcessingToneClass } from "@/shared/lib/file-processing";
+import type { FileObjectDTO } from "@/shared/api/file-types";
+import {
+  canManuallyVectorizeFile,
+  formatBytes,
+  formatDateTime,
+  isVectorIndexOutdated,
+  resolveFileExtension,
+  resolveFileIcon,
+  resolveFileProcessingBadge,
+  resolveFileProcessingToneClass,
+} from "@/entities/file";
 
 type ContentHeaderProps = {
   file: FileObjectDTO | null;

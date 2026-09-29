@@ -62,10 +62,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  createAdminLLMUpstream,
-  updateAdminLLMUpstream,
-} from "@/features/admin/api";
 import type {
   AdminLLMCompatible,
   AdminLLMStatus,
@@ -73,12 +69,13 @@ import type {
   AdminLLMUpstreamView,
   CreateAdminLLMUpstreamRequest,
   UpdateAdminLLMUpstreamRequest,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
+import { useAdminUpstreamsSave } from "@/features/admin/hooks/use-admin-upstreams-save";
+import { isAdminLLMCbLogic, isAdminLLMCompatible, isAdminLLMStatus } from "@/features/admin/model/admin-unions";
 import { COMPATIBLE_OPTIONS, resolveProtocolLabel } from "@/features/admin/utils/llm-display";
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { isRecord } from "@/shared/lib/type-guards";
 
 const PROTOCOL_DEFAULT_KINDS = [
   "chat",
@@ -107,7 +104,9 @@ const CODEX_COMPATIBLE_AFFINITY_HEADERS = [
 ] as const;
 
 const PROTOCOL_OPTIONS_BY_KIND: Record<(typeof PROTOCOL_DEFAULT_KINDS)[number], string[]> = {
-  // 展示顺序：厂商按 OpenAI → Anthropic → Google → xAI → OpenRouter，厂商内 Chat Completions → Responses → 生成 → 编辑。
+  // Display order (same as PROTOCOL_OPTIONS in features/admin/utils/llm-display.ts): vendors
+  // OpenAI → Anthropic → Google → xAI → OpenRouter; within a vendor, Chat Completions →
+  // Responses → image generation → image editing → video.
   chat: [
     "openai_chat_completions",
     "openai_responses",
@@ -189,8 +188,8 @@ function addHeaderPresets(
   if (value) {
     try {
       const parsed: unknown = JSON.parse(value);
-      if (parsed === null || Array.isArray(parsed) || typeof parsed !== "object") return null;
-      headers = { ...(parsed as Record<string, unknown>) };
+      if (!isRecord(parsed)) return null;
+      headers = { ...parsed };
     } catch {
       return null;
     }
@@ -248,8 +247,8 @@ function maskedAPIKeyItemsFromJson(json: string): MaskedAPIKeyItem[] {
         : [];
     return rawItems
       .map((item, index) => {
-        if (item === null || typeof item !== "object") return null;
-        const record = item as Record<string, unknown>;
+        if (!isRecord(item)) return null;
+        const record = item;
         const keyMasked = typeof record.key === "string" ? record.key : "";
         if (!keyMasked.trim()) return null;
         return {
@@ -386,9 +385,8 @@ export function UpstreamSheet({
 }: UpstreamSheetProps) {
   const t = useTranslations("adminUpstreams");
   const commonT = useTranslations("common");
-  const resolveErrorMessage = useLocalizedErrorMessage();
   const [form, setForm] = useState<FormState>(() => buildInitialState(target));
-  const [pending, setPending] = useState(false);
+  const { pending, submit } = useAdminUpstreamsSave({ onSuccess, onOpenChange, onManageModels });
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
   const [pendingDeleteAPIKeyIDs, setPendingDeleteAPIKeyIDs] = useState<Set<string>>(() => new Set());
   const [deleteAPIKeyTarget, setDeleteAPIKeyTarget] = useState<MaskedAPIKeyItem | null>(null);
@@ -465,9 +463,7 @@ export function UpstreamSheet({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setPending(true);
-    try {
-      const token = await resolveAccessToken();
+    await submit(mode, () => {
       const apiKeysJson = apiKeysLinesToJson(form.apiKeysLines);
 
       if (mode === "create") {
@@ -494,12 +490,9 @@ export function UpstreamSheet({
           cbWindowMin: form.cbWindowMin ? Number(form.cbWindowMin) : undefined,
           headersJSON: form.headersJson.trim() || undefined,
         };
-        const data = await createAdminLLMUpstream(token, payload);
-        onSuccess(data.upstream);
-        onOpenChange(false);
-        onManageModels?.(data.upstream);
-        toast.success(t("toast.upstreamCreated"));
-      } else if (target) {
+        return { mode: "create", payload };
+      }
+      if (target) {
         const payload: UpdateAdminLLMUpstreamRequest = {};
         const nextName = form.name.trim();
         const nextBaseURL = form.baseUrl.trim();
@@ -549,23 +542,15 @@ export function UpstreamSheet({
             toast.error(t("toast.updateFailed"), {
               description: t("sheet.apiKeyDeleteRequiresReplacement"),
             });
-            return;
+            return null;
           }
           payload.deleteAPIKeyIDs = deleteAPIKeyIDs;
         }
 
-        const data = await updateAdminLLMUpstream(token, target.id, payload);
-        onSuccess(data.upstream);
-        onOpenChange(false);
-        toast.success(t("toast.upstreamUpdated"));
+        return { mode: "update", id: target.id, payload };
       }
-    } catch (error) {
-      toast.error(mode === "create" ? t("toast.createFailed") : t("toast.updateFailed"), {
-        description: resolveErrorMessage(error),
-      });
-    } finally {
-      setPending(false);
-    }
+      return null;
+    });
   }
 
   const existingAPIKeyItems = mode === "edit" ? maskedAPIKeyItems(target) : [];
@@ -696,7 +681,9 @@ export function UpstreamSheet({
               <Label className="text-xs font-normal text-muted-foreground">{t("fields.compatibility")} *</Label>
               <Select
                 value={form.compatible}
-                onValueChange={(v) => setCompatible(v as AdminLLMCompatible)}
+                onValueChange={(v) => {
+                  if (isAdminLLMCompatible(v)) setCompatible(v);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -715,7 +702,9 @@ export function UpstreamSheet({
               <Label className="text-xs font-normal text-muted-foreground">{t("fields.status")} *</Label>
               <Select
                 value={form.status}
-                onValueChange={(v) => setField("status", v as AdminLLMStatus)}
+                onValueChange={(v) => {
+                  if (isAdminLLMStatus(v)) setField("status", v);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -866,7 +855,9 @@ export function UpstreamSheet({
                     <Label className="text-xs font-normal text-muted-foreground">{t("sheet.thresholdLogic")}</Label>
                     <Select
                       value={form.cbThresholdLogic}
-                      onValueChange={(v) => setField("cbThresholdLogic", v as "or" | "and")}
+                      onValueChange={(v) => {
+                        if (isAdminLLMCbLogic(v)) setField("cbThresholdLogic", v);
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue />

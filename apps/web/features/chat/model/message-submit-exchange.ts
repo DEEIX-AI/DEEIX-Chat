@@ -18,7 +18,7 @@ import type {
   SendMessageResult,
   StreamMessageEvent,
   UpstreamDebugInfo,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 import { ApiError } from "@/shared/api/http-client";
 
 export function createInitialPendingExchange(

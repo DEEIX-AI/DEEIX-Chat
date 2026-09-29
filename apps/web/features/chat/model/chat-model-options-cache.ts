@@ -2,7 +2,7 @@ import {
   isConversationOptionsObject,
   sanitizeConversationOptions,
 } from "@/features/chat/model/conversation-options";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
 
 const MODEL_OPTIONS_STORAGE_PREFIX = "deeix-chat:chat-model-options:";
 
@@ -19,7 +19,7 @@ export function readCachedModelOptions(platformModelName: string): ConversationO
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed: unknown = JSON.parse(raw);
     return isConversationOptionsObject(parsed) ? sanitizeConversationOptions(parsed) : null;
   } catch {
     return null;

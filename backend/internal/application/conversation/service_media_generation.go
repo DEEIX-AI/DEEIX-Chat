@@ -136,7 +136,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 	var userMessage *model.Message
 	var assistantMessage *model.Message
 	defer func() {
-		// On generation failure, still finish input-only moderation when active.
+		// 生成失败时，若审核处于活动状态，仍需完成仅输入审核。
 		if retErr != nil && moderationCoord != nil {
 			if result == nil && userMessage != nil && assistantMessage != nil {
 				result = &SendMessageResult{
@@ -317,7 +317,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 			traceRecorder.attachToMessage(assistantMessage)
 		}
 	}()
-	// Prefer explicit FileIDs; fall back to resolved edit attachments.
+	// 优先使用显式 FileIDs；否则回退到已解析的编辑附件。
 	moderationFileIDs := append([]string{}, input.FileIDs...)
 	if len(moderationFileIDs) == 0 {
 		for _, item := range resolvedAttachments {

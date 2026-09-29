@@ -4,9 +4,13 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 
 import type { RecentBulkConfirmAction, RecentDeleteTarget } from "@/features/recent/types/recent";
-import { ConversationLabelsDialog, ConversationShareDialog } from "@/entities/conversation";
-import { DeleteFilesOption } from "@/shared/components/delete-files-option";
-import type { ConversationDTO, ConversationShareDTO } from "@/shared/api/conversation.types";
+import {
+  ConversationLabelsDialog,
+  ConversationShareDialog,
+  parseConversationLabelsJSON,
+} from "@/entities/conversation";
+import { DeleteFilesOption } from "@/entities/file";
+import type { ConversationDTO, ConversationShareDTO } from "@/shared/api/conversation-types";
 import { Sparkles } from "@/components/animate-ui/icons/sparkles";
 import {
   AlertDialog,
@@ -30,7 +34,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
 
 type RecentDialogsProps = {
   renameTarget: ConversationDTO | null;

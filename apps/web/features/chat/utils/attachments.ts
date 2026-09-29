@@ -1,5 +1,6 @@
-import type { ChatFilePolicyDTO } from "@/shared/api/file.types";
-import { formatBytes } from "@/shared/lib/file-display";
+import type { ChatFilePolicyDTO } from "@/shared/api/file-types";
+import { formatBytes } from "@/entities/file";
+import { isOneOf } from "@/shared/lib/type-guards";
 
 export type UploadCategory = "image" | "pdf" | "word" | "excel" | "text" | "unknown";
 
@@ -35,6 +36,8 @@ const TEXT_FILE_EXTENSIONS = [
   "ini",
   "conf",
 ] as const;
+
+const isTextFileExtension = isOneOf(TEXT_FILE_EXTENSIONS);
 
 const ACTIVE_FILE_EXTENSIONS = new Set(["html", "htm", "css", "js", "jsx", "mjs", "ts", "tsx", "xml", "xhtml", "svg"]);
 
@@ -100,7 +103,7 @@ function normalizeUploadMimeForPolicy(file: File): string {
       return "application/toml";
   }
 
-  if (TEXT_FILE_EXTENSIONS.includes(ext as (typeof TEXT_FILE_EXTENSIONS)[number])) {
+  if (isTextFileExtension(ext)) {
     return "text/plain";
   }
 

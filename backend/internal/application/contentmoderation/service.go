@@ -23,16 +23,16 @@ const (
 	cleanupInterval   = 6 * time.Hour
 )
 
-// EventEmitter publishes recovery-stream events for a run (optional).
+// EventEmitter 为运行发布恢复流事件（可选）。
 type EventEmitter func(ctx context.Context, runID string, eventType string, payload map[string]any)
 
-// CancelRun cancels in-flight upstream generation for a run.
+// CancelRun 取消某次运行尚未完成的上游生成。
 type CancelRun func(ctx context.Context, runID string)
 
-// OnBlocked is invoked after a run is marked blocked (e.g. sanitize recovery stream).
+// OnBlocked 在运行被标记为拦截后调用（例如清理恢复流）。
 type OnBlocked func(ctx context.Context, runID string, info BlockInfo)
 
-// PreparedImage is a resized moderation-ready image.
+// PreparedImage 是已缩放、可用于审核的图片。
 type PreparedImage struct {
 	Data   []byte
 	SHA256 string
@@ -41,10 +41,10 @@ type PreparedImage struct {
 	FileID string
 }
 
-// ImageLoader loads and prepares an image for moderation.
+// ImageLoader 加载并准备用于审核的图片。
 type ImageLoader func(ctx context.Context, userID uint, fileID string) (PreparedImage, error)
 
-// OutputImageSource provides request-scoped image bytes and optional source metadata for moderation.
+// OutputImageSource 提供请求作用域内的图片字节及可选的来源元数据，用于审核。
 type OutputImageSource struct {
 	FileID   string
 	Data     []byte
@@ -52,14 +52,14 @@ type OutputImageSource struct {
 	SHA256   string
 }
 
-// ObjectStore abstracts isolated image storage.
+// ObjectStore 抽象隔离图片存储。
 type ObjectStore interface {
 	Put(ctx context.Context, path string, data []byte, contentType string) error
 	Open(ctx context.Context, path string) ([]byte, error)
 	Delete(ctx context.Context, path string) error
 }
 
-// FileAccessController marks ordinary generated files inaccessible after a hit.
+// FileAccessController 在命中后将普通生成文件标记为不可访问。
 type FileAccessController interface {
 	RevokeGeneratedFile(ctx context.Context, fileID string) error
 	DeleteGeneratedFileArtifacts(ctx context.Context, fileID string) error
@@ -71,7 +71,7 @@ type pendingBlock struct {
 	info BlockInfo
 }
 
-// Service orchestrates config, workers, events, and run coordinators.
+// Service 编排配置、worker、事件与运行协调器。
 type Service struct {
 	settingsRepo      repository.SettingsRepository
 	repo              repository.ContentModerationRepository
@@ -92,12 +92,12 @@ type Service struct {
 
 	workerMu       sync.Mutex
 	taskQueue      chan *moderationTask
-	workerSem      chan struct{} // fixed capacity maxPhysicalConcurrency; never replaced
-	workerWake     chan struct{} // wakes workers waiting for a logical concurrency slot
+	workerSem      chan struct{} // 固定容量 maxPhysicalConcurrency；永不替换
+	workerWake     chan struct{} // 唤醒等待逻辑并发槽位的 worker
 	maxConcurrency int
 	queueCapacity  int
-	queuedCount    int // logical admission counter (paired with queueCapacity)
-	activeWorkers  int // logical concurrency counter (paired with maxConcurrency)
+	queuedCount    int // 逻辑准入计数器（与 queueCapacity 配合）
+	activeWorkers  int // 逻辑并发计数器（与 maxConcurrency 配合）
 	stopCh         chan struct{}
 	wg             sync.WaitGroup
 
@@ -108,7 +108,7 @@ type Service struct {
 	pendingBlocks  map[string]pendingBlock
 }
 
-// NewService creates the content moderation service.
+// NewService 创建内容审核服务。
 func NewService(
 	settingsRepo repository.SettingsRepository,
 	repo repository.ContentModerationRepository,
@@ -127,7 +127,7 @@ func NewService(
 		queueCapacity:     defaultQueueCapacity,
 	}
 	s.taskQueue = make(chan *moderationTask, maxPhysicalQueueCapacity)
-	// Fixed physical concurrency ceiling; logical maxConcurrency is enforced via activeWorkers.
+	// 固定的物理并发上限；逻辑 maxConcurrency 通过 activeWorkers 约束。
 	s.workerSem = make(chan struct{}, maxPhysicalConcurrency)
 	s.workerWake = make(chan struct{}, maxPhysicalConcurrency)
 	return s
@@ -140,7 +140,7 @@ func (s *Service) SetEventEmitter(emit EventEmitter)              { s.emitEvent 
 func (s *Service) SetCancelRun(cancel CancelRun)                  { s.cancelRun = cancel }
 func (s *Service) SetOnBlocked(fn OnBlocked)                      { s.onBlocked = fn }
 
-// SetProvider injects the infrastructure adapter used for moderation calls.
+// SetProvider 注入用于审核调用的基础设施适配器。
 func (s *Service) SetProvider(provider Provider) {
 	if s == nil {
 		return
@@ -148,14 +148,14 @@ func (s *Service) SetProvider(provider Provider) {
 	s.provider = provider
 }
 
-// SetAuditWriter injects the operation-audit sink used for privileged review reads.
+// SetAuditWriter 注入用于特权审核读取的操作审计输出端。
 func (s *Service) SetAuditWriter(writer auditWriter) {
 	if s != nil {
 		s.auditWriter = writer
 	}
 }
 
-// StartBackgroundWorkers starts the worker pool and cleanup loop.
+// StartBackgroundWorkers 启动 worker 池与清理循环。
 // Worker 循环一次性按物理上限启动，有效并发由逻辑额度（maxConcurrency）控制。
 func (s *Service) StartBackgroundWorkers(ctx context.Context) {
 	if cfg, err := s.readRuntimeConfig(ctx); err == nil {
@@ -179,7 +179,7 @@ func (s *Service) StartBackgroundWorkers(ctx context.Context) {
 	}()
 }
 
-// Stop stops workers.
+// Stop 停止 worker。
 func (s *Service) Stop() {
 	select {
 	case <-s.stopCh:
@@ -189,12 +189,12 @@ func (s *Service) Stop() {
 	s.wg.Wait()
 }
 
-// maxPhysicalQueueCapacity is the fixed channel buffer. Configured queueCapacity
-// is enforced as a logical limit so resize never swaps channels under workers.
+// maxPhysicalQueueCapacity 是固定的 channel 缓冲大小。配置的 queueCapacity
+// 作为逻辑上限约束，因此调整大小时绝不会在 worker 运行中替换 channel。
 const maxPhysicalQueueCapacity = 4096
 
-// maxPhysicalConcurrency is the fixed workerSem capacity. Logical maxConcurrency
-// is enforced with activeWorkers so resize never replaces the semaphore channel.
+// maxPhysicalConcurrency 是固定的 workerSem 容量。逻辑 maxConcurrency
+// 通过 activeWorkers 约束，因此调整大小时绝不会替换信号量 channel。
 const maxPhysicalConcurrency = 64
 
 // resizeWorker 调整逻辑并发额度与队列额度，并唤醒等待逻辑槽位的 worker。
@@ -214,7 +214,7 @@ func (s *Service) resizeWorker(maxConcurrency, queueCapacity int) {
 		queueCapacity = maxPhysicalQueueCapacity
 	}
 
-	// Logical limits only - never replace taskQueue or workerSem.
+	// 仅调整逻辑上限——绝不替换 taskQueue 或 workerSem。
 	previousConcurrency := s.maxConcurrency
 	s.queueCapacity = queueCapacity
 	s.maxConcurrency = maxConcurrency
@@ -229,14 +229,12 @@ func (s *Service) resizeWorker(maxConcurrency, queueCapacity int) {
 	}
 }
 
-// BeginRun registers a per-run coordinator. Persistent callers must claim the run before entry.
+// BeginRun 注册单次运行的协调器。持久化调用方必须在进入前认领该运行。
 func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 	cfg, err := s.loadRuntimeConfig(ctx)
 	if err != nil {
-		// Configuration/storage failures are fail-open, but must remain observable.
-		// Return a coordinator so the conversation run is durably settled as
-		// failed_open instead of becoming indistinguishable from an intentionally
-		// disabled policy.
+		// 配置/存储失败按 fail-open 处理，但必须保持可观测。
+		// 仍返回协调器，使会话运行被持久化为 failed_open，避免与有意关闭审核策略的情况混淆。
 		coord := newRunCoordinator(ctx, s, meta, runtimeConfig{Timeout: defaultTimeoutSeconds * time.Second})
 		coord.failedOpen = true
 		s.coordMu.Lock()
@@ -276,7 +274,7 @@ func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 	return coord
 }
 
-// GetCoordinator returns an active coordinator if present.
+// GetCoordinator 返回 runID 对应的活动协调器；不存在时返回 nil。
 func (s *Service) GetCoordinator(runID string) *RunCoordinator {
 	s.coordMu.Lock()
 	defer s.coordMu.Unlock()
@@ -330,12 +328,12 @@ func (s *Service) pendingBlockSnapshot() []pendingBlock {
 	return items
 }
 
-// HasActiveCoordinator reports whether a run still has an in-memory coordinator.
+// HasActiveCoordinator 报告运行是否仍有内存中的协调器。
 func (s *Service) HasActiveCoordinator(runID string) bool {
 	return s.GetCoordinator(runID) != nil
 }
 
-// RecoverRunIfStale fail-opens a moderating run with no live coordinator.
+// RecoverRunIfStale 对没有存活协调器的审核中运行执行 fail-open。
 func (s *Service) RecoverRunIfStale(ctx context.Context, runID string) {
 	state, err := s.repo.GetRunModerationState(ctx, runID)
 	if err != nil {
@@ -373,12 +371,12 @@ func (s *Service) decryptText(ciphertext string) (string, error) {
 	return secretbox.DecryptString(s.dataEncryptionKey, ciphertext)
 }
 
-// encryptBytes encrypts arbitrary binary (isolated images) as a v1: base64 payload string.
+// encryptBytes 将任意二进制数据（隔离图片）加密为 v1: base64 载荷字符串。
 func (s *Service) encryptBytes(plaintext []byte) (string, error) {
 	return secretbox.Encrypt(s.dataEncryptionKey, plaintext)
 }
 
-// decryptBytes decrypts a payload produced by encryptBytes.
+// decryptBytes 解密由 encryptBytes 生成的载荷。
 func (s *Service) decryptBytes(ciphertext string) ([]byte, error) {
 	return secretbox.Decrypt(s.dataEncryptionKey, ciphertext)
 }

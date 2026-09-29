@@ -15,7 +15,6 @@ import (
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	applogcleanup "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/logcleanup"
-	systemeventapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
@@ -63,8 +62,8 @@ func (h *Handler) SetConversationExporter(exporter conversationExporter) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param q query string false "搜索用户名、昵称、邮箱或公开ID"
 // @Param subscription_status query string false "订阅状态过滤(active/free)"
 // @Param identity_provider query string false "身份源 slug 过滤"
@@ -320,8 +319,8 @@ func (h *Handler) PatchUser(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param query query string false "搜索关键词"
 // @Param resource query string false "资源类型"
 // @Param action query string false "动作"
@@ -424,46 +423,6 @@ func (h *Handler) CleanupLogs(c *gin.Context) {
 	})
 }
 
-// CleanupConversationRuns godoc
-// @Summary 管理员按运行清理对话事件
-// @Description 物理删除指定运行的全部对话事件；保留消息、附件、调用与计费记录
-// @Tags admin
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param body body CleanupConversationRunsRequest true "运行轨迹清理参数"
-// @Success 200 {object} CleanupConversationRunsResponseDoc
-// @Failure 400 {object} ErrorDoc
-// @Failure 500 {object} ErrorDoc
-// @Router /admin/conversation-events/cleanup [post]
-// CleanupConversationRuns 清理指定运行的全部对话事件。
-func (h *Handler) CleanupConversationRuns(c *gin.Context) {
-	var req CleanupConversationRunsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.InvalidRequestBody(c, err)
-		return
-	}
-	result, err := h.service.CleanupConversationRuns(c.Request.Context(), applogcleanup.ConversationRunInput{
-		RunIDs:      req.RunIDs,
-		RequestID:   middleware.MustRequestID(c),
-		ActorUserID: middleware.MustUserID(c),
-		IP:          c.ClientIP(),
-		UserAgent:   c.Request.UserAgent(),
-	})
-	if err != nil {
-		if errors.Is(err, applogcleanup.ErrInvalidRunIDs) {
-			response.ErrorFrom(c, http.StatusBadRequest, err)
-			return
-		}
-		response.InternalError(c)
-		return
-	}
-	response.Success(c, CleanupConversationRunsResponse{
-		RunCount:     result.RunCount,
-		DeletedCount: result.DeletedCount,
-	})
-}
-
 // ListUsageLogs godoc
 // @Summary 管理员查询模型调用日志
 // @Description 管理员分页查看全量模型调用与计费用量账本
@@ -471,8 +430,8 @@ func (h *Handler) CleanupConversationRuns(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param query query string false "搜索模型、上游、绑定编码、协议"
 // @Param platform_model_name query string false "平台模型名筛选"
 // @Param billing_mode query string false "计费模式筛选：free/token/call/duration/tiered"
@@ -650,8 +609,8 @@ func (h *Handler) GetUsageStatistics(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param query query string false "搜索订单号、支付渠道、外部支付ID"
 // @Param order_type query string false "订单类型(subscription/topup)"
 // @Param provider query string false "支付渠道"
@@ -712,8 +671,8 @@ func (h *Handler) ListPaymentOrders(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param query query string false "搜索兑换流水号、兑换码摘要、兑换码备注"
 // @Param code_id query int false "兑换码ID"
 // @Param user_id query int false "用户ID"
@@ -776,8 +735,8 @@ func (h *Handler) ListRedemptions(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param query query string false "搜索运行ID、事件、阶段、标题、工具名"
 // @Param event_scope query string false "事件范围(trace_block/trace_event/tool_call)"
 // @Param event_type query string false "事件类型"
@@ -868,56 +827,6 @@ func (h *Handler) GetConversationEvent(c *gin.Context) {
 	}
 	label := h.service.ResolveUserLabels(c.Request.Context(), []uint{item.UserID})[item.UserID]
 	response.Success(c, toConversationEventResponse(*item, label))
-}
-
-// ListSystemEvents godoc
-// @Summary 管理员查询系统事件
-// @Description 管理员分页查看后台结构化系统事件
-// @Tags admin
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
-// @Param query query string false "搜索关键词"
-// @Param level query string false "级别"
-// @Param source query string false "来源"
-// @Param event query string false "事件"
-// @Param created_from query string false "创建时间起点(RFC3339)"
-// @Param created_to query string false "创建时间终点(RFC3339)"
-// @Param sort query string false "排序方式"
-// @Success 200 {object} SystemEventListResponseDoc
-// @Failure 400 {object} ErrorDoc
-// @Failure 500 {object} ErrorDoc
-// @Router /admin/system-events [get]
-func (h *Handler) ListSystemEvents(c *gin.Context) {
-	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
-	createdFrom, ok := parseOptionalTimeQuery(c, "created_from")
-	if !ok {
-		return
-	}
-	createdTo, ok := parseOptionalTimeQuery(c, "created_to")
-	if !ok {
-		return
-	}
-	items, total, err := h.service.ListSystemEvents(c.Request.Context(), page, pageSize, systemeventapp.ListFilter{
-		Query:       c.Query("query"),
-		Level:       c.Query("level"),
-		Source:      c.Query("source"),
-		Event:       c.Query("event"),
-		CreatedFrom: createdFrom,
-		CreatedTo:   createdTo,
-		Sort:        c.Query("sort"),
-	})
-	if err != nil {
-		response.InternalError(c)
-		return
-	}
-	results := make([]SystemEventResponse, 0, len(items))
-	for _, item := range items {
-		results = append(results, toSystemEventResponse(item))
-	}
-	response.SuccessPage(c, total, results)
 }
 
 func parseOptionalUintQuery(c *gin.Context, key string) (uint, bool) {
@@ -1130,6 +1039,20 @@ func (h *Handler) ResetUserPassword(c *gin.Context) {
 	response.Success(c, ResetUserPasswordResponse{Reset: true})
 }
 
+// ResetUserTwoFactor godoc
+// @Summary 管理员重置用户双因素认证
+// @Description 管理员清除指定用户的 TOTP 与恢复码并吊销其全部会话；不允许重置超级管理员
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "用户ID"
+// @Success 200 {object} ResetUserTwoFactorResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/users/{id}/reset-2fa [post]
 func (h *Handler) ResetUserTwoFactor(c *gin.Context) {
 	actorUserID := middleware.MustUserID(c)
 	rawID := c.Param("id")
@@ -1230,8 +1153,8 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 // @Param user_id query int false "用户ID过滤"
 // @Param event_type query string false "事件类型过滤"
 // @Param result query string false "结果过滤(success/failure/blocked)"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} UserAuthEventListResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc

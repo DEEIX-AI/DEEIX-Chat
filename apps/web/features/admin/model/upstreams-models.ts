@@ -4,9 +4,9 @@ import type {
   AdminLLMRemoteModelItem,
   AdminLLMStatus,
   AdminLLMUpstreamModelDTO,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import { sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
-import { parseKindsJSON, stringifyKinds } from "@/shared/model/llm-schema";
+import { parseKindsJSON, stringifyKinds } from "@/entities/model";
 
 export type RowDraft = AdminLLMUpstreamModelDTO & {
   draftKey: string;

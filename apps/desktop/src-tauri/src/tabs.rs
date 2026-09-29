@@ -16,6 +16,8 @@ use tauri::{
 };
 use tauri_plugin_opener::OpenerExt;
 
+use crate::distribution::Distribution;
+use crate::paths;
 use crate::session::{self, ServerMode};
 use crate::sidecar;
 
@@ -344,11 +346,19 @@ fn discard_stale<R: Runtime>(app: &AppHandle<R>) {
 }
 
 /// Webviews may only navigate within the app; anything else opens in the browser.
+/// Every webview (strip and tabs) shares one profile: Tauri's default when
+/// installed, `data/webview` when portable. WebView2 requires webviews in one
+/// process that share a user data folder to share environment options, which
+/// they do since all are created here.
 fn content_webview<R: Runtime>(
     app: &AppHandle<R>,
     builder: WebviewBuilder<R>,
 ) -> WebviewBuilder<R> {
     let open_app = app.clone();
+    let builder = match paths::webview_dir(app) {
+        Some(dir) => builder.data_directory(dir),
+        None => builder,
+    };
     builder
         .on_navigation(is_app_url)
         .on_new_window(move |url, _| {
@@ -445,7 +455,7 @@ fn relayout<R: Runtime>(window: &Window<R>) -> Result<()> {
 // ---------- persistence ----------
 
 fn file_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
-    let dir = app.path().app_config_dir()?;
+    let dir = paths::config_dir(app);
     fs::create_dir_all(&dir)?;
     Ok(dir.join(TABS_FILE))
 }
@@ -468,6 +478,20 @@ fn read_file<R: Runtime>(app: &AppHandle<R>) -> Result<TabsFile> {
                 }
             });
             file.servers.dedup();
+            // A policy set since the last run (address locked, local mode
+            // disabled) closes the tabs it no longer allows, credentials included.
+            let policy = app.state::<Distribution>().policy.clone();
+            file.servers.retain(|s| {
+                if policy.allows(s) {
+                    return true;
+                }
+                eprintln!(
+                    "[tabs] not restoring {:?} {}: blocked by policy",
+                    s.mode, s.origin
+                );
+                let _ = session::forget(app, s);
+                false
+            });
             Ok(file)
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(TabsFile::default()),

@@ -1,4 +1,4 @@
-import { AppFiles } from "@/features/files/components/app-files";
+import { AppFiles } from "@/features/files";
 
 export default function Page() {
   return (

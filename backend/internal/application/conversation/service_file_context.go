@@ -254,12 +254,16 @@ func fileContextPlanRAGObjects(items []AttachmentInput) []model.FileObject {
 	result := make([]model.FileObject, 0, len(items))
 	for _, item := range items {
 		result = append(result, model.FileObject{
-			ID:          item.FileObjID,
-			FileID:      item.FileID,
-			FileName:    item.FileName,
-			EmbedStatus: item.EmbedStatus,
-			ChunkCount:  item.ChunkCount,
-			UpdatedAt:   item.FileUpdatedAt,
+			ID:           item.FileObjID,
+			FileID:       item.FileID,
+			FileName:     item.FileName,
+			MimeType:     item.MimeType,
+			DetectedMIME: item.DetectedMIME,
+			FileCategory: item.FileCategory,
+			StoragePath:  item.StoragePath,
+			EmbedStatus:  item.EmbedStatus,
+			ChunkCount:   item.ChunkCount,
+			UpdatedAt:    item.FileUpdatedAt,
 		})
 	}
 	return result

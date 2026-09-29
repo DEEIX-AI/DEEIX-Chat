@@ -14,7 +14,7 @@ import (
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
+	extractionport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extraction"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
@@ -36,16 +36,16 @@ func (temporaryBuiltinParserStub) ExtractWordText(
 	[]byte,
 	string,
 	string,
-) extractport.WordTextResult {
-	return extractport.WordTextResult{}
+) extractionport.WordTextResult {
+	return extractionport.WordTextResult{}
 }
 
 func (temporaryBuiltinParserStub) ExtractExcelText([]byte, string, string) string { return "" }
 
 func (temporaryBuiltinParserStub) ExtractPDFText(string, int) (string, error) { return "", nil }
 
-func (temporaryBuiltinParserStub) ExtractPDFPages(string, int) (extractport.PDFTextResult, error) {
-	return extractport.PDFTextResult{}, nil
+func (temporaryBuiltinParserStub) ExtractPDFPages(string, int) (extractionport.PDFTextResult, error) {
+	return extractionport.PDFTextResult{}, nil
 }
 
 func (temporaryBuiltinParserStub) DetectPDFPageCount(string) int { return 0 }
@@ -477,7 +477,6 @@ func TestEphemeralTraceEmitsWithoutPersistence(t *testing.T) {
 	service := &Service{
 		cfg: config.NewRuntime(config.Config{
 			ProcessTraceEnabled:         true,
-			ProcessTraceVisibleToUser:   true,
 			ProcessTracePersistInflight: true,
 		}),
 		repo: repo,

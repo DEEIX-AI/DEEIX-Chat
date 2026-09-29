@@ -4,6 +4,9 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            // distribution + policy (content tabs)
+            "get_distribution",
+            "check_update_notice",
             // session (content tabs)
             "get_server",
             "set_remote_server",

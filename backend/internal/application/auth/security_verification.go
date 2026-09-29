@@ -8,8 +8,7 @@ import (
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 )
 
-// SecurityVerificationMethod describes the extra verification factor required
-// for user-owned sensitive operations.
+// SecurityVerificationMethod 描述用户对自身账号执行敏感操作时所需的额外验证因素。
 type SecurityVerificationMethod string
 
 const (

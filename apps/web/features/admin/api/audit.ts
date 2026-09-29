@@ -1,6 +1,4 @@
 import type {
-  CleanupConversationRunsRequest,
-  CleanupConversationRunsResponse,
   CleanupLogsRequest,
   CleanupLogsResponse,
 } from "@deeix/api-contract";
@@ -10,13 +8,13 @@ import type {
   AdminConversationEventDTO,
   AdminPaymentOrderDTO,
   AdminRedemptionRecordDTO,
-  AdminSystemEventDTO,
   AdminUsageLogDTO,
   AdminUserAuthEventDTO,
-} from "@/features/admin/api/admin.types";
-import type { PagePayload } from "@/shared/api/common.types";
+} from "@/features/admin/api/admin-types";
+import type { PagePayload } from "@/shared/api/common-types";
 
 import { normalizeAdminPagePayload, resolveAdminPage, type AdminPageOptions } from "./shared";
+import type { ADMIN_LOG_CLEANUP_TYPES } from "@/features/admin/model/admin-unions";
 
 type ListAdminUserAuthEventsOptions = AdminPageOptions & {
   userID?: number;
@@ -29,16 +27,6 @@ type ListAdminAuditLogsOptions = AdminPageOptions & {
   resource?: string;
   action?: string;
   actorUserID?: number;
-  createdFrom?: string;
-  createdTo?: string;
-  sort?: string;
-};
-
-type ListAdminSystemEventsOptions = AdminPageOptions & {
-  query?: string;
-  level?: string;
-  source?: string;
-  event?: string;
   createdFrom?: string;
   createdTo?: string;
   sort?: string;
@@ -87,13 +75,7 @@ type ListAdminConversationEventsOptions = AdminPageOptions & {
   sort?: string;
 };
 
-export type AdminLogCleanupType =
-  | "audit"
-  | "auth"
-  | "usage"
-  | "orders"
-  | "conversation"
-  | "system";
+export type AdminLogCleanupType = (typeof ADMIN_LOG_CLEANUP_TYPES)[number];
 
 export type AdminLogCleanupResult = Omit<CleanupLogsResponse, "type"> & {
   type: AdminLogCleanupType;
@@ -173,31 +155,6 @@ export async function listAdminAuditLogs(
   }
   const data = await authedRequest<PagePayload<AdminAuditLogDTO>>(
     `/api/v1/admin/audit-logs?${params.toString()}`,
-    { accessToken },
-    true,
-  );
-
-  return normalizeAdminPagePayload(data);
-}
-
-export async function listAdminSystemEvents(
-  accessToken: string,
-  options: ListAdminSystemEventsOptions = {},
-): Promise<PagePayload<AdminSystemEventDTO>> {
-  const { page, pageSize } = resolveAdminPage(options);
-  const params = new URLSearchParams();
-  params.set("page", String(page));
-  params.set("page_size", String(pageSize));
-  if (options.query?.trim()) params.set("query", options.query.trim());
-  if (options.level?.trim()) params.set("level", options.level.trim());
-  if (options.source?.trim()) params.set("source", options.source.trim());
-  if (options.event?.trim()) params.set("event", options.event.trim());
-  if (options.createdFrom?.trim()) params.set("created_from", options.createdFrom.trim());
-  if (options.createdTo?.trim()) params.set("created_to", options.createdTo.trim());
-  if (options.sort?.trim()) params.set("sort", options.sort.trim());
-
-  const data = await authedRequest<PagePayload<AdminSystemEventDTO>>(
-    `/api/v1/admin/system-events?${params.toString()}`,
     { accessToken },
     true,
   );
@@ -319,17 +276,3 @@ export async function getAdminConversationEvent(
   );
 }
 
-export async function cleanupAdminConversationRuns(
-  accessToken: string,
-  input: CleanupConversationRunsRequest,
-): Promise<CleanupConversationRunsResponse> {
-  return authedRequest<CleanupConversationRunsResponse>(
-    "/api/v1/admin/conversation-events/cleanup",
-    {
-      accessToken,
-      method: "POST",
-      body: input,
-    },
-    true,
-  );
-}

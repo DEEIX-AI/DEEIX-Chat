@@ -4,13 +4,16 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { useConversationExport, useSidebarConversationField } from "@/entities/conversation";
-import type { ConversationDTO } from "@/shared/api/conversation.types";
-import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
+import {
+  parseConversationLabelsJSON,
+  useConversationExport,
+  useSidebarConversationField,
+} from "@/entities/conversation";
+import type { ConversationDTO } from "@/shared/api/conversation-types";
 
 /**
- * 当前会话的操作集合：标题（手动/自动重命名）、星标、标签、归属项目、分享、导出与删除，
- * 以及分享/删除确认对话框的开合状态。
+ * Actions for the current conversation: title (manual/auto rename), star, tags, project, share, export and delete,
+ * plus the open state of the share/delete confirmation dialogs.
  */
 export function useChatConversationActions({
   conversationID,

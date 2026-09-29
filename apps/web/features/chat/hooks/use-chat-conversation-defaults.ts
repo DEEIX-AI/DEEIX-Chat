@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { listVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
 import { listVisibleSkills } from "@/shared/api/skills";
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
 export function useChatConversationDefaults({

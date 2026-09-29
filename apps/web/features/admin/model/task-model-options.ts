@@ -1,10 +1,10 @@
-import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
-import type { ModelSelectOption } from "@/shared/components/model-select";
+import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import {
   isRoutableChatPlatformModel,
+  type ModelSelectOption,
   resolveModelOptionIconUrl,
   resolveModelOptionLabel,
-} from "@/shared/lib/model-option-display";
+} from "@/entities/model";
 
 export function buildTaskModelOptions({
   models,

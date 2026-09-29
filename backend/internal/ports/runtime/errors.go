@@ -1,10 +1,10 @@
-// Package runtime defines contracts shared by application services and
-// infrastructure adapters for managed runtime dependencies.
+// Package runtime 定义应用服务与受管运行时依赖的
+// 基础设施适配器之间共享的契约。
 package runtime
 
 import "errors"
 
-// ErrContainerNotFound indicates that a requested managed container does not
-// exist. The Docker adapter is responsible for translating engine-specific
-// exit output into this stable infrastructure error.
+// ErrContainerNotFound 表示请求的受管容器不存在。
+// Docker 适配器负责将引擎特定的退出输出
+// 转换为该稳定的基础设施错误。
 var ErrContainerNotFound = errors.New("runtime container not found")

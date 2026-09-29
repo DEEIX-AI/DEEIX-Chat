@@ -7,7 +7,7 @@ import (
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -19,15 +19,15 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	if err = db.AutoMigrate(
-		&model.KnowledgeBase{},
-		&model.KnowledgeBaseFile{},
-		&model.ConversationProjectKnowledgeBase{},
-		&model.FileObject{},
+		&models.KnowledgeBase{},
+		&models.KnowledgeBaseFile{},
+		&models.ConversationProjectKnowledgeBase{},
+		&models.FileObject{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	items := []model.KnowledgeBase{
+	items := []models.KnowledgeBase{
 		{PublicID: "builtin-enabled", Scope: domainknowledgebase.ScopeBuiltin, Name: "Built in", Enabled: true, SortOrder: 1},
 		{PublicID: "builtin-disabled", Scope: domainknowledgebase.ScopeBuiltin, Name: "Disabled", Enabled: false, SortOrder: 2},
 		{PublicID: "mine", Scope: domainknowledgebase.ScopeUser, OwnerUserID: 11, Name: "Mine", Enabled: true, SortOrder: 1},
@@ -39,7 +39,7 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 	if err = db.Model(&items[1]).Update("enabled", false).Error; err != nil {
 		t.Fatalf("disable knowledge base fixture: %v", err)
 	}
-	files := []model.FileObject{
+	files := []models.FileObject{
 		{FileID: "builtin-file", UserID: 0, FileName: "policy.md", Status: "active", ProcessingReady: true, EmbedStatus: "ready", ChunkCount: 2},
 		{FileID: "builtin-available", UserID: 0, FileName: "platform-guide.md", Status: "active"},
 		{FileID: "mine-file", UserID: 11, FileName: "notes.md", Status: "active", ProcessingReady: true, EmbedStatus: "ready", ChunkCount: 2},
@@ -54,7 +54,7 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 	if err = db.Create(&files).Error; err != nil {
 		t.Fatalf("seed files: %v", err)
 	}
-	links := []model.KnowledgeBaseFile{
+	links := []models.KnowledgeBaseFile{
 		{KnowledgeBaseID: items[0].ID, FileObjectID: files[0].ID, AddedByUserID: 99},
 		{KnowledgeBaseID: items[2].ID, FileObjectID: files[2].ID, AddedByUserID: 11},
 		{KnowledgeBaseID: items[3].ID, FileObjectID: files[3].ID, AddedByUserID: 22},
@@ -63,7 +63,7 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 	if err = db.Create(&links).Error; err != nil {
 		t.Fatalf("seed links: %v", err)
 	}
-	if err = db.Create(&model.ConversationProjectKnowledgeBase{ProjectID: 101, KnowledgeBaseID: items[0].ID}).Error; err != nil {
+	if err = db.Create(&models.ConversationProjectKnowledgeBase{ProjectID: 101, KnowledgeBaseID: items[0].ID}).Error; err != nil {
 		t.Fatalf("seed project knowledge base link: %v", err)
 	}
 
@@ -161,20 +161,20 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 		t.Fatalf("add other user's file error = %v, want ErrNotFound", err)
 	}
 	var revisionBefore uint64
-	if err = db.Model(&model.KnowledgeBase{}).Where("id = ?", items[2].ID).Pluck("revision", &revisionBefore).Error; err != nil {
+	if err = db.Model(&models.KnowledgeBase{}).Where("id = ?", items[2].ID).Pluck("revision", &revisionBefore).Error; err != nil {
 		t.Fatalf("load revision before duplicate add: %v", err)
 	}
 	if err = repo.AddKnowledgeBaseFiles(context.Background(), items[2].ID, domainknowledgebase.ScopeUser, userID, userID, []string{"mine-file"}); err != nil {
 		t.Fatalf("add already linked file: %v", err)
 	}
 	var revisionAfter uint64
-	if err = db.Model(&model.KnowledgeBase{}).Where("id = ?", items[2].ID).Pluck("revision", &revisionAfter).Error; err != nil {
+	if err = db.Model(&models.KnowledgeBase{}).Where("id = ?", items[2].ID).Pluck("revision", &revisionAfter).Error; err != nil {
 		t.Fatalf("load revision after duplicate add: %v", err)
 	}
 	if revisionAfter != revisionBefore {
 		t.Fatalf("duplicate add changed revision from %d to %d", revisionBefore, revisionAfter)
 	}
-	orderedFiles := []model.FileObject{
+	orderedFiles := []models.FileObject{
 		{FileID: "ordered-second", UserID: userID, FileName: "second.md", Status: "active"},
 		{FileID: "ordered-first", UserID: userID, FileName: "first.md", Status: "active"},
 	}
@@ -191,7 +191,7 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 	); err != nil {
 		t.Fatalf("add ordered files: %v", err)
 	}
-	var orderedLinks []model.KnowledgeBaseFile
+	var orderedLinks []models.KnowledgeBaseFile
 	if err = db.Where("knowledge_base_id = ? AND file_object_id IN ?", items[2].ID, []uint{orderedFiles[0].ID, orderedFiles[1].ID}).
 		Order("sort_order ASC").Find(&orderedLinks).Error; err != nil {
 		t.Fatalf("load ordered links: %v", err)
@@ -205,7 +205,7 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 		t.Fatalf("disable built-in knowledge base: %v", err)
 	}
 	var projectLinkCount int64
-	if err = db.Model(&model.ConversationProjectKnowledgeBase{}).Where("knowledge_base_id = ?", items[0].ID).Count(&projectLinkCount).Error; err != nil {
+	if err = db.Model(&models.ConversationProjectKnowledgeBase{}).Where("knowledge_base_id = ?", items[0].ID).Count(&projectLinkCount).Error; err != nil {
 		t.Fatalf("count project links after disable: %v", err)
 	}
 	if projectLinkCount != 1 {
@@ -231,7 +231,7 @@ func TestRepositoryVisibilityResolutionAndDeletion(t *testing.T) {
 		}
 	}
 	var fileCount int64
-	if err = db.Model(&model.FileObject{}).Where("id = ?", files[1].ID).Count(&fileCount).Error; err != nil {
+	if err = db.Model(&models.FileObject{}).Where("id = ?", files[1].ID).Count(&fileCount).Error; err != nil {
 		t.Fatalf("count retained file: %v", err)
 	}
 	if fileCount != 1 {

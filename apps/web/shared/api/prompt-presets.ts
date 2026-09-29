@@ -1,6 +1,6 @@
 import { authedRequest } from "@/shared/api/authed-client";
 import { pathParam } from "@/shared/api/http-client";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 import type {
   PatchPromptPresetRequest,
   PromptPresetDTO,
@@ -8,7 +8,7 @@ import type {
   PromptPresetDeleteData,
   PromptPresetPage,
   WritePromptPresetRequest,
-} from "@/shared/api/prompt-presets.types";
+} from "@/shared/api/prompt-presets-types";
 
 type PromptPresetListOptions = {
   query?: string;

@@ -1,12 +1,12 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DEEIX Chat",
-  "version": "0.4.4-beta.2",
+  "version": "0.4.4-beta.3",
   "identifier": "com.deeix.chat.desktop",
   "build": {
     "frontendDist": "../../web/out",
     "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "pnpm --filter @deeix/web dev",
+    "beforeDevCommand": "node scripts/dev-web.mjs",
     "beforeBuildCommand": "pnpm turbo run build --filter=@deeix/web"
   },
   "app": {
@@ -20,6 +20,7 @@
       "dmg",
       "app",
       "nsis",
+      "msi",
       "deb",
       "appimage"
     ],
@@ -46,7 +47,19 @@
     },
     "windows": {
       "digestAlgorithm": "sha256",
-      "timestampUrl": "http://timestamp.digicert.com"
+      "timestampUrl": "http://timestamp.digicert.com",
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English",
+          "SimpChinese"
+        ],
+        "displayLanguageSelector": false
+      },
+      "wix": {
+        "upgradeCode": "416f18c0-1adb-51dc-ba68-b574720eb9bc",
+        "language": "en-US"
+      }
     },
     "externalBin": [
       "binaries/deeix-chat-server"

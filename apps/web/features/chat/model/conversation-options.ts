@@ -1,4 +1,5 @@
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
+import { isRecord } from "@/shared/lib/type-guards";
 
 const RESERVED_CONVERSATION_OPTION_KEYS = new Set([
   "contents",
@@ -13,7 +14,7 @@ const RESERVED_CONVERSATION_OPTION_KEYS = new Set([
 ]);
 
 export function isConversationOptionsObject(value: unknown): value is ConversationOptions {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  return isRecord(value);
 }
 
 export function isReservedConversationOptionKey(key: string): boolean {
@@ -28,7 +29,8 @@ export function sanitizeConversationOptions(options: ConversationOptions): Conve
 
 export function cloneConversationOptions(options: ConversationOptions): ConversationOptions {
   try {
-    return sanitizeConversationOptions(JSON.parse(JSON.stringify(options)) as ConversationOptions);
+    const cloned: unknown = JSON.parse(JSON.stringify(options));
+    return sanitizeConversationOptions(isConversationOptionsObject(cloned) ? cloned : { ...options });
   } catch {
     return sanitizeConversationOptions({ ...options });
   }

@@ -30,7 +30,7 @@ import type {
   UserDTO,
   UserIdentityData,
   UserIdentityListData,
-} from "@/shared/api/auth.types";
+} from "@/shared/api/auth-types";
 
 export const AUTH_ERROR_CODES = {
   accountLocked: "auth.account_locked",
@@ -310,20 +310,6 @@ export async function getLoginOptions(): Promise<LoginOptionsData> {
   };
 }
 
-export async function completeProviderLogin(
-  slug: string,
-  code: string,
-  state: string,
-  redirectURI: string,
-  codeVerifier: string,
-  intent: "login" | "register" | "bind",
-): Promise<LoginData> {
-  return apiRequest<LoginData>(`/api/v1/auth/providers/${pathParam(slug)}/callback`, {
-    method: "POST",
-    body: { code, state, redirectURI: redirectURI, codeVerifier: codeVerifier, intent },
-  });
-}
-
 export type ProviderAuthBridgeStartData = {
   authorizationURL: string;
   expiresAt: string;
@@ -428,21 +414,32 @@ export async function listCurrentUserIdentities(accessToken: string): Promise<Us
   );
 }
 
-export async function completeProviderBind(
+export async function startProviderBindBridge(
+  slug: string,
+  input: {
+    accessToken: string;
+    clientID: string;
+    redirectURI: string;
+    codeChallenge: string;
+    clientState: string;
+    next: string;
+  },
+): Promise<ProviderAuthBridgeStartData> {
+  const { accessToken, ...body } = input;
+  return authedRequest<ProviderAuthBridgeStartData>(
+    `/api/v1/me/identities/providers/${pathParam(slug)}/authorize`,
+    { method: "POST", accessToken, body },
+  );
+}
+
+export async function exchangeProviderBindBridgeGrant(
   accessToken: string,
   slug: string,
-  code: string,
-  state: string,
-  redirectURI: string,
-  codeVerifier: string,
+  input: { clientID: string; grant: string; codeVerifier: string },
 ): Promise<UserIdentityData> {
   return authedRequest<UserIdentityData>(
-    `/api/v1/me/identities/providers/${pathParam(slug)}/callback`,
-    {
-      method: "POST",
-      accessToken,
-      body: { code, state, redirectURI: redirectURI, codeVerifier: codeVerifier },
-    },
+    `/api/v1/me/identities/providers/${pathParam(slug)}/exchange`,
+    { method: "POST", accessToken, body: input },
   );
 }
 

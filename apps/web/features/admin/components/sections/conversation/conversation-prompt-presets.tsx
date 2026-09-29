@@ -4,9 +4,8 @@ import * as React from "react";
 import { Box, FileBox, LayoutGrid, Plus, Save, Trash2 } from "lucide-react";
 import { useLocale } from "next-intl";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
-import { SettingsFieldEditor } from "../shared/settings-runtime-panel";
+import { SettingsFieldEditor } from "../../shared/settings-runtime-panel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,28 +47,28 @@ import {
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { Textarea } from "@/components/ui/textarea";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import { listAdminSettingsByNamespace, patchAdminSettings } from "@/features/admin/api";
-import { useAdminSkills } from "@/features/admin/hooks/use-admin-skills";
-import { useAdminUIComponents } from "@/features/admin/hooks/use-admin-ui-components";
-import { useAdminPromptPresets } from "@/features/admin/hooks/use-admin-prompt-presets";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { formatDateTime } from "@/features/admin/utils/account-display";
-import type { PromptPresetDTO } from "@/shared/api/prompt-presets.types";
-import type { SkillDTO } from "@/shared/api/skills.types";
-import type { UIComponentDTO } from "@/shared/api/ui-components.types";
-import { UIComponentEditorDialog } from "@/shared/components/ui-component-editor-dialog";
-import type { PatchSettingItem } from "@/shared/api/settings.types";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useAdminConversationSkills } from "@/features/admin/hooks/use-admin-conversation-skills";
+import { useAdminConversationSkillsPrompt } from "@/features/admin/hooks/use-admin-conversation-skills-prompt";
+import { useAdminConversationUIComponents } from "@/features/admin/hooks/use-admin-conversation-ui-components";
+import { useAdminConversationPromptPresets } from "@/features/admin/hooks/use-admin-conversation-prompt-presets";
+import { formatDateTime } from "@/features/admin/utils/user-display";
+import type { PromptPresetDTO } from "@/shared/api/prompt-presets-types";
+import type { SkillDTO } from "@/shared/api/skills-types";
+import type { UIComponentDTO } from "@/shared/api/ui-components-types";
+import { UIComponentEditorDialog } from "@/features/admin/components/sections/conversation/conversation-ui-component-editor-dialog";
 import {
   SettingsFieldItem,
   SettingsFieldList,
   SettingsSection,
 } from "@/shared/components/settings-layout";
-import { PROMPT_PRESET_LIMITS } from "@/shared/model/prompt-presets";
-import { SKILL_LIMITS } from "@/shared/model/skills";
+import { PROMPT_PRESET_LIMITS } from "@/entities/prompt-preset";
+import { SKILL_LIMITS } from "@/entities/skill";
+import { isOneOf } from "@/shared/lib/type-guards";
 
 const PROMPT_PRESET_TABLE_COLUMN_COUNT = 6;
-type PromptLibraryType = "prompts" | "skills" | "components";
+const PROMPT_LIBRARY_TYPES = ["prompts", "skills", "components"] as const;
+type PromptLibraryType = (typeof PROMPT_LIBRARY_TYPES)[number];
+const isPromptLibraryType = isOneOf(PROMPT_LIBRARY_TYPES);
 
 type PromptLibraryRow = {
   id: number;
@@ -109,7 +108,7 @@ function SkillsPromptSettings({
   onChange: (value: string) => void;
   value: string;
 }) {
-  const t = useTranslations("adminPrompts");
+  const t = useTranslations("adminLibrary");
   const field = React.useMemo(
     () => ({
       id: "chat.skills_prompt",
@@ -158,7 +157,7 @@ function PromptLibraryTable<T extends PromptLibraryRow>({
   onEdit: (item: T) => void;
   onEnabledChange: (item: T, checked: boolean) => void;
 }) {
-  const t = useTranslations("adminPrompts");
+  const t = useTranslations("adminLibrary");
   const locale = useLocale();
   const initialLoading = loading && items.length === 0;
   const showRows = items.length > 0;
@@ -249,16 +248,20 @@ function PromptLibraryTable<T extends PromptLibraryRow>({
 }
 
 export function ConversationPromptPresetsSection() {
-  const t = useTranslations("adminPrompts");
+  const t = useTranslations("adminLibrary");
   const commonT = useTranslations("common");
   const [activeType, setActiveType] = React.useState<PromptLibraryType>("skills");
-  const [skillsPromptValue, setSkillsPromptValue] = React.useState("");
-  const [savedSkillsPromptValue, setSavedSkillsPromptValue] = React.useState("");
-  const [skillsPromptLoading, setSkillsPromptLoading] = React.useState(true);
-  const [skillsPromptSaving, setSkillsPromptSaving] = React.useState(false);
-  const prompts = useAdminPromptPresets();
-  const skills = useAdminSkills();
-  const components = useAdminUIComponents();
+  const {
+    skillsPromptValue,
+    setSkillsPromptValue,
+    skillsPromptLoading,
+    skillsPromptSaving,
+    skillsPromptDirty,
+    saveSkillsPrompt,
+  } = useAdminConversationSkillsPrompt();
+  const prompts = useAdminConversationPromptPresets();
+  const skills = useAdminConversationSkills();
+  const components = useAdminConversationUIComponents();
   const uiT = useTranslations("uiComponents");
   const active = activeType === "skills" ? skills : activeType === "components" ? components : prompts;
   const activeLoading = active.loading;
@@ -271,72 +274,7 @@ export function ConversationPromptPresetsSection() {
     activeType === "skills" ? t("skillsSearchPlaceholder") : activeType === "components" ? uiT("searchPlaceholder") : t("searchPlaceholder");
   const activeCreateLabel = activeType === "skills" ? t("createSkill") : activeType === "components" ? uiT("create") : t("create");
   const componentRows = React.useMemo(() => components.items.map(toUIComponentRow), [components.items]);
-  const skillsPromptDirty = skillsPromptValue !== savedSkillsPromptValue;
 
-  React.useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setSkillsPromptLoading(true);
-      try {
-        const token = await resolveAccessToken();
-        if (!token) {
-          toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-          return;
-        }
-        const settings = await listAdminSettingsByNamespace(token, "chat");
-        if (cancelled) {
-          return;
-        }
-        const nextValue = settings.find((item) => item.key === "skills_prompt")?.value ?? "";
-        setSkillsPromptValue(nextValue);
-        setSavedSkillsPromptValue(nextValue);
-      } catch (error) {
-        if (!cancelled) {
-          toast.error(t("toast.settingsLoadFailed"), { description: resolveAdminErrorMessage(error) });
-        }
-      } finally {
-        if (!cancelled) {
-          setSkillsPromptLoading(false);
-        }
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [t]);
-
-  const saveSkillsPrompt = React.useCallback(async () => {
-    if (!skillsPromptDirty) {
-      return;
-    }
-
-    setSkillsPromptSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-        return;
-      }
-      const items: PatchSettingItem[] = [
-        {
-          namespace: "chat",
-          key: "skills_prompt",
-          value: skillsPromptValue,
-        },
-      ];
-      const grouped = await patchAdminSettings(token, { items });
-      const nextValue = grouped.chat?.find((item) => item.key === "skills_prompt")?.value ?? skillsPromptValue;
-      setSkillsPromptValue(nextValue);
-      setSavedSkillsPromptValue(nextValue);
-      toast.success(t("toast.settingsUpdated"));
-    } catch (error) {
-      toast.error(t("toast.settingsSaveFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSkillsPromptSaving(false);
-    }
-  }, [skillsPromptDirty, skillsPromptValue, t]);
   const skillsPromptAction = activeType === "skills" && skillsPromptDirty ? (
     <Button
       type="button"
@@ -350,7 +288,9 @@ export function ConversationPromptPresetsSection() {
     </Button>
   ) : null;
   const sectionActions = (
-    <Tabs value={activeType} onValueChange={(value) => setActiveType(value as PromptLibraryType)}>
+    <Tabs value={activeType} onValueChange={(value) => {
+      if (isPromptLibraryType(value)) setActiveType(value);
+    }}>
       <TabsList>
         <TabsTrigger value="skills">{t("types.skills")}</TabsTrigger>
         <TabsTrigger value="prompts">{t("types.prompts")}</TabsTrigger>

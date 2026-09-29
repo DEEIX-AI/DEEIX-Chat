@@ -62,8 +62,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [checkSession]);
 
   React.useEffect(() => {
-    function handleSessionChanged(event: Event) {
-      const snapshot = (event as CustomEvent<SessionSnapshot>).detail;
+    function handleSessionChanged(event: CustomEvent<SessionSnapshot>) {
+      const snapshot: SessionSnapshot | undefined = event.detail;
       const nextToken = snapshot?.accessToken ?? "";
       setAccessToken(nextToken || null);
       setStatus(nextToken ? "ready" : "checking");
@@ -72,9 +72,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       }
     }
 
-    window.addEventListener(SESSION_SNAPSHOT_CHANGED_EVENT, handleSessionChanged as EventListener);
+    window.addEventListener(SESSION_SNAPSHOT_CHANGED_EVENT, handleSessionChanged);
     return () => {
-      window.removeEventListener(SESSION_SNAPSHOT_CHANGED_EVENT, handleSessionChanged as EventListener);
+      window.removeEventListener(SESSION_SNAPSHOT_CHANGED_EVENT, handleSessionChanged);
     };
   }, [redirectToLogin]);
 

@@ -18,7 +18,6 @@ import (
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -319,11 +318,11 @@ func (h *Handler) preparePaymentCheckout(
 			return preparation, appbilling.ErrPaymentProviderUnavailable
 		}
 		var err error
-		preparation.successURL, err = h.paymentReturnURL(c, req.SuccessURL, "/settings?section=account&payment=success")
+		preparation.successURL, err = h.paymentReturnURL(c, req.SuccessURL, "/settings/subscription?payment=success")
 		if err != nil {
 			return preparation, err
 		}
-		preparation.cancelURL, err = h.paymentReturnURL(c, req.CancelURL, "/settings?section=account&payment=cancel")
+		preparation.cancelURL, err = h.paymentReturnURL(c, req.CancelURL, "/settings/subscription?payment=cancel")
 		if err != nil {
 			return preparation, err
 		}
@@ -343,7 +342,7 @@ func (h *Handler) preparePaymentCheckout(
 		if err != nil {
 			return preparation, err
 		}
-		preparation.successURL, err = h.paymentReturnURL(c, req.SuccessURL, "/settings?section=account&payment=success")
+		preparation.successURL, err = h.paymentReturnURL(c, req.SuccessURL, "/settings/subscription?payment=success")
 		if err != nil {
 			return preparation, err
 		}
@@ -818,12 +817,6 @@ func joinPublicBaseURL(baseURL string, path string) (string, error) {
 	}
 	return parsed.ResolveReference(relative).String(), nil
 }
-
-// 客户端传入的 return_url 校验失败属于请求错误（400），与公开地址未配置等服务端问题区分开。
-var (
-	errPaymentReturnURLInvalid     = apperr.New("payment.return_url_invalid", "payment return url is invalid")
-	errPaymentReturnURLCrossOrigin = apperr.New("payment.return_url_cross_origin", "payment return url must use the configured public web origin")
-)
 
 func sameOriginPublicURL(baseURL string, raw string) (string, error) {
 	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(baseURL), "/"))

@@ -5,7 +5,6 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/userview"
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
-	domainsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/systemevent"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 )
 
@@ -87,10 +86,4 @@ type UserAuthEventsResult struct {
 type AuditLogsResult struct {
 	Total   int64
 	Results []domainaudit.Log
-}
-
-// SystemEventsResult 系统事件分页数据（内部传输，不携带序列化标记）。
-type SystemEventsResult struct {
-	Total   int64
-	Results []domainsystemevent.Event
 }

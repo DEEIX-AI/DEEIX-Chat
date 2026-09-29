@@ -7,8 +7,9 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -34,13 +35,14 @@ func (r *Repo) ListKnowledgeBases(ctx context.Context, filter repository.Knowled
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 100 {
-		limit = 100
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
-	// Do not use the request-derived limit as a slice capacity. The SQL query
-	// still enforces the bounded limit, and Gorm grows this slice only as rows return.
-	items := make([]model.KnowledgeBase, 0)
-	query := applyListFilter(r.db.WithContext(ctx).Model(&model.KnowledgeBase{}), filter)
+	// 不要把来自请求的 limit 用作切片容量。SQL 查询
+	// 仍会强制执行有界 limit，Gorm 仅随返回的行扩容该切片。
+	items := make([]models.KnowledgeBase, 0)
+	query := applyListFilter(r.db.WithContext(ctx).Model(&models.KnowledgeBase{}), filter)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
@@ -77,7 +79,7 @@ func (r *Repo) GetKnowledgeBaseByPublicID(ctx context.Context, publicID string) 
 
 // GetKnowledgeBaseAccessByPublicID 查询知识库访问控制所需的元数据，不聚合文件计数。
 func (r *Repo) GetKnowledgeBaseAccessByPublicID(ctx context.Context, publicID string) (*domainknowledgebase.KnowledgeBase, error) {
-	var item model.KnowledgeBase
+	var item models.KnowledgeBase
 	if err := r.db.WithContext(ctx).Where("public_id = ?", strings.TrimSpace(publicID)).First(&item).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -94,7 +96,7 @@ func (r *Repo) CreateKnowledgeBase(ctx context.Context, item *domainknowledgebas
 	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if record.SortOrder <= 0 {
 			var maxSortOrder int
-			if err := tx.Model(&model.KnowledgeBase{}).
+			if err := tx.Model(&models.KnowledgeBase{}).
 				Where("scope = ? AND owner_user_id = ?", record.Scope, record.OwnerUserID).
 				Select("COALESCE(MAX(sort_order), 0)").Scan(&maxSortOrder).Error; err != nil {
 				return err
@@ -105,9 +107,9 @@ func (r *Repo) CreateKnowledgeBase(ctx context.Context, item *domainknowledgebas
 		if err := tx.Create(&record).Error; err != nil {
 			return err
 		}
-		// Enabled=false is a meaningful control-plane value. Gorm applies the
-		// model's default:true to a zero-value bool during Create, so restore the
-		// explicitly requested state in the same transaction.
+		// Enabled=false 是有意义的控制面取值。Gorm 在 Create 时会对零值 bool
+		// 应用模型的 default:true，因此需在同一事务中
+		// 恢复显式请求的状态。
 		if !enabled {
 			if err := tx.Model(&record).UpdateColumn("enabled", false).Error; err != nil {
 				return err
@@ -129,7 +131,7 @@ func (r *Repo) PatchKnowledgeBase(ctx context.Context, id uint, patch repository
 	}
 	var result domainknowledgebase.KnowledgeBase
 	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var item model.KnowledgeBase
+		var item models.KnowledgeBase
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&item).Error; err != nil {
 			return err
 		}
@@ -177,7 +179,7 @@ func (r *Repo) DeleteKnowledgeBase(ctx context.Context, id uint) ([]repository.K
 	}
 	candidates := make([]repository.KnowledgeBaseFileCleanupCandidate, 0)
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var item model.KnowledgeBase
+		var item models.KnowledgeBase
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&item).Error; err != nil {
 			return err
 		}
@@ -188,10 +190,10 @@ func (r *Repo) DeleteKnowledgeBase(ctx context.Context, id uint) ([]repository.K
 			Scan(&candidates).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("knowledge_base_id = ?", id).Delete(&model.ConversationProjectKnowledgeBase{}).Error; err != nil {
+		if err := tx.Where("knowledge_base_id = ?", id).Delete(&models.ConversationProjectKnowledgeBase{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("knowledge_base_id = ?", id).Delete(&model.KnowledgeBaseFile{}).Error; err != nil {
+		if err := tx.Where("knowledge_base_id = ?", id).Delete(&models.KnowledgeBaseFile{}).Error; err != nil {
 			return err
 		}
 		result := tx.Delete(&item)
@@ -217,8 +219,9 @@ func (r *Repo) ListKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint,
 	if limit <= 0 {
 		limit = 50
 	}
-	if limit > 100 {
-		limit = 100
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
 	base := r.db.WithContext(ctx).Table("knowledge_base_files AS kbf").
 		Joins("JOIN file_objects AS fo ON fo.id = kbf.file_object_id AND fo.status = ? AND fo.deleted_at IS NULL", "active").
@@ -227,7 +230,7 @@ func (r *Repo) ListKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint,
 	if err := base.Count(&total).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
 	}
-	items := make([]model.FileObject, 0)
+	items := make([]models.FileObject, 0)
 	if err := base.Select(knowledgeBaseFileSelectColumns).Order("kbf.sort_order ASC, kbf.created_at ASC").Offset(offset).Limit(limit).Scan(&items).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
 	}
@@ -243,7 +246,7 @@ func (r *Repo) GetKnowledgeBaseFileProcessingStatuses(ctx context.Context, knowl
 }
 
 func (r *Repo) listKnowledgeBaseFileProcessingStatuses(ctx context.Context, knowledgeBaseID uint, fileIDs []string) ([]domainconversation.FileObject, error) {
-	items := make([]model.FileObject, 0)
+	items := make([]models.FileObject, 0)
 	if len(fileIDs) > 0 {
 		if err := r.db.WithContext(ctx).Table("knowledge_base_files AS kbf").
 			Select(`
@@ -320,8 +323,9 @@ func (r *Repo) listKnowledgeBaseSourceFiles(
 	if limit <= 0 {
 		limit = 50
 	}
-	if limit > 100 {
-		limit = 100
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
 
 	query := r.db.WithContext(ctx).Table("file_objects AS fo").
@@ -338,7 +342,7 @@ func (r *Repo) listKnowledgeBaseSourceFiles(
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
 	}
-	items := make([]model.FileObject, 0)
+	items := make([]models.FileObject, 0)
 	if err := query.Select(knowledgeBaseFileSelectColumns).
 		Order("fo.created_at DESC, fo.id DESC").
 		Offset(offset).
@@ -356,7 +360,7 @@ func (r *Repo) GetKnowledgeBaseFile(ctx context.Context, knowledgeBaseID uint, f
 		return nil, repository.ErrInvalidInput
 	}
 
-	var item model.FileObject
+	var item models.FileObject
 	result := r.db.WithContext(ctx).Table("knowledge_base_files AS kbf").
 		Select(knowledgeBaseFileSelectColumns).
 		Joins("JOIN file_objects AS fo ON fo.id = kbf.file_object_id AND fo.status = ? AND fo.deleted_at IS NULL", "active").
@@ -379,14 +383,14 @@ func (r *Repo) AddKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint, 
 		return repository.ErrInvalidInput
 	}
 	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var base model.KnowledgeBase
+		var base models.KnowledgeBase
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", knowledgeBaseID).First(&base).Error; err != nil {
 			return err
 		}
 		if base.Scope != scope || base.OwnerUserID != ownerUserID {
 			return repository.ErrNotFound
 		}
-		files := make([]model.FileObject, 0, len(fileIDs))
+		files := make([]models.FileObject, 0, len(fileIDs))
 		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("file_id IN ? AND status = ?", fileIDs, "active")
 		if scope == domainknowledgebase.ScopeUser {
 			query = query.Where("user_id = ?", ownerUserID)
@@ -399,22 +403,22 @@ func (r *Repo) AddKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint, 
 		if len(files) != len(fileIDs) {
 			return repository.ErrNotFound
 		}
-		filesByPublicID := make(map[string]model.FileObject, len(files))
+		filesByPublicID := make(map[string]models.FileObject, len(files))
 		for _, file := range files {
 			filesByPublicID[file.FileID] = file
 		}
 		var maxSortOrder int
-		if err := tx.Model(&model.KnowledgeBaseFile{}).Where("knowledge_base_id = ?", knowledgeBaseID).
+		if err := tx.Model(&models.KnowledgeBaseFile{}).Where("knowledge_base_id = ?", knowledgeBaseID).
 			Select("COALESCE(MAX(sort_order), 0)").Scan(&maxSortOrder).Error; err != nil {
 			return err
 		}
-		rows := make([]model.KnowledgeBaseFile, 0, len(fileIDs))
+		rows := make([]models.KnowledgeBaseFile, 0, len(fileIDs))
 		for index, fileID := range fileIDs {
 			file, exists := filesByPublicID[fileID]
 			if !exists {
 				return repository.ErrNotFound
 			}
-			rows = append(rows, model.KnowledgeBaseFile{
+			rows = append(rows, models.KnowledgeBaseFile{
 				KnowledgeBaseID: knowledgeBaseID,
 				FileObjectID:    file.ID,
 				SortOrder:       maxSortOrder + index + 1,
@@ -438,15 +442,15 @@ func (r *Repo) RemoveKnowledgeBaseFile(ctx context.Context, knowledgeBaseID uint
 		result := tx.Where(
 			"knowledge_base_id = ? AND file_object_id IN (?)",
 			knowledgeBaseID,
-			tx.Model(&model.FileObject{}).Select("id").Where("file_id = ? AND status = ?", strings.TrimSpace(fileID), "active"),
-		).Delete(&model.KnowledgeBaseFile{})
+			tx.Model(&models.FileObject{}).Select("id").Where("file_id = ? AND status = ?", strings.TrimSpace(fileID), "active"),
+		).Delete(&models.KnowledgeBaseFile{})
 		if result.Error != nil {
 			return result.Error
 		}
 		if result.RowsAffected == 0 {
 			return repository.ErrNotFound
 		}
-		return tx.Model(&model.KnowledgeBase{}).Where("id = ?", knowledgeBaseID).
+		return tx.Model(&models.KnowledgeBase{}).Where("id = ?", knowledgeBaseID).
 			Update("revision", gorm.Expr("revision + 1")).Error
 	}))
 }
@@ -456,7 +460,7 @@ func (r *Repo) ResolveVisibleKnowledgeBaseFiles(ctx context.Context, userID uint
 	if userID == 0 || len(publicIDs) == 0 {
 		return nil, nil, repository.ErrInvalidInput
 	}
-	bases := make([]model.KnowledgeBase, 0, len(publicIDs))
+	bases := make([]models.KnowledgeBase, 0, len(publicIDs))
 	if err := r.db.WithContext(ctx).
 		Where("public_id IN ? AND enabled = ?", publicIDs, true).
 		Where("scope = ? OR (scope = ? AND owner_user_id = ?)", domainknowledgebase.ScopeBuiltin, domainknowledgebase.ScopeUser, userID).
@@ -474,7 +478,7 @@ func (r *Repo) ResolveVisibleKnowledgeBaseFiles(ctx context.Context, userID uint
 	for _, base := range bases {
 		baseIDs = append(baseIDs, base.ID)
 	}
-	files := make([]model.FileObject, 0)
+	files := make([]models.FileObject, 0)
 	if err := r.db.WithContext(ctx).Table("file_objects AS fo").Distinct(knowledgeBaseFileSelectColumns).
 		Joins("JOIN knowledge_base_files AS kbf ON kbf.file_object_id = fo.id").
 		Where("kbf.knowledge_base_id IN ? AND fo.status = ? AND fo.deleted_at IS NULL", baseIDs, "active").
@@ -583,7 +587,7 @@ func listOrder(filter repository.KnowledgeBaseListFilter) string {
 	return "CASE WHEN enabled THEN 0 ELSE 1 END ASC, sort_order ASC, updated_at DESC, id DESC"
 }
 
-func toDomain(item model.KnowledgeBase) domainknowledgebase.KnowledgeBase {
+func toDomain(item models.KnowledgeBase) domainknowledgebase.KnowledgeBase {
 	return domainknowledgebase.KnowledgeBase{
 		ID: item.ID, PublicID: item.PublicID, Scope: item.Scope, OwnerUserID: item.OwnerUserID,
 		Name: item.Name, Description: item.Description, Enabled: item.Enabled, SortOrder: item.SortOrder,
@@ -592,7 +596,7 @@ func toDomain(item model.KnowledgeBase) domainknowledgebase.KnowledgeBase {
 	}
 }
 
-func toDomains(items []model.KnowledgeBase) []domainknowledgebase.KnowledgeBase {
+func toDomains(items []models.KnowledgeBase) []domainknowledgebase.KnowledgeBase {
 	results := make([]domainknowledgebase.KnowledgeBase, 0, len(items))
 	for _, item := range items {
 		results = append(results, toDomain(item))
@@ -600,15 +604,15 @@ func toDomains(items []model.KnowledgeBase) []domainknowledgebase.KnowledgeBase 
 	return results
 }
 
-func toModel(item *domainknowledgebase.KnowledgeBase) model.KnowledgeBase {
-	return model.KnowledgeBase{
+func toModel(item *domainknowledgebase.KnowledgeBase) models.KnowledgeBase {
+	return models.KnowledgeBase{
 		PublicID: item.PublicID, Scope: item.Scope, OwnerUserID: item.OwnerUserID, Name: item.Name,
 		Description: item.Description, Enabled: item.Enabled, SortOrder: item.SortOrder, Revision: item.Revision,
 		CreatedByUserID: item.CreatedByUserID, UpdatedByUserID: item.UpdatedByUserID,
 	}
 }
 
-func toFileDomains(items []model.FileObject) []domainconversation.FileObject {
+func toFileDomains(items []models.FileObject) []domainconversation.FileObject {
 	results := make([]domainconversation.FileObject, 0, len(items))
 	for _, item := range items {
 		results = append(results, toFileDomain(item))
@@ -616,7 +620,7 @@ func toFileDomains(items []model.FileObject) []domainconversation.FileObject {
 	return results
 }
 
-func toFileDomain(item model.FileObject) domainconversation.FileObject {
+func toFileDomain(item models.FileObject) domainconversation.FileObject {
 	return domainconversation.FileObject{
 		ID: item.ID, FileID: item.FileID, UserID: item.UserID, Purpose: item.Purpose, FileName: item.FileName,
 		MimeType: item.MimeType, DetectedMIME: item.DetectedMIME, FileCategory: item.FileCategory,

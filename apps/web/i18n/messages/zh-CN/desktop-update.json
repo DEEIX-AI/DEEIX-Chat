@@ -4,5 +4,16 @@
   "installing": "正在下载更新…",
   "installed": "已安装 {version}",
   "relaunch": "重新启动",
-  "installFailed": "更新失败：{message}"
+  "installFailed": "更新失败：{message}",
+  "download": "下载",
+  "openFailed": "无法打开下载页面：{message}",
+  "distribution": {
+    "edition": "版本类型：{kind}",
+    "kinds": {
+      "installer": "安装版",
+      "msi": "MSI（企业部署）",
+      "portable": "便携版"
+    },
+    "managed": "部分设置由你的组织管理"
+  }
 }

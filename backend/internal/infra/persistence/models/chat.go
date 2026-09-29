@@ -1,4 +1,4 @@
-package model
+package models
 
 import "time"
 
@@ -247,6 +247,7 @@ type FileChunk struct {
 	ChunkIndex         int       `gorm:"not null;default:0;comment:分片序号"`
 	PageNum            int       `gorm:"not null;default:0;comment:所在页码"`
 	CharOffset         int       `gorm:"not null;default:0;comment:字符偏移量"`
+	Modality           string    `gorm:"size:16;not null;default:'text';comment:向量输入模态(text/image)"`
 	Content            string    `gorm:"type:text;not null;comment:分片文本内容"`
 	TokenCount         int       `gorm:"not null;default:0;comment:估算token数"`
 	EmbeddingSignature string    `gorm:"size:64;not null;default:'';index:idx_file_chunks_embedding_signature;comment:Embedding模型与维度签名"`

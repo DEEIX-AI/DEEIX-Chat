@@ -1,8 +1,11 @@
+import { isRecord, readString } from "@/shared/lib/type-guards";
+
 export function isApplePlatform(): boolean {
   if (typeof navigator === "undefined") return false;
-  const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+  // User-Agent Client Hints are Chromium-only and absent from lib.dom, so read them defensively.
+  const userAgentData: unknown = "userAgentData" in navigator ? navigator.userAgentData : undefined;
   const candidates = [
-    nav.userAgentData?.platform,
+    isRecord(userAgentData) ? readString(userAgentData, "platform") : undefined,
     navigator.platform,
     navigator.userAgent,
   ].filter((value): value is string => Boolean(value));

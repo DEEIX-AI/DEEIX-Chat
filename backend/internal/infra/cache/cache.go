@@ -1,5 +1,5 @@
-// Package cache selects the cache backend. Memory is always available; Redis
-// is excluded with -tags noredis.
+// Package cache 负责选择缓存后端。Memory 始终可用；Redis
+// 可通过 -tags noredis 排除。
 package cache
 
 import (
@@ -13,16 +13,16 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
-// RateLimiter matches the method set consumed by transport/http/middleware,
-// which infra must not import.
+// RateLimiter 与 transport/http/middleware 所用的方法集一致，
+// infra 不得导入该包。
 type RateLimiter interface {
 	AllowSlidingWindow(ctx context.Context, key string, limit int, window time.Duration, ttl time.Duration) (bool, error)
 	AllowFixedWindow(ctx context.Context, keys []string, limit int, ttl time.Duration) (bool, error)
 }
 
-// Backend provides every cache-backed repository for one driver.
+// Backend 为单个驱动提供全部基于缓存的仓储。
 type Backend interface {
-	// Name is the driver name reported by health checks.
+	// Name 是健康检查上报的驱动名称。
 	Name() string
 	Settings() repository.SettingsCacheRepository
 	Channel() repository.ChannelCacheRepository
@@ -33,7 +33,7 @@ type Backend interface {
 	Close() error
 }
 
-// Open returns the backend selected by cfg.CacheDriver.
+// Open 返回由 cfg.CacheDriver 选定的后端。
 func Open(cfg config.Config) (Backend, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.CacheDriver)) {
 	case "", "redis":

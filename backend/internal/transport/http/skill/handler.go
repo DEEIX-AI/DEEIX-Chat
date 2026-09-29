@@ -33,8 +33,8 @@ func NewHandler(service *appskill.Service) *Handler {
 // @Security BearerAuth
 // @Param q query string false "搜索关键词"
 // @Param id query []int false "按技能 ID 筛选，可重复传递" collectionFormat(multi)
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} SkillSummaryPageResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
@@ -108,8 +108,8 @@ func (h *Handler) GetVisibleSkill(c *gin.Context) {
 // @Security BearerAuth
 // @Param q query string false "搜索关键词"
 // @Param enabled query bool false "是否启用"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} SkillPageResponseDoc
 // @Failure 500 {object} ErrorDoc
 // @Router /skills/mine [get]
@@ -218,8 +218,8 @@ func (h *Handler) DeleteMySkill(c *gin.Context) {
 // @Security BearerAuth
 // @Param q query string false "搜索关键词"
 // @Param enabled query bool false "是否启用"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} SkillPageResponseDoc
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/skills [get]

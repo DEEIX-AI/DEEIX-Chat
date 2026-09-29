@@ -1,6 +1,7 @@
 import type { UpsertIdentityProviderRequest } from "@deeix/api-contract";
-import type { IdentityProviderDTO } from "@/shared/api/auth.types";
-import type { SettingsGrouped } from "@/shared/api/settings.types";
+import type { IdentityProviderDTO } from "@/shared/api/auth-types";
+import type { SettingsGrouped } from "@/shared/api/settings-types";
+import { isOneOf } from "@/shared/lib/type-guards";
 
 export type IdentityProviderForm = Omit<UpsertIdentityProviderRequest, "loginEnabled" | "registrationEnabled"> & {
   loginEnabled: boolean;
@@ -491,3 +492,11 @@ export function normalizeProviderSlugPreview(value: string): string {
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^[-_]+|[-_]+$/g, "");
 }
+
+export const IDENTITY_PROVIDER_TYPES = ["oidc", "oauth2"] as const;
+export type IdentityProviderType = (typeof IDENTITY_PROVIDER_TYPES)[number];
+export const isIdentityProviderType = isOneOf(IDENTITY_PROVIDER_TYPES);
+
+export const OIDC_ENDPOINT_MODES = ["issuer", "discovery"] as const;
+export type OIDCEndpointMode = (typeof OIDC_ENDPOINT_MODES)[number];
+export const isOIDCEndpointMode = isOneOf(OIDC_ENDPOINT_MODES);

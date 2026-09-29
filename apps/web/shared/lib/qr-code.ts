@@ -134,7 +134,8 @@ function reedSolomonCompute(data: number[], degree: number): number[] {
   const generator = reedSolomonGenerator(degree);
   const result = new Array<number>(degree).fill(0);
   for (const byte of data) {
-    const factor = byte ^ result.shift()!;
+    // result always holds `degree` entries: one is shifted out and one pushed back per byte.
+    const factor = byte ^ (result.shift() ?? 0);
     result.push(0);
     for (let index = 0; index < degree; index += 1) {
       result[index] ^= gfMultiply(generator[index], factor);
@@ -319,7 +320,7 @@ function placeFormatBits(matrix: QRMatrix, mask: number) {
 }
 
 function calculateFormatBits(mask: number): number {
-  let data = (0b01 << 3) | mask;
+  const data = (0b01 << 3) | mask;
   let value = data << 10;
   const generator = 0x537;
   for (let bit = 14; bit >= 10; bit -= 1) {

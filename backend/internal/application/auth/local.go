@@ -21,9 +21,9 @@ import (
 // 本地模式登录。
 //
 // 桌面 sidecar 只服务本机上的一个人，没有"注册"和"输入密码"的场景。启动时服务器
-// 生成一枚一次性 grant 交给拉起它的父进程（桌面壳），桌面壳用它换取一个普通会话，
+// 生成一枚一次性授权凭证交给拉起它的父进程（桌面壳），桌面壳用它换取一个普通会话，
 // 之后走与服务器部署完全相同的 access/refresh 轮换。因此本地模式没有任何长期存在
-// 的免鉴权入口：grant 只能从进程握手拿到、只能用一次、两分钟内过期。
+// 的免鉴权入口：该凭证只能从进程握手拿到、只能用一次、两分钟内过期。
 //
 // 本地用户不设密码（PasswordEnabled=false），密码登录对它天然不可用。
 
@@ -32,7 +32,7 @@ const (
 	localGrantBytes = 32
 )
 
-// ErrLocalGrantInvalid 表示 grant 不存在、已使用或已过期。
+// ErrLocalGrantInvalid 表示一次性授权凭证不存在、已使用或已过期。
 var ErrLocalGrantInvalid = errors.New("invalid local grant")
 
 // LocalOwnerDisplayName 本地用户的显示名。
@@ -80,7 +80,7 @@ func (s *Service) EnsureLocalOwner(ctx context.Context) (*domainuser.User, error
 	return item, nil
 }
 
-// IssueLocalGrant 生成新的一次性 grant，替换任何未使用的旧 grant。
+// IssueLocalGrant 生成新的一次性授权凭证，替换任何未使用的旧凭证。
 func (s *Service) IssueLocalGrant() (string, error) {
 	buf := make([]byte, localGrantBytes)
 	if _, err := rand.Read(buf); err != nil {
@@ -94,7 +94,7 @@ func (s *Service) IssueLocalGrant() (string, error) {
 	return grant, nil
 }
 
-// ExchangeLocalGrant 用一次性 grant 换取本地用户的会话。grant 用后即焚。
+// ExchangeLocalGrant 用一次性授权凭证换取本地用户的会话；凭证用后即焚。
 func (s *Service) ExchangeLocalGrant(
 	ctx context.Context,
 	presented string,

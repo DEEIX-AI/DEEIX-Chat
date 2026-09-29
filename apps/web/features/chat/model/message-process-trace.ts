@@ -1,5 +1,12 @@
 import type { ProcessTraceLabels } from "@/features/chat/hooks/use-chat-trace-labels";
 import type { ChatPromptTrace, ChatTraceEvent, RAGCitation } from "@/features/chat/types/messages";
+import {
+  isRecord,
+  parseJSON,
+  readFiniteNumber,
+  readString as readRecordString,
+  type UnknownRecord,
+} from "@/shared/lib/type-guards";
 
 export const TRACE_KIND_CONTEXT_PLANNING = "context_planning";
 export const TRACE_KIND_RAG = "content_retrieval";
@@ -58,14 +65,24 @@ export type TraceDisplayEvent = {
   kind: "think" | "tool";
 };
 
+// Citation consumers treat every field as optional, so missing or mistyped fields
+// fall back to the same empty values they already tolerate.
+function normalizeRAGCitation(record: UnknownRecord): RAGCitation {
+  const modality = record.modality === "image" || record.modality === "text" ? record.modality : undefined;
+  return {
+    file_name: readRecordString(record, "file_name") ?? "",
+    file_id: readRecordString(record, "file_id") ?? "",
+    chunk_index: readFiniteNumber(record, "chunk_index") ?? 0,
+    score: readFiniteNumber(record, "score") ?? 0,
+    preview: readRecordString(record, "preview") ?? "",
+    ...(modality ? { modality } : {}),
+  };
+}
+
 export function parseRAGCitations(payloadJson: string | undefined): RAGCitation[] {
-  if (!payloadJson) return [];
-  try {
-    const parsed = JSON.parse(payloadJson) as { citations?: RAGCitation[] };
-    return Array.isArray(parsed.citations) ? parsed.citations : [];
-  } catch {
-    return [];
-  }
+  const parsed = parseTracePayload(payloadJson);
+  if (!parsed || !Array.isArray(parsed.citations)) return [];
+  return parsed.citations.filter(isRecord).map(normalizeRAGCitation);
 }
 
 function readStringArray(value: unknown): string[] {
@@ -75,10 +92,6 @@ function readStringArray(value: unknown): string[] {
 
 function readArrayCount(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function readString(value: unknown): string {
@@ -97,14 +110,10 @@ function firstStringFromRecord(record: Record<string, unknown>, keys: string[]):
   return "";
 }
 
-function parseTracePayload(payloadJson: string | undefined): Record<string, unknown> | null {
+function parseTracePayload(payloadJson: string | undefined): UnknownRecord | null {
   if (!payloadJson) return null;
-  try {
-    const parsed = JSON.parse(payloadJson) as unknown;
-    return isRecord(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
+  const parsed = parseJSON(payloadJson);
+  return isRecord(parsed) ? parsed : null;
 }
 
 function parseFileContextCounts(payloadJson: string | undefined): FileContextCounts | null {
@@ -189,39 +198,31 @@ function readFileContextBadges(
 }
 
 export function parseFileContextBadges(payloadJson: string | undefined, labels: ProcessTraceLabels): FileContextBadge[] {
-  if (!payloadJson) return [];
-  try {
-    const parsed = JSON.parse(payloadJson) as {
-      file_names?: string[];
-      file_refs?: unknown[];
-      file_groups?: Record<string, unknown>;
-      file_group_refs?: Record<string, unknown>;
-    };
-    const groups = parsed.file_group_refs ?? parsed.file_groups ?? {};
-    const badges = [
-      ...readFileContextBadges(groups.direct_images, labels.fileBadges.directRead, labels.fileBadges.descriptions.directRead, "preview"),
-      ...readFileContextBadges(groups.adaptive, labels.fileBadges.budget, labels.fileBadges.descriptions.budget, "extract"),
-      ...readFileContextBadges(groups.retrieval, labels.fileBadges.retrieval, labels.fileBadges.descriptions.retrieval, "extract"),
-      ...readFileContextBadges(
-        groups.full_context,
-        labels.fileBadges.fullContext,
-        labels.fileBadges.descriptions.fullContext,
-        "extract",
-      ),
-      ...readFileContextBadges(groups.skipped, labels.fileBadges.skipped, labels.fileBadges.descriptions.skipped, "extract"),
-    ];
-    if (badges.length > 0) return badges;
-    const refs = readFileContextBadges(parsed.file_refs, labels.fileBadges.file, labels.fileBadges.descriptions.file, "extract");
-    if (refs.length > 0) return refs;
-    return readStringArray(parsed.file_names).map((name) => ({
-      name,
-      label: labels.fileBadges.file,
-      description: labels.fileBadges.descriptions.file,
-      tab: "extract",
-    }));
-  } catch {
-    return [];
-  }
+  const parsed = parseTracePayload(payloadJson);
+  if (!parsed) return [];
+  const groupSource = parsed.file_group_refs ?? parsed.file_groups;
+  const groups = isRecord(groupSource) ? groupSource : {};
+  const badges = [
+    ...readFileContextBadges(groups.direct_images, labels.fileBadges.directRead, labels.fileBadges.descriptions.directRead, "preview"),
+    ...readFileContextBadges(groups.adaptive, labels.fileBadges.budget, labels.fileBadges.descriptions.budget, "extract"),
+    ...readFileContextBadges(groups.retrieval, labels.fileBadges.retrieval, labels.fileBadges.descriptions.retrieval, "extract"),
+    ...readFileContextBadges(
+      groups.full_context,
+      labels.fileBadges.fullContext,
+      labels.fileBadges.descriptions.fullContext,
+      "extract",
+    ),
+    ...readFileContextBadges(groups.skipped, labels.fileBadges.skipped, labels.fileBadges.descriptions.skipped, "extract"),
+  ];
+  if (badges.length > 0) return badges;
+  const refs = readFileContextBadges(parsed.file_refs, labels.fileBadges.file, labels.fileBadges.descriptions.file, "extract");
+  if (refs.length > 0) return refs;
+  return readStringArray(parsed.file_names).map((name) => ({
+    name,
+    label: labels.fileBadges.file,
+    description: labels.fileBadges.descriptions.file,
+    tab: "extract",
+  }));
 }
 
 function readTraceStagePayloads(payloadJson: string | undefined): Record<string, unknown>[] {

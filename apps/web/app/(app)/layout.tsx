@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google";
 
-import { DesktopBootstrap } from "@/features/platform/components/desktop-bootstrap";
-import { DesktopUpdateNotifier } from "@/features/platform/components/desktop-update-notifier";
-import { AppVersionGuard } from "@/features/layouts";
+import { DesktopBootstrap, DesktopUpdateNotifier } from "@/features/desktop";
+import { AppVersionGuard } from "@/features/shell";
 import { AppearancePreferencesProvider } from "@/features/settings";
 import { AppI18nProvider } from "@/i18n/app-i18n-provider";
+import { CapabilitiesProvider } from "@/shared/capabilities";
 import { BrandingProvider } from "@/shared/config/branding-provider";
 import { DevtoolsBrandBanner } from "@/shared/components/devtools-brand-banner";
 import { ThemeBootstrapScript } from "@/shared/components/theme-bootstrap-script";
@@ -81,11 +81,13 @@ export default function RootLayout({
             <ThemeProvider>
               <AppearancePreferencesProvider>
                 <DesktopBootstrap>
-                  {children}
-                  <AppVersionGuard />
-                  <DesktopUpdateNotifier />
-                  <LegacyPWAServiceWorkerMigration />
-                  <DevtoolsBrandBanner />
+                  <CapabilitiesProvider>
+                    {children}
+                    <AppVersionGuard />
+                    <DesktopUpdateNotifier />
+                    <LegacyPWAServiceWorkerMigration />
+                    <DevtoolsBrandBanner />
+                  </CapabilitiesProvider>
                 </DesktopBootstrap>
                 <Toaster />
               </AppearancePreferencesProvider>

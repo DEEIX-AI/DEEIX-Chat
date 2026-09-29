@@ -2,7 +2,7 @@ package contentmoderation
 
 import domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
 
-// Direction / modality aliases for application code.
+// 供应用层代码使用的方向 / 模态别名。
 const (
 	DirectionInput  = domaincm.DirectionInput
 	DirectionOutput = domaincm.DirectionOutput
@@ -10,7 +10,7 @@ const (
 	ModalityImage   = domaincm.ModalityImage
 )
 
-// Official Omni Moderation categories (13 total).
+// 官方 Omni Moderation 类别（共 13 个）。
 var allTextCategories = []string{
 	"hate",
 	"hate/threatening",
@@ -27,7 +27,7 @@ var allTextCategories = []string{
 	"illicit/violent",
 }
 
-// Image-applicable categories (excludes official text-only categories).
+// 适用于图片的类别（不含官方仅文本类别）。
 var imageCategories = []string{
 	"self-harm",
 	"self-harm/intent",
@@ -37,7 +37,7 @@ var imageCategories = []string{
 	"violence/graphic",
 }
 
-// textOnlyCategories are not shown/configurable on image policy pages.
+// textOnlyCategories 不在图片策略页面展示或配置。
 var textOnlyCategories = map[string]struct{}{
 	"hate":                   {},
 	"hate/threatening":       {},
@@ -48,23 +48,23 @@ var textOnlyCategories = map[string]struct{}{
 	"illicit/violent":        {},
 }
 
-// AllTextCategories returns the full official set for admin UI defaults.
+// AllTextCategories 返回完整官方类别集合，作为管理界面默认值。
 func AllTextCategories() []string {
 	return append([]string(nil), allTextCategories...)
 }
 
-// ImageCategories returns categories valid for image moderation.
+// ImageCategories 返回可用于图片审核的类别。
 func ImageCategories() []string {
 	return append([]string(nil), imageCategories...)
 }
 
-// IsTextOnlyCategory reports whether a category is text-only.
+// IsTextOnlyCategory 报告类别是否仅适用于文本。
 func IsTextOnlyCategory(category string) bool {
 	_, ok := textOnlyCategories[category]
 	return ok
 }
 
-// IsKnownCategory reports whether category is in the official list.
+// IsKnownCategory 报告类别是否在官方列表中。
 func IsKnownCategory(category string) bool {
 	for _, item := range allTextCategories {
 		if item == category {
@@ -74,7 +74,7 @@ func IsKnownCategory(category string) bool {
 	return false
 }
 
-// IsImageCategory reports whether category applies to images.
+// IsImageCategory 报告类别是否适用于图片。
 func IsImageCategory(category string) bool {
 	for _, item := range imageCategories {
 		if item == category {

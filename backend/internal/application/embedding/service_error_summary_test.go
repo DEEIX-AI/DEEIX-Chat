@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	portembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/embedding"
 )
 
 func TestErrorSummaryClassifiesNoExtractableTextWithFileID(t *testing.T) {
@@ -44,5 +46,18 @@ func TestErrorSummaryDoesNotExposeEmbeddingProviderDetails(t *testing.T) {
 func TestErrorSummaryUsesGenericMessageForUnknownErrors(t *testing.T) {
 	if got := ErrorSummary(errors.New(strings.Repeat("x", embeddingErrorLimit+100))); got != embeddingFailureMessage {
 		t.Fatalf("ErrorSummary(unknown) = %q, want generic failure", got)
+	}
+}
+
+func TestErrorSummaryClassifiesImageEmbeddingFailures(t *testing.T) {
+	cases := map[error]string{
+		errImageTooLarge: embeddingImageTooLargeMessage,
+		fmt.Errorf("%w: image/bmp", errImageFormatUnsupported): embeddingImageFormatMessage,
+		portembedding.ErrModalityUnsupported:                   embeddingModalityMessage,
+	}
+	for err, want := range cases {
+		if got := ErrorSummary(err); got != want {
+			t.Fatalf("ErrorSummary(%v) = %q, want %q", err, got, want)
+		}
 	}
 }

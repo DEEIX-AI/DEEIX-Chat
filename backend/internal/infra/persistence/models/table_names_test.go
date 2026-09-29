@@ -1,4 +1,4 @@
-package model
+package models
 
 import (
 	"sync"
@@ -54,7 +54,6 @@ func TestTableNamesUseRestructuredDomains(t *testing.T) {
 		MCPTool{},
 		UserMemory{},
 		AuditLog{},
-		SystemEvent{},
 		Announcement{},
 		AnnouncementUserState{},
 		SystemSetting{},

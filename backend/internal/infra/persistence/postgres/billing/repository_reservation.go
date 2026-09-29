@@ -9,7 +9,7 @@ import (
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -37,7 +37,7 @@ func (r *Repo) ReserveUsageBalance(ctx context.Context, input domainbilling.Usag
 		if err != nil {
 			return err
 		}
-		var existing model.UsageReservation
+		var existing models.UsageReservation
 		err = tx.Where("user_id = ? AND ref_no = ?", input.UserID, input.RefNo).First(&existing).Error
 		if err == nil {
 			return repository.ErrConflict
@@ -46,7 +46,7 @@ func (r *Repo) ReserveUsageBalance(ctx context.Context, input domainbilling.Usag
 			return dberror.Translate(err)
 		}
 		var legacyReservationCount int64
-		if err = tx.Model(&model.BalanceTransaction{}).
+		if err = tx.Model(&models.BalanceTransaction{}).
 			Where(
 				"user_id = ? AND ref_no = ? AND type IN ?",
 				input.UserID,
@@ -112,7 +112,7 @@ func (r *Repo) ReserveUsageBalance(ctx context.Context, input domainbilling.Usag
 			return repository.ErrInsufficientBalance
 		}
 		periodCreditNanousd := minInt64(requestedNanousd, availableCreditNanousd)
-		reservationRow := model.UsageReservation{
+		reservationRow := models.UsageReservation{
 			UserID:              input.UserID,
 			RefNo:               input.RefNo,
 			Mode:                input.Mode,
@@ -154,7 +154,7 @@ func (r *Repo) RaiseUsageBalanceReservation(ctx context.Context, userID uint, re
 			return err
 		}
 		now := time.Now()
-		var reservation model.UsageReservation
+		var reservation models.UsageReservation
 		if err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND ref_no = ?", userID, refNo).
 			First(&reservation).Error; err != nil {
@@ -212,7 +212,7 @@ func (r *Repo) ReleaseUsageBalanceReservation(ctx context.Context, userID uint, 
 		return repository.ErrInvalidInput
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var reservation model.UsageReservation
+		var reservation models.UsageReservation
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND ref_no = ?", userID, refNo).
 			First(&reservation).Error; err != nil {
@@ -239,7 +239,7 @@ func (r *Repo) RenewUsageBalanceReservation(ctx context.Context, userID uint, re
 		return repository.ErrInvalidInput
 	}
 	now := time.Now()
-	result := r.db.WithContext(ctx).Model(&model.UsageReservation{}).
+	result := r.db.WithContext(ctx).Model(&models.UsageReservation{}).
 		Where(
 			"user_id = ? AND ref_no = ? AND status = ? AND expires_at > ?",
 			userID,
@@ -268,7 +268,7 @@ func (r *Repo) MarkUsageReservationReconciliationRequired(ctx context.Context, u
 		failureCode = failureCode[:64]
 	}
 	reconciliationAt := time.Now()
-	result := r.db.WithContext(ctx).Model(&model.UsageReservation{}).
+	result := r.db.WithContext(ctx).Model(&models.UsageReservation{}).
 		Where(
 			"user_id = ? AND ref_no = ? AND status IN ?",
 			userID,
@@ -296,7 +296,7 @@ func getUsageReservationForSettlement(
 	tx *gorm.DB,
 	userID uint,
 	reservation *domainbilling.UsageBalanceReservation,
-) (*model.UsageReservation, bool, error) {
+) (*models.UsageReservation, bool, error) {
 	if reservation == nil {
 		return nil, false, nil
 	}
@@ -307,7 +307,7 @@ func getUsageReservationForSettlement(
 	if reservation.ID > 0 {
 		query = query.Where("id = ?", reservation.ID)
 	}
-	var item model.UsageReservation
+	var item models.UsageReservation
 	if err := query.First(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, false, repository.ErrConflict
@@ -327,7 +327,7 @@ func getUsageReservationForSettlement(
 	}
 }
 
-func settleUsageReservation(tx *gorm.DB, reservation *model.UsageReservation, usageLedgerID uint) error {
+func settleUsageReservation(tx *gorm.DB, reservation *models.UsageReservation, usageLedgerID uint) error {
 	if reservation == nil {
 		return nil
 	}
@@ -339,7 +339,7 @@ func settleUsageReservation(tx *gorm.DB, reservation *model.UsageReservation, us
 	}).Error)
 }
 
-func matchesPeriodReservation(reservation *model.UsageReservation, periodStart time.Time, periodEnd time.Time, periodCreditNanousd int64) bool {
+func matchesPeriodReservation(reservation *models.UsageReservation, periodStart time.Time, periodEnd time.Time, periodCreditNanousd int64) bool {
 	return reservation != nil &&
 		reservation.Mode == "period" &&
 		reservation.PeriodStartAt != nil &&
@@ -350,7 +350,7 @@ func matchesPeriodReservation(reservation *model.UsageReservation, periodStart t
 }
 
 func sumActiveBalanceReservations(tx *gorm.DB, userID uint, excludeID uint, now time.Time) (int64, error) {
-	query := tx.Model(&model.UsageReservation{}).
+	query := tx.Model(&models.UsageReservation{}).
 		Select("COALESCE(SUM(balance_nanousd), 0)").
 		Where(
 			"user_id = ? AND ((status = ? AND expires_at > ?) OR status = ?)",
@@ -370,7 +370,7 @@ func sumActiveBalanceReservations(tx *gorm.DB, userID uint, excludeID uint, now 
 // countActiveUsageReservations 统计仍占用并发槽位的有效租约与待核对记录。
 func countActiveUsageReservations(tx *gorm.DB, userID uint, now time.Time) (int64, error) {
 	var count int64
-	err := tx.Model(&model.UsageReservation{}).
+	err := tx.Model(&models.UsageReservation{}).
 		Where(
 			"user_id = ? AND ((status = ? AND expires_at > ?) OR status = ?)",
 			userID,
@@ -385,7 +385,7 @@ func countActiveUsageReservations(tx *gorm.DB, userID uint, now time.Time) (int6
 // sumPeriodBilledNanousd 统计周期内已结算的付费用量，免费模型不占用周期额度。
 func sumPeriodBilledNanousd(tx *gorm.DB, userID uint, periodStart time.Time, periodEnd time.Time) (int64, error) {
 	var result int64
-	err := tx.Model(&model.UsageLedger{}).
+	err := tx.Model(&models.UsageLedger{}).
 		Select("COALESCE(SUM(billed_nanousd), 0)").
 		Where("user_id = ? AND is_free_model = ? AND billing_at >= ? AND billing_at < ?", userID, false, periodStart, periodEnd).
 		Scan(&result).Error
@@ -400,7 +400,7 @@ func sumActivePeriodCreditReservations(
 	excludeID uint,
 	now time.Time,
 ) (int64, error) {
-	query := tx.Model(&model.UsageReservation{}).
+	query := tx.Model(&models.UsageReservation{}).
 		Select("COALESCE(SUM(period_credit_nanousd), 0)").
 		Where(
 			"user_id = ? AND ((status = ? AND expires_at > ?) OR status = ?) AND period_start_at = ? AND period_end_at = ?",
@@ -460,7 +460,7 @@ func remainingNonNegativeBudget(limit int64, consumed int64, reserved int64) int
 	return remaining - reserved
 }
 
-func toDomainUsageReservation(item model.UsageReservation) domainbilling.UsageBalanceReservation {
+func toDomainUsageReservation(item models.UsageReservation) domainbilling.UsageBalanceReservation {
 	return domainbilling.UsageBalanceReservation{
 		ID:                  item.ID,
 		UserID:              item.UserID,

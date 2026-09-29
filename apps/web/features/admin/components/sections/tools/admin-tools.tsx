@@ -5,7 +5,7 @@ import { CheckCircle2, ChevronDown, FileBraces, ListOrdered, ListPlus, Pencil, P
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { SettingsFieldEditor } from "../shared/settings-runtime-panel";
+import { SettingsFieldEditor } from "../../shared/settings-runtime-panel";
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -42,39 +42,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  createAdminMCPServer,
-  deleteAdminMCPServer,
-  listAdminMCPServerTools,
-  listAdminMCPServers,
-  listAdminSettings,
-  patchAdminSettings,
-  syncAdminMCPServerTools,
-  updateAdminMCPServer,
-  updateAdminMCPServerToolsStatus,
-  updateAdminMCPTool,
-} from "@/features/admin/api";
-import type { AdminMCPServerDTO, AdminMCPServerPayload } from "@/features/admin/api/mcp.types";
+import { useAdminToolsMCPServers } from "@/features/admin/hooks/use-admin-tools-mcp-servers";
+import { useAdminToolsSettings } from "@/features/admin/hooks/use-admin-tools-settings";
+import type { AdminMCPServerDTO, AdminMCPServerPayload } from "@/features/admin/api/mcp-types";
 import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, TableLoadingRow, TableRow } from "@/components/ui/table";
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
-import { MCPOrderSheet } from "@/features/admin/components/sections/tools/mcp-order-sheet";
+import { AdminBulkConfirmDialog } from "@/features/admin/components/shared/bulk-confirm-dialog";
+import { MCPOrderSheet } from "@/features/admin/components/sections/tools/tools-mcp-order-sheet";
 import {
   MCPToolEditDialog,
   type MCPToolEditFormState,
-} from "@/features/admin/components/sections/tools/mcp-tool-edit-dialog";
-import { toolSchemaArgumentMetadata } from "@/features/admin/components/sections/tools/mcp-tool-schema";
+} from "@/features/admin/components/sections/tools/tools-mcp-tool-edit-dialog";
+import { toolSchemaArgumentMetadata } from "@/features/admin/components/sections/tools/tools-mcp-tool-schema";
 import {
   TOOL_SETTINGS_FIELDS,
-  applyToolSettingsDefaults,
-  flattenToolSettings,
   toToolEditorField,
   toolFieldID,
 } from "@/features/admin/model/tool-settings";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { cn } from "@/lib/utils";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import {
@@ -83,8 +69,8 @@ import {
   SettingsPage,
   SettingsSection,
 } from "@/shared/components/settings-layout";
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
-import type { PatchSettingItem } from "@/shared/api/settings.types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
+import { isOneOf, isRecord, parseJSON } from "@/shared/lib/type-guards";
 
 type ServerFormState = {
   id?: number;
@@ -96,11 +82,6 @@ type ServerFormState = {
 };
 
 type ToolBulkAction = "active" | "inactive";
-
-type ToolSyncConfirmation = {
-  serverID: number;
-  serverName: string;
-};
 
 const EMPTY_SERVER_FORM: ServerFormState = {
   name: "",
@@ -120,15 +101,12 @@ const TOOL_SORT_OPTIONS = [
   { labelKey: "sort.updatedDesc", value: "updated_desc" },
   { labelKey: "sort.updatedAsc", value: "updated_asc" },
 ] as const;
+const isToolSortValue = isOneOf(TOOL_SORT_OPTIONS.map((option) => option.value));
 
 const SIGNED_USER_CONTEXT_HEADER: readonly [string, string] = [
   "X-Deeix-User-Context",
   `\${DEEIX_SIGNED_USER_CONTEXT}`,
 ];
-
-function serverStatusLabel(status: string, translate: (key: string) => string): string {
-  return status === "active" ? translate("status.active") : translate("status.inactive");
-}
 
 function toServerForm(server: AdminMCPServerDTO): ServerFormState {
   return {
@@ -155,13 +133,10 @@ function addMCPHeaderPreset(headersJSON: string, [name, value]: readonly [string
   const raw = headersJSON.trim();
   let headers: Record<string, unknown> = {};
   if (raw) {
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (parsed === null || Array.isArray(parsed) || typeof parsed !== "object") return null;
-      headers = { ...(parsed as Record<string, unknown>) };
-    } catch {
-      return null;
-    }
+    // Malformed JSON and non-object JSON are both rejected as invalid headers.
+    const parsed = parseJSON(raw);
+    if (!isRecord(parsed)) return null;
+    headers = { ...parsed };
   }
 
   const existingKey = Object.keys(headers).find((key) => key.toLowerCase() === name.toLowerCase());
@@ -188,47 +163,65 @@ function toolDisplayName(tool: MCPToolDTO): string {
   return tool.displayName?.trim() || tool.name;
 }
 
-function countActiveTools(items: MCPToolDTO[]): number {
-  return items.filter((item) => item.status === "active").length;
-}
-
 export function AdminToolsPage() {
   const locale = useLocale();
   const t = useTranslations("adminTools");
   const tActions = useTranslations("common.actions");
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
-  const [settingsMap, setSettingsMap] = React.useState<Record<string, string>>(() => applyToolSettingsDefaults({}));
-  const [savedMap, setSavedMap] = React.useState<Record<string, string>>(() => applyToolSettingsDefaults({}));
-  const [servers, setServers] = React.useState<AdminMCPServerDTO[]>([]);
-  const [serversLoading, setServersLoading] = React.useState(true);
+  const {
+    loading,
+    saving,
+    settingsMap,
+    setSettingsMap,
+    savedMap,
+    dirtyFieldIDs,
+    handleSaveMCPSettings,
+  } = useAdminToolsSettings();
+  const {
+    servers,
+    serversLoading,
+    actionServerID,
+    toolSheetServerID,
+    setToolSheetServerID,
+    toolSheetServer,
+    serverSaving,
+    serverDeleting,
+    tools,
+    toolsLoading,
+    selectedToolIDs,
+    setSelectedToolIDs,
+    syncingServerID,
+    toolSyncConfirmation,
+    setToolSyncConfirmation,
+    toolSaving,
+    loadServers,
+    loadTools,
+    requestToolSync,
+    confirmToolSync,
+    saveServer: saveMCPServer,
+    confirmDeleteServer: deleteMCPServer,
+    setServerStatus,
+    setToolStatus,
+    setSelectedToolsStatus,
+    saveTool: saveMCPTool,
+    applyMCPOrder,
+  } = useAdminToolsMCPServers();
   const [serverQuery, setServerQuery] = React.useState("");
   const [serverStatusFilter, setServerStatusFilter] = React.useState("");
   const [serverPage, setServerPage] = React.useState(1);
   const [serverPageSize, setServerPageSize] = React.useState(DEFAULT_SERVER_PAGE_SIZE);
-  const [actionServerID, setActionServerID] = React.useState<number | null>(null);
-  const [toolSheetServerID, setToolSheetServerID] = React.useState<number | null>(null);
   const [serverDialogOpen, setServerDialogOpen] = React.useState(false);
   const [serverForm, setServerForm] = React.useState<ServerFormState>(EMPTY_SERVER_FORM);
-  const [serverSaving, setServerSaving] = React.useState(false);
   const [serverDeleteTarget, setServerDeleteTarget] = React.useState<AdminMCPServerDTO | null>(null);
-  const [serverDeleting, setServerDeleting] = React.useState(false);
-  const [tools, setTools] = React.useState<MCPToolDTO[]>([]);
-  const [toolsLoading, setToolsLoading] = React.useState(false);
   const [toolQuery, setToolQuery] = React.useState("");
   const [toolStatusFilter, setToolStatusFilter] = React.useState("");
   const [toolPage, setToolPage] = React.useState(1);
   const [toolPageSize, setToolPageSize] = React.useState(DEFAULT_TOOL_PAGE_SIZE);
   const [toolSortValue, setToolSortValue] = React.useState<(typeof TOOL_SORT_OPTIONS)[number]["value"]>("custom_order");
-  const [selectedToolIDs, setSelectedToolIDs] = React.useState<Set<number>>(new Set());
   const [toolBulkAction, setToolBulkAction] = React.useState<ToolBulkAction | null>(null);
   const [toolBulkApplying, setToolBulkApplying] = React.useState(false);
-  const [syncingServerID, setSyncingServerID] = React.useState<number | null>(null);
-  const [toolSyncConfirmation, setToolSyncConfirmation] = React.useState<ToolSyncConfirmation | null>(null);
   const [mcpOrderOpen, setMCPOrderOpen] = React.useState(false);
   const [schemaTool, setSchemaTool] = React.useState<MCPToolDTO | null>(null);
   const [toolForm, setToolForm] = React.useState<MCPToolEditFormState | null>(null);
-  const [toolSaving, setToolSaving] = React.useState(false);
   const mcpEnabled = settingsMap["mcp.mcp_enable"] === "true";
   const mcpEnableField = React.useMemo(
     () => TOOL_SETTINGS_FIELDS.find((field) => field.key === "mcp_enable"),
@@ -243,10 +236,6 @@ export function AdminToolsPage() {
     [],
   );
 
-  const toolSheetServer = React.useMemo(
-    () => servers.find((item) => item.id === toolSheetServerID) ?? null,
-    [servers, toolSheetServerID],
-  );
   const stableToolSheetServer = useDialogSnapshot(toolSheetServer);
   const stableSchemaTool = useDialogSnapshot(schemaTool);
   const stableServerDeleteTarget = useDialogSnapshot(serverDeleteTarget);
@@ -259,7 +248,7 @@ export function AdminToolsPage() {
     setToolForm(null);
     setSchemaTool(null);
     setToolSyncConfirmation(null);
-  }, [mcpEnabled]);
+  }, [mcpEnabled, setToolSheetServerID, setToolSyncConfirmation]);
 
   const filteredServers = React.useMemo(() => {
     const query = serverQuery.trim().toLowerCase();
@@ -340,75 +329,6 @@ export function AdminToolsPage() {
   const allPagedToolsSelected = pagedToolIDs.length > 0 && pagedToolIDs.every((id) => selectedToolIDs.has(id));
   const somePagedToolsSelected = pagedToolIDs.some((id) => selectedToolIDs.has(id));
 
-  const loadSettings = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const grouped = await listAdminSettings(token);
-      const flattened = flattenToolSettings(grouped);
-      setSettingsMap(flattened);
-      setSavedMap(flattened);
-    } catch (error) {
-      toast.error(t("toast.settingsLoadFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  const loadServers = React.useCallback(async () => {
-    setServersLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const items = await listAdminMCPServers(token);
-      setServers(items);
-      setToolSheetServerID((current) => (current && items.some((item) => item.id === current) ? current : null));
-    } catch (error) {
-      toast.error(t("toast.serversLoadFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-    } finally {
-      setServersLoading(false);
-    }
-  }, [t]);
-
-  const loadTools = React.useCallback(async (serverID: number) => {
-    setToolsLoading(true);
-    setTools([]);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      setTools(await listAdminMCPServerTools(token, serverID));
-    } catch (error) {
-      setTools([]);
-      toast.error(t("toast.toolsLoadFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-    } finally {
-      setToolsLoading(false);
-    }
-  }, [t]);
-
-  React.useEffect(() => {
-    void loadSettings();
-    void loadServers();
-  }, [loadServers, loadSettings]);
-
-  React.useEffect(() => {
-    if (!toolSheetServerID) {
-      setTools([]);
-      setSelectedToolIDs(new Set());
-      return;
-    }
-    void loadTools(toolSheetServerID);
-  }, [loadTools, toolSheetServerID]);
-
   React.useEffect(() => {
     setServerPage((current) => Math.min(current, serverPageCount));
   }, [serverPageCount]);
@@ -425,58 +345,6 @@ export function AdminToolsPage() {
     setToolPage(1);
   }, [toolQuery, toolSortValue, toolStatusFilter, toolPageSize, toolSheetServerID]);
 
-  React.useEffect(() => {
-    setSelectedToolIDs((current) => {
-      if (current.size === 0) {
-        return current;
-      }
-      const existingIDs = new Set(tools.map((tool) => tool.id));
-      const next = new Set([...current].filter((id) => existingIDs.has(id)));
-      return next.size === current.size ? current : next;
-    });
-  }, [tools]);
-
-  const dirtyFieldIDs = React.useMemo(() => {
-    const result = new Set<string>();
-    for (const field of TOOL_SETTINGS_FIELDS) {
-      const id = toolFieldID(field);
-      if ((settingsMap[id] ?? "") !== (savedMap[id] ?? "")) {
-        result.add(id);
-      }
-    }
-    return result;
-  }, [savedMap, settingsMap]);
-  const handleSaveMCPSettings = React.useCallback(async () => {
-    const items: PatchSettingItem[] = TOOL_SETTINGS_FIELDS
-      .filter((field) => dirtyFieldIDs.has(toolFieldID(field)))
-      .map((field) => ({
-        namespace: field.namespace,
-        key: field.key,
-        value: settingsMap[toolFieldID(field)] ?? "",
-      }));
-    if (items.length === 0) {
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const grouped = await patchAdminSettings(token, { items });
-      const flattened = flattenToolSettings(grouped);
-      setSettingsMap(flattened);
-      setSavedMap(flattened);
-      toast.success(t("toast.settingsUpdated"));
-    } catch (error) {
-      toast.error(t("toast.saveFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-    } finally {
-      setSaving(false);
-    }
-  }, [dirtyFieldIDs, settingsMap, t]);
-
   const openCreateServerDialog = React.useCallback(() => {
     setServerForm(EMPTY_SERVER_FORM);
     setServerDialogOpen(true);
@@ -487,187 +355,24 @@ export function AdminToolsPage() {
     setServerDialogOpen(true);
   }, []);
 
-  const syncTools = React.useCallback(
-    async (serverID: number, overwriteCustomizedMetadata = false) => {
-      setSyncingServerID(serverID);
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        setSyncingServerID(null);
-        return;
-      }
-
-      try {
-        const nextTools = await syncAdminMCPServerTools(token, serverID, overwriteCustomizedMetadata);
-        setToolSheetServerID(serverID);
-        setTools(nextTools);
-        toast.success(t("toast.toolsSynced"));
-      } catch (error) {
-        toast.error(t("toast.toolsSyncFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-      } finally {
-        await loadServers();
-        setSyncingServerID(null);
-      }
-    },
-    [loadServers, t],
+  const saveServer = React.useCallback(
+    () => saveMCPServer({ id: serverForm.id, payload: toServerPayload(serverForm) }, () => setServerDialogOpen(false)),
+    [saveMCPServer, serverForm],
   );
-
-  const requestToolSync = React.useCallback(
-    (serverID: number) => {
-      const server = servers.find((item) => item.id === serverID);
-      if (server?.requiresToolMetadataSyncConfirmation) {
-        setToolSyncConfirmation({ serverID, serverName: server.name });
-        return;
-      }
-      void syncTools(serverID);
-    },
-    [servers, syncTools],
-  );
-
-  const confirmToolSync = React.useCallback(
-    (overwriteCustomizedMetadata: boolean) => {
-      if (!toolSyncConfirmation) {
-        return;
-      }
-      const serverID = toolSyncConfirmation.serverID;
-      setToolSyncConfirmation(null);
-      void syncTools(serverID, overwriteCustomizedMetadata);
-    },
-    [syncTools, toolSyncConfirmation],
-  );
-
-  const saveServer = React.useCallback(async () => {
-    setServerSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      let createdServerID: number | null = null;
-      if (serverForm.id) {
-        await updateAdminMCPServer(token, serverForm.id, toServerPayload(serverForm));
-        toast.success(t("toast.serverUpdated"));
-      } else {
-        const created = await createAdminMCPServer(token, toServerPayload(serverForm));
-        createdServerID = created.id;
-        toast.success(t("toast.serverCreated"));
-      }
-      setServerDialogOpen(false);
-      if (createdServerID) {
-        await syncTools(createdServerID);
-      } else {
-        await loadServers();
-      }
-    } catch (error) {
-      toast.error(t("toast.serverSaveFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-    } finally {
-      setServerSaving(false);
-    }
-  }, [loadServers, serverForm, syncTools, t]);
 
   const confirmDeleteServer = React.useCallback(async () => {
-      if (!serverDeleteTarget) {
-        return;
-      }
-      setServerDeleting(true);
-      try {
-        const token = await resolveAccessToken();
-        if (!token) {
-          toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-          return;
-        }
-        await deleteAdminMCPServer(token, serverDeleteTarget.id);
-        toast.success(t("toast.serverDeleted"));
-        setServerDeleteTarget(null);
-        await loadServers();
-      } catch (error) {
-        toast.error(t("toast.serverDeleteFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-      } finally {
-        setServerDeleting(false);
-      }
-    }, [loadServers, serverDeleteTarget, t]);
-
-  const setServerStatus = React.useCallback(async (server: AdminMCPServerDTO, active: boolean) => {
-    const previous = servers;
-    const nextStatus = active ? "active" : "inactive";
-    setActionServerID(server.id);
-    setServers((items) => items.map((item) => (item.id === server.id ? { ...item, status: nextStatus } : item)));
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        throw new Error(t("toast.sessionExpired"));
-      }
-      await updateAdminMCPServer(token, server.id, {
-        name: server.name,
-        baseURL: server.baseURL,
-        headersJSON: server.headersJSON || "{}",
-        status: nextStatus,
-      });
-      toast.success(t("toast.serverStatusUpdated", { status: serverStatusLabel(nextStatus, t) }));
-    } catch (error) {
-      setServers(previous);
-      toast.error(t("toast.serverStatusFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-    } finally {
-      setActionServerID(null);
-    }
-  }, [servers, t]);
-
-  const refreshServerToolCount = React.useCallback((serverID: number, nextTools: MCPToolDTO[]) => {
-    setServers((items) =>
-      items.map((item) =>
-        item.id === serverID
-          ? { ...item, toolCount: nextTools.length, activeToolCount: countActiveTools(nextTools) }
-          : item,
-      ),
-    );
-  }, []);
-
-  const setToolStatus = React.useCallback(async (tool: MCPToolDTO, active: boolean) => {
-    const previous = tools;
-    const nextStatus = active ? "active" : "inactive";
-    const nextTools = tools.map((item) => (item.id === tool.id ? { ...item, status: nextStatus } : item));
-    setTools(nextTools);
-    refreshServerToolCount(tool.serverID, nextTools);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        throw new Error(t("toast.sessionExpired"));
-      }
-      await updateAdminMCPTool(token, tool.id, { status: nextStatus });
-    } catch (error) {
-      setTools(previous);
-      refreshServerToolCount(tool.serverID, previous);
-      toast.error(t("toast.toolStatusFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-    }
-  }, [refreshServerToolCount, t, tools]);
-
-  const setSelectedToolsStatus = React.useCallback(async (status: "active" | "inactive") => {
-    if (!toolSheetServer || selectedToolIDs.size === 0) {
+    if (!serverDeleteTarget) {
       return;
     }
-    const targetIDs = [...selectedToolIDs];
-    const targetIDSet = new Set(targetIDs);
-    const previous = tools;
-    const nextTools = tools.map((item) => (targetIDSet.has(item.id) ? { ...item, status } : item));
-    setTools(nextTools);
-    refreshServerToolCount(toolSheetServer.id, nextTools);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        throw new Error(t("toast.sessionExpired"));
-      }
-      const savedTools = await updateAdminMCPServerToolsStatus(token, toolSheetServer.id, status, targetIDs);
-      setTools(savedTools);
-      refreshServerToolCount(toolSheetServer.id, savedTools);
-      setSelectedToolIDs(new Set());
-      toast.success(status === "active" ? t("toast.selectedToolsEnabled") : t("toast.selectedToolsDisabled"));
-    } catch (error) {
-      setTools(previous);
-      refreshServerToolCount(toolSheetServer.id, previous);
-      toast.error(t("toast.selectedToolsUpdateFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
+    await deleteMCPServer(serverDeleteTarget, () => setServerDeleteTarget(null));
+  }, [deleteMCPServer, serverDeleteTarget]);
+
+  const saveTool = React.useCallback(async () => {
+    if (!toolForm) {
+      return;
     }
-  }, [refreshServerToolCount, selectedToolIDs, t, toolSheetServer, tools]);
+    await saveMCPTool(toolForm, () => setToolForm(null));
+  }, [saveMCPTool, toolForm]);
 
   const toggleSelectedTool = React.useCallback((toolID: number, selected: boolean) => {
     setSelectedToolIDs((current) => {
@@ -679,7 +384,7 @@ export function AdminToolsPage() {
       }
       return next;
     });
-  }, []);
+  }, [setSelectedToolIDs]);
 
   const toggleSelectedPagedTools = React.useCallback((selected: boolean) => {
     setSelectedToolIDs((current) => {
@@ -693,7 +398,7 @@ export function AdminToolsPage() {
       }
       return next;
     });
-  }, [pagedToolIDs]);
+  }, [pagedToolIDs, setSelectedToolIDs]);
 
   const openEditToolDialog = React.useCallback((tool: MCPToolDTO) => {
     const schemaMetadata = toolSchemaArgumentMetadata(tool.inputSchemaJSON);
@@ -710,40 +415,6 @@ export function AdminToolsPage() {
       schemaRequiredArguments: schemaMetadata.requiredArguments,
     });
   }, []);
-
-  const saveTool = React.useCallback(async () => {
-    if (!toolForm) {
-      return;
-    }
-    setToolSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        throw new Error(t("toast.sessionExpired"));
-      }
-      const attachmentConfig = toolForm.attachmentInputMode === "image" ? {
-        attachmentInputMode: toolForm.attachmentInputMode,
-        attachmentArgument: toolForm.attachmentArgument,
-        attachmentEncoding: toolForm.attachmentEncoding,
-        attachmentPromptArgument: toolForm.passUserPrompt ? toolForm.attachmentPromptArgument : "",
-      } : {
-        attachmentInputMode: toolForm.attachmentInputMode,
-      };
-      const savedTool = await updateAdminMCPTool(token, toolForm.id, {
-        displayName: toolForm.displayName,
-        description: toolForm.description,
-        ...attachmentConfig,
-      });
-      setTools((items) => items.map((item) => (item.id === savedTool.id ? savedTool : item)));
-      await loadServers();
-      setToolForm(null);
-      toast.success(t("toast.toolUpdated"));
-    } catch (error) {
-      toast.error(t("toast.toolSaveFailed"), { description: resolveAdminErrorMessage(error, t("toast.unknownError")) });
-    } finally {
-      setToolSaving(false);
-    }
-  }, [loadServers, t, toolForm]);
 
   const schemaText = React.useMemo(() => {
     const raw = stableSchemaTool?.inputSchemaJSON?.trim();
@@ -1007,7 +678,9 @@ export function AdminToolsPage() {
               ]}
               sort={{
                 value: toolSortValue,
-                onValueChange: (value) => setToolSortValue(value as (typeof TOOL_SORT_OPTIONS)[number]["value"]),
+                onValueChange: (value) => {
+                  if (isToolSortValue(value)) setToolSortValue(value);
+                },
                 options: TOOL_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
               }}
               selectedCount={selectedToolCount}
@@ -1178,13 +851,7 @@ export function AdminToolsPage() {
           servers={servers}
           onClose={() => setMCPOrderOpen(false)}
           onSaved={(groups) => {
-            setServers(groups.map((group) => group.server));
-            if (toolSheetServerID) {
-              const currentGroup = groups.find((group) => group.server.id === toolSheetServerID);
-              if (currentGroup) {
-                setTools(currentGroup.tools);
-              }
-            }
+            applyMCPOrder(groups);
             setToolSortValue("custom_order");
           }}
         />

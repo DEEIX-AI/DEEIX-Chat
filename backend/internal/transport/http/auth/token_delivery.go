@@ -100,18 +100,18 @@ func (h *Handler) respondWithSession(c *gin.Context, result *appauth.LoginResult
 	response.Success(c, resp)
 }
 
-// LocalGrantExchangeRequest 本地模式：桌面壳用启动握手拿到的一次性 grant 换取会话。
+// LocalGrantExchangeRequest 本地模式：桌面壳用启动握手拿到的一次性授权凭证换取会话。
 type LocalGrantExchangeRequest struct {
 	Grant string `json:"grant" binding:"required"`
 }
 
 // ExchangeLocalGrant godoc
-// @Summary 本地模式：一次性 grant 换取会话
-// @Description 仅在服务器以本地 sidecar 模式运行时可用；grant 由启动握手交给桌面壳，只能使用一次
+// @Summary 本地模式：用一次性授权凭证换取会话
+// @Description 仅在服务器以本地 sidecar 模式运行时可用；一次性授权凭证由启动握手交给桌面壳，只能使用一次
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param body body LocalGrantExchangeRequest true "本地登录 grant"
+// @Param body body LocalGrantExchangeRequest true "本地登录一次性授权凭证"
 // @Success 200 {object} LoginResponseDoc
 // @Failure 401 {object} ErrorDoc
 // @Router /auth/local/exchange [post]

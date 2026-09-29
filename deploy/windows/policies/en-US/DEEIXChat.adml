@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                           revision="1.0" schemaVersion="1.0"
+                           xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>DEEIX Chat</displayName>
+  <description>Group Policy settings for the DEEIX Chat desktop app.</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_Windows10">At least Windows 10 or Windows Server 2016</string>
+      <string id="Category_DEEIXChat">DEEIX Chat</string>
+      <string id="Category_DEEIXChat_Explain">Settings for the DEEIX Chat desktop app (installer, MSI and portable editions).
+
+A setting configured under Computer Configuration takes precedence over the same setting under User Configuration. For the on/off settings this applies whether they are enabled or disabled. "Default server address" is the exception: disabling it removes the computer-wide value, so a value set under User Configuration applies again. DEEIX Chat reads these settings when it starts; restart the app to apply a change.</string>
+
+      <string id="DefaultServerUrl">Default server address</string>
+      <string id="DefaultServerUrl_Explain">Specifies the server address DEEIX Chat suggests on its setup screen, for example https://chat.example.com.
+
+The value must be an http:// or https:// address without a path (a trailing "/" is allowed). An invalid value is ignored.
+
+If you enable this policy setting, the setup screen of every new tab is prefilled with this address. Users can still choose another server unless "Lock the server address" is also enabled.
+
+If you disable or do not configure this policy setting, the setup screen starts empty.</string>
+
+      <string id="LockServerUrl">Lock the server address</string>
+      <string id="LockServerUrl_Explain">Restricts DEEIX Chat to the server specified in "Default server address".
+
+If you enable this policy setting and "Default server address" holds a valid address:
+- the address on the setup screen cannot be changed;
+- any other server address is rejected;
+- the built-in local server (local mode) is unavailable;
+- tabs for other servers that were saved earlier are closed at the next start, and their stored sign-in is removed.
+
+This policy setting has no effect when no valid default server address is configured.
+
+If you disable or do not configure this policy setting, users can connect to any server.</string>
+
+      <string id="DisableLocalMode">Disable local mode</string>
+      <string id="DisableLocalMode_Explain">Controls the built-in local server ("local mode"), which runs DEEIX Chat entirely on this computer and stores its data locally.
+
+If you enable this policy setting, local mode is hidden and cannot be started. Tabs that used it are closed at the next start, and their stored sign-in is removed. The data of the local server is not deleted.
+
+If you disable or do not configure this policy setting, users can use local mode.</string>
+
+      <string id="DisableAutoUpdate">Disable update checks</string>
+      <string id="DisableAutoUpdate_Explain">Controls whether DEEIX Chat looks for new versions.
+
+If you enable this policy setting, DEEIX Chat never checks for, downloads or installs updates and shows no update notices. Deliver new versions through your software distribution (for example the MSI package with Intune, Configuration Manager or Group Policy software installation).
+
+If you disable or do not configure this policy setting, the per-user installer edition updates itself and the portable edition shows a notice when a new version is available.
+
+The MSI edition never updates itself, whatever this setting.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="DefaultServerUrl">
+        <textBox refId="DefaultServerUrl">
+          <label>Server address (for example https://chat.example.com):</label>
+        </textBox>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

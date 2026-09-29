@@ -5,19 +5,19 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func TestDismissAnnouncementTodaySQLiteUsesDeclaredUniqueIndex(t *testing.T) {
 	db := openAnnouncementSQLiteTestDB(t)
-	if !db.Migrator().HasIndex(&model.AnnouncementUserState{}, "idx_announcement_user_states_version") {
+	if !db.Migrator().HasIndex(&models.AnnouncementUserState{}, "idx_announcement_user_states_version") {
 		t.Fatal("expected announcement user state version unique index")
 	}
 
 	now := time.Date(2026, 6, 6, 16, 42, 0, 0, time.UTC)
-	item := model.Announcement{
+	item := models.Announcement{
 		Title:           "notice",
 		ContentMarkdown: "content",
 		Status:          "active",
@@ -36,7 +36,7 @@ func TestDismissAnnouncementTodaySQLiteUsesDeclaredUniqueIndex(t *testing.T) {
 	}
 
 	var count int64
-	if err := db.Model(&model.AnnouncementUserState{}).Count(&count).Error; err != nil {
+	if err := db.Model(&models.AnnouncementUserState{}).Count(&count).Error; err != nil {
 		t.Fatalf("count states: %v", err)
 	}
 	if count != 1 {
@@ -60,7 +60,7 @@ func openAnnouncementSQLiteTestDB(t *testing.T) *gorm.DB {
 		_ = sqlDB.Close()
 	})
 
-	if err := db.AutoMigrate(&model.Announcement{}, &model.AnnouncementUserState{}); err != nil {
+	if err := db.AutoMigrate(&models.Announcement{}, &models.AnnouncementUserState{}); err != nil {
 		t.Fatalf("migrate announcement tables: %v", err)
 	}
 	return db

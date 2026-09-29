@@ -35,7 +35,6 @@ import (
 	appruntime "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/runtime"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/settings"
 	appskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/skill"
-	appsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
 	appuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/uicomponent"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
@@ -44,15 +43,15 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	moderationclient "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
-	extractengines "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/engines"
-	extractprobe "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/probe"
+	extractionengines "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extraction/engines"
+	extractionprobe "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extraction/probe"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/geoip"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/identityprovider"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mediaartifact"
 	openrouterpricing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/modelpricing/openrouter"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstorage"
 	platformlogger "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/logger"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/openwebui"
@@ -73,7 +72,6 @@ import (
 	promptpresetrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/promptpreset"
 	settingsrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/settings"
 	skillrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/skill"
-	systemeventrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/systemevent"
 	uicomponentrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/uicomponent"
 	userrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/user"
 	usersettingsrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/usersettings"
@@ -232,14 +230,13 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	auditService := audit.NewService(auditRepo, log)
 	logCleanupRepo := logcleanuprepo.NewRepo(db)
 	logCleanupService := applogcleanup.NewService(logCleanupRepo, auditService)
-	systemEventRepo := systemeventrepo.NewRepo(db)
-	systemEventService := appsystemevent.NewService(systemEventRepo)
 
 	// 初始化 settings 模块：种子数据 + 动态配置覆盖
 	settingsRepo := settingsrepo.NewRepo(db)
 	settingsService := settings.NewService(settingsRepo, cfg.DataEncryptionKey)
 	settingsService.SetAuditWriter(auditService)
-	runtimeService := appruntime.NewService(runtimeCfg, extractprobe.Prober{})
+	settingsService.SetRuntime(runtimeCfg)
+	runtimeService := appruntime.NewService(runtimeCfg, extractionprobe.Prober{})
 	runtimeService.SetDockerRunner(platformruntime.NewDockerRunner())
 	settingsCache := cacheBackend.Settings()
 	runtimeSettings := settings.NewRuntimeSettings(settingsRepo, settingsCache, cfg.DataEncryptionKey)
@@ -277,34 +274,34 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg, officialPricingService, paymentCheckoutService, log)
 	billingModule := billinghttp.NewModule(billingHandler)
 	// 对象存储工厂由组合根显式注入，避免服务实例依赖进程级可变状态。
-	objectStoreProvider := appstorage.NewRuntimeProvider(runtimeCfg, objectstore.New)
+	objectStoreProvider := appstorage.NewRuntimeProvider(runtimeCfg, objectstorage.New)
 	// 抽取引擎工厂由组合根显式注入；具体客户端构造为 nil 时必须返回 nil 接口，避免 typed-nil 绕过判空。
 	extractionFactories := extraction.EngineFactories{
 		NewTika: func(cfg config.Config) extraction.DocumentExtractor {
-			if client := extractengines.NewTika(cfg); client != nil {
+			if client := extractionengines.NewTika(cfg); client != nil {
 				return client
 			}
 			return nil
 		},
 		NewDocling: func(cfg config.Config) extraction.DocumentExtractor {
-			if client := extractengines.NewDocling(cfg); client != nil {
+			if client := extractionengines.NewDocling(cfg); client != nil {
 				return client
 			}
 			return nil
 		},
 		NewMinerU: func(cfg config.Config) extraction.DocumentExtractor {
-			if client := extractengines.NewMinerU(cfg); client != nil {
+			if client := extractionengines.NewMinerU(cfg); client != nil {
 				return client
 			}
 			return nil
 		},
 		NewOCR: func(provider string, cfg config.Config) extraction.OCRExtractor {
-			if client := extractengines.NewOCR(provider, cfg); client != nil {
+			if client := extractionengines.NewOCR(provider, cfg); client != nil {
 				return client
 			}
 			return nil
 		},
-		Builtin: extractengines.Builtin{},
+		Builtin: extractionengines.Builtin{},
 	}
 	geoResolver := geoip.New(runtimeCfg.Snapshot())
 	// GeoIP 关闭时 geoip.New 返回 nil 指针，必须转成 nil 接口再注入，避免 typed-nil 绕过判空。
@@ -327,7 +324,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	authService.SetSubscriptionResolver(billingService)
 	var bootstrapSuperAdmin *auth.BootstrapSuperAdmin
 	if cfg.LocalMode {
-		// 本地模式：唯一用户无密码、无初始化引导，通过启动握手的一次性 grant 登录。
+		// 本地模式：唯一用户无密码、无初始化引导，通过启动握手拿到的一次性授权凭证登录。
 		if _, err = authService.EnsureLocalOwner(context.Background()); err != nil {
 			return nil, err
 		}
@@ -434,13 +431,11 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	userHandler := userhttp.NewHandler(userService)
 	userModule := userhttp.NewModule(userHandler)
 	mcpService := appmcp.NewServiceWithRuntime(runtimeCfg, mcpRepo, mcpClient)
-	mcpService.SetSystemEventWriter(systemEventService)
 	mcpService.SetBillingModeProvider(billingService)
 	mcpHandler := mcphttp.NewHandler(mcpService)
 	mcpModule := mcphttp.NewModule(mcpHandler)
 	adminService := admin.NewService(userService, auditService)
 	adminService.SetAuthSecurityService(authService)
-	adminService.SetSystemEventService(systemEventService)
 	adminService.SetUsageLogService(billingService)
 	adminService.SetUsageStatisticsService(billingService)
 	adminService.SetOrderLogService(billingService)
@@ -562,8 +557,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	return app, nil
 }
 
-// Run 启动 HTTP 服务并支持优雅停机。
-// IssueLocalGrant 生成本地模式的一次性登录 grant（仅本地模式）。
+// IssueLocalGrant 为本地模式生成一次性登录授权凭证；非本地模式返回错误。
 func (a *App) IssueLocalGrant() (string, error) {
 	if !a.cfg.LocalMode {
 		return "", errors.New("local grant is only available in local mode")
@@ -601,13 +595,13 @@ func (a *App) Run() error {
 	return a.Serve(listener)
 }
 
-// Serve 在已绑定的监听器上服务，直到收到终止信号；随后分阶段排空。
-// RequestShutdown triggers the same graceful drain as SIGTERM. Safe to call
-// more than once; used by local mode when the desktop shell goes away.
+// RequestShutdown 触发与 SIGTERM 相同的优雅排空流程，可安全重复调用；
+// 本地模式下桌面壳退出时使用。
 func (a *App) RequestShutdown() {
 	a.stopOnce.Do(func() { close(a.stopCh) })
 }
 
+// Serve 在已绑定的监听器上服务，直到收到终止信号；随后分阶段排空。
 func (a *App) Serve(listener net.Listener) error {
 	srv := &http.Server{
 		Handler:           a.engine,
@@ -685,7 +679,7 @@ func (a *App) Close() {
 	if a.backgroundCancel != nil {
 		a.backgroundCancel()
 	}
-	// Workers must be drained before their dependencies (cache, database) close.
+	// Workers 必须在其依赖（cache、database）关闭前排空。
 	if a.contentModeration != nil {
 		a.contentModeration.Stop()
 	}

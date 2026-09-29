@@ -4,34 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
+import { DEFAULT_SETTINGS_SECTION, resolveSettingsSectionFromPath, SETTINGS_SECTIONS } from "@/features/settings/model/settings-sections";
 import { cn } from "@/lib/utils";
-
-export const SETTINGS_SIDEBAR_ITEMS = [
-  { id: "general", labelKey: "general", href: "/general" },
-  { id: "chat", labelKey: "chat", href: "/chat" },
-  { id: "subscription", labelKey: "subscription", href: "/subscription" },
-  { id: "account", labelKey: "account", href: "/account" },
-  { id: "about", labelKey: "about", href: "/about" },
-] as const;
-
-export type SettingsSidebarSection = (typeof SETTINGS_SIDEBAR_ITEMS)[number]["id"];
-
-export function resolveSettingsSidebarSection(section?: string | null): SettingsSidebarSection {
-  if (SETTINGS_SIDEBAR_ITEMS.some((item) => item.id === section)) {
-    return section as SettingsSidebarSection;
-  }
-  return "general";
-}
-
-function resolveActiveSettingsSectionFromPath(pathname: string, basePath: string): SettingsSidebarSection {
-  const normalizedBasePath = basePath.replace(/\/$/, "");
-  const section = SETTINGS_SIDEBAR_ITEMS.find((item) => {
-    const href = `${normalizedBasePath}${item.href}`;
-    return pathname === href || pathname.startsWith(`${href}/`);
-  });
-
-  return section?.id ?? "general";
-}
+import { isSectionAvailable, useCapabilities } from "@/shared/capabilities";
 
 export function SettingsSidebar({
   basePath,
@@ -40,7 +15,9 @@ export function SettingsSidebar({
 }) {
   const t = useTranslations("settings");
   const pathname = usePathname();
-  const activeSection = resolveActiveSettingsSectionFromPath(pathname, basePath);
+  const activeSection = resolveSettingsSectionFromPath(pathname, basePath)?.id ?? DEFAULT_SETTINGS_SECTION;
+  const { flags } = useCapabilities();
+  const visibleItems = SETTINGS_SECTIONS.filter((item) => isSectionAvailable(item, flags));
 
   return (
     <aside className="w-full shrink-0 xl:max-w-64">
@@ -53,7 +30,7 @@ export function SettingsSidebar({
           aria-label={t("navigation")}
           className="flex gap-1.5 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [-ms-overflow-style:none] xl:grid xl:gap-1 xl:overflow-visible xl:pb-0 [&::-webkit-scrollbar]:hidden"
         >
-          {SETTINGS_SIDEBAR_ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const active = item.id === activeSection;
 
             return (

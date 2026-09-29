@@ -13,15 +13,15 @@ import {
   searchMentionFiles,
 } from "@/features/chat/model/mention-file-search";
 import type { ChatModelOption, PendingAttachment } from "@/features/chat/types/chat-runtime";
-import type { FileObjectDTO } from "@/shared/api/file.types";
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type { FileObjectDTO } from "@/shared/api/file-types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
 import { listVisiblePromptPresets } from "@/shared/api/prompt-presets";
-import type { PromptPresetDTO } from "@/shared/api/prompt-presets.types";
+import type { PromptPresetDTO } from "@/shared/api/prompt-presets-types";
 import { listVisibleSkills } from "@/shared/api/skills";
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { readSessionRevision } from "@/shared/auth/session";
-import { resolveModelPresentationGroup } from "@/shared/lib/model-presentation";
+import { resolveModelPresentationGroup } from "@/entities/model";
 
 const DEFAULT_MENTION_MENU_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "tool", "skill", "prompt"];
 const MENTION_TRIGGER_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "tool"];

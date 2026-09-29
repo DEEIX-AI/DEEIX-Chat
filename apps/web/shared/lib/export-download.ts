@@ -1,3 +1,5 @@
+import { isRecord, readBoolean, readFiniteNumber } from "@/shared/lib/type-guards";
+
 const EXPORT_MANIFEST_TAIL_BYTES = 1024 * 1024;
 
 export type ExportManifest = {
@@ -18,12 +20,17 @@ export async function readExportManifest(blob: Blob): Promise<ExportManifest | n
     return null;
   }
   try {
-    const parsed = JSON.parse(lastLine) as unknown;
-    if (!parsed || typeof parsed !== "object") {
+    const parsed: unknown = JSON.parse(lastLine);
+    if (!isRecord(parsed) || parsed._type !== "export_manifest") {
       return null;
     }
-    const manifest = parsed as ExportManifest;
-    return manifest._type === "export_manifest" ? manifest : null;
+    // Fields with an unexpected type are dropped rather than trusted.
+    return {
+      _type: "export_manifest",
+      complete: readBoolean(parsed, "complete"),
+      exported: readFiniteNumber(parsed, "exported"),
+      failed: readFiniteNumber(parsed, "failed"),
+    };
   } catch {
     return null;
   }

@@ -540,8 +540,8 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		DurationSeconds:     durationSeconds,
 	}
 	if moderationCoord != nil {
-		// Omni Moderation has no video modality. The prompt and optional input
-		// image participate in the barrier; an extension source is intentionally excluded.
+		// Omni Moderation 不支持视频模态。提示词与可选的输入
+		// 图片参与屏障；扩展来源被有意排除。
 		s.completeModerationAfterSuccess(ctx, completeModerationAfterSuccessInput{
 			Coordinator:      moderationCoord,
 			Result:           result,

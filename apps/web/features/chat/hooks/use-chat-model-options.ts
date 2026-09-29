@@ -3,33 +3,32 @@
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
-import type {
-  ChatModelOption,
-  ModelOptionControl,
-  ModelOptionControlType,
+import {
+  type ChatModelOption,
+  MODEL_OPTION_CONTROL_TYPES,
+  type ModelOptionControl,
+  type ModelOptionControlType,
 } from "@/features/chat/types/chat-runtime";
 import { parseSendShortcut, type SendShortcut } from "@/features/settings";
 import { getBillingConfig } from "@/shared/api/billing";
 import { listConversationRuns } from "@/shared/api/conversation";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
 import { listPublicModels } from "@/shared/api/model";
-import type { PublicModelDTO } from "@/shared/api/model.types";
+import type { PublicModelDTO } from "@/shared/api/model-types";
 import { getMCPPolicy, getModelOptionPolicy } from "@/shared/api/settings";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { type BillingDisplayCurrency, normalizeBillingDisplayCurrency } from "@/entities/billing";
 import {
-  type BillingDisplayCurrency,
-  normalizeBillingDisplayCurrency,
-} from "@/shared/lib/billing-display";
-import type { ModelNativeToolConfig, ModelOptionPolicy } from "@/shared/lib/model-option-policy";
-import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
-import { nativeToolDefinitionVariantsFromConfig, nativeToolPayloadSignature } from "@/shared/lib/native-tool-payload";
-import {
-  type ChatContentWidth,
-  parseChatContentWidth,
-} from "@/shared/model/chat-content-width";
-import { resolveConversationDefaultModel } from "@/shared/model/conversation-default-model";
-import { parseKindsJSON } from "@/shared/model/llm-schema";
-import { useUserSettings } from "@/shared/model/user-settings-store";
+  type ModelNativeToolConfig,
+  type ModelOptionPolicy,
+  nativeToolDefinitionVariantsFromConfig,
+  nativeToolPayloadSignature,
+  parseKindsJSON,
+  parseProtocolsJSON,
+} from "@/entities/model";
+import { type ChatContentWidth, parseChatContentWidth, useUserSettings } from "@/entities/user-settings";
+import { resolveConversationDefaultModel } from "@/entities/conversation";
+import { isOneOf, isRecord, parseJSON } from "@/shared/lib/type-guards";
 
 type ModelCatalogRefreshResult = {
   models: PublicModelDTO[];
@@ -41,15 +40,8 @@ function parseJSONObject(raw: string): Record<string, unknown> | null {
   if (!normalized) {
     return null;
   }
-  try {
-    const parsed = JSON.parse(normalized) as unknown;
-    if (parsed === null || Array.isArray(parsed) || typeof parsed !== "object") {
-      return null;
-    }
-    return parsed as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+  const parsed = parseJSON(normalized);
+  return isRecord(parsed) ? parsed : null;
 }
 
 function resolveChatContentWidth(settings: Record<string, string>): ChatContentWidth {
@@ -57,10 +49,7 @@ function resolveChatContentWidth(settings: Record<string, string>): ChatContentW
 }
 
 function normalizeNativeToolPayload(value: unknown): Record<string, unknown> {
-  if (value === null || Array.isArray(value) || typeof value !== "object") {
-    return {};
-  }
-  return value as Record<string, unknown>;
+  return isRecord(value) ? value : {};
 }
 
 function normalizeNativeToolString(value: unknown): string {
@@ -101,11 +90,10 @@ function resolveNativeTools(raw: string): ModelNativeToolConfig[] {
   }
   const rawTools = parsed.nativeTools;
   if (Array.isArray(rawTools)) {
-    return rawTools.flatMap((item, index): ModelNativeToolConfig[] => {
-      if (item === null || Array.isArray(item) || typeof item !== "object") {
+    return rawTools.flatMap((source: unknown, index): ModelNativeToolConfig[] => {
+      if (!isRecord(source)) {
         return [];
       }
-      const source = item as Record<string, unknown>;
       const key = normalizeNativeToolString(source.key ?? source.toolKey);
       const payload = normalizeNativeToolPayload(source.payload);
       const type = normalizeNativeToolString(source.type) || normalizeNativeToolString(payload.type);
@@ -134,7 +122,7 @@ function resolveNativeTools(raw: string): ModelNativeToolConfig[] {
     id: nativeToolID({ key, protocols: [], type: "", index }),
     key,
     protocol: "",
-    protocols: [] as string[],
+    protocols: [],
     type: "",
     label: key,
     enabled: true,
@@ -190,13 +178,11 @@ function resolveDefaultOptions(
     return {};
   }
   const defaults = parsed.defaultOptions;
-  const defaultOptions = defaults === null || Array.isArray(defaults) || typeof defaults !== "object"
-    ? {}
-    : sanitizeConversationOptions(defaults as ConversationOptions);
+  const defaultOptions = isRecord(defaults) ? sanitizeConversationOptions(defaults) : {};
   return mergeDefaultNativeTools(defaultOptions, nativeTools, catalog, modelProtocols);
 }
 
-const MODEL_OPTION_CONTROL_TYPES = new Set<ModelOptionControlType>(["boolean", "number", "select", "text"]);
+const isModelOptionControlType = isOneOf(MODEL_OPTION_CONTROL_TYPES);
 
 function normalizeOptionControlPath(value: unknown): string {
   if (typeof value !== "string") {
@@ -214,10 +200,7 @@ function normalizeOptionControlType(value: unknown): ModelOptionControlType | un
     return undefined;
   }
   const normalized = value.trim();
-  if (!MODEL_OPTION_CONTROL_TYPES.has(normalized as ModelOptionControlType)) {
-    return undefined;
-  }
-  return normalized as ModelOptionControlType;
+  return isModelOptionControlType(normalized) ? normalized : undefined;
 }
 
 function normalizeOptionControlString(value: unknown): string | undefined {
@@ -265,11 +248,10 @@ function resolveOptionControls(raw: string): ModelOptionControl[] {
   }
   const lockedPaths = new Set(resolveLockedOptionPaths(raw));
 
-  const controls = rawControls.flatMap((item): ModelOptionControl[] => {
-    if (item === null || Array.isArray(item) || typeof item !== "object") {
+  const controls = rawControls.flatMap((source: unknown): ModelOptionControl[] => {
+    if (!isRecord(source)) {
       return [];
     }
-    const source = item as Record<string, unknown>;
     const path = normalizeOptionControlPath(source.path);
     if (!path) {
       return [];
@@ -307,23 +289,18 @@ function resolveOptionControls(raw: string): ModelOptionControl[] {
 function resolveVideoExtensionConfig(raw: string, protocols: string[]): ChatModelOption["videoExtension"] {
   const parsed = parseJSONObject(raw);
   const mediaTasks = parsed?.mediaTasks;
-  const taskSource = mediaTasks && typeof mediaTasks === "object" && !Array.isArray(mediaTasks)
-    ? (mediaTasks as Record<string, unknown>).video_extension
-    : undefined;
-  const task = taskSource && typeof taskSource === "object" && !Array.isArray(taskSource)
-    ? (taskSource as Record<string, unknown>)
-    : null;
+  const taskSource = isRecord(mediaTasks) ? mediaTasks.video_extension : undefined;
+  const task = isRecord(taskSource) ? taskSource : null;
   const protocolSupported = protocols.includes("xai_video_extensions");
   if (!protocolSupported || task?.enabled === false) {
     return null;
   }
-  const defaultOptions = task?.defaultOptions && typeof task.defaultOptions === "object" && !Array.isArray(task.defaultOptions)
-    ? sanitizeConversationOptions(task.defaultOptions as ConversationOptions)
+  const defaultOptions = isRecord(task?.defaultOptions)
+    ? sanitizeConversationOptions(task.defaultOptions)
     : { duration: 6 };
   const rawControls = Array.isArray(task?.optionControls) ? task.optionControls : [{ path: "duration", type: "select", label: "Duration", description: "2–10 seconds", options: ["2", "3", "4", "5", "6", "7", "8", "9", "10"] }];
-  const controls = rawControls.flatMap((item): ModelOptionControl[] => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-    const source = item as Record<string, unknown>;
+  const controls = rawControls.flatMap((source: unknown): ModelOptionControl[] => {
+    if (!isRecord(source)) return [];
     const path = normalizeOptionControlPath(source.path);
     if (path !== "duration") return [];
     return [{
@@ -431,6 +408,7 @@ export function useChatModelOptions({
   const showLatency = userSettings["chat.show_latency"] !== "false";
   const showTokenUsage = userSettings["chat.show_token_usage"] !== "false";
   const showBillingCost = billingCostAvailable && userSettings["chat.show_billing_cost"] !== "false";
+  const showProcessTrace = userSettings["chat.show_process_trace"] !== "false";
 
   const selectPlatformModelName = React.useCallback((platformModelName: string) => {
     userSelectedModelRef.current = true;
@@ -540,7 +518,7 @@ export function useChatModelOptions({
   React.useEffect(() => {
     const normalizedConversationID = conversationPublicID?.trim() || null;
     if (!normalizedConversationID) {
-      // 普通无会话重渲染保留手动选择；显式新对话由 resetToken 重置。
+      // Ordinary re-renders without a conversation keep the manual selection; an explicit new chat resets via resetToken.
       activeConversationRef.current = null;
       return;
     }
@@ -560,7 +538,7 @@ export function useChatModelOptions({
     const requestID = runModelRequestRef.current + 1;
     runModelRequestRef.current = requestID;
 
-    // 本次请求绑定的会话 ID（非空）。
+    // Conversation ID bound to this request (non-empty).
     const activeConversationID = normalizedConversationID;
 
     async function loadLatestRunModel() {
@@ -653,6 +631,7 @@ export function useChatModelOptions({
     showLatency,
     showTokenUsage,
     showBillingCost,
+    showProcessTrace,
     billingDisplayCurrency,
     billingDisplayUsdToCnyRate,
     modelOptionPolicy,

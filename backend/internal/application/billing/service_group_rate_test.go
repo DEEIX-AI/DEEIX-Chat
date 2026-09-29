@@ -10,7 +10,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// Pure function tests
+// 纯函数测试
 // ---------------------------------------------------------------------------
 
 func TestComposeRatePercent(t *testing.T) {
@@ -38,7 +38,7 @@ func TestComposeRatePercentIdentity(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Resolver stub
+// Resolver 桩实现
 // ---------------------------------------------------------------------------
 
 type groupRateResolverStub struct {
@@ -57,7 +57,7 @@ func (s *groupRateResolverStub) GetUserModelGroupRateMultiplierPercent(_ context
 }
 
 // ---------------------------------------------------------------------------
-// resolveGroupRatePercent unit tests
+// resolveGroupRatePercent 单元测试
 // ---------------------------------------------------------------------------
 
 func TestResolveGroupRatePercentNoResolverReturnsIdentity(t *testing.T) {
@@ -97,7 +97,7 @@ func TestResolveGroupRatePercentPassesModelAndSubscriptionGroupID(t *testing.T) 
 }
 
 // ---------------------------------------------------------------------------
-// BuildUsageLedger integration: group rate applied to main ledger
+// BuildUsageLedger 集成：分组倍率应用于主账目
 // ---------------------------------------------------------------------------
 
 func TestBuildUsageLedgerAppliesGroupRateMultiplier(t *testing.T) {
@@ -167,7 +167,7 @@ func TestBuildUsageLedgerResolvesGroupRateByPlatformModelID(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// BuildUsageLedger integration: group rate applied to service items
+// BuildUsageLedger 集成：分组倍率应用于服务项
 // ---------------------------------------------------------------------------
 
 func TestBuildUsageLedgerAppliesGroupRateToServiceItems(t *testing.T) {
@@ -199,7 +199,7 @@ func TestBuildUsageLedgerAppliesGroupRateToServiceItems(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildUsageLedger: %v", err)
 	}
-	// service item: (1M * 1B + 1M * 2B) / 1M * 0.5 = 1_500_000_000
+	// 服务项：(1M * 1B + 1M * 2B) / 1M * 0.5 = 1_500_000_000
 	if ledger.BilledNanousd != 1_500_000_000 {
 		t.Fatalf("expected 50%% group rate on service items, got billed=%d (want 1500000000)", ledger.BilledNanousd)
 	}
@@ -219,7 +219,7 @@ func TestBuildUsageLedgerAppliesGroupRateToServiceItems(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// BuildUsageLedger: resolver error propagation
+// BuildUsageLedger：resolver 错误传播
 // ---------------------------------------------------------------------------
 
 func TestBuildUsageLedgerReturnsErrorOnGroupResolverFailure(t *testing.T) {
@@ -245,7 +245,7 @@ func TestBuildUsageLedgerReturnsErrorOnGroupResolverFailure(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// BuildUsageLedger: self mode skips group rate
+// BuildUsageLedger：self 模式跳过分组倍率
 // ---------------------------------------------------------------------------
 
 func TestBuildUsageLedgerSelfModeSkipsGroupRate(t *testing.T) {
@@ -268,7 +268,7 @@ func TestBuildUsageLedgerSelfModeSkipsGroupRate(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// BuildUsageLedger: fast mode + group rate composition
+// BuildUsageLedger：fast 模式与分组倍率组合
 // ---------------------------------------------------------------------------
 
 func TestBuildUsageLedgerComposesGroupRateWithFastMode(t *testing.T) {
@@ -298,9 +298,9 @@ func TestBuildUsageLedgerComposesGroupRateWithFastMode(t *testing.T) {
 		t.Fatalf("BuildUsageLedger: %v", err)
 	}
 	// fast=6x, group=0.8, combined=4.8x
-	// input: 1M * 1B/M * 4.8 = 4_800_000_000
-	// output: 1M * 5B/M * 4.8 = 24_000_000_000
-	// total = 28_800_000_000
+	// 输入：1M * 1B/M * 4.8 = 4_800_000_000
+	// 输出：1M * 5B/M * 4.8 = 24_000_000_000
+	// 合计 = 28_800_000_000
 	if ledger.BilledNanousd != 28_800_000_000 {
 		t.Fatalf("expected fast(6x) * group(0.8) = 4.8x billing, got %d (want 28800000000)", ledger.BilledNanousd)
 	}

@@ -1,4 +1,4 @@
-// Package mediaartifact 负责下载模型提供商返回的临时媒体制品。
+// Package mediaartifact 负责下载模型提供方返回的临时媒体制品。
 package mediaartifact
 
 import (
@@ -51,7 +51,7 @@ type downloadResult struct {
 	MIMEType string
 }
 
-// Client 维护提供商返回媒体 URL 所使用的隔离出站客户端。
+// Client 维护提供方返回媒体 URL 所使用的隔离出站客户端。
 // 仅当制品 URL 与管理员配置的模型 endpoint 同 origin 时继承局部信任；其他 URL 仍按不可信输入处理。
 type Client struct {
 	basePolicy   security.OutboundPolicy
@@ -80,7 +80,7 @@ func newMediaArtifactHTTPClient(policy security.OutboundPolicy, strictPolicy sec
 	return outboundhttp.ManagedClient{Client: httpClient, CloseIdleConnections: transport.CloseIdleConnections}
 }
 
-// DownloadImage 从不可信的提供商返回 URL 下载生成图片。
+// DownloadImage 从不可信的提供方返回 URL 下载生成图片。
 func (c *Client) DownloadImage(ctx context.Context, sourceURL string, trustedProviderEndpoint string, maxBytes int64) ([]byte, string, error) {
 	if _, _, ok := geminiGeneratedFileURLs(sourceURL); ok {
 		return nil, "", errors.New("gemini files generated image URI is not supported")
@@ -171,8 +171,8 @@ func (c *Client) download(ctx context.Context, input downloadRequest) (downloadR
 	for key, value := range input.headers {
 		request.Header.Set(key, value)
 	}
-	// 仅在制品 URL 与管理员配置的 Provider endpoint 明确同源时携带 Key。
-	// 跨 origin 制品和后续跨 origin 重定向都不得获得 Provider 凭据。
+	// 仅在制品 URL 与管理员配置的提供方 endpoint 明确同源时携带 Key。
+	// 跨 origin 制品和后续跨 origin 重定向都不得获得提供方凭据。
 	if trustedEndpoint != "" && sameArtifactOrigin(input.url, input.trustedEndpoint) && strings.TrimSpace(input.providerBearerToken) != "" {
 		request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(input.providerBearerToken))
 	}

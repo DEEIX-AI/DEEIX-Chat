@@ -1,13 +1,14 @@
-import type { UserDTO } from "@/shared/api/auth.types";
-import type { BillingPlanDTO, BillingPlanPriceDTO } from "@/shared/api/billing.types";
+import type { UserDTO } from "@/shared/api/auth-types";
+import type { BillingPlanDTO, BillingPlanPriceDTO } from "@/shared/api/billing-types";
 import {
-  formatBillingDisplayBalanceFromUSD,
+  type BillingDisplayOptions,
   formatBillingDisplayAmountFromUSD,
+  formatBillingDisplayBalanceFromUSD,
   formatBillingDisplayCompactAmountFromUSD,
   formatBillingDisplayPreciseAmountFromUSD,
   formatBillingDisplayUnitPriceFromUSD,
-} from "@/shared/lib/billing-display";
-import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
+} from "@/entities/billing";
+import { isNonEmptyString, isRecord, parseJSON } from "@/shared/lib/type-guards";
 
 const DEFAULT_BILLING_DISPLAY: BillingDisplayOptions = { currency: "USD" };
 type PaymentProvider = "stripe" | "epay";
@@ -315,18 +316,12 @@ export function resolvePlanFeatures(
     labels.monthlyCredit(formatPlanCredit(plan.periodCreditUSD, billingDisplay)),
     labels.freeModelsNotIncluded,
   ];
-  try {
-    const parsed = JSON.parse(plan.featureJSON || "null") as unknown;
-    if (Array.isArray(parsed)) {
-      const features = parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
-      return features.length > 0 ? features : fallback;
-    }
-    if (parsed && typeof parsed === "object" && Array.isArray((parsed as { features?: unknown }).features)) {
-      const features = ((parsed as { features: unknown[] }).features).filter((item): item is string => typeof item === "string" && item.trim().length > 0);
-      return features.length > 0 ? features : fallback;
-    }
-  } catch {
-    // ignore invalid admin-entered feature JSON
+  // Invalid admin-entered feature JSON parses to undefined and falls through to the fallback.
+  const parsed = parseJSON(plan.featureJSON || "null");
+  const rawFeatures = Array.isArray(parsed) ? parsed : isRecord(parsed) && Array.isArray(parsed.features) ? parsed.features : null;
+  if (rawFeatures) {
+    const features = rawFeatures.filter(isNonEmptyString);
+    return features.length > 0 ? features : fallback;
   }
   return plan.description ? [plan.description, ...fallback] : fallback;
 }

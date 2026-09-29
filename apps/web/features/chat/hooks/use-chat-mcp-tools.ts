@@ -10,17 +10,14 @@ import {
   parseDefaultMCPToolIDs,
 } from "@/features/chat/model/chat-mcp-tool-defaults";
 import { listAvailableMCPTools } from "@/shared/api/mcp";
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import {
-  hasMultipleImageAttachmentProcessors,
-  normalizeImageAttachmentProcessorSelection,
-} from "@/shared/lib/mcp-tool-selection";
-import { updateUserSettings, useUserSettings } from "@/shared/model/user-settings-store";
+import { hasMultipleImageAttachmentProcessors, normalizeImageAttachmentProcessorSelection } from "@/entities/mcp";
+import { updateUserSettings, useUserSettings } from "@/entities/user-settings";
 
 /**
- * MCP 工具的可用清单与默认偏好：加载并规整可用工具，对所选工具做数量上限裁剪
- * 与图片处理器唯一性归一；默认工具偏好读写用户设置，保存失败时回滚本地状态。
+ * Available MCP tools and default preferences: loads and normalizes available tools, caps the selection count
+ * and enforces a single image processor; default tool preferences read/write user settings and roll back local state if saving fails.
  */
 export function useChatMCPTools({
   mcpMaxSelectedTools,

@@ -1,5 +1,6 @@
 import type { ChatModelOption, PendingAttachment } from "@/features/chat/types/chat-runtime";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
+import { isRecord } from "@/shared/lib/type-guards";
 
 export type ChatSubmitTask = "chat" | "image_generation" | "image_edit" | "video_generation" | "video_extension";
 export type ChatSubmitBlockReason =
@@ -51,9 +52,7 @@ function buildDecision(
 }
 
 function optionObject(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+  return isRecord(value) ? value : null;
 }
 
 function responseFormatType(value: unknown): "image" | "video" | "text" | "" {

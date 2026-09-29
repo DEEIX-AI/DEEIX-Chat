@@ -19,6 +19,7 @@ function writeLocaleCookie(locale: AppLocale): void {
   if (typeof document === "undefined") {
     return;
   }
+  // biome-ignore lint/suspicious/noDocumentCookie: the Cookie Store API is missing in the supported WebKit (Safari <= 15.6) and the value is a fixed, encoded locale.
   document.cookie = `${LOCALE_COOKIE_NAME}=${encodeURIComponent(locale)}; path=/; max-age=31536000; samesite=lax`;
 }
 

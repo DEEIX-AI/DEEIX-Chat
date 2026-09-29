@@ -28,10 +28,10 @@ import type {
   SendMessageRequest,
   SendMessageResult,
   StreamMessageEvent,
-} from "@/shared/api/conversation.types";
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
+} from "@/shared/api/conversation-types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 
-// 单次生成的流式执行:注册流事件回调、按任务类型派发请求、完成后结算 exchange。
+// Streaming execution of a single generation: register stream event callbacks, dispatch the request by task type, and settle the exchange on completion.
 export function useChatRunStream({
   updatePendingExchange,
   enqueueUpstreamThinkDelta,

@@ -5,63 +5,37 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { completeEmailRegistration, completePasswordReset, getLoginOptions, getLoginPageSettings, isAccountLockedError, login, startEmailRegistration, startPasswordReset, startProviderAuthBridge, startTwoFactorEmailVerification, verifyTwoFactorLogin } from "@/shared/api/auth";
-import type { LoginData, LoginOptionsData, LoginPageSettings, SecurityVerificationMethod } from "@/shared/api/auth.types";
+import { completeEmailRegistration, completePasswordReset, getLoginOptions, getLoginPageSettings, isAccountLockedError, login, startEmailRegistration, startPasswordReset, startTwoFactorEmailVerification, verifyTwoFactorLogin } from "@/shared/api/auth";
+import type { LoginData, LoginOptionsData, LoginPageSettings, SecurityVerificationMethod } from "@/shared/api/auth-types";
 import { resolveApiBaseURL } from "@/shared/api/http-client";
 import { isPasswordPolicyValid } from "@/shared/auth/account-policy";
 import { normalizeAuthNextPath } from "@/shared/auth/local-path";
+import { beginProviderAuthorization } from "@/shared/auth/provider-bridge";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { readAccessToken } from "@/shared/auth/session";
 import { isDesktopApp } from "@/shared/platform";
-import {
-  openInSystemBrowser,
-  resolveOAuthClientId,
-  startOAuthLoopback,
-  stopOAuthLoopback,
-  waitForOAuthCallback,
-} from "@/shared/platform/desktop-oauth";
 import { openExternal } from "@/shared/platform/desktop-open";
 import { completeNativeSignIn, ensureLocalSession } from "@/shared/platform/desktop-session";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import {
-  createProviderPKCE,
-  createProviderClientState,
   DEFAULT_LOGIN_OPTIONS,
   DEFAULT_LOGIN_SETTINGS,
+  clearTwoFactorChallenge,
   isTwoFactorChallengeExpired,
   normalizeRegisterCode,
   normalizeTwoFactorInput,
-  providerAuthBridgeStorageKey,
-  providerPKCEStorageKey,
-  TWO_FACTOR_CHALLENGE_STORAGE_KEY,
-  TWO_FACTOR_METHODS_STORAGE_KEY,
+  readTwoFactorChallenge,
   type LoginMode,
   type ProviderAuthIntent,
 } from "@/features/auth/model/login-page";
 
-type UseLoginPageInput = {
+type UseAuthLoginPageInput = {
   nextPath: string;
 };
 
 const VERIFICATION_CODE_RESEND_COOLDOWN_MS = 60_000;
 
-function parseSecurityVerificationMethods(value: string | null): SecurityVerificationMethod[] {
-  if (!value) {
-    return ["two_factor"];
-  }
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!Array.isArray(parsed)) {
-      return ["two_factor"];
-    }
-    const methods = parsed.filter((item): item is SecurityVerificationMethod => item === "two_factor" || item === "email");
-    return methods.length > 0 ? methods : ["two_factor"];
-  } catch {
-    return ["two_factor"];
-  }
-}
-
-export function useLoginPage({ nextPath }: UseLoginPageInput) {
+export function useAuthLoginPage({ nextPath }: UseAuthLoginPageInput) {
   const router = useRouter();
   const t = useTranslations("login");
   const resolveErrorMessage = useLocalizedErrorMessage();
@@ -100,9 +74,10 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   const fallbackNextPath = normalizeAuthNextPath(settings.defaultNextPath);
   const resolvedNextPath = normalizeAuthNextPath(nextPath, fallbackNextPath);
   const passwordLoginEnabled = options.usernameEnabled || options.emailEnabled;
+  // Providers only work through the server-side handoff, so an unconfigured bridge hides them.
   const loginProviders = React.useMemo(
-    () => options.providers.filter((provider) => provider.loginEnabled),
-    [options.providers],
+    () => (options.providerAuthBridge.enabled ? options.providers.filter((provider) => provider.loginEnabled) : []),
+    [options.providerAuthBridge.enabled, options.providers],
   );
   const emailRegistrationEnabled = options.emailEnabled && options.emailRegistrationEnabled;
   const emailVerificationEnabled = options.emailVerificationEnabled;
@@ -140,15 +115,11 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   }, [resolvedNextPath, router]);
 
   React.useEffect(() => {
-    const challenge = window.sessionStorage.getItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY);
+    const challenge = readTwoFactorChallenge();
     if (challenge) {
-      window.sessionStorage.removeItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY);
-      const rawMethods = window.sessionStorage.getItem(TWO_FACTOR_METHODS_STORAGE_KEY);
-      window.sessionStorage.removeItem(TWO_FACTOR_METHODS_STORAGE_KEY);
-      const parsedMethods = parseSecurityVerificationMethods(rawMethods);
-      setTwoFactorChallengeToken(challenge);
-      setTwoFactorVerificationMethods(parsedMethods);
-      setTwoFactorVerificationMethod(parsedMethods[0] ?? "two_factor");
+      setTwoFactorChallengeToken(challenge.token);
+      setTwoFactorVerificationMethods(challenge.methods);
+      setTwoFactorVerificationMethod(challenge.methods[0] ?? "two_factor");
       setMode("login");
     }
   }, []);
@@ -188,6 +159,7 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
     (result: LoginData) => {
       // completeNativeSignIn writes the session snapshot and, on desktop, the
       // keychain copy of the rotating refresh token.
+      clearTwoFactorChallenge();
       void completeNativeSignIn(result);
       router.replace(resolvedNextPath);
     },
@@ -223,6 +195,8 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
           : await login(submittedUsername, submittedPassword);
         if (result.twoFactorRequired) {
           const methods: SecurityVerificationMethod[] = result.verificationMethods?.length ? result.verificationMethods : ["two_factor"];
+          // A fresh challenge supersedes any stored provider-login challenge.
+          clearTwoFactorChallenge();
           setTwoFactorChallengeToken(result.twoFactorChallengeToken ?? "");
           setTwoFactorVerificationMethods(methods);
           setTwoFactorVerificationMethod(methods[0] ?? "two_factor");
@@ -238,6 +212,7 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
         completeAuth(result);
       } catch (error) {
         if (isTwoFactorChallengeExpired(error)) {
+          clearTwoFactorChallenge();
           setTwoFactorChallengeToken("");
           setTwoFactorVerificationMethods(["two_factor"]);
           setTwoFactorVerificationMethod("two_factor");
@@ -260,63 +235,16 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   );
 
   const handleProviderLogin = React.useCallback(async (slug: string, intent: ProviderAuthIntent = "login") => {
-    const desktop = isDesktopApp();
+    if (!options.providerAuthBridge.enabled) {
+      toast.error(t("toasts.providerBridgeRequired"));
+      return;
+    }
     try {
-      const pkce = await createProviderPKCE();
-      if (!options.providerAuthBridge.enabled) {
-        if (desktop) {
-          // The legacy flow redirects the page itself to the provider; a webview cannot come back from that.
-          toast.error(t("toasts.providerBridgeRequired"));
-          return;
-        }
-        const redirectURI = `${window.location.origin}/auth/callback?provider=${encodeURIComponent(slug)}`;
-        const params = new URLSearchParams();
-        window.sessionStorage.setItem(providerPKCEStorageKey(slug), pkce.verifier);
-        params.set("redirect_uri", redirectURI);
-        params.set("next", resolvedNextPath);
-        params.set("code_challenge", pkce.challenge);
-        params.set("intent", intent);
-        window.location.href = `${resolveApiBaseURL()}/api/v1/auth/providers/${encodeURIComponent(slug)}/start?${params.toString()}`;
-        return;
+      const callbackPath = await beginProviderAuthorization({ slug, intent, next: resolvedNextPath });
+      if (callbackPath) {
+        router.replace(callbackPath);
       }
-
-      // Desktop: the provider redirects to a loopback listener owned by the shell (RFC 8252);
-      // browser: it redirects straight back to this origin.
-      const redirectURI = desktop
-        ? await startOAuthLoopback()
-        : `${window.location.origin}/auth/callback?provider=${encodeURIComponent(slug)}`;
-      const clientState = createProviderClientState();
-      window.sessionStorage.setItem(providerAuthBridgeStorageKey(slug), JSON.stringify({
-        verifier: pkce.verifier,
-        state: clientState,
-        intent,
-        next: resolvedNextPath,
-      }));
-      const result = await startProviderAuthBridge(slug, {
-        clientID: resolveOAuthClientId(),
-        redirectURI,
-        codeChallenge: pkce.challenge,
-        clientState,
-        intent,
-        next: resolvedNextPath,
-      });
-
-      if (!desktop) {
-        // OAuth must use a full document navigation so the provider redirect can leave the app origin.
-        window.location.href = result.authorizationURL;
-        return;
-      }
-
-      await openInSystemBrowser(result.authorizationURL);
-      const callback = await waitForOAuthCallback();
-      // Hand the loopback parameters to the shared callback page; it verifies state and exchanges the grant.
-      router.replace(`/auth/callback${callback.search}`);
     } catch (error) {
-      window.sessionStorage.removeItem(providerAuthBridgeStorageKey(slug));
-      window.sessionStorage.removeItem(providerPKCEStorageKey(slug));
-      if (desktop) {
-        void stopOAuthLoopback();
-      }
       if (error instanceof DOMException && error.name === "AbortError") {
         return;
       }
@@ -476,6 +404,7 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   }, []);
 
   const cancelTwoFactorChallenge = React.useCallback(() => {
+    clearTwoFactorChallenge();
     setTwoFactorChallengeToken("");
     setTwoFactorVerificationMethods(["two_factor"]);
     setTwoFactorVerificationMethod("two_factor");

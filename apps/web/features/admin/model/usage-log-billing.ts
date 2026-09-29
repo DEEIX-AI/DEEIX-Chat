@@ -1,19 +1,10 @@
-// 用量日志计价：pricing snapshot 解析、金额换算与账单 tooltip 行构建。
+// Usage log pricing: pricing snapshot parsing, amount conversion and billing tooltip row building.
 
-import type { AdminUsageLogDTO } from "@/features/admin/api/admin.types";
+import type { AdminUsageLogDTO } from "@/features/admin/api/admin-types";
 import { parseJSONRecord } from "@/features/admin/model/log-display";
-import { formatBillingBalance } from "@/features/admin/utils/account-display";
-import {
-  type BillingDisplayLabels,
-  type BillingDisplayOptions,
-  billingRateMultiplierNote,
-  billingScheduleNote,
-  cacheWriteBillingLabel,
-  cacheWriteBillingNote,
-  formatBillingDisplayCompactAmountFromUSD,
-  formatBillingDisplayPreciseAmountFromUSD,
-  formatBillingDisplayUnitPriceFromUSD,
-} from "@/shared/lib/billing-display";
+import { formatBillingBalance } from "@/features/admin/utils/user-display";
+import { type BillingDisplayLabels, type BillingDisplayOptions, billingRateMultiplierNote, billingScheduleNote, cacheWriteBillingLabel, cacheWriteBillingNote, formatBillingDisplayCompactAmountFromUSD, formatBillingDisplayPreciseAmountFromUSD, formatBillingDisplayUnitPriceFromUSD } from "@/entities/billing";
+import { isRecord, parseJSON, readBoolean, readString } from "@/shared/lib/type-guards";
 
 export type UsagePricingSnapshot = {
   pricing_mode?: "token" | "call" | "duration" | "tiered" | string;
@@ -26,8 +17,12 @@ export type UsagePricingSnapshot = {
   billing_speed?: string;
   billing_service_tier?: string;
   rate_multiplier?: number;
+  schedule_period_name?: string;
+  schedule_rate_percent?: number;
   cache_write_5m_tokens?: number;
   cache_write_1h_tokens?: number;
+  cache_write_5m_multiplier?: number;
+  cache_write_1h_multiplier?: number;
   input_nanousd_per_m_tokens?: number;
   cache_read_nanousd_per_m_tokens?: number;
   cache_write_nanousd_per_m_tokens?: number;
@@ -108,13 +103,76 @@ export function formatTooltipUsageCost(value: number, billingDisplay: BillingDis
   return formatBillingDisplayPreciseAmountFromUSD(value, billingDisplay);
 }
 
+const USAGE_SNAPSHOT_STRING_KEYS = [
+  "pricing_mode",
+  "provider_protocol",
+  "media_type",
+  "cache_timeout",
+  "billing_speed",
+  "billing_service_tier",
+  "schedule_period_name",
+] as const satisfies readonly (keyof UsagePricingSnapshot)[];
+
+const USAGE_SNAPSHOT_NUMBER_KEYS = [
+  "input_image_count",
+  "rate_multiplier",
+  "schedule_rate_percent",
+  "cache_write_5m_tokens",
+  "cache_write_1h_tokens",
+  "cache_write_5m_multiplier",
+  "cache_write_1h_multiplier",
+  "input_nanousd_per_m_tokens",
+  "cache_read_nanousd_per_m_tokens",
+  "cache_write_nanousd_per_m_tokens",
+  "output_nanousd_per_m_tokens",
+  "call_nanousd_per_call",
+  "duration_nanousd_per_second",
+  "input_billed_nanousd",
+  "cache_read_billed_nanousd",
+  "cache_write_billed_nanousd",
+  "output_billed_nanousd",
+  "call_billed_nanousd",
+  "duration_billed_nanousd",
+  "tiered_from_tokens",
+] as const satisfies readonly (keyof UsagePricingSnapshot)[];
+
+const USAGE_SNAPSHOT_BOOLEAN_KEYS = [
+  "duration_billable",
+  "fast_mode",
+] as const satisfies readonly (keyof UsagePricingSnapshot)[];
+
+/**
+ * Parses the server-written pricing snapshot. Only fields with the expected
+ * JSON type are kept, so a malformed field reads as "missing" (the same as the
+ * zero/empty fallbacks the tooltip already applies) instead of leaking a wrong
+ * type into the billing math.
+ */
 export function parseUsagePricingSnapshot(raw: string): UsagePricingSnapshot {
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as UsagePricingSnapshot : {};
-  } catch {
+  const parsed = parseJSON(raw);
+  if (!isRecord(parsed)) {
     return {};
   }
+  const snapshot: UsagePricingSnapshot = {};
+  for (const key of USAGE_SNAPSHOT_STRING_KEYS) {
+    const value = readString(parsed, key);
+    if (value !== undefined) snapshot[key] = value;
+  }
+  for (const key of USAGE_SNAPSHOT_NUMBER_KEYS) {
+    const value = parsed[key];
+    if (typeof value === "number") snapshot[key] = value;
+  }
+  for (const key of USAGE_SNAPSHOT_BOOLEAN_KEYS) {
+    const value = readBoolean(parsed, key);
+    if (value !== undefined) snapshot[key] = value;
+  }
+  const tieredUpToTokens = parsed.tiered_up_to_tokens;
+  if (tieredUpToTokens === null || typeof tieredUpToTokens === "number") {
+    snapshot.tiered_up_to_tokens = tieredUpToTokens;
+  }
+  if ("upstream_usage" in parsed) {
+    snapshot.upstream_usage = parsed.upstream_usage;
+  }
+  return snapshot;
 }
 
 function formatTooltipUnitPrice(value: number, billingDisplay: BillingDisplayOptions): string {

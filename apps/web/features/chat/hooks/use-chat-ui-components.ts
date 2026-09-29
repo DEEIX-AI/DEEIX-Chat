@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { listVisibleUIComponents } from "@/shared/api/ui-components";
-import type { UIComponentDTO } from "@/shared/api/ui-components.types";
+import type { UIComponentDTO } from "@/shared/api/ui-components-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
 const MAX_SELECTED_UI_COMPONENTS = 32;
@@ -22,7 +22,7 @@ function readStoredSelection(): number[] | null {
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((id): id is number => Number.isInteger(id) && id > 0) : null;
   } catch {
     return null;
@@ -45,8 +45,8 @@ function writeStoredSelection(ids: number[] | null): void {
 }
 
 /**
- * 当前用户可用的交互式组件目录与勾选集。勾选集是设备级偏好（localStorage），跨会话记住；
- * 未显式选择时默认勾选全部已启用的内置组件——组件只影响渲染能力，不像技能那样改变模型行为。
+ * Interactive component catalog available to the current user and the checked set. The checked set is a device-level preference (localStorage) remembered across conversations;
+ * without an explicit choice, all enabled built-in components are checked — components only affect rendering capability and, unlike skills, don't change model behavior.
  */
 export function useChatUIComponents() {
   const [components, setComponents] = React.useState<UIComponentDTO[] | null>(null);

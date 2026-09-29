@@ -8,7 +8,7 @@ import (
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
 )
 
-// ContentModerationPolicyRequest configures the categories enabled for each surface.
+// ContentModerationPolicyRequest 配置各检查面启用的分类。
 type ContentModerationPolicyRequest struct {
 	InputTextCategories   []string `json:"inputTextCategories"`
 	OutputTextCategories  []string `json:"outputTextCategories"`
@@ -16,8 +16,8 @@ type ContentModerationPolicyRequest struct {
 	OutputImageCategories []string `json:"outputImageCategories"`
 }
 
-// ContentModerationUpdateConfigRequest updates the moderation service and policy.
-// Pointer fields preserve the difference between omission and explicit zero values.
+// ContentModerationUpdateConfigRequest 更新审核服务与策略。
+// 指针字段用于区分字段省略与显式零值。
 type ContentModerationUpdateConfigRequest struct {
 	Enabled        *bool                           `json:"enabled,omitempty"`
 	BaseURL        *string                         `json:"baseUrl,omitempty"`
@@ -30,7 +30,7 @@ type ContentModerationUpdateConfigRequest struct {
 	Policy         *ContentModerationPolicyRequest `json:"policy,omitempty"`
 }
 
-// ContentModerationPolicyResponse is the normalized saved policy.
+// ContentModerationPolicyResponse 是规范化后的已保存策略。
 type ContentModerationPolicyResponse struct {
 	InputTextCategories   []string `json:"inputTextCategories"`
 	OutputTextCategories  []string `json:"outputTextCategories"`
@@ -39,7 +39,7 @@ type ContentModerationPolicyResponse struct {
 	Version               int64    `json:"version"`
 }
 
-// ContentModerationServiceConfigResponse is the masked moderation configuration.
+// ContentModerationServiceConfigResponse 是脱敏后的审核配置。
 type ContentModerationServiceConfigResponse struct {
 	Enabled        bool                            `json:"enabled"`
 	BaseURL        string                          `json:"baseUrl"`
@@ -52,36 +52,36 @@ type ContentModerationServiceConfigResponse struct {
 	Policy         ContentModerationPolicyResponse `json:"policy"`
 }
 
-// ContentModerationCategoryCatalogResponse lists categories supported by modality.
+// ContentModerationCategoryCatalogResponse 按模态列出支持的分类。
 type ContentModerationCategoryCatalogResponse struct {
 	Text  []string `json:"text"`
 	Image []string `json:"image"`
 }
 
-// ContentModerationConfigDataResponse is the GET config response payload.
+// ContentModerationConfigDataResponse 是 GET 配置接口的响应载荷。
 type ContentModerationConfigDataResponse struct {
 	Config     ContentModerationServiceConfigResponse   `json:"config"`
 	Categories ContentModerationCategoryCatalogResponse `json:"categories"`
 }
 
-// ContentModerationConfigResponseDoc documents the standard config response envelope.
+// ContentModerationConfigResponseDoc 描述配置接口的标准响应包装。
 type ContentModerationConfigResponseDoc struct {
 	ErrorMsg string                              `json:"errorMsg"`
 	Data     ContentModerationConfigDataResponse `json:"data"`
 }
 
-// ContentModerationConfigUpdateDataResponse is the PUT config response payload.
+// ContentModerationConfigUpdateDataResponse 是 PUT 配置接口的响应载荷。
 type ContentModerationConfigUpdateDataResponse struct {
 	Config ContentModerationServiceConfigResponse `json:"config"`
 }
 
-// ContentModerationConfigUpdateResponseDoc documents the standard update response envelope.
+// ContentModerationConfigUpdateResponseDoc 描述更新接口的标准响应包装。
 type ContentModerationConfigUpdateResponseDoc struct {
 	ErrorMsg string                                    `json:"errorMsg"`
 	Data     ContentModerationConfigUpdateDataResponse `json:"data"`
 }
 
-// ContentModerationProbeResultResponse describes one probe surface.
+// ContentModerationProbeResultResponse 描述单个探测面。
 type ContentModerationProbeResultResponse struct {
 	Valid     bool   `json:"valid"`
 	Model     string `json:"model,omitempty"`
@@ -89,19 +89,19 @@ type ContentModerationProbeResultResponse struct {
 	Error     string `json:"error,omitempty"`
 }
 
-// ContentModerationProbeResponse is the probe response payload.
+// ContentModerationProbeResponse 是探测接口的响应载荷。
 type ContentModerationProbeResponse struct {
 	Text  ContentModerationProbeResultResponse `json:"text"`
 	Image ContentModerationProbeResultResponse `json:"image"`
 }
 
-// ContentModerationProbeResponseDoc documents the standard probe response envelope.
+// ContentModerationProbeResponseDoc 描述探测接口的标准响应包装。
 type ContentModerationProbeResponseDoc struct {
 	ErrorMsg string                         `json:"errorMsg"`
 	Data     ContentModerationProbeResponse `json:"data"`
 }
 
-// ContentModerationDailyStatResponse is an anonymous aggregate statistics row.
+// ContentModerationDailyStatResponse 是一行匿名聚合统计数据。
 type ContentModerationDailyStatResponse struct {
 	StatDate     time.Time `json:"statDate"`
 	Direction    string    `json:"direction"`
@@ -116,18 +116,18 @@ type ContentModerationDailyStatResponse struct {
 	LatencyCount int64     `json:"latencyCount"`
 }
 
-// ContentModerationStatsDataResponse is the statistics response payload.
+// ContentModerationStatsDataResponse 是统计接口的响应载荷。
 type ContentModerationStatsDataResponse struct {
 	Items []ContentModerationDailyStatResponse `json:"items"`
 }
 
-// ContentModerationStatsResponseDoc documents the standard statistics response envelope.
+// ContentModerationStatsResponseDoc 描述统计接口的标准响应包装。
 type ContentModerationStatsResponseDoc struct {
 	ErrorMsg string                             `json:"errorMsg"`
 	Data     ContentModerationStatsDataResponse `json:"data"`
 }
 
-// ContentModerationEventResponse is a retained event metadata row.
+// ContentModerationEventResponse 是一行保留的事件元数据。
 type ContentModerationEventResponse struct {
 	PublicID        string    `json:"publicID"`
 	UserID          uint      `json:"userID"`
@@ -149,7 +149,7 @@ type ContentModerationEventResponse struct {
 	CreatedAt       time.Time `json:"createdAt"`
 }
 
-// ContentModerationEventListDataResponse is the paginated event list payload.
+// ContentModerationEventListDataResponse 是分页事件列表载荷。
 type ContentModerationEventListDataResponse struct {
 	Items    []ContentModerationEventResponse `json:"items"`
 	Total    int64                            `json:"total"`
@@ -157,13 +157,13 @@ type ContentModerationEventListDataResponse struct {
 	PageSize int                              `json:"pageSize"`
 }
 
-// ContentModerationEventListResponseDoc documents the standard event list response envelope.
+// ContentModerationEventListResponseDoc 描述事件列表接口的标准响应包装。
 type ContentModerationEventListResponseDoc struct {
 	ErrorMsg string                                 `json:"errorMsg"`
 	Data     ContentModerationEventListDataResponse `json:"data"`
 }
 
-// ContentModerationIsolatedImageResponse exposes review metadata without storage paths.
+// ContentModerationIsolatedImageResponse 暴露审核元数据但不含存储路径。
 type ContentModerationIsolatedImageResponse struct {
 	Index        int    `json:"index"`
 	SHA256       string `json:"sha256"`
@@ -172,7 +172,7 @@ type ContentModerationIsolatedImageResponse struct {
 	SourceFileID string `json:"sourceFileID,omitempty"`
 }
 
-// ContentModerationEventDetailResponse is the super-admin event detail payload.
+// ContentModerationEventDetailResponse 是超级管理员事件详情载荷。
 type ContentModerationEventDetailResponse struct {
 	Event           ContentModerationEventResponse           `json:"event"`
 	CategoryScores  map[string]float64                       `json:"categoryScores"`
@@ -182,7 +182,7 @@ type ContentModerationEventDetailResponse struct {
 	Images          []ContentModerationIsolatedImageResponse `json:"images"`
 }
 
-// ContentModerationEventDetailResponseDoc documents the standard event detail response envelope.
+// ContentModerationEventDetailResponseDoc 描述事件详情接口的标准响应包装。
 type ContentModerationEventDetailResponseDoc struct {
 	ErrorMsg string                               `json:"errorMsg"`
 	Data     ContentModerationEventDetailResponse `json:"data"`
@@ -326,4 +326,13 @@ func toEventDetailResponse(
 		ImagesAvailable: detail.ImagesAvailable,
 		Images:          images,
 	}
+}
+
+// ErrorDoc 错误响应。
+type ErrorDoc struct {
+	ErrorMsg  string `json:"errorMsg"`
+	ErrorCode string `json:"errorCode,omitempty"`
+	Details   any    `json:"details,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
+	Data      any    `json:"data"`
 }

@@ -52,9 +52,7 @@ func TestTerminalTracePersistencePreservesReconciliationOrder(t *testing.T) {
 	}
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		ctx:       context.WithValue(context.Background(), tracePersistenceContextKey{}, "queued"),
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_ordered_trace"},

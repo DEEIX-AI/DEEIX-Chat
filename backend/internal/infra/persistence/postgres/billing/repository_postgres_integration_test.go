@@ -11,7 +11,7 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -32,18 +32,18 @@ func TestReserveUsageBalanceSerializesConcurrentPostgresRequests(t *testing.T) {
 	}
 	sqlDB.SetMaxOpenConns(8)
 	defer sqlDB.Close()
-	if err = db.AutoMigrate(&model.UsageLedger{}, &model.BillingAccount{}, &model.BalanceTransaction{}, &model.UsageReservation{}); err != nil {
+	if err = db.AutoMigrate(&models.UsageLedger{}, &models.BillingAccount{}, &models.BalanceTransaction{}, &models.UsageReservation{}); err != nil {
 		t.Fatalf("migrate billing tables: %v", err)
 	}
 
 	userID := uint(time.Now().UnixNano()%1_000_000_000) + 1
-	if err = db.Create(&model.BillingAccount{UserID: userID, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
+	if err = db.Create(&models.BillingAccount{UserID: userID, Currency: "USD", BalanceNanousd: 100, Status: "active"}).Error; err != nil {
 		t.Fatalf("create billing account: %v", err)
 	}
 	defer func() {
-		_ = db.Where("user_id = ?", userID).Delete(&model.UsageReservation{}).Error
-		_ = db.Where("user_id = ?", userID).Delete(&model.BalanceTransaction{}).Error
-		_ = db.Where("user_id = ?", userID).Delete(&model.BillingAccount{}).Error
+		_ = db.Where("user_id = ?", userID).Delete(&models.UsageReservation{}).Error
+		_ = db.Where("user_id = ?", userID).Delete(&models.BalanceTransaction{}).Error
+		_ = db.Where("user_id = ?", userID).Delete(&models.BillingAccount{}).Error
 	}()
 
 	repo := NewRepo(db)

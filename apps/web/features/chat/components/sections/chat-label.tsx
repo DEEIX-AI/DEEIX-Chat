@@ -25,9 +25,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Spinner, SpinnerLabel } from "@/components/ui/spinner";
 import { AnimatedText } from "@/components/ui/animated-text";
-import { ConversationProjectSubmenu } from "@/shared/components/conversation-project-submenu";
-import { ConversationShareExportSubmenu } from "@/shared/components/conversation-share-export-menu";
-import { ConversationLabelsDialog, ConversationLabelsMenuItem } from "@/entities/conversation";
+import {
+  ConversationLabelsDialog,
+  ConversationLabelsMenuItem,
+  ConversationProjectSubmenu,
+  ConversationShareExportSubmenu,
+} from "@/entities/conversation";
 import { cn } from "@/lib/utils";
 
 type ChatLabelProps = {

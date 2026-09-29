@@ -1,5 +1,5 @@
 import { authedRequest } from "@/shared/api/authed-client";
-import type { UserActivityDailyDTO } from "@/shared/api/stats.types";
+import type { UserActivityDailyDTO } from "@/shared/api/stats-types";
 
 export async function getUserActivity(
   accessToken: string,

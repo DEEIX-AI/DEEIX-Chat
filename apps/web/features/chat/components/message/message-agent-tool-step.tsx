@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import type * as React from "react";
 
 import { ArrowUpRight, Check, Copy, Wrench } from "lucide-react";
 
@@ -55,7 +55,7 @@ type ToolTraceCall = {
 function parseToolTraceCalls(payloadJson: string | undefined): ToolTraceCall[] {
   if (!payloadJson) return [];
   try {
-    const parsed = JSON.parse(payloadJson) as unknown;
+    const parsed: unknown = JSON.parse(payloadJson);
     if (!isToolPayloadRecord(parsed) || !Array.isArray(parsed.tool_calls)) return [];
 
     return parsed.tool_calls.flatMap((value): ToolTraceCall[] => {
@@ -643,7 +643,7 @@ function ToolArgumentsCard({ call, labels }: { call: ToolTraceCall; labels: Proc
   const expandedArguments = argumentsList.filter((argument) => !argument.compact);
 
   return (
-    <div className="space-y-1.5 pb-1 pt-1" aria-label={labels.tool.detail.argumentsTitle}>
+    <div className="space-y-1.5 pb-1 pt-1" role="group" aria-label={labels.tool.detail.argumentsTitle}>
       {compactArguments.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {compactArguments.map(({ key, text }) => (

@@ -51,7 +51,7 @@ export function useVirtualTableRows<T>(
         const item = items[virtualItem.index];
         return item === undefined
           ? null
-          : { item: item as T, index: virtualItem.index, virtualItem };
+          : { item, index: virtualItem.index, virtualItem };
       })
       .filter((row): row is VirtualTableRow<T> => row !== null)
     : items.map((item, index): VirtualTableRow<T> => ({ item, index, virtualItem: null }));
@@ -65,7 +65,7 @@ export function useVirtualTableRows<T>(
     viewportRef,
     viewportStyle: {
       "--virtual-table-max-height": `${maxHeight}px`,
-    } as React.CSSProperties,
+    },
   };
 }
 

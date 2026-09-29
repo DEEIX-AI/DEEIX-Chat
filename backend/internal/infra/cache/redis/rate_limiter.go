@@ -1,4 +1,4 @@
-package cache
+package redis
 
 import (
 	"context"
@@ -6,16 +6,16 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v8"
 )
 
 // rateLimiter 提供基于 Redis 的 HTTP 限流存储能力。
 type rateLimiter struct {
-	client *redis.Client
+	client *goredis.Client
 }
 
 // NewRateLimiter 创建 Redis 限流器。
-func NewRateLimiter(client *redis.Client) *rateLimiter {
+func NewRateLimiter(client *goredis.Client) *rateLimiter {
 	if client == nil {
 		return nil
 	}
@@ -42,7 +42,7 @@ func (r *rateLimiter) AllowSlidingWindow(ctx context.Context, key string, limit 
 	pipe := r.client.Pipeline()
 	pipe.ZRemRangeByScore(ctx, key, "0", fmt.Sprintf("%d", windowStart))
 	countCmd := pipe.ZCard(ctx, key)
-	pipe.ZAdd(ctx, key, &redis.Z{Score: float64(now), Member: member})
+	pipe.ZAdd(ctx, key, &goredis.Z{Score: float64(now), Member: member})
 	pipe.Expire(ctx, key, ttl)
 	if _, err := pipe.Exec(ctx); err != nil {
 		return true, err
@@ -60,7 +60,7 @@ func (r *rateLimiter) AllowFixedWindow(ctx context.Context, keys []string, limit
 	}
 
 	pipe := r.client.Pipeline()
-	incrCmds := make([]*redis.IntCmd, 0, len(keys))
+	incrCmds := make([]*goredis.IntCmd, 0, len(keys))
 	for _, key := range keys {
 		if key == "" {
 			continue

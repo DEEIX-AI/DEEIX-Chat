@@ -21,7 +21,7 @@ import type {
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMModelCbPolicyMode,
   UpdateAdminLLMModelUpstreamSourceRequest,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 
 export type ModelSourceCircuitPayload = Required<
   Pick<UpdateAdminLLMModelUpstreamSourceRequest, "cbFailureThreshold" | "cbDurationMin" | "cbWindowMin">

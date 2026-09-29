@@ -3,14 +3,14 @@ export type ConversationRunSnapshot = {
   conversationPublicID: string;
 };
 
-// local 记录连续缺席权威快照超过该时长后视为失效并移除。
-// 需大于「本地注册到服务端登记完成」的竞态窗口，小于用户可感知的卡死时长。
+// Local records missing from authoritative snapshots for longer than this are considered stale and removed.
+// Must exceed the race window between local registration and server-side registration, yet stay below a user-noticeable hang.
 const LOCAL_RUN_SNAPSHOT_MISS_TTL_MS = 15_000;
 
 type ConversationRunRecord = {
   conversationPublicID: string;
   status: "local" | "detached" | "server" | "settled";
-  // local 记录首次缺席权威快照的时间戳；再次命中快照后清除。
+  // Timestamp when a local record first went missing from the authoritative snapshot; cleared once a snapshot includes it again.
   missingFromSnapshotSince?: number;
 };
 
@@ -190,8 +190,8 @@ export class ConversationRunStore {
             });
             continue;
           }
-          // 服务端从未登记该运行（提交失败、流挂死等）时，本地记录会持续缺席快照。
-          // 超时后移除，避免侧边栏加载指示永久卡住；竞态窗口内的缺席不受影响。
+          // If the server never registered the run (submit failure, hung stream, etc.), the local record stays missing from snapshots.
+          // Remove it after the timeout so the sidebar loading indicator doesn't get stuck forever; absences within the race window are unaffected.
           const missingSince = record.missingFromSnapshotSince ?? now;
           if (now - missingSince >= LOCAL_RUN_SNAPSHOT_MISS_TTL_MS) {
             this.records.delete(runID);

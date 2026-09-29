@@ -15,31 +15,96 @@ import (
 )
 
 // StreamImageGeneration 处理会话内图片生成流式状态接口。
+// @Summary 生成会话图片
+// @Description 在会话中按提示词生成图片，并以 NDJSON 流式返回任务状态事件
+// @Tags chat
+// @Accept json
+// @Produce application/x-ndjson
+// @Security BearerAuth
+// @Param id path string true "会话 public_id"
+// @Param body body MediaImageRequest true "媒体任务参数"
+// @Success 200 {string} string "NDJSON stream"
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 402 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Failure 503 {object} ErrorDoc
+// @Router /conversations/{id}/media/images/generations/stream [post]
 func (h *Handler) StreamImageGeneration(c *gin.Context) {
 	h.streamMediaImage(c, appconversation.MediaImageTaskGeneration)
 }
 
 // StreamImageEdit 处理会话内图片编辑流式状态接口。
+// @Summary 编辑会话图片
+// @Description 在会话中基于参考图片（可附遮罩）按提示词编辑图片，并以 NDJSON 流式返回任务状态事件
+// @Tags chat
+// @Accept json
+// @Produce application/x-ndjson
+// @Security BearerAuth
+// @Param id path string true "会话 public_id"
+// @Param body body MediaImageRequest true "媒体任务参数"
+// @Success 200 {string} string "NDJSON stream"
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 402 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Failure 503 {object} ErrorDoc
+// @Router /conversations/{id}/media/images/edits/stream [post]
 func (h *Handler) StreamImageEdit(c *gin.Context) {
 	h.streamMediaImage(c, appconversation.MediaImageTaskEdit)
 }
 
 // StreamVideoGeneration 处理会话内视频生成流式状态接口。
+// @Summary 生成会话视频
+// @Description 在会话中按提示词生成视频，并以 NDJSON 流式返回任务状态事件
+// @Tags chat
+// @Accept json
+// @Produce application/x-ndjson
+// @Security BearerAuth
+// @Param id path string true "会话 public_id"
+// @Param body body MediaVideoRequest true "媒体任务参数"
+// @Success 200 {string} string "NDJSON stream"
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 402 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Failure 503 {object} ErrorDoc
+// @Router /conversations/{id}/media/videos/generations/stream [post]
 func (h *Handler) StreamVideoGeneration(c *gin.Context) {
 	h.streamMediaVideo(c, appconversation.MediaVideoTaskGeneration)
 }
 
 // StreamVideoExtension 处理会话内视频扩展流式状态接口。
 // @Summary 扩展会话视频
-// @Tags Conversations
+// @Description 在会话中基于来源视频按提示词扩展视频，并以 NDJSON 流式返回任务状态事件
+// @Tags chat
 // @Accept json
 // @Produce application/x-ndjson
-// @Param id path string true "会话 Public ID"
-// @Param payload body MediaVideoExtensionRequest true "视频扩展请求"
+// @Security BearerAuth
+// @Param id path string true "会话 public_id"
+// @Param body body MediaVideoExtensionRequest true "视频扩展参数"
 // @Success 200 {string} string "NDJSON stream"
-// @Failure 400 {object} response.Envelope
-// @Failure 401 {object} response.Envelope
-// @Failure 404 {object} response.Envelope
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 402 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Failure 503 {object} ErrorDoc
 // @Router /conversations/{id}/media/videos/extensions/stream [post]
 func (h *Handler) StreamVideoExtension(c *gin.Context) {
 	h.streamMediaVideo(c, appconversation.MediaVideoTaskExtension)

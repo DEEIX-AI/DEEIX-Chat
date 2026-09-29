@@ -2,6 +2,7 @@ package logcleanup
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,16 +10,14 @@ import (
 )
 
 type cleanupTestRepository struct {
-	runIDs []string
+	logType string
+	before  time.Time
 }
 
-func (r *cleanupTestRepository) DeleteBefore(context.Context, string, time.Time) (int64, error) {
-	return 0, nil
-}
-
-func (r *cleanupTestRepository) DeleteConversationRuns(_ context.Context, runIDs []string) (int64, error) {
-	r.runIDs = append([]string(nil), runIDs...)
-	return 4, nil
+func (r *cleanupTestRepository) DeleteBefore(_ context.Context, logType string, before time.Time) (int64, error) {
+	r.logType = logType
+	r.before = before
+	return 3, nil
 }
 
 type cleanupTestAuditWriter struct {
@@ -31,33 +30,40 @@ func (w *cleanupTestAuditWriter) Write(_ context.Context, input appaudit.WriteIn
 	w.detail = input.Detail
 }
 
-func TestCleanupConversationRunsNormalizesAndAudits(t *testing.T) {
+func TestCleanupNormalizesTypeAndAudits(t *testing.T) {
 	repo := &cleanupTestRepository{}
-	auditWriter := &cleanupTestAuditWriter{}
-	service := NewService(repo, auditWriter)
+	writer := &cleanupTestAuditWriter{}
+	before := time.Now().Add(-time.Hour)
 
-	result, err := service.CleanupConversationRuns(context.Background(), ConversationRunInput{
-		RunIDs: []string{" run_1 ", "run_2", "run_1"},
-	})
+	result, err := NewService(repo, writer).Cleanup(context.Background(), Input{Type: " Moderation ", Before: before, ActorUserID: 1})
 	if err != nil {
-		t.Fatalf("cleanup conversation runs: %v", err)
+		t.Fatalf("cleanup: %v", err)
 	}
-	if result.RunCount != 2 || result.DeletedCount != 4 {
-		t.Fatalf("unexpected result: %#v", result)
+	if repo.logType != TypeModeration || !repo.before.Equal(before) {
+		t.Fatalf("repository received %q before %v", repo.logType, repo.before)
 	}
-	if len(repo.runIDs) != 2 || repo.runIDs[0] != "run_1" || repo.runIDs[1] != "run_2" {
-		t.Fatalf("unexpected normalized run ids: %#v", repo.runIDs)
+	if result.DeletedCount != 3 || result.Type != TypeModeration {
+		t.Fatalf("unexpected result %+v", result)
 	}
-	if auditWriter.action != "admin_cleanup_conversation_runs" || auditWriter.detail == nil {
-		t.Fatalf("expected cleanup audit record, got action=%q detail=%#v", auditWriter.action, auditWriter.detail)
+	if writer.action != "admin_cleanup_logs" {
+		t.Fatalf("audit action = %q", writer.action)
 	}
 }
 
-func TestCleanupConversationRunsRejectsInvalidInput(t *testing.T) {
+func TestCleanupRejectsInvalidInput(t *testing.T) {
 	service := NewService(&cleanupTestRepository{}, nil)
-	for _, runIDs := range [][]string{nil, {""}, {string(make([]byte, 65))}} {
-		if _, err := service.CleanupConversationRuns(context.Background(), ConversationRunInput{RunIDs: runIDs}); err != ErrInvalidRunIDs {
-			t.Fatalf("run ids %#v: expected ErrInvalidRunIDs, got %v", runIDs, err)
+	cases := []struct {
+		name  string
+		input Input
+		want  error
+	}{
+		{"unknown type", Input{Type: "runs", Before: time.Now().Add(-time.Hour)}, ErrInvalidType},
+		{"zero before", Input{Type: TypeAudit}, ErrInvalidBefore},
+		{"future before", Input{Type: TypeAudit, Before: time.Now().Add(time.Hour)}, ErrFutureBefore},
+	}
+	for _, tc := range cases {
+		if _, err := service.Cleanup(context.Background(), tc.input); !errors.Is(err, tc.want) {
+			t.Errorf("%s: got %v, want %v", tc.name, err, tc.want)
 		}
 	}
 }

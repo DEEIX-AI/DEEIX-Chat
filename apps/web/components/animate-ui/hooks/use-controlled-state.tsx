@@ -1,9 +1,9 @@
 import * as React from 'react';
 
-interface CommonControlledStateProps<T> {
+type CommonControlledStateProps<T> = {
   value?: T;
   defaultValue?: T;
-}
+};
 
 export function useControlledState<T>(
   props: CommonControlledStateProps<T> & {

@@ -142,8 +142,18 @@
       },
       "embedding_host": {
         "label": "Embedding 服务地址 *",
-        "description": "用于配置 Embedding 服务地址，服务需兼容 OpenAI `/embeddings` 接口。",
+        "description": "Embedding 服务的基础地址，例如 https://api.openai.com/v1 或 https://generativelanguage.googleapis.com/v1beta。",
         "placeholder": "服务地址"
+      },
+      "embedding_protocol": {
+        "label": "请求协议",
+        "description": "Embedding 服务的接口格式。Gemini、Voyage、Jina 协议支持图片输入，图片将直接向量化而不依赖 OCR 文本。",
+        "options": {
+          "openai": "OpenAI 兼容",
+          "gemini": "Gemini",
+          "voyage": "Voyage AI",
+          "jina": "Jina AI"
+        }
       },
       "embedding_key": {
         "label": "Embedding 鉴权密钥",

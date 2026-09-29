@@ -591,9 +591,9 @@ func isCircuitFailure(cause error) bool {
 	return errors.As(cause, &networkErr)
 }
 
-// ShouldFailoverRoute reports whether a request can be retried on a different
-// route. Validation, authorization, billing, and caller cancellation errors
-// must stay on the original request path.
+// ShouldFailoverRoute 报告请求能否在其他路由上重试。
+// 校验、授权、计费及调用方取消类错误
+// 必须保留在原请求路径上。
 func ShouldFailoverRoute(cause error) bool {
 	if cause == nil || errors.Is(cause, context.Canceled) || llm.RequestWasAccepted(cause) {
 		return false

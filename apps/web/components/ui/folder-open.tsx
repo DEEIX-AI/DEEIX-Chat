@@ -7,10 +7,10 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-export interface FolderOpenIconHandle {
+export type FolderOpenIconHandle = {
   startAnimation: () => void;
   stopAnimation: () => void;
-}
+};
 
 interface FolderOpenIconProps extends HTMLAttributes<HTMLDivElement> {
   size?: number;

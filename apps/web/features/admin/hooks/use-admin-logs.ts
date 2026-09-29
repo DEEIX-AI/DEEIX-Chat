@@ -8,7 +8,6 @@ import {
   listAdminConversationEvents,
   listAdminPaymentOrders,
   listAdminRedemptions,
-  listAdminSystemEvents,
   listAdminUsageLogs,
   listAdminUserAuthEvents,
 } from "@/features/admin/api";
@@ -19,14 +18,13 @@ import type {
   AdminConversationEventDTO,
   AdminPaymentOrderDTO,
   AdminRedemptionRecordDTO,
-  AdminSystemEventDTO,
   AdminUsageLogDTO,
   AdminUserAuthEventDTO,
-} from "@/features/admin/api/admin.types";
+} from "@/features/admin/api/admin-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import type { ModelSelectOption } from "@/shared/components/model-select";
-import { resolveModelOptionIconUrl } from "@/shared/lib/model-option-display";
+import { type ModelSelectOption, resolveModelOptionIconUrl } from "@/entities/model";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
+import { isOneOf } from "@/shared/lib/type-guards";
 
 export const ADMIN_LOGS_PAGE_SIZE = 25;
 
@@ -40,13 +38,6 @@ export const AUDIT_LOG_SORT_OPTIONS = [
 export const SECURITY_LOG_SORT_OPTIONS = [
   { labelKey: "sort.occurredDesc", value: "occurred_desc" },
   { labelKey: "sort.occurredAsc", value: "occurred_asc" },
-  { labelKey: "sort.idDesc", value: "id_desc" },
-  { labelKey: "sort.idAsc", value: "id_asc" },
-] as const;
-
-export const SYSTEM_EVENT_SORT_OPTIONS = [
-  { labelKey: "sort.createdDesc", value: "created_desc" },
-  { labelKey: "sort.createdAsc", value: "created_asc" },
   { labelKey: "sort.idDesc", value: "id_desc" },
   { labelKey: "sort.idAsc", value: "id_asc" },
 ] as const;
@@ -80,11 +71,18 @@ export const CONVERSATION_EVENT_SORT_OPTIONS = [
 
 export type AuditLogSortValue = (typeof AUDIT_LOG_SORT_OPTIONS)[number]["value"];
 export type SecurityLogSortValue = (typeof SECURITY_LOG_SORT_OPTIONS)[number]["value"];
-export type SystemEventSortValue = (typeof SYSTEM_EVENT_SORT_OPTIONS)[number]["value"];
 export type UsageLogSortValue = (typeof USAGE_LOG_SORT_OPTIONS)[number]["value"];
 export type PaymentOrderSortValue = (typeof PAYMENT_ORDER_SORT_OPTIONS)[number]["value"];
 export type RedemptionSortValue = (typeof REDEMPTION_SORT_OPTIONS)[number]["value"];
 export type ConversationEventSortValue = (typeof CONVERSATION_EVENT_SORT_OPTIONS)[number]["value"];
+
+const sortValuesOf = <T extends string>(options: readonly { value: T }[]): T[] => options.map((option) => option.value);
+export const isAuditLogSortValue = isOneOf(sortValuesOf(AUDIT_LOG_SORT_OPTIONS));
+export const isSecurityLogSortValue = isOneOf(sortValuesOf(SECURITY_LOG_SORT_OPTIONS));
+export const isUsageLogSortValue = isOneOf(sortValuesOf(USAGE_LOG_SORT_OPTIONS));
+export const isPaymentOrderSortValue = isOneOf(sortValuesOf(PAYMENT_ORDER_SORT_OPTIONS));
+export const isRedemptionSortValue = isOneOf(sortValuesOf(REDEMPTION_SORT_OPTIONS));
+export const isConversationEventSortValue = isOneOf(sortValuesOf(CONVERSATION_EVENT_SORT_OPTIONS));
 
 const AUDIT_RESOURCE_VALUES = [
   "user",
@@ -212,7 +210,7 @@ type UseAdminLogsState = {
   loadAuditLogs: (page?: number, pageSize?: number) => Promise<void>;
 };
 
-type UseAdminSecurityLogsState = {
+type UseAdminLogsSecurityState = {
   events: AdminUserAuthEventDTO[];
   sortedEvents: AdminUserAuthEventDTO[];
   total: number;
@@ -229,33 +227,7 @@ type UseAdminSecurityLogsState = {
   loadSecurityLogs: (page?: number, pageSize?: number) => Promise<void>;
 };
 
-type UseAdminSystemEventsState = {
-  events: AdminSystemEventDTO[];
-  total: number;
-  page: number;
-  pageSize: number;
-  pageCount: number;
-  loading: boolean;
-  query: string;
-  setQuery: (value: string) => void;
-  levelFilter: string;
-  setLevelFilter: (value: string) => void;
-  sourceFilter: string;
-  setSourceFilter: (value: string) => void;
-  eventFilter: string;
-  setEventFilter: (value: string) => void;
-  createdFromFilter: string;
-  setCreatedFromFilter: (value: string) => void;
-  createdToFilter: string;
-  setCreatedToFilter: (value: string) => void;
-  sortValue: SystemEventSortValue;
-  setSortValue: (value: SystemEventSortValue) => void;
-  sourceOptions: Array<{ label: string; value: string }>;
-  eventOptions: Array<{ label: string; value: string }>;
-  loadSystemEvents: (page?: number, pageSize?: number) => Promise<void>;
-};
-
-type UseAdminUsageLogsState = {
+type UseAdminLogsUsageState = {
   logs: AdminUsageLogDTO[];
   total: number;
   page: number;
@@ -278,7 +250,7 @@ type UseAdminUsageLogsState = {
   loadUsageLogs: (page?: number, pageSize?: number) => Promise<void>;
 };
 
-type UseAdminPaymentOrdersState = {
+type UseAdminLogsPaymentOrdersState = {
   orders: AdminPaymentOrderDTO[];
   total: number;
   page: number;
@@ -302,7 +274,7 @@ type UseAdminPaymentOrdersState = {
   loadPaymentOrders: (page?: number, pageSize?: number) => Promise<void>;
 };
 
-type UseAdminRedemptionsState = {
+type UseAdminLogsRedemptionsState = {
   records: AdminRedemptionRecordDTO[];
   total: number;
   page: number;
@@ -326,7 +298,7 @@ type UseAdminRedemptionsState = {
   loadRedemptions: (page?: number, pageSize?: number) => Promise<void>;
 };
 
-type UseAdminConversationEventsState = {
+type UseAdminLogsConversationEventsState = {
   events: AdminConversationEventDTO[];
   total: number;
   page: number;
@@ -544,7 +516,7 @@ export function useAdminLogs(): UseAdminLogsState {
   };
 }
 
-export function useAdminSecurityLogs(): UseAdminSecurityLogsState {
+export function useAdminLogsSecurity(): UseAdminLogsSecurityState {
   const t = useTranslations("adminLogs");
   const [events, setEvents] = React.useState<AdminUserAuthEventDTO[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -654,137 +626,8 @@ export function useAdminSecurityLogs(): UseAdminSecurityLogsState {
   };
 }
 
-export function useAdminSystemEvents(): UseAdminSystemEventsState {
-  const t = useTranslations("adminLogs");
-  const [events, setEvents] = React.useState<AdminSystemEventDTO[]>([]);
-  const [total, setTotal] = React.useState(0);
-  const [page, setPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(ADMIN_LOGS_PAGE_SIZE);
-  const [loading, setLoading] = React.useState(true);
-  const [query, setQueryState] = React.useState("");
-  const debouncedQuery = useDebouncedValue(query.trim());
-  const [levelFilter, setLevelFilterState] = React.useState("");
-  const [sourceFilter, setSourceFilterState] = React.useState("");
-  const [eventFilter, setEventFilterState] = React.useState("");
-  const [createdFromFilter, setCreatedFromFilterState] = React.useState("");
-  const [createdToFilter, setCreatedToFilterState] = React.useState("");
-  const [sortValue, setSortValueState] = React.useState<SystemEventSortValue>("created_desc");
-  const requestSeqRef = React.useRef(0);
 
-  const loadSystemEvents = React.useCallback(async (nextPage = 1, nextPageSize = pageSize) => {
-    const requestSeq = requestSeqRef.current + 1;
-    requestSeqRef.current = requestSeq;
-    setLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        if (requestSeq !== requestSeqRef.current) {
-          return;
-        }
-        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-        return;
-      }
-      const data = await listAdminSystemEvents(token, {
-        page: nextPage,
-        pageSize: nextPageSize,
-        query: debouncedQuery,
-        level: levelFilter,
-        source: sourceFilter,
-        event: eventFilter,
-        createdFrom: toRFC3339DateRangeBound(createdFromFilter, "start"),
-        createdTo: toRFC3339DateRangeBound(createdToFilter, "end"),
-        sort: sortValue,
-      });
-      if (requestSeq !== requestSeqRef.current) {
-        return;
-      }
-      setEvents(data.results);
-      setTotal(data.total);
-      setPage(nextPage);
-      setPageSize(nextPageSize);
-    } catch (error) {
-      if (requestSeq !== requestSeqRef.current) {
-        return;
-      }
-      toast.error(t("toast.systemLoadFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      if (requestSeq === requestSeqRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [createdFromFilter, createdToFilter, debouncedQuery, eventFilter, levelFilter, pageSize, sortValue, sourceFilter, t]);
-
-  React.useEffect(() => {
-    void loadSystemEvents(1);
-  }, [loadSystemEvents]);
-
-  const setQuery = React.useCallback((value: string) => {
-    setQueryState(value);
-    setPage(1);
-  }, []);
-  const setLevelFilter = React.useCallback((value: string) => {
-    setLevelFilterState(value);
-    setPage(1);
-  }, []);
-  const setSourceFilter = React.useCallback((value: string) => {
-    setSourceFilterState(value);
-    setPage(1);
-  }, []);
-  const setEventFilter = React.useCallback((value: string) => {
-    setEventFilterState(value);
-    setPage(1);
-  }, []);
-  const setCreatedFromFilter = React.useCallback((value: string) => {
-    setCreatedFromFilterState(value);
-    setPage(1);
-  }, []);
-  const setCreatedToFilter = React.useCallback((value: string) => {
-    setCreatedToFilterState(value);
-    setPage(1);
-  }, []);
-  const setSortValue = React.useCallback((value: SystemEventSortValue) => {
-    setSortValueState(value);
-    setPage(1);
-  }, []);
-
-  const sourceOptions = React.useMemo(() => {
-    const values = new Set(events.map((item) => item.source.trim()).filter(Boolean));
-    return [{ label: t("filters.allSources"), value: "" }, ...[...values].sort().map((value) => ({ label: value, value }))];
-  }, [events, t]);
-
-  const eventOptions = React.useMemo(() => {
-    const values = new Set(events.map((item) => item.event.trim()).filter(Boolean));
-    return [{ label: t("filters.allEvents"), value: "" }, ...[...values].sort().map((value) => ({ label: value, value }))];
-  }, [events, t]);
-
-  return {
-    events,
-    total,
-    page,
-    pageSize,
-    pageCount: Math.max(1, Math.ceil(total / pageSize)),
-    loading,
-    query,
-    setQuery,
-    levelFilter,
-    setLevelFilter,
-    sourceFilter,
-    setSourceFilter,
-    eventFilter,
-    setEventFilter,
-    createdFromFilter,
-    setCreatedFromFilter,
-    createdToFilter,
-    setCreatedToFilter,
-    sortValue,
-    setSortValue,
-    sourceOptions,
-    eventOptions,
-    loadSystemEvents,
-  };
-}
-
-export function useAdminUsageLogs(): UseAdminUsageLogsState {
+export function useAdminLogsUsage(): UseAdminLogsUsageState {
   const t = useTranslations("adminLogs");
   const [logs, setLogs] = React.useState<AdminUsageLogDTO[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -935,7 +778,7 @@ export function useAdminUsageLogs(): UseAdminUsageLogsState {
   };
 }
 
-export function useAdminPaymentOrders(): UseAdminPaymentOrdersState {
+export function useAdminLogsPaymentOrders(): UseAdminLogsPaymentOrdersState {
   const t = useTranslations("adminLogs");
   const [orders, setOrders] = React.useState<AdminPaymentOrderDTO[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -1052,7 +895,7 @@ export function useAdminPaymentOrders(): UseAdminPaymentOrdersState {
   };
 }
 
-export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptionsState {
+export function useAdminLogsRedemptions(initialCodeID?: number): UseAdminLogsRedemptionsState {
   const t = useTranslations("adminLogs");
   const [records, setRecords] = React.useState<AdminRedemptionRecordDTO[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -1170,7 +1013,7 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
   };
 }
 
-export function useAdminConversationEvents(): UseAdminConversationEventsState {
+export function useAdminLogsConversationEvents(): UseAdminLogsConversationEventsState {
   const t = useTranslations("adminLogs");
   const [events, setEvents] = React.useState<AdminConversationEventDTO[]>([]);
   const [total, setTotal] = React.useState(0);

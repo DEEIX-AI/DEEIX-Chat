@@ -31,7 +31,7 @@ const (
 	defaultQueueCapacity  = 256
 )
 
-// ServiceConfig is the saved moderation service configuration.
+// ServiceConfig 是已保存的审核服务配置。
 type ServiceConfig struct {
 	Enabled        bool
 	BaseURL        string
@@ -44,7 +44,7 @@ type ServiceConfig struct {
 	Policy         Policy
 }
 
-// UpdateConfigInput is the super-admin PUT body.
+// UpdateConfigInput 是超级管理员 PUT 请求体。
 type UpdateConfigInput struct {
 	Enabled        *bool
 	BaseURL        *string
@@ -166,7 +166,7 @@ func (s *Service) readRuntimeConfig(ctx context.Context) (runtimeConfig, error) 
 	}, nil
 }
 
-// GetConfig returns masked config for super-admin UI.
+// GetConfig 返回供超级管理员界面使用的脱敏配置。
 func (s *Service) GetConfig(ctx context.Context, actorRole string) (*ServiceConfig, error) {
 	if !isSuperAdmin(actorRole) {
 		return nil, ErrSuperAdminRequired
@@ -178,7 +178,7 @@ func (s *Service) GetConfig(ctx context.Context, actorRole string) (*ServiceConf
 	return toServiceConfig(cfg), nil
 }
 
-// UpdateConfig atomically saves configuration.
+// UpdateConfig 原子地保存配置。
 func (s *Service) UpdateConfig(ctx context.Context, actorRole string, input UpdateConfigInput) (*ServiceConfig, error) {
 	if !isSuperAdmin(actorRole) {
 		return nil, ErrSuperAdminRequired

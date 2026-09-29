@@ -1,7 +1,11 @@
 {
   "name": "@deeix/web",
-  "version": "0.4.4-beta.2",
+  "version": "0.4.4-beta.3",
   "private": true,
+  "sideEffects": [
+    "*.css",
+    "./instrumentation-client.ts"
+  ],
   "scripts": {
     "postinstall": "node scripts/sync-assets.mjs",
     "sync:version": "node ../../scripts/sync-version.mjs web",

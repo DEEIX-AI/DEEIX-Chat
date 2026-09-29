@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import dynamic from "next/dynamic";
 
 import {
   Attachment,
@@ -12,13 +11,13 @@ import {
   AttachmentTrigger,
 } from "@/components/ui/attachment";
 import type { MessageAttachment } from "@/features/chat/types/messages";
-import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
-import { formatBytes, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
-
-const FilePreviewDialog = dynamic(
-  () => import("@/shared/components/file-preview/preview-dialog").then((module) => module.FilePreviewDialog),
-  { ssr: false },
-);
+import {
+  type FileContentLoader,
+  LazyFilePreviewDialog,
+  formatBytes,
+  resolveFileExtension,
+  resolveFileIcon,
+} from "@/entities/file";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -106,7 +105,7 @@ export function MessageAttachmentRow({
         ))}
       </div>
       {activeAtt ? (
-        <FilePreviewDialog
+        <LazyFilePreviewDialog
           file={activeAtt}
           open={dialogOpen}
           onOpenChange={handleOpenChange}

@@ -1,4 +1,5 @@
 import { resolveApiBaseURL } from "@/shared/api/http-client";
+import { isRecord, readString, type UnknownRecord } from "@/shared/lib/type-guards";
 
 export type AppVersionDTO = {
   product?: string;
@@ -16,11 +17,22 @@ export async function getAppVersion(): Promise<AppVersionDTO> {
   if (!response.ok) {
     throw new Error(`version request failed: ${response.status}`);
   }
-  const payload = (await response.json()) as AppVersionDTO | { data?: AppVersionDTO };
-  if ("data" in payload && payload.data) {
-    return payload.data;
+  const payload: unknown = await response.json();
+  // The endpoint has answered both bare and enveloped over time; accept either.
+  if (isRecord(payload) && isRecord(payload.data)) {
+    return readAppVersion(payload.data);
   }
-  return payload as AppVersionDTO;
+  return isRecord(payload) ? readAppVersion(payload) : {};
+}
+
+function readAppVersion(record: UnknownRecord): AppVersionDTO {
+  return {
+    product: readString(record, "product"),
+    version: readString(record, "version"),
+    commit: readString(record, "commit"),
+    buildTime: readString(record, "buildTime"),
+    buildID: readString(record, "buildID"),
+  };
 }
 
 export function resolveAppBuildID(version: AppVersionDTO): string {

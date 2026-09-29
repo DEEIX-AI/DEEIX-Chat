@@ -1,7 +1,7 @@
 import type { Memories } from "@deeix/api-contract";
 import { authedRequest } from "@/shared/api/authed-client";
 import { pathParam } from "@/shared/api/http-client";
-import type { UserMemoryDTO } from "@/shared/api/memory.types";
+import type { UserMemoryDTO } from "@/shared/api/memory-types";
 
 export async function listUserMemories(accessToken: string): Promise<UserMemoryDTO[]> {
   return authedRequest<UserMemoryDTO[]>("/api/v1/memories/profile", {

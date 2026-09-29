@@ -3,7 +3,6 @@
 import { Activity, Check, CircleHelp, CircleOff, MoreHorizontal, Plus, RefreshCw, ShieldAlert, SlidersHorizontal, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -51,45 +50,28 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import {
-  bindAdminLLMModelUpstreamSource,
-  deleteAdminLLMUpstreamModel,
-  listAdminLLMModelUpstreamSources,
-  listAdminLLMUpstreamModels,
-  listAdminLLMUpstreams,
-  openAdminLLMUpstreamModelCircuit,
-  resetAdminLLMUpstreamCircuit,
-  resetAdminLLMUpstreamModelCircuit,
-  testAdminLLMUpstreamModelRoute,
-  updateAdminLLMModelUpstreamSource,
-} from "@/features/admin/api";
-import { listAllAdminPages } from "@/features/admin/api/shared";
 import type {
   AdminLLMAdapter,
   AdminLLMModelDTO,
   AdminLLMModelProbeResult,
   AdminLLMModelUpstreamSourceDTO,
-  AdminLLMStatus,
-  AdminLLMUpstreamModelDTO,
-  AdminLLMUpstreamView,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
+import { useAdminModelsProbe } from "@/features/admin/hooks/use-admin-models-probe";
+import { useAdminModelsSourceBindOptions } from "@/features/admin/hooks/use-admin-models-source-bind-options";
+import { type ModelSourceRouteNumberField, useAdminModelsSources } from "@/features/admin/hooks/use-admin-models-sources";
+import { isAdminLLMAdapter, isAdminLLMStatus } from "@/features/admin/model/admin-unions";
 import {
   DEFAULT_MODEL_SOURCE_BIND_DRAFT,
   type ModelSourceBindDraft,
-  resolveModelSourceBindDraft,
-  uniqueUpstreamModels,
 } from "@/features/admin/model/models-source-binding";
 import {
   ADAPTER_LABELS,
   formatDateTime,
   resolveValue,
 } from "@/features/admin/types/llm";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { PROTOCOL_OPTIONS, sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
-import { isAdminLLMSourceAvailable } from "@/features/admin/utils/llm-source-availability";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { ModelProbeDialog } from "./models-probe-dialog";
+import { ModelProbeDialog } from "../../shared/model-probe-dialog";
 import {
   ModelSourceCircuitDialog,
   type ModelSourceCircuitPayload,
@@ -103,13 +85,7 @@ type UpstreamSourcesSheetProps = {
   onSourceAvailabilityChange?: (modelID: number, previousAvailable: boolean, nextAvailable: boolean) => void;
 };
 
-type RouteDraft = {
-  protocol: AdminLLMAdapter | "";
-  priority: string;
-  weight: string;
-};
-
-type RouteNumberDraftField = "priority" | "weight";
+type RouteNumberDraftField = ModelSourceRouteNumberField;
 
 function formatCircuitUntil(until: string, locale: string): string {
   const raw = until.trim();
@@ -185,160 +161,67 @@ export function UpstreamSourcesSheet({
 }: UpstreamSourcesSheetProps) {
   const t = useTranslations("adminModels.sources");
   const probeT = useTranslations("adminModels");
-  const toastT = useTranslations("adminModels.toast");
   const commonT = useTranslations("common");
   const locale = useLocale();
-  const [sources, setSources] = React.useState<AdminLLMModelUpstreamSourceDTO[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [total, setTotal] = React.useState(0);
-  const [page, setPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(25);
-  const [actionSourceID, setActionSourceID] = React.useState<number | null>(null);
-  const [routeDrafts, setRouteDrafts] = React.useState<Record<number, RouteDraft>>({});
   const [circuitSource, setCircuitSource] = React.useState<AdminLLMModelUpstreamSourceDTO | null>(null);
-  const [probeOpen, setProbeOpen] = React.useState(false);
-  const [probeLoading, setProbeLoading] = React.useState(false);
-  const [probeTargetName, setProbeTargetName] = React.useState("");
-  const [probeResults, setProbeResults] = React.useState<AdminLLMModelProbeResult[]>([]);
   const [bindOpen, setBindOpen] = React.useState(false);
-  const [bindPending, setBindPending] = React.useState(false);
-  const [upstreams, setUpstreams] = React.useState<AdminLLMUpstreamView[]>([]);
-  const [upstreamsLoading, setUpstreamsLoading] = React.useState(false);
-  const [upstreamsLoaded, setUpstreamsLoaded] = React.useState(false);
-  const [upstreamModels, setUpstreamModels] = React.useState<AdminLLMUpstreamModelDTO[]>([]);
-  const [upstreamModelsLoading, setUpstreamModelsLoading] = React.useState(false);
   const [bindForm, setBindForm] = React.useState<ModelSourceBindDraft>(DEFAULT_MODEL_SOURCE_BIND_DRAFT);
+  const {
+    sources,
+    loading,
+    total,
+    page,
+    pageSize,
+    actionSourceID,
+    routeDrafts,
+    bindPending,
+    loadSources,
+    setRouteDraft,
+    handleRouteValueCommit,
+    handleProtocolChange,
+    handleToggleStatus,
+    handleCircuitAction,
+    saveCircuitSettings,
+    removeSource,
+    submitBind,
+  } = useAdminModelsSources({ model, circuitBreakerEnabled, onRefreshModel, onSourceAvailabilityChange });
+  const handleProbeRouteDeleted = React.useCallback((result: AdminLLMModelProbeResult) => {
+    removeSource(result.routeID);
+    onRefreshModel();
+  }, [onRefreshModel, removeSource]);
+  const {
+    probeOpen,
+    setProbeOpen,
+    probeLoading,
+    probeTargetName,
+    probeResults,
+    testSource: handleTestSource,
+    deleteProbeRoute: handleDeleteProbeRoute,
+    clearProbeResults,
+  } = useAdminModelsProbe({ onRouteDeleted: handleProbeRouteDeleted });
+  const {
+    upstreams,
+    upstreamsLoading,
+    upstreamModels,
+    upstreamModelsLoading,
+    clearUpstreamModels,
+  } = useAdminModelsSourceBindOptions({ bindOpen, upstreamID: bindForm.upstreamID });
   const stableModel = useDialogSnapshot(model);
 
-  React.useEffect(() => {
-    if (circuitBreakerEnabled) return;
-    setSources((current) =>
-      current.map((source) => ({
-        ...source,
-        circuitOpen: false,
-        circuitUntil: "",
-        circuitScope: "" as const,
-      })),
-    );
-  }, [circuitBreakerEnabled]);
-
-  const loadSources = React.useCallback(
-    async (modelId: number, nextPage = 1, nextPageSize = pageSize) => {
-      setLoading(true);
-      try {
-        const token = await resolveAccessToken();
-        if (!token) {
-          toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
-          return;
-        }
-        const data = await listAdminLLMModelUpstreamSources(token, modelId, {
-          page: nextPage,
-          pageSize: nextPageSize,
-        });
-        setSources(data.results);
-        setRouteDrafts(
-          Object.fromEntries(
-            data.results.map((item) => [
-              item.id,
-              {
-                protocol: item.protocol,
-                priority: String(item.priority),
-                weight: String(item.weight),
-              },
-            ]),
-          ),
-        );
-        setTotal(data.total);
-        setPage(nextPage);
-        setPageSize(nextPageSize);
-      } catch (error) {
-        toast.error(toastT("sourcesLoadFailed"), { description: resolveAdminErrorMessage(error) });
-      } finally {
-        setLoading(false);
-      }
-    },
-    [pageSize, toastT],
-  );
-
+  // Data resets live in useAdminModelsSources; this only resets the sheet's own UI.
   React.useEffect(() => {
     if (model) {
-      setSources([]);
-      setTotal(0);
-      setPage(1);
-      setActionSourceID(null);
-      setRouteDrafts({});
-      setProbeResults([]);
+      clearProbeResults();
       setBindOpen(false);
       setBindForm(DEFAULT_MODEL_SOURCE_BIND_DRAFT);
-      setUpstreamModels([]);
+      clearUpstreamModels();
       setCircuitSource(null);
-      void loadSources(model.id, 1);
       return;
     }
 
-    setActionSourceID(null);
     setBindOpen(false);
     setCircuitSource(null);
-  }, [loadSources, model]);
-
-  const loadUpstreams = React.useCallback(async () => {
-    setUpstreamsLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
-        return;
-      }
-      const results = await listAllAdminPages((options) =>
-        listAdminLLMUpstreams(token, { ...options, status: "active", sort: "name_asc" }),
-      );
-      setUpstreams(results);
-    } catch (error) {
-      toast.error(toastT("upstreamsLoadFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setUpstreamsLoaded(true);
-      setUpstreamsLoading(false);
-    }
-  }, [toastT]);
-
-  const loadUpstreamModels = React.useCallback(async (upstreamID: string) => {
-    const parsedUpstreamID = Number.parseInt(upstreamID, 10);
-    if (!Number.isFinite(parsedUpstreamID) || parsedUpstreamID <= 0) {
-      setUpstreamModels([]);
-      return;
-    }
-    setUpstreamModelsLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
-        return;
-      }
-      const results = await listAllAdminPages((options) =>
-        listAdminLLMUpstreamModels(token, parsedUpstreamID, {
-          ...options,
-          upstreamStatus: "active",
-          sort: "upstream_asc",
-        }),
-      );
-      setUpstreamModels(uniqueUpstreamModels(results).filter((item) => item.upstreamModelStatus === "active"));
-    } catch (error) {
-      toast.error(toastT("upstreamModelsLoadFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setUpstreamModelsLoading(false);
-    }
-  }, [toastT]);
-
-  React.useEffect(() => {
-    if (bindOpen && !upstreamsLoaded && !upstreamsLoading) {
-      void loadUpstreams();
-    }
-  }, [bindOpen, loadUpstreams, upstreamsLoaded, upstreamsLoading]);
-
-  React.useEffect(() => {
-    if (!bindOpen) return;
-    void loadUpstreamModels(bindForm.upstreamID);
-  }, [bindForm.upstreamID, bindOpen, loadUpstreamModels]);
+  }, [clearProbeResults, clearUpstreamModels, model]);
 
   function setBindField<K extends keyof ModelSourceBindDraft>(key: K, value: ModelSourceBindDraft[K]) {
     setBindForm((current) => ({ ...current, [key]: value }));
@@ -360,114 +243,6 @@ export function UpstreamSourcesSheet({
     }));
   }
 
-  const setRouteDraft = React.useCallback(
-    <K extends keyof RouteDraft>(sourceID: number, field: K, value: RouteDraft[K]) => {
-      setRouteDrafts((prev) => ({
-        ...prev,
-        [sourceID]: {
-          protocol: prev[sourceID]?.protocol ?? "",
-          priority: prev[sourceID]?.priority ?? "",
-          weight: prev[sourceID]?.weight ?? "",
-          [field]: value,
-        },
-      }));
-    },
-    [],
-  );
-
-  const handleRouteValueCommit = React.useCallback(
-    async (source: AdminLLMModelUpstreamSourceDTO, field: RouteNumberDraftField) => {
-      if (!model) return;
-
-      const raw = routeDrafts[source.id]?.[field] ?? String(source[field]);
-      const value = Number(raw);
-      if (!Number.isInteger(value) || value <= 0) {
-        toast.error(field === "priority" ? t("priorityMustBePositive") : t("weightMustBePositive"));
-        setRouteDraft(source.id, field, String(source[field]));
-        return;
-      }
-      if (value === source[field]) {
-        return;
-      }
-
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
-        return;
-      }
-
-      const previousSource = source;
-      const nextSource = { ...source, [field]: value };
-      setActionSourceID(source.id);
-      setSources((current) => current.map((item) => (item.id === source.id ? nextSource : item)));
-      setRouteDraft(source.id, field, String(value));
-      try {
-        const data = await updateAdminLLMModelUpstreamSource(
-          token,
-          model.id,
-          source.id,
-          field === "priority" ? { priority: value } : { weight: value },
-        );
-        setSources((current) => current.map((item) => (item.id === source.id ? data.source : item)));
-        setRouteDrafts((current) => ({
-          ...current,
-          [source.id]: {
-            protocol: data.source.protocol,
-            priority: String(data.source.priority),
-            weight: String(data.source.weight),
-          },
-        }));
-        toast.success(field === "priority" ? t("priorityUpdated") : t("weightUpdated"));
-      } catch (error) {
-        setSources((current) => current.map((item) => (item.id === source.id ? previousSource : item)));
-        setRouteDraft(source.id, field, String(source[field]));
-        toast.error(toastT("routeUpdateFailed"), { description: resolveAdminErrorMessage(error) });
-      } finally {
-        setActionSourceID(null);
-      }
-    },
-    [model, routeDrafts, setRouteDraft, t, toastT],
-  );
-
-  const handleProtocolChange = React.useCallback(
-    async (source: AdminLLMModelUpstreamSourceDTO, protocol: AdminLLMAdapter) => {
-      if (!model || protocol === source.protocol) return;
-
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
-        return;
-      }
-
-      const previousSource = source;
-      const nextSource = { ...source, protocol };
-      setActionSourceID(source.id);
-      setSources((current) => current.map((item) => (item.id === source.id ? nextSource : item)));
-      setRouteDraft(source.id, "protocol", protocol);
-      try {
-        const data = await updateAdminLLMModelUpstreamSource(token, model.id, source.id, { protocol });
-        setSources((current) => current.map((item) => (item.id === source.id ? data.source : item)));
-        setRouteDrafts((current) => ({
-          ...current,
-          [source.id]: {
-            protocol: data.source.protocol,
-            priority: String(data.source.priority),
-            weight: String(data.source.weight),
-          },
-        }));
-        toast.success(t("protocolUpdated"));
-        onRefreshModel();
-      } catch (error) {
-        setSources((current) => current.map((item) => (item.id === source.id ? previousSource : item)));
-        setRouteDraft(source.id, "protocol", source.protocol);
-        toast.error(toastT("routeUpdateFailed"), { description: resolveAdminErrorMessage(error) });
-      } finally {
-        setActionSourceID(null);
-      }
-    },
-    [model, onRefreshModel, setRouteDraft, t, toastT],
-  );
-
   const handleRouteInputKeyDown = React.useCallback(
     (
       event: React.KeyboardEvent<HTMLInputElement>,
@@ -486,164 +261,16 @@ export function UpstreamSourcesSheet({
     [setRouteDraft],
   );
 
-  const handleToggleStatus = React.useCallback(
-    async (source: AdminLLMModelUpstreamSourceDTO, nextStatus: AdminLLMStatus) => {
-      if (!model) return;
-
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
-        return;
-      }
-
-      const previousSource = source;
-      const nextSource = { ...source, status: nextStatus };
-      const previousAvailable = isAdminLLMSourceAvailable(source, model.status);
-      const nextAvailable = isAdminLLMSourceAvailable(nextSource, model.status);
-      setActionSourceID(source.id);
-      setSources((current) => current.map((item) => (item.id === source.id ? nextSource : item)));
-      onSourceAvailabilityChange?.(model.id, previousAvailable, nextAvailable);
-      try {
-        const data = await updateAdminLLMModelUpstreamSource(token, model.id, source.id, {
-          status: nextStatus,
-        });
-        setSources((current) => current.map((item) => (item.id === source.id ? data.source : item)));
-        toast.success(nextStatus === "active" ? toastT("sourceEnabled") : toastT("sourceDisabled"));
-        onRefreshModel();
-      } catch (error) {
-        setSources((current) => current.map((item) => (item.id === source.id ? previousSource : item)));
-        onSourceAvailabilityChange?.(model.id, nextAvailable, previousAvailable);
-        toast.error(toastT("sourceStatusUpdateFailed"), { description: resolveAdminErrorMessage(error) });
-      } finally {
-        setActionSourceID(null);
-      }
-    },
-    [model, onRefreshModel, onSourceAvailabilityChange, toastT],
-  );
-
-  const handleCircuitAction = React.useCallback(
-    async (source: AdminLLMModelUpstreamSourceDTO, action: "open" | "reset") => {
-      if (!model) return;
-
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
-        return;
-      }
-
-      const previousSource = source;
-      const nextSource =
-        action === "open"
-          ? {
-              ...source,
-              circuitOpen: true,
-              circuitUntil: String(Math.floor(Date.now() / 1000) + 24 * 60 * 60),
-              circuitScope: "source" as const,
-            }
-          : { ...source, circuitOpen: false, circuitUntil: "", circuitScope: "" as const };
-      const previousAvailable = isAdminLLMSourceAvailable(source, model.status);
-      const nextAvailable = isAdminLLMSourceAvailable(nextSource, model.status);
-      setActionSourceID(source.id);
-      setSources((current) => current.map((item) => (item.id === source.id ? nextSource : item)));
-      onSourceAvailabilityChange?.(model.id, previousAvailable, nextAvailable);
-      try {
-        if (action === "open") {
-          await openAdminLLMUpstreamModelCircuit(token, source.upstreamID, source.id);
-          toast.success(toastT("circuitOpened"));
-        } else if (source.circuitScope === "upstream") {
-          await resetAdminLLMUpstreamCircuit(token, source.upstreamID);
-          toast.success(toastT("circuitReset"));
-        } else {
-          await resetAdminLLMUpstreamModelCircuit(token, source.upstreamID, source.id);
-          toast.success(toastT("circuitReset"));
-        }
-        onRefreshModel();
-      } catch (error) {
-        setSources((current) => current.map((item) => (item.id === source.id ? previousSource : item)));
-        onSourceAvailabilityChange?.(model.id, nextAvailable, previousAvailable);
-        toast.error(toastT("operationFailed"), { description: resolveAdminErrorMessage(error) });
-      } finally {
-        setActionSourceID(null);
-      }
-    },
-    [model, onRefreshModel, onSourceAvailabilityChange, toastT],
-  );
-
-  const handleTestSource = React.useCallback(
-    async (source: AdminLLMModelUpstreamSourceDTO) => {
-      setProbeTargetName(`${source.upstreamName} / ${source.upstreamModelName}`);
-      setProbeResults([]);
-      setProbeOpen(true);
-      setProbeLoading(true);
-      try {
-        const token = await resolveAccessToken();
-        if (!token) {
-          toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
-          setProbeOpen(false);
-          return;
-        }
-        setProbeResults([await testAdminLLMUpstreamModelRoute(token, source.upstreamID, source.id)]);
-      } catch (error) {
-        toast.error(toastT("operationFailed"), { description: resolveAdminErrorMessage(error) });
-        setProbeOpen(false);
-      } finally {
-        setProbeLoading(false);
-      }
-    },
-    [toastT],
-  );
-
-  const handleDeleteProbeRoute = React.useCallback(
-    async (result: AdminLLMModelProbeResult) => {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
-        throw new Error("session expired");
-      }
-      try {
-        await deleteAdminLLMUpstreamModel(token, result.upstreamID, result.routeID);
-        const nextResults = probeResults.filter((item) => item.routeID !== result.routeID);
-        setSources((current) => current.filter((item) => item.id !== result.routeID));
-        setTotal((current) => Math.max(0, current - 1));
-        setProbeResults(nextResults);
-        if (nextResults.length === 0) {
-          setProbeOpen(false);
-        }
-        toast.success(toastT("sourceDeleted"));
-        onRefreshModel();
-      } catch (error) {
-        toast.error(toastT("sourceDeleteFailed"), { description: resolveAdminErrorMessage(error) });
-        throw error;
-      }
-    },
-    [onRefreshModel, probeResults, toastT],
-  );
-
   const openCircuitSettings = React.useCallback((source: AdminLLMModelUpstreamSourceDTO) => {
     setCircuitSource(source);
   }, []);
 
   const handleSaveCircuitSettings = React.useCallback(async (payload: ModelSourceCircuitPayload) => {
-    if (!model || !circuitSource) return;
-
-    const token = await resolveAccessToken();
-    if (!token) {
-      toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
-      return;
-    }
-
-    setActionSourceID(circuitSource.id);
-    try {
-      const data = await updateAdminLLMModelUpstreamSource(token, model.id, circuitSource.id, payload);
-      setSources((current) => current.map((item) => (item.id === circuitSource.id ? data.source : item)));
+    if (!circuitSource) return;
+    if (await saveCircuitSettings(circuitSource, payload)) {
       setCircuitSource(null);
-      toast.success(t("circuitUpdated"));
-    } catch (error) {
-      toast.error(toastT("routeUpdateFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setActionSourceID(null);
     }
-  }, [circuitSource, model, t, toastT]);
+  }, [circuitSource, saveCircuitSettings]);
 
   const selectedUpstreamModel = upstreamModels.find((item) => String(item.id) === bindForm.upstreamModelID);
   const protocolOptions = React.useMemo(() => {
@@ -658,41 +285,11 @@ export function UpstreamSourcesSheet({
   }, [selectedUpstreamModel?.protocol, selectedUpstreamModel?.suggestedProtocol]);
 
   const handleBindSubmit = React.useCallback(async () => {
-    if (!model || bindPending) return;
-    const resolvedDraft = resolveModelSourceBindDraft(bindForm);
-    if (resolvedDraft.status !== "valid") {
-      const error = resolvedDraft.status === "empty" ? "required" : resolvedDraft.error;
-      const messageKey = {
-        required: "bindRequired",
-        protocolRequired: "bindProtocolRequired",
-        priorityMustBePositive: "priorityMustBePositive",
-        weightMustBePositive: "weightMustBePositive",
-        duplicate: "bindDuplicateSource",
-      }[error];
-      toast.error(toastT(messageKey));
-      return;
-    }
-
-    const token = await resolveAccessToken();
-    if (!token) {
-      toast.error(toastT("sessionExpired"), { description: toastT("signInAgain") });
-      return;
-    }
-
-    setBindPending(true);
-    try {
-      await bindAdminLLMModelUpstreamSource(token, model.id, resolvedDraft.payload);
-      toast.success(toastT("sourceBound"));
+    await submitBind(bindForm, () => {
       setBindForm(DEFAULT_MODEL_SOURCE_BIND_DRAFT);
       setBindOpen(false);
-      await loadSources(model.id, 1, pageSize);
-      onRefreshModel();
-    } catch (error) {
-      toast.error(toastT("sourceBindFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setBindPending(false);
-    }
-  }, [bindForm, bindPending, loadSources, model, onRefreshModel, pageSize, toastT]);
+    });
+  }, [bindForm, submitBind]);
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const virtualRows = useVirtualTableRows(sources, {
@@ -814,7 +411,9 @@ export function UpstreamSourcesSheet({
                     <TableCell className="py-1.5">
                       <Select
                         value={bindForm.protocol}
-                        onValueChange={(value) => setBindField("protocol", value as AdminLLMAdapter)}
+                        onValueChange={(value) => {
+                          if (isAdminLLMAdapter(value)) setBindField("protocol", value);
+                        }}
                         disabled={bindPending || !bindForm.upstreamModelID}
                       >
                         <SelectTrigger className="h-7 min-w-[180px] bg-background text-xs">
@@ -853,7 +452,9 @@ export function UpstreamSourcesSheet({
                     <TableCell className="w-[72px] py-1.5">
                       <Select
                         value={bindForm.status}
-                        onValueChange={(value) => setBindField("status", value as AdminLLMStatus)}
+                        onValueChange={(value) => {
+                          if (isAdminLLMStatus(value)) setBindField("status", value);
+                        }}
                         disabled={bindPending}
                       >
                         <SelectTrigger className="h-7 w-[72px] bg-background px-2 text-xs">
@@ -914,7 +515,9 @@ export function UpstreamSourcesSheet({
                           <TableCell className="whitespace-nowrap py-1.5">
                             <Select
                               value={routeDrafts[source.id]?.protocol || source.protocol}
-                              onValueChange={(value) => void handleProtocolChange(source, value as AdminLLMAdapter)}
+                              onValueChange={(value) => {
+                                if (isAdminLLMAdapter(value)) void handleProtocolChange(source, value);
+                              }}
                               disabled={actionPending}
                             >
                               <SelectTrigger className="h-7 min-w-[180px] bg-background text-xs">

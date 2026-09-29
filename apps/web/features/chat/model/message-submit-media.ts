@@ -1,7 +1,7 @@
 import type { useTranslations } from "next-intl";
 import type { ChatSubmitBlockReason } from "@/features/chat/model/chat-task";
 import type { ImageLoadingAspectRatio } from "@/features/chat/types/messages";
-import type { ConversationOptions, StreamMessageEvent } from "@/shared/api/conversation.types";
+import type { ConversationOptions, StreamMessageEvent } from "@/shared/api/conversation-types";
 import { ApiError } from "@/shared/api/http-client";
 
 export function resolveSubmitBlockDescription(

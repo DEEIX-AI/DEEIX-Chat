@@ -1,4 +1,4 @@
-import type { ConversationDTO } from "@/shared/api/conversation.types";
+import type { ConversationDTO } from "@/shared/api/conversation-types";
 
 type ConversationSorter = (items: ConversationDTO[]) => ConversationDTO[];
 

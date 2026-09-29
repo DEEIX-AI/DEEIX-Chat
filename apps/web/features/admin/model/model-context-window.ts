@@ -1,3 +1,5 @@
+import { isRecord, parseJSON } from "@/shared/lib/type-guards";
+
 export const MODEL_CONTEXT_WINDOW_MIN = 4_096;
 export const MODEL_CONTEXT_WINDOW_MAX = 16_000_000;
 
@@ -14,14 +16,8 @@ function parseCapabilitiesObject(value: string | null | undefined): Record<strin
   if (!normalized) {
     return {};
   }
-  try {
-    const parsed = JSON.parse(normalized) as unknown;
-    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : null;
-  } catch {
-    return null;
-  }
+  const parsed = parseJSON(normalized);
+  return isRecord(parsed) ? parsed : null;
 }
 
 function positiveIntegerProperty(

@@ -39,10 +39,6 @@ type CaptureElementOptions = {
   signal?: AbortSignal;
 };
 
-type YieldingScheduler = {
-  yield?: () => Promise<void>;
-};
-
 function resolveCaptureBackgroundColor(element: HTMLElement) {
   const ownerWindow = element.ownerDocument.defaultView ?? window;
   const bodyBackground = ownerWindow.getComputedStyle(ownerWindow.document.body).backgroundColor;
@@ -90,7 +86,8 @@ export function isScreenshotCaptureAbort(error: unknown) {
 }
 
 function yieldToMainThread() {
-  const scheduler = (globalThis as typeof globalThis & { scheduler?: YieldingScheduler }).scheduler;
+  // lib.dom types `scheduler` as always present, but older browsers lack it or its `yield()`.
+  const scheduler: Partial<Scheduler> | undefined = globalThis.scheduler;
   if (scheduler?.yield) {
     return scheduler.yield();
   }
@@ -183,8 +180,10 @@ export async function captureElementToPngBlob(
   const aborted = new Promise<never>((_resolve, reject) => {
     rejectOnAbort = reject;
   });
+  // Only registered on an existing signal, so the guard never skips a real abort.
   const abortCapture = () => {
-    const error = captureAbortError(signal as AbortSignal);
+    if (!signal) return;
+    const error = captureAbortError(signal);
     stopCaptureContext(context, error);
     rejectOnAbort?.(error);
   };

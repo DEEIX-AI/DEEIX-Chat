@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Edit3, Pin, Plus, Trash2 } from "lucide-react";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -49,21 +48,17 @@ import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
-import { AdminDateRangeFilter } from "@/features/admin/components/admin-date-range-filter";
-import { adminDateTimeFormValue, adminDateTimeValueToISOString } from "@/features/admin/components/admin-date-time-picker";
-import {
-  createAdminAnnouncement,
-  deleteAdminAnnouncement,
-  listAdminAnnouncements,
-  updateAdminAnnouncement,
-} from "@/features/admin/api";
+import { AdminDateRangeFilter } from "@/features/admin/components/shared/date-range-filter";
+import { adminDateTimeFormValue, adminDateTimeValueToISOString } from "@/features/admin/components/shared/date-time-picker";
 import type {
   AdminAnnouncementDTO,
   CreateAdminAnnouncementRequest,
-  UpdateAdminAnnouncementRequest,
-} from "@/features/admin/api/announcements.types";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { useAuthSession } from "@/shared/auth/auth-session-context";
+} from "@/features/admin/api/announcements-types";
+import { useAdminAnnouncements } from "@/features/admin/hooks/use-admin-announcements";
+import {
+  type AdminAnnouncementType,
+  normalizeAdminAnnouncementType as normalizeAnnouncementType,
+} from "@/features/admin/model/announcements";
 import { cn } from "@/lib/utils";
 
 type AnnouncementForm = {
@@ -71,7 +66,7 @@ type AnnouncementForm = {
   title: string;
   contentMarkdown: string;
   status: "active" | "inactive";
-  type: "critical" | "warning" | "info" | "normal" | "general";
+  type: AdminAnnouncementType;
   pinned: boolean;
   priority: string;
   startsAt: string;
@@ -162,19 +157,6 @@ function payloadFromForm(form: AnnouncementForm): CreateAdminAnnouncementRequest
   };
 }
 
-function normalizeAnnouncementType(value: string): AnnouncementForm["type"] {
-  switch (value) {
-    case "critical":
-    case "warning":
-    case "info":
-    case "normal":
-    case "general":
-      return value;
-    default:
-      return "general";
-  }
-}
-
 function announcementTypeClassName(value: string): string {
   switch (value) {
     case "critical":
@@ -194,17 +176,32 @@ export function AdminAnnouncementsPage() {
   const t = useTranslations("adminAnnouncements");
   const common = useTranslations("common");
   const locale = useLocale();
-  const { accessToken } = useAuthSession();
-  const [items, setItems] = React.useState<AdminAnnouncementDTO[]>([]);
-  const [total, setTotal] = React.useState(0);
-  const [page, setPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(25);
-  const [query, setQuery] = React.useState("");
-  const [status, setStatus] = React.useState("");
-  const [typeFilter, setTypeFilter] = React.useState("");
-  const [pinnedFilter, setPinnedFilter] = React.useState("");
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
+  const {
+    items,
+    total,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    query,
+    setQuery,
+    status,
+    setStatus,
+    typeFilter,
+    setTypeFilter,
+    pinnedFilter,
+    setPinnedFilter,
+    loading,
+    saving,
+    load,
+    saveAnnouncement,
+    toggleStatus,
+    togglePinned,
+    updateType,
+    updatePriority,
+    deleteAnnouncement,
+    notifyInvalidPriority,
+  } = useAdminAnnouncements();
   const [form, setForm] = React.useState<AnnouncementForm>(emptyForm);
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<AdminAnnouncementDTO | null>(null);
@@ -218,23 +215,6 @@ export function AdminAnnouncementsPage() {
   const initialTableLoading = loading && items.length === 0;
   const showTableRows = items.length > 0;
 
-  const load = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listAdminAnnouncements(accessToken, { page, pageSize, query, status, type: typeFilter, pinned: pinnedFilter });
-      setItems(data.results);
-      setTotal(data.total);
-    } catch (error) {
-      toast.error(t("toast.loadFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken, page, pageSize, pinnedFilter, query, status, t, typeFilter]);
-
-  React.useEffect(() => {
-    void load();
-  }, [load]);
-
   function openCreate() {
     setForm(emptyForm);
     setDialogOpen(true);
@@ -246,68 +226,7 @@ export function AdminAnnouncementsPage() {
   }
 
   async function save() {
-    const payload = payloadFromForm(form);
-    if (!payload.title || !payload.contentMarkdown) {
-      toast.error(t("toast.invalid"));
-      return;
-    }
-    setSaving(true);
-    try {
-      if (form.id) {
-        const updatePayload: UpdateAdminAnnouncementRequest = payload;
-        const data = await updateAdminAnnouncement(accessToken, form.id, updatePayload);
-        setItems((current) => current.map((item) => item.id === data.announcement.id ? data.announcement : item));
-        toast.success(t("toast.updated"));
-      } else {
-        const data = await createAdminAnnouncement(accessToken, payload);
-        setItems((current) => [data.announcement, ...current].slice(0, pageSize));
-        setTotal((current) => current + 1);
-        toast.success(t("toast.created"));
-      }
-      setDialogOpen(false);
-    } catch (error) {
-      toast.error(form.id ? t("toast.updateFailed") : t("toast.createFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function toggleStatus(item: AdminAnnouncementDTO, checked: boolean) {
-    const nextStatus = checked ? "active" : "inactive";
-    setItems((current) => current.map((row) => row.id === item.id ? { ...row, status: nextStatus } : row));
-    try {
-      const data = await updateAdminAnnouncement(accessToken, item.id, { status: nextStatus });
-      setItems((current) => current.map((row) => row.id === item.id ? data.announcement : row));
-    } catch (error) {
-      setItems((current) => current.map((row) => row.id === item.id ? item : row));
-      toast.error(t("toast.statusFailed"), { description: resolveAdminErrorMessage(error) });
-    }
-  }
-
-  async function togglePinned(item: AdminAnnouncementDTO, checked: boolean) {
-    setItems((current) => current.map((row) => row.id === item.id ? { ...row, pinned: checked } : row));
-    try {
-      const data = await updateAdminAnnouncement(accessToken, item.id, { pinned: checked });
-      setItems((current) => current.map((row) => row.id === item.id ? data.announcement : row));
-    } catch (error) {
-      setItems((current) => current.map((row) => row.id === item.id ? item : row));
-      toast.error(t("toast.updateFailed"), { description: resolveAdminErrorMessage(error) });
-    }
-  }
-
-  async function updateType(item: AdminAnnouncementDTO, value: string) {
-    const nextType = normalizeAnnouncementType(value);
-    if (nextType === normalizeAnnouncementType(item.type)) {
-      return;
-    }
-    setItems((current) => current.map((row) => row.id === item.id ? { ...row, type: nextType } : row));
-    try {
-      const data = await updateAdminAnnouncement(accessToken, item.id, { type: nextType });
-      setItems((current) => current.map((row) => row.id === item.id ? data.announcement : row));
-    } catch (error) {
-      setItems((current) => current.map((row) => row.id === item.id ? item : row));
-      toast.error(t("toast.updateFailed"), { description: resolveAdminErrorMessage(error) });
-    }
+    await saveAnnouncement({ id: form.id, payload: payloadFromForm(form) }, () => setDialogOpen(false));
   }
 
   function setPriorityDraft(id: number, value: string) {
@@ -335,7 +254,7 @@ export function AdminAnnouncementsPage() {
     const nextPriority = Number.parseInt(trimmed, 10);
     if (!Number.isFinite(nextPriority)) {
       clearPriorityDraft(item.id);
-      toast.error(t("toast.priorityInvalid"));
+      notifyInvalidPriority();
       return;
     }
     if (nextPriority === item.priority) {
@@ -344,14 +263,7 @@ export function AdminAnnouncementsPage() {
     }
 
     clearPriorityDraft(item.id);
-    setItems((current) => current.map((row) => row.id === item.id ? { ...row, priority: nextPriority } : row));
-    try {
-      const data = await updateAdminAnnouncement(accessToken, item.id, { priority: nextPriority });
-      setItems((current) => current.map((row) => row.id === item.id ? data.announcement : row));
-    } catch (error) {
-      setItems((current) => current.map((row) => row.id === item.id ? item : row));
-      toast.error(t("toast.updateFailed"), { description: resolveAdminErrorMessage(error) });
-    }
+    await updatePriority(item, nextPriority);
   }
 
   function handlePriorityKeyDown(event: React.KeyboardEvent<HTMLInputElement>, item: AdminAnnouncementDTO) {
@@ -369,19 +281,7 @@ export function AdminAnnouncementsPage() {
     if (!deleteTarget) {
       return;
     }
-    const target = deleteTarget;
-    setSaving(true);
-    try {
-      await deleteAdminAnnouncement(accessToken, target.id);
-      setItems((current) => current.filter((item) => item.id !== target.id));
-      setTotal((current) => Math.max(0, current - 1));
-      setDeleteTarget(null);
-      toast.success(t("toast.deleted"));
-    } catch (error) {
-      toast.error(t("toast.deleteFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
+    await deleteAnnouncement(deleteTarget, () => setDeleteTarget(null));
   }
 
   return (

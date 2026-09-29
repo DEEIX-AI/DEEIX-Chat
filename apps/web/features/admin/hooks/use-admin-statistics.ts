@@ -17,14 +17,11 @@ import {
 } from "@/features/admin/api";
 import { listAllAdminPages } from "@/features/admin/api/shared";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import type { ModelSelectOption } from "@/shared/components/model-select";
+import { type ModelSelectOption, resolveModelOptionIconUrl } from "@/entities/model";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import {
-  normalizeBillingDisplayCurrency,
-  type BillingDisplayOptions,
-} from "@/shared/lib/billing-display";
-import { resolveModelOptionIconUrl } from "@/shared/lib/model-option-display";
-import type { AdminUserDTO } from "@/features/admin/api/admin.types";
+import { normalizeBillingDisplayCurrency, type BillingDisplayOptions } from "@/entities/billing";
+import type { AdminUserDTO } from "@/features/admin/api/admin-types";
+import { useCapabilities } from "@/shared/capabilities";
 
 export type AdminStatisticsRangePreset = "7" | "30" | "90" | "custom";
 export type AdminStatisticsRangeError = "incomplete" | "invalid" | "tooLong" | null;
@@ -71,6 +68,7 @@ function validateDateRange(startDate: string, endDate: string): AdminStatisticsR
 }
 
 export function useAdminStatistics() {
+  const { flags: capabilities } = useCapabilities();
   const t = useTranslations("adminStatistics");
   const initialRangeRef = React.useRef(recentDateRange(30));
   const [startDate, setStartDateState] = React.useState(initialRangeRef.current.startDate);
@@ -130,7 +128,7 @@ export function useAdminStatistics() {
         const [configResult, modelsResult, permissionGroupsResult] = await Promise.allSettled([
           getAdminBillingConfig(token),
           listAllAdminPages((options) => listAdminLLMModels(token, { ...options, onlyActive: false })),
-          listPermissionGroups(token),
+          capabilities.multiUser ? listPermissionGroups(token) : [],
         ]);
         if (cancelled) return;
         if (configResult.status === "fulfilled") {
@@ -175,7 +173,7 @@ export function useAdminStatistics() {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [capabilities.multiUser, t]);
 
   React.useEffect(() => {
     if (rangeError) {

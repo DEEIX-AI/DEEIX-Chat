@@ -189,9 +189,9 @@ func toolTracePresentationKeyRank(key string) int {
 	}
 }
 
-// toolTraceNarrativeText separates standalone structured payloads from the
-// human-readable Markdown around them. Raw payloads remain available through
-// the tool result detail; the compact presentation only carries narrative text.
+// toolTraceNarrativeText 将独立的结构化载荷与其周围
+// 人类可读的 Markdown 分离。原始载荷仍可通过工具结果详情
+// 获取；精简展示仅承载叙述性文本。
 func toolTraceNarrativeText(value string) (string, []any) {
 	var narrative strings.Builder
 	payloads := make([]any, 0, 1)
@@ -409,7 +409,7 @@ func tokenSnippet(value string, maxTokens int64) string {
 	return strings.TrimSpace(string(runes[:low])) + "…"
 }
 
-// ReadablePreview returns the first useful narrative value from generic JSON.
+// ReadablePreview 从通用 JSON 中返回第一个有用的叙述性值。
 func ReadablePreview(value any) string {
 	switch typed := value.(type) {
 	case []any:

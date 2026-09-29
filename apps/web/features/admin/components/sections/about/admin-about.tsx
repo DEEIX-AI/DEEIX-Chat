@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { CircleArrowUp, RefreshCw } from "lucide-react";
 
@@ -16,77 +16,24 @@ import {
   DialogHeightTransition,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AdminUpdateTooltipContent } from "@/features/admin/components/admin-update-tooltip-content";
+import { AdminUpdateTooltipContent } from "@/features/admin/components/shared/update-tooltip-content";
 import {
-  compareReleaseVersions,
   formatReleaseVersion,
   getCachedLatestReleaseSnapshot,
   getServerLatestReleaseSnapshot,
-  LATEST_RELEASE_ENDPOINT,
   resolveAvailableRelease,
   subscribeLatestReleaseChange,
   type ReleaseInfo,
-  writeCachedLatestRelease,
 } from "@/features/admin/model/update-check";
+import { type AdminUpdateDialogState, useAdminAboutUpdateCheck } from "@/features/admin/hooks/use-admin-about-update-check";
+import { IdentityProviderIcon } from "@/entities/identity-provider";
 import { AboutSettingsContent } from "@/shared/components/about-settings-content";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { cn } from "@/lib/utils";
 
-type GitHubRelease = {
-  tag_name?: string;
-  html_url?: string;
-};
-
-type UpdateDialogState =
-  | { type: "current" }
-  | { type: "available"; release: ReleaseInfo }
-  | { type: "failed" };
-
 function AdminUpdateCheck() {
   const t = useTranslations("adminUsers.aboutPage");
-  const [checking, setChecking] = useState(false);
-  const [dialogState, setDialogState] = useState<UpdateDialogState | null>(null);
-
-  async function handleCheckUpdate() {
-    if (checking) return;
-
-    setChecking(true);
-    try {
-      const response = await fetch(LATEST_RELEASE_ENDPOINT, {
-        cache: "no-store",
-        headers: { Accept: "application/vnd.github+json" },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Release check failed with HTTP ${response.status}`);
-      }
-
-      const release = (await response.json()) as GitHubRelease;
-      const latestVersion = release.tag_name?.trim();
-      const releaseURL = release.html_url?.trim();
-
-      if (!latestVersion || !releaseURL) {
-        throw new Error("Latest release payload is incomplete");
-      }
-
-      const currentVersion = packageMeta.version;
-      const compareResult = compareReleaseVersions(currentVersion, latestVersion);
-
-      if (compareResult === "available" || compareResult === "unknown") {
-        const release = { version: latestVersion, url: releaseURL };
-        writeCachedLatestRelease(release);
-        setDialogState({ type: "available", release });
-        return;
-      }
-
-      writeCachedLatestRelease({ version: latestVersion, url: releaseURL });
-      setDialogState({ type: "current" });
-    } catch {
-      setDialogState({ type: "failed" });
-    } finally {
-      setChecking(false);
-    }
-  }
+  const { checking, dialogState, setDialogState, handleCheckUpdate } = useAdminAboutUpdateCheck();
 
   return (
     <>
@@ -129,7 +76,7 @@ function UpdateResultDialog({
   onOpenChange,
   onRetry,
 }: {
-  state: UpdateDialogState | null;
+  state: AdminUpdateDialogState | null;
   onOpenChange: (open: boolean) => void;
   onRetry: () => void;
 }) {
@@ -208,6 +155,7 @@ export function AdminAboutPage() {
 
   return (
     <AboutSettingsContent
+      brandIcon={IdentityProviderIcon}
       title={t("title")}
       description={t("description")}
       consoleLabel={t("adminConsole")}

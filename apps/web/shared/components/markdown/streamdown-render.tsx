@@ -24,6 +24,7 @@ import {
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import { cn } from "@/lib/utils";
 import { useAutoExpandDisclosure } from "@/shared/hooks/use-auto-expand-disclosure";
+import { isRecord, isStringArray } from "@/shared/lib/type-guards";
 import {
   AdaptiveMarkdownTable,
   MarkdownTableLineBreak,
@@ -109,16 +110,18 @@ const STREAMDOWN_MATH_PLUGIN = (() => {
     return plugin;
   }
 
-  const [rehypePlugin, options] = plugin.rehypePlugin;
+  const rehypePlugin = plugin.rehypePlugin[0];
+  const options: unknown = plugin.rehypePlugin[1];
+  const rehypePluginWithOptions: MathPlugin["rehypePlugin"] = [
+    rehypePlugin,
+    {
+      ...(isRecord(options) ? options : {}),
+      strict: (errorCode: string) => (errorCode === "unicodeTextInMathMode" ? "ignore" : "warn"),
+    },
+  ];
   return {
     ...plugin,
-    rehypePlugin: [
-      rehypePlugin,
-      {
-        ...(typeof options === "object" && options !== null ? options : {}),
-        strict: (errorCode: string) => (errorCode === "unicodeTextInMathMode" ? "ignore" : "warn"),
-      },
-    ] as MathPlugin["rehypePlugin"],
+    rehypePlugin: rehypePluginWithOptions,
   };
 })();
 const STREAMDOWN_MATH_BASE_PLUGINS: PluginConfig = {
@@ -200,13 +203,8 @@ const STREAMDOWN_SANITIZED_HTML_TAGS = {
   span: ["style"],
   summary: ["style"],
 } satisfies AllowedTags;
-type RehypeSanitizeSchema = {
-  tagNames?: string[];
-  attributes?: Record<string, unknown>;
-};
 type StreamdownRehypePlugins = NonNullable<StreamdownProps["rehypePlugins"]>;
 type StreamdownRehypePlugin = StreamdownRehypePlugins[number];
-type RehypeSanitizePlugin = [StreamdownRehypePlugin, RehypeSanitizeSchema];
 type RehypeSourceNode = {
   type?: string;
   tagName?: string;
@@ -247,19 +245,28 @@ function markdownSourcePositionRehypePlugin() {
 }
 
 function buildStreamdownRehypePlugins(includeSourcePositions = false): StreamdownRehypePlugins {
-  const [sanitizePlugin, sanitizeSchema] = defaultRehypePlugins.sanitize as RehypeSanitizePlugin;
+  const defaultSanitize = defaultRehypePlugins.sanitize;
+  // Streamdown ships sanitize as a [plugin, schema] tuple; extending that schema is the only
+  // supported way to allow extra tags, so a different shape is a breaking upgrade.
+  if (!Array.isArray(defaultSanitize)) {
+    throw new Error("streamdown: expected defaultRehypePlugins.sanitize to be a [plugin, schema] tuple");
+  }
+  const sanitizePlugin = defaultSanitize[0];
+  const sanitizeSchemaValue: unknown = defaultSanitize[1];
+  const sanitizeSchema = isRecord(sanitizeSchemaValue) ? sanitizeSchemaValue : {};
   const extraTagNames = Object.keys(STREAMDOWN_SANITIZED_HTML_TAGS);
-  const tagNames = Array.from(new Set([...(sanitizeSchema.tagNames ?? []), ...extraTagNames]));
+  const baseTagNames = isStringArray(sanitizeSchema.tagNames) ? sanitizeSchema.tagNames : [];
+  const tagNames = Array.from(new Set([...baseTagNames, ...extraTagNames]));
   const schema = {
     ...sanitizeSchema,
     tagNames,
     attributes: {
-      ...sanitizeSchema.attributes,
+      ...(isRecord(sanitizeSchema.attributes) ? sanitizeSchema.attributes : {}),
       ...STREAMDOWN_SANITIZED_HTML_TAGS,
     },
   };
 
-  const sanitizeWithHTMLTags = [sanitizePlugin, schema] as StreamdownRehypePlugin;
+  const sanitizeWithHTMLTags: StreamdownRehypePlugin = [sanitizePlugin, schema];
 
   return [
     renderRawHTMLMathRehypePlugin,

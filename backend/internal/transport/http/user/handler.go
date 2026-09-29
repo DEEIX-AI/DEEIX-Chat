@@ -25,6 +25,16 @@ func NewHandler(service *appuser.Service) *Handler {
 }
 
 // GetAvatar 获取用户当前上传头像内容。
+// @Summary 获取用户头像
+// @Description 公开读取用户当前上传的头像图片。头像须为已上传的图片文件，实际类型受上传 MIME 白名单约束（默认 PNG/JPEG/WebP/GIF，SVG 等活动内容始终拒绝）；未上传头像时返回 404，错误响应为 JSON
+// @Tags user
+// @Produce image/png,image/jpeg,image/webp,image/gif,json
+// @Param public_id path string true "用户 public_id"
+// @Success 200 {file} binary
+// @Failure 400 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /users/{public_id}/avatar [get]
 func (h *Handler) GetAvatar(c *gin.Context) {
 	publicID := strings.TrimSpace(c.Param("public_id"))
 	if publicID == "" {

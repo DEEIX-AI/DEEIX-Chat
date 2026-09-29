@@ -84,7 +84,7 @@ export function createGithubStyleAvatar(seed: string, variant: number) {
   const backgroundColor = `hsl(${(hue + 8) % 360} ${18 + (state % 8)}% ${88 + (state % 5)}%)`;
   const foregroundColor = `hsl(${hue} ${42 + (state % 10)}% ${28 + (state % 8)}%)`;
   const cells: string[] = [];
-  let grid = Array.from({ length: gridSize }, () => Array.from({ length: gridSize }, () => false));
+  const grid = Array.from({ length: gridSize }, () => Array.from({ length: gridSize }, () => false));
 
   const nextValue = () => {
     state ^= state << 13;

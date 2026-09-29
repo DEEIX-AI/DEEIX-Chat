@@ -2,26 +2,12 @@
 
 import * as React from "react";
 
-import { getPublicBranding, type BrandingDTO } from "@/shared/api/branding";
+import type { BrandingDTO } from "@/shared/api/branding";
 import { resolveApiBaseURL } from "@/shared/api/http-client";
-import {
-  DEFAULT_BRANDING,
-  setBrandingSnapshot,
-} from "@/shared/config/branding";
+import { DEFAULT_BRANDING } from "@/shared/config/branding";
+import { useBrandingLoader } from "@/shared/config/use-branding-loader";
 
-const BRANDING_FALLBACK_DELAY_MS = 3_000;
-const BRANDING_RETRY_DELAY_MS = 1_000;
 const BrandingContext = React.createContext<BrandingDTO>(DEFAULT_BRANDING);
-
-let brandingRequest: Promise<BrandingDTO> | null = null;
-
-function requestBranding(): Promise<BrandingDTO> {
-  brandingRequest ??= getPublicBranding().catch((error) => {
-    brandingRequest = null;
-    throw error;
-  });
-  return brandingRequest;
-}
 
 function BrandingMetadata({ branding }: { branding: BrandingDTO }) {
   return (
@@ -43,47 +29,7 @@ function BrandingMetadata({ branding }: { branding: BrandingDTO }) {
 }
 
 export function BrandingProvider({ children }: { children: React.ReactNode }) {
-  const [branding, setBranding] = React.useState(DEFAULT_BRANDING);
-  const [ready, setReady] = React.useState(false);
-
-  React.useLayoutEffect(() => {
-    let active = true;
-    const fallbackTimer = window.setTimeout(() => {
-      if (active) {
-        setReady(true);
-      }
-    }, BRANDING_FALLBACK_DELAY_MS);
-    let retryTimer: number | undefined;
-    const applyBranding = (nextBranding: BrandingDTO) => {
-      setBrandingSnapshot(nextBranding);
-      if (!active) {
-        return;
-      }
-      window.clearTimeout(fallbackTimer);
-      setBranding(nextBranding);
-      setReady(true);
-    };
-    const handleLoadFailure = () => {
-      if (!active) {
-        return;
-      }
-      window.clearTimeout(fallbackTimer);
-      setReady(true);
-      retryTimer = window.setTimeout(() => {
-        void requestBranding().then(applyBranding).catch((): undefined => undefined);
-      }, BRANDING_RETRY_DELAY_MS);
-    };
-
-    void requestBranding().then(applyBranding).catch(handleLoadFailure);
-
-    return () => {
-      active = false;
-      window.clearTimeout(fallbackTimer);
-      if (retryTimer !== undefined) {
-        window.clearTimeout(retryTimer);
-      }
-    };
-  }, []);
+  const { branding, ready } = useBrandingLoader();
 
   React.useLayoutEffect(() => {
     if (ready) {

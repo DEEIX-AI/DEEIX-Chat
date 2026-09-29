@@ -4,8 +4,9 @@ import * as React from "react";
 
 import { ConversationRunStore } from "@/features/chat/model/conversation-run-store";
 import { streamActiveConversationRuns } from "@/shared/api/conversation";
-import type { ActiveConversationRunEvent } from "@/shared/api/conversation.types";
+import type { ActiveConversationRunEvent } from "@/shared/api/conversation-types";
 import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
+import { isRecord } from "@/shared/lib/type-guards";
 
 const RUN_STREAM_RECONNECT_MIN_MS = 1_000;
 const RUN_STREAM_RECONNECT_MAX_MS = 30_000;
@@ -73,14 +74,10 @@ export function useChatRunState() {
     const channel = new BroadcastChannel(`${RUN_STATE_CHANNEL}:${userPublicID}`);
     runStateChannelRef.current = channel;
     channel.onmessage = (event: MessageEvent<unknown>) => {
-      if (!event.data || typeof event.data !== "object") {
+      const message = event.data;
+      if (!isRecord(message)) {
         return;
       }
-      const message = event.data as {
-        type?: unknown;
-        runID?: unknown;
-        conversationPublicID?: unknown;
-      };
       const runID = typeof message.runID === "string" ? message.runID.trim() : "";
       if (!runID) {
         return;

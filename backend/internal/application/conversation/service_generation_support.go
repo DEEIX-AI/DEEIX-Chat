@@ -92,7 +92,7 @@ func (s *Service) recallSemanticContext(ctx context.Context, scope repository.Hi
 	if s.embeddingSvc == nil || !scope.Valid() || strings.TrimSpace(query) == "" {
 		return nil
 	}
-	embeddings, embeddingSignature, err := s.embeddingSvc.EmbedTextsWithSignature(ctx, []string{query})
+	embeddings, embeddingSignature, err := s.embeddingSvc.EmbedQueriesWithSignature(ctx, []string{query})
 	if err != nil || len(embeddings) == 0 {
 		return nil
 	}

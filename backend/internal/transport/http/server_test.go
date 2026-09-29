@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	uicomponenthttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/uicomponent"
 	"github.com/gin-gonic/gin"
 )
 
@@ -71,25 +72,30 @@ func TestFrontendStaticFallbackServesExportedPage(t *testing.T) {
 	}
 }
 
-func TestFrontendStaticCachesNextExportData(t *testing.T) {
+func TestFrontendStaticRevalidatesNextExportData(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "__next._tree.txt"), []byte("tree"), 0o644); err != nil {
-		t.Fatalf("write next data: %v", err)
+	if err := os.MkdirAll(filepath.Join(root, "settings"), 0o755); err != nil {
+		t.Fatalf("create settings dir: %v", err)
+	}
+	for _, name := range []string{"__next._tree.txt", filepath.Join("settings", "general.txt")} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("rsc"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
 	}
 
 	engine := gin.New()
 	registerFrontendStatic(engine, root, nil)
 
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/__next._tree.txt?conversation_id=demo&_rsc=abc", nil)
-	engine.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", recorder.Code)
-	}
-	if got := recorder.Header().Get("Cache-Control"); got != "public, max-age=86400, stale-while-revalidate=604800" {
-		t.Fatalf("expected next export data cache header, got %q", got)
+	for _, requestPath := range []string{"/__next._tree.txt?_rsc=abc", "/settings/general.txt?_rsc=abc"} {
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, requestPath, nil))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s: expected status 200, got %d", requestPath, recorder.Code)
+		}
+		if got := recorder.Header().Get("Cache-Control"); got != "no-cache" {
+			t.Fatalf("%s: expected RSC payload no-cache, got %q", requestPath, got)
+		}
 	}
 }
 
@@ -162,6 +168,33 @@ func TestSwaggerEnabledByEnvironment(t *testing.T) {
 	for _, tt := range tests {
 		if got := swaggerEnabled(tt.env); got != tt.want {
 			t.Fatalf("swaggerEnabled(%q) = %v, want %v", tt.env, got, tt.want)
+		}
+	}
+}
+
+func TestAdminRoutesRegisteredWhenUIComponentIsOnlyAdminModule(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	modules := Modules{UIComponent: uicomponenthttp.NewModule(uicomponenthttp.NewHandler(nil))}
+	engine, err := NewEngine(config.NewRuntime(config.Config{AppName: "test", JWTSecret: "test-jwt-secret-value"}), nil, modules, nil, nil)
+	if err != nil {
+		t.Fatalf("create engine: %v", err)
+	}
+
+	want := map[string]bool{
+		http.MethodGet + " /api/v1/admin/ui-components":        false,
+		http.MethodPost + " /api/v1/admin/ui-components":       false,
+		http.MethodPatch + " /api/v1/admin/ui-components/:id":  false,
+		http.MethodDelete + " /api/v1/admin/ui-components/:id": false,
+	}
+	for _, route := range engine.Routes() {
+		key := route.Method + " " + route.Path
+		if _, ok := want[key]; ok {
+			want[key] = true
+		}
+	}
+	for key, registered := range want {
+		if !registered {
+			t.Fatalf("expected admin route %s to be registered", key)
 		}
 	}
 }

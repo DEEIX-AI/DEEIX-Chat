@@ -1,5 +1,5 @@
 import { authedRequest } from "@/shared/api/authed-client";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 import { pathParam } from "@/shared/api/http-client";
 import type {
   PatchUIComponentRequest,
@@ -8,7 +8,7 @@ import type {
   UIComponentDeleteData,
   UIComponentPage,
   WriteUIComponentRequest,
-} from "@/shared/api/ui-components.types";
+} from "@/shared/api/ui-components-types";
 
 type UIComponentListOptions = {
   query?: string;

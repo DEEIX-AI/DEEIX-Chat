@@ -69,7 +69,7 @@ const DialogContent = React.forwardRef<
           className
         )}
         onInteractOutside={(event) => {
-          const target = event.target as HTMLElement | null
+          const target = event.target instanceof Element ? event.target : null
           if (
             target?.closest('[data-slot="combobox-content"]') ||
             target?.closest('[data-slot="combobox-item"]') ||

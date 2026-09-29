@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { PublicSharePage } from "@/features/share/components/public-share-page";
+import { PublicSharePage } from "@/features/share";
 
 export default function Page() {
   return (

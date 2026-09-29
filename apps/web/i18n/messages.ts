@@ -8,7 +8,7 @@ import enAdminGroups from "@/i18n/messages/en-US/admin-groups.json";
 import enAdminLogin from "@/i18n/messages/en-US/admin-login.json";
 import enAdminLogs from "@/i18n/messages/en-US/admin-logs.json";
 import enAdminModels from "@/i18n/messages/en-US/admin-models.json";
-import enAdminPrompts from "@/i18n/messages/en-US/admin-prompts.json";
+import enAdminLibrary from "@/i18n/messages/en-US/admin-library.json";
 import enAdminStatistics from "@/i18n/messages/en-US/admin-statistics.json";
 import enAdminTools from "@/i18n/messages/en-US/admin-tools.json";
 import enAdminUpstreams from "@/i18n/messages/en-US/admin-upstreams.json";
@@ -25,7 +25,7 @@ import enFiles from "@/i18n/messages/en-US/files.json";
 import enGuide from "@/i18n/messages/en-US/guide.json";
 import enKnowledgeBases from "@/i18n/messages/en-US/knowledge-bases.json";
 import enLogin from "@/i18n/messages/en-US/login.json";
-import enPrompts from "@/i18n/messages/en-US/prompts.json";
+import enLibrary from "@/i18n/messages/en-US/library.json";
 import enUIComponents from "@/i18n/messages/en-US/ui-components.json";
 import enRecent from "@/i18n/messages/en-US/recent.json";
 import enSettings from "@/i18n/messages/en-US/settings.json";
@@ -37,7 +37,7 @@ const ENGLISH_MESSAGES = {
   conversation: enConversation,
   errors: enErrors,
   login: enLogin,
-  prompts: enPrompts,
+  library: enLibrary,
   uiComponents: enUIComponents,
   guide: enGuide,
   chat: enChat,
@@ -58,7 +58,7 @@ const ENGLISH_MESSAGES = {
   adminLogin: enAdminLogin,
   adminLogs: enAdminLogs,
   adminModels: enAdminModels,
-  adminPrompts: enAdminPrompts,
+  adminLibrary: enAdminLibrary,
   adminStatistics: enAdminStatistics,
   adminTools: enAdminTools,
   adminUpstreams: enAdminUpstreams,
@@ -128,7 +128,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     conversation,
     errors,
     login,
-    prompts,
+    library,
     uiComponents,
     guide,
     chat,
@@ -146,7 +146,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     adminLogin,
     adminLogs,
     adminModels,
-    adminPrompts,
+    adminLibrary,
     adminStatistics,
     adminTools,
     adminUpstreams,
@@ -160,7 +160,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     import("@/i18n/messages/zh-CN/conversation.json"),
     import("@/i18n/messages/zh-CN/errors.json"),
     import("@/i18n/messages/zh-CN/login.json"),
-    import("@/i18n/messages/zh-CN/prompts.json"),
+    import("@/i18n/messages/zh-CN/library.json"),
     import("@/i18n/messages/zh-CN/ui-components.json"),
     import("@/i18n/messages/zh-CN/guide.json"),
     import("@/i18n/messages/zh-CN/chat.json"),
@@ -178,7 +178,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     import("@/i18n/messages/zh-CN/admin-login.json"),
     import("@/i18n/messages/zh-CN/admin-logs.json"),
     import("@/i18n/messages/zh-CN/admin-models.json"),
-    import("@/i18n/messages/zh-CN/admin-prompts.json"),
+    import("@/i18n/messages/zh-CN/admin-library.json"),
     import("@/i18n/messages/zh-CN/admin-statistics.json"),
     import("@/i18n/messages/zh-CN/admin-tools.json"),
     import("@/i18n/messages/zh-CN/admin-upstreams.json"),
@@ -194,7 +194,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     conversation: conversation.default,
     errors: errors.default,
     login: login.default,
-    prompts: prompts.default,
+    library: library.default,
     uiComponents: uiComponents.default,
     guide: guide.default,
     chat: chat.default,
@@ -212,7 +212,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     adminLogin: adminLogin.default,
     adminLogs: adminLogs.default,
     adminModels: adminModels.default,
-    adminPrompts: adminPrompts.default,
+    adminLibrary: adminLibrary.default,
     adminStatistics: adminStatistics.default,
     adminTools: adminTools.default,
     adminUpstreams: adminUpstreams.default,

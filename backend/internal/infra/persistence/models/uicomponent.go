@@ -1,4 +1,4 @@
-package model
+package models
 
 // UIComponent 对应 ui_components 表，存放可供模型输出、前端渲染的交互式组件。
 type UIComponent struct {

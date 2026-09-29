@@ -27,19 +27,19 @@ func (r *Repo) CreateServer(ctx context.Context, input repository.CreateMCPServe
 	var result domainmcp.Server
 	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var count int64
-		if err := tx.Model(&model.MCPServer{}).Count(&count).Error; err != nil {
+		if err := tx.Model(&models.MCPServer{}).Count(&count).Error; err != nil {
 			return err
 		}
 		if count >= maxMCPServers {
 			return repository.ErrMCPServerLimitExceeded
 		}
 		var maxSortOrder int
-		if err := tx.Model(&model.MCPServer{}).
+		if err := tx.Model(&models.MCPServer{}).
 			Select("COALESCE(MAX(sort_order), 0)").
 			Scan(&maxSortOrder).Error; err != nil {
 			return err
 		}
-		item := model.MCPServer{
+		item := models.MCPServer{
 			Name:         input.Name,
 			BaseURL:      input.BaseURL,
 			AuthTokenEnc: input.AuthTokenEnc,
@@ -79,7 +79,7 @@ func (r *Repo) UpdateServer(ctx context.Context, serverID uint, input repository
 		updates["last_error"] = *input.LastError
 	}
 	if len(updates) > 0 {
-		if err := r.db.WithContext(ctx).Model(&model.MCPServer{}).Where("id = ?", serverID).Updates(updates).Error; err != nil {
+		if err := r.db.WithContext(ctx).Model(&models.MCPServer{}).Where("id = ?", serverID).Updates(updates).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -91,7 +91,7 @@ func (r *Repo) ListServers(ctx context.Context) ([]domainmcp.Server, error) {
 }
 
 func listServers(ctx context.Context, db *gorm.DB) ([]domainmcp.Server, error) {
-	var rows []model.MCPServer
+	var rows []models.MCPServer
 	if err := db.WithContext(ctx).Order("sort_order asc").Order("id asc").Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func listServers(ctx context.Context, db *gorm.DB) ([]domainmcp.Server, error) {
 			Count    int
 		}
 		if err := db.WithContext(ctx).
-			Model(&model.MCPTool{}).
+			Model(&models.MCPTool{}).
 			Select("server_id, count(*) as count").
 			Where("server_id IN ? AND status = ?", serverIDs, "active").
 			Group("server_id").
@@ -119,7 +119,7 @@ func listServers(ctx context.Context, db *gorm.DB) ([]domainmcp.Server, error) {
 		}
 		var confirmationServerIDs []uint
 		if err := db.WithContext(ctx).
-			Model(&model.MCPTool{}).
+			Model(&models.MCPTool{}).
 			Distinct("server_id").
 			Where("server_id IN ? AND (metadata_customized = ? OR metadata_customized IS NULL)", serverIDs, true).
 			Pluck("server_id", &confirmationServerIDs).Error; err != nil {
@@ -140,21 +140,21 @@ func listServers(ctx context.Context, db *gorm.DB) ([]domainmcp.Server, error) {
 }
 
 func (r *Repo) GetServer(ctx context.Context, serverID uint) (*domainmcp.Server, error) {
-	var row model.MCPServer
+	var row models.MCPServer
 	if err := r.db.WithContext(ctx).First(&row, "id = ?", serverID).Error; err != nil {
 		return nil, err
 	}
 	item := toDomainServer(row)
 	var activeToolCount int64
 	if err := r.db.WithContext(ctx).
-		Model(&model.MCPTool{}).
+		Model(&models.MCPTool{}).
 		Where("server_id = ? AND status = ?", serverID, "active").
 		Count(&activeToolCount).Error; err != nil {
 		return nil, err
 	}
 	var metadataConfirmationCount int64
 	if err := r.db.WithContext(ctx).
-		Model(&model.MCPTool{}).
+		Model(&models.MCPTool{}).
 		Where("server_id = ? AND (metadata_customized = ? OR metadata_customized IS NULL)", serverID, true).
 		Count(&metadataConfirmationCount).Error; err != nil {
 		return nil, err
@@ -167,16 +167,16 @@ func (r *Repo) GetServer(ctx context.Context, serverID uint) (*domainmcp.Server,
 func (r *Repo) DeleteServer(ctx context.Context, serverID uint) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		toolIDs := make([]uint, 0)
-		if err := tx.Model(&model.MCPTool{}).Where("server_id = ?", serverID).Pluck("id", &toolIDs).Error; err != nil {
+		if err := tx.Model(&models.MCPTool{}).Where("server_id = ?", serverID).Pluck("id", &toolIDs).Error; err != nil {
 			return err
 		}
 		if err := deleteConversationProjectMCPToolAssociations(tx, toolIDs); err != nil {
 			return err
 		}
-		if err := tx.Where("server_id = ?", serverID).Delete(&model.MCPTool{}).Error; err != nil {
+		if err := tx.Where("server_id = ?", serverID).Delete(&models.MCPTool{}).Error; err != nil {
 			return err
 		}
-		return tx.Delete(&model.MCPServer{}, "id = ?", serverID).Error
+		return tx.Delete(&models.MCPServer{}, "id = ?", serverID).Error
 	})
 }
 
@@ -184,13 +184,13 @@ func (r *Repo) ReplaceServerTools(ctx context.Context, serverID uint, tools []do
 	now := time.Now()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var maxSortOrder int
-		if err := tx.Model(&model.MCPTool{}).
+		if err := tx.Model(&models.MCPTool{}).
 			Where("server_id = ?", serverID).
 			Select("COALESCE(MAX(sort_order), 0)").
 			Scan(&maxSortOrder).Error; err != nil {
 			return err
 		}
-		rows := make([]model.MCPTool, 0, len(tools))
+		rows := make([]models.MCPTool, 0, len(tools))
 		names := make([]string, 0, len(tools))
 		for index, tool := range tools {
 			metadataCustomized := false
@@ -199,7 +199,7 @@ func (r *Repo) ReplaceServerTools(ctx context.Context, serverID uint, tools []do
 				attachmentInputMode = domainmcp.AttachmentInputModeNone
 			}
 			names = append(names, tool.Name)
-			rows = append(rows, model.MCPTool{
+			rows = append(rows, models.MCPTool{
 				ServerID:                 serverID,
 				Name:                     tool.Name,
 				DisplayName:              tool.DisplayName,
@@ -251,7 +251,7 @@ func (r *Repo) ReplaceServerTools(ctx context.Context, serverID uint, tools []do
 			}
 		}
 		staleToolIDs := make([]uint, 0)
-		staleToolQuery := tx.Model(&model.MCPTool{}).Where("server_id = ?", serverID)
+		staleToolQuery := tx.Model(&models.MCPTool{}).Where("server_id = ?", serverID)
 		if len(names) > 0 {
 			staleToolQuery = staleToolQuery.Where("name NOT IN ?", names)
 		}
@@ -265,10 +265,10 @@ func (r *Repo) ReplaceServerTools(ctx context.Context, serverID uint, tools []do
 		if len(names) > 0 {
 			deleteQuery = deleteQuery.Where("name NOT IN ?", names)
 		}
-		if err := deleteQuery.Delete(&model.MCPTool{}).Error; err != nil {
+		if err := deleteQuery.Delete(&models.MCPTool{}).Error; err != nil {
 			return err
 		}
-		return tx.Model(&model.MCPServer{}).Where("id = ?", serverID).Updates(map[string]any{
+		return tx.Model(&models.MCPServer{}).Where("id = ?", serverID).Updates(map[string]any{
 			"tool_count":     len(tools),
 			"last_synced_at": &now,
 			"last_error":     "",
@@ -281,7 +281,7 @@ func deleteConversationProjectMCPToolAssociations(tx *gorm.DB, toolIDs []uint) e
 	if len(toolIDs) == 0 {
 		return nil
 	}
-	return tx.Where("tool_id IN ?", toolIDs).Delete(&model.ConversationProjectMCPTool{}).Error
+	return tx.Where("tool_id IN ?", toolIDs).Delete(&models.ConversationProjectMCPTool{}).Error
 }
 
 func (r *Repo) ListTools(ctx context.Context, serverID uint, onlyActive bool) ([]domainmcp.Tool, error) {
@@ -289,7 +289,7 @@ func (r *Repo) ListTools(ctx context.Context, serverID uint, onlyActive bool) ([
 	if onlyActive {
 		query = query.Where("status = ?", "active")
 	}
-	var rows []model.MCPTool
+	var rows []models.MCPTool
 	if err := query.Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -304,7 +304,7 @@ func (r *Repo) ListToolsByIDs(ctx context.Context, toolIDs []uint) ([]domainmcp.
 	if len(toolIDs) == 0 {
 		return []domainmcp.Tool{}, nil
 	}
-	var rows []model.MCPTool
+	var rows []models.MCPTool
 	if err := r.db.WithContext(ctx).
 		Joins("JOIN mcp_servers ON mcp_servers.id = mcp_tools.server_id").
 		Where("mcp_tools.id IN ?", toolIDs).
@@ -326,7 +326,7 @@ func (r *Repo) ListToolsByIDs(ctx context.Context, toolIDs []uint) ([]domainmcp.
 func (r *Repo) UpdateTool(ctx context.Context, toolID uint, input repository.UpdateMCPToolInput) (*domainmcp.Tool, error) {
 	var result domainmcp.Tool
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var row model.MCPTool
+		var row models.MCPTool
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ?", toolID).Error; err != nil {
 			return err
 		}
@@ -362,7 +362,7 @@ func (r *Repo) UpdateTool(ctx context.Context, toolID uint, input repository.Upd
 			updates["status"] = *input.Status
 		}
 		if len(updates) > 0 {
-			if err := tx.Model(&model.MCPTool{}).Where("id = ?", toolID).Updates(updates).Error; err != nil {
+			if err := tx.Model(&models.MCPTool{}).Where("id = ?", toolID).Updates(updates).Error; err != nil {
 				return err
 			}
 			if err := tx.First(&row, "id = ?", toolID).Error; err != nil {
@@ -380,7 +380,7 @@ func (r *Repo) UpdateTool(ctx context.Context, toolID uint, input repository.Upd
 
 func (r *Repo) UpdateServerToolsStatus(ctx context.Context, serverID uint, toolIDs []uint, status string) ([]domainmcp.Tool, error) {
 	if err := r.db.WithContext(ctx).
-		Model(&model.MCPTool{}).
+		Model(&models.MCPTool{}).
 		Where("server_id = ? AND id IN ?", serverID, toolIDs).
 		Update("status", status).Error; err != nil {
 		return nil, err
@@ -398,7 +398,7 @@ func (r *Repo) ReorderServersWithTools(ctx context.Context, order []repository.R
 		for _, item := range order {
 			serverIDs = append(serverIDs, item.ServerID)
 		}
-		var existingServers []model.MCPServer
+		var existingServers []models.MCPServer
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id IN ?", serverIDs).
 			Find(&existingServers).Error; err != nil {
@@ -414,12 +414,12 @@ func (r *Repo) ReorderServersWithTools(ctx context.Context, order []repository.R
 			}
 			seenServers[item.ServerID] = struct{}{}
 			sortOrder := (index + 1) * 100
-			if err := tx.Model(&model.MCPServer{}).
+			if err := tx.Model(&models.MCPServer{}).
 				Where("id = ?", item.ServerID).
 				Update("sort_order", sortOrder).Error; err != nil {
 				return err
 			}
-			var existingTools []model.MCPTool
+			var existingTools []models.MCPTool
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 				Where("server_id = ?", item.ServerID).
 				Find(&existingTools).Error; err != nil {
@@ -442,7 +442,7 @@ func (r *Repo) ReorderServersWithTools(ctx context.Context, order []repository.R
 				}
 				seenTools[toolID] = struct{}{}
 				toolSortOrder := (toolIndex + 1) * 100
-				if err := tx.Model(&model.MCPTool{}).
+				if err := tx.Model(&models.MCPTool{}).
 					Where("server_id = ? AND id = ?", item.ServerID, toolID).
 					Update("sort_order", toolSortOrder).Error; err != nil {
 					return err
@@ -456,7 +456,7 @@ func (r *Repo) ReorderServersWithTools(ctx context.Context, order []repository.R
 		}
 		returned = make([]domainmcp.ServerWithTools, 0, len(servers))
 		for _, server := range servers {
-			var rows []model.MCPTool
+			var rows []models.MCPTool
 			if err := tx.Where("server_id = ?", server.ID).
 				Order("sort_order asc").
 				Order("name asc").
@@ -483,7 +483,7 @@ func (r *Repo) ReorderServersWithTools(ctx context.Context, order []repository.R
 	return returned, nil
 }
 
-func toDomainServer(row model.MCPServer) domainmcp.Server {
+func toDomainServer(row models.MCPServer) domainmcp.Server {
 	return domainmcp.Server{
 		ID:              row.ID,
 		Name:            row.Name,
@@ -501,7 +501,7 @@ func toDomainServer(row model.MCPServer) domainmcp.Server {
 	}
 }
 
-func toDomainTool(row model.MCPTool) domainmcp.Tool {
+func toDomainTool(row models.MCPTool) domainmcp.Tool {
 	return domainmcp.Tool{
 		ID:                       row.ID,
 		ServerID:                 row.ServerID,

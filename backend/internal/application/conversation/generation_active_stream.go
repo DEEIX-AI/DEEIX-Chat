@@ -19,13 +19,13 @@ const (
 	activeGenerationEventStreamID  = "active_events_v1"
 )
 
-// ActiveMessageGeneration is the authoritative, user-scoped runtime snapshot.
+// ActiveMessageGeneration 是权威的、用户作用域的运行时快照。
 type ActiveMessageGeneration struct {
 	RunID                string
 	ConversationPublicID string
 }
 
-// ActiveMessageGenerationEvent is one user-scoped navigation state change.
+// ActiveMessageGenerationEvent 是一次用户作用域的导航状态变更。
 type ActiveMessageGenerationEvent struct {
 	Type                 string
 	RunID                string
@@ -40,8 +40,8 @@ type activeMessageGenerationEventPayload struct {
 	UserID               uint   `json:"userID"`
 }
 
-// SubscribeActiveMessageGenerations returns an authoritative snapshot followed
-// by live user-scoped run state events. Redis Streams bridge multiple API nodes.
+// SubscribeActiveMessageGenerations 返回权威快照，随后
+// 推送用户作用域的实时运行状态事件。Redis Streams 用于桥接多个 API 节点。
 func (s *Service) SubscribeActiveMessageGenerations(
 	ctx context.Context,
 	userID uint,

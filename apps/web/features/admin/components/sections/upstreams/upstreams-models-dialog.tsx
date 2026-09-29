@@ -57,56 +57,51 @@ import {
 } from "@/components/ui/table";
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
+import { AdminBulkConfirmDialog } from "@/features/admin/components/shared/bulk-confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { ApiError } from "@/shared/api/http-client";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import {
-  mergeBatchResultData,
-  runBulkActionInChunks,
-} from "@/shared/lib/bulk-action";
-import {
-  batchDeleteAdminLLMUpstreamModels,
-  deleteAdminLLMUpstreamModel,
-  listAdminLLMUpstreamModels,
-  testAdminLLMUpstreamModelRoute,
-  upsertAdminLLMUpstreamModel,
-} from "@/features/admin/api";
+import { isOneOf } from "@/shared/lib/type-guards";
 import { cn } from "@/lib/utils";
 import type {
   AdminLLMAdapter,
-  AdminLLMModelProbeResult,
   AdminLLMRemoteModelItem,
   AdminLLMUpstreamView,
-  UpsertAdminLLMUpstreamModelRequest,
-} from "@/features/admin/api/llm.types";
-import { ModelProbeDialog } from "@/features/admin/components/sections/models/models-probe-dialog";
+} from "@/features/admin/api/llm-types";
+import { ModelProbeDialog } from "@/features/admin/components/shared/model-probe-dialog";
 import {
   PROTOCOL_OPTIONS,
   resolveKindsDisplayForProtocols,
   resolveNextRouteProtocolSelection,
   sortProtocolsForDisplay,
 } from "@/features/admin/utils/llm-display";
-import { MODEL_KIND_OPTIONS, PAGE_SIZE_DEFAULT } from "@/features/admin/types/llm";
+import { MODEL_KIND_OPTIONS, } from "@/features/admin/types/llm";
 import {
-  buildRowDrafts,
   createDraftPlatformModelNameMap,
   DEFAULT_NEW_BINDING,
-  displayToKindsJson,
-  summarizeBatchDeleteResult,
   summarizeImportResult,
-  validateRowDrafts,
   type NewBindingFormState,
   type RowDraft,
 } from "@/features/admin/model/upstreams-models";
-import { PermissionGroupSelector } from "@/features/admin/components/sections/groups/permission-group-selector";
+import { PermissionGroupSelector } from "@/features/admin/components/shared/permission-group-selector";
+import { FeatureGate } from "@/shared/capabilities";
+import { useAdminUpstreamsModelBinding } from "@/features/admin/hooks/use-admin-upstreams-model-binding";
+import {
+  ROUTE_SORT_VALUES,
+  ROUTE_STATUS_FILTERS,
+  routeIDsForRow,
+  type RowDraftPatch,
+  UPSTREAM_STATUS_FILTERS,
+  useAdminUpstreamsModels,
+} from "@/features/admin/hooks/use-admin-upstreams-models";
+import { useAdminUpstreamsRouteProbe } from "@/features/admin/hooks/use-admin-upstreams-route-probe";
+import { isAdminLLMStatus } from "@/features/admin/model/admin-unions";
 import {
   isUpstreamModelSyncAbort,
   UpstreamModelBindingsApplyError,
-  useUpstreamModelSync,
-} from "@/features/admin/hooks/use-upstream-model-sync";
+  useAdminUpstreamsModelSync,
+} from "@/features/admin/hooks/use-admin-upstreams-model-sync";
 
 function KindsDropdown({
   value,
@@ -288,46 +283,6 @@ function BulkActionControlRow({
   );
 }
 
-function routeIDsForRow(row: RowDraft): number[] {
-  return Object.values(row.routeIDsByProtocol).filter((id) => id > 0);
-}
-
-function removeRouteIDFromRows(rows: RowDraft[], routeID: number): RowDraft[] {
-  return rows.flatMap((row) => {
-    if (!routeIDsForRow(row).includes(routeID)) {
-      return [row];
-    }
-    const nextRouteIDsByProtocol = Object.fromEntries(
-      Object.entries(row.routeIDsByProtocol).filter(([, id]) => id !== routeID),
-    );
-    const nextRouteIDs = Object.values(nextRouteIDsByProtocol).filter((id) => id > 0);
-    if (nextRouteIDs.length === 0) {
-      return [];
-    }
-    const nextProtocols = row.protocols.filter((protocol) => nextRouteIDsByProtocol[protocol] > 0);
-    return [
-      {
-        ...row,
-        protocol: nextProtocols[0] ?? row.protocol,
-        protocols: nextProtocols,
-        routeID: Math.min(...nextRouteIDs),
-        routeIDsByProtocol: nextRouteIDsByProtocol,
-      },
-    ];
-  });
-}
-
-function selectedProtocolsForSave(row: RowDraft): AdminLLMAdapter[] {
-  const protocols = row.protocols.length > 0 ? row.protocols : [];
-  return Array.from(new Set(protocols));
-}
-
-async function runOperationsInOrder(operations: Array<() => Promise<unknown>>): Promise<void> {
-  for (const operation of operations) {
-    await operation();
-  }
-}
-
 type ModelRowProps = {
   row: RowDraft;
   isSelected: boolean;
@@ -336,8 +291,6 @@ type ModelRowProps = {
   onUpdate: (draftKey: string, patch: RowDraftPatch) => void;
   onTest: (row: RowDraft, routeID: number) => void;
 };
-
-type RowDraftPatch = Partial<Omit<RowDraft, "draftKey" | "isDirty" | "routeStatusOverridden">>;
 
 const ModelRow = React.memo(function ModelRow({ row, isSelected, upstreamInactive, onSelect, onUpdate, onTest }: ModelRowProps) {
   const t = useTranslations("adminUpstreams");
@@ -406,6 +359,7 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, upstreamInactiv
               <TooltipTrigger asChild>
                 <span
                   className="inline-flex shrink-0 items-center text-muted-foreground/70"
+                  role="img"
                   aria-label={t("modelsDialog.upstreamModelInactive")}
                 >
                   <CircleOff className="size-3 stroke-[1.5]" />
@@ -491,6 +445,18 @@ type RemoteModelsDialogProps = {
   onImported: () => void;
 };
 
+type SyncPlanStatusKey = "added" | "updated" | "reactivated" | "inactivated" | "unchanged" | "protected";
+
+// Models that left the remote catalog only exist in the sync plan, so the table
+// carries them as a separate row kind instead of forging remote items for them.
+type CatalogRow =
+  | { kind: "remote"; name: string; item: AdminLLMRemoteModelItem }
+  | { kind: "inactivated"; name: string };
+
+const syncPlanChipClassName =
+  "inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted/60 focus-visible:bg-muted/60";
+const syncPlanChipActiveClassName = "bg-muted font-medium text-foreground hover:bg-muted";
+
 function remoteModelStatusKey(item: AdminLLMRemoteModelItem): "bound" | "unbound" | "unsynced" {
   if (item.alreadyBound) return "bound";
   return item.alreadySynced ? "unbound" : "unsynced";
@@ -539,6 +505,7 @@ function RemoteModelsDialog({
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [draftPlatformModelNames, setDraftPlatformModelNames] = React.useState<Map<string, string>>(new Map());
   const [query, setQuery] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState<SyncPlanStatusKey | null>(null);
   const [permissionGroupIDs, setPermissionGroupIDs] = React.useState<number[]>([]);
   const [syncConfirmationOpen, setSyncConfirmationOpen] = React.useState(false);
   const [tooltipPortalContainer, setTooltipPortalContainer] = React.useState<HTMLDivElement | null>(null);
@@ -551,7 +518,7 @@ function RemoteModelsDialog({
     permissionGroupsLoading,
     reloadCatalog: loadRemoteModels,
     applySync,
-  } = useUpstreamModelSync(open, upstream?.id ?? null);
+  } = useAdminUpstreamsModelSync(open, upstream?.id ?? null);
   const remoteTotal = catalog?.total ?? null;
   const remoteSnapshotID = catalog?.snapshotID ?? "";
   const syncPlan = catalog?.syncPlan ?? null;
@@ -561,9 +528,11 @@ function RemoteModelsDialog({
     setSelected(new Set());
     setDraftPlatformModelNames(new Map());
     setQuery("");
+    setStatusFilter(null);
     if (!catalog) return;
-    const syncableItems = dedupeRemoteModels(catalog.items.filter((item) => !item.alreadyBound));
-    setRemoteItems(syncableItems);
+    const items = dedupeRemoteModels(catalog.items);
+    const syncableItems = items.filter((item) => !item.alreadyBound);
+    setRemoteItems([...syncableItems, ...items.filter((item) => item.alreadyBound)]);
     setSelected(new Set(syncableItems.map((item) => item.upstreamModelName)));
     setDraftPlatformModelNames(createDraftPlatformModelNameMap(syncableItems));
   }, [catalog]);
@@ -603,7 +572,7 @@ function RemoteModelsDialog({
   }
 
   function toggleAll(checked: boolean) {
-    const visibleNames = filteredRemoteItems.map((i) => i.upstreamModelName);
+    const visibleNames = visibleSyncableItems.map((i) => i.upstreamModelName);
     setSelected((prev) => {
       if (checked) {
         const next = new Set(prev);
@@ -620,25 +589,63 @@ function RemoteModelsDialog({
     });
   }
 
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredRemoteItems = React.useMemo(() => {
-    if (!normalizedQuery) return remoteItems;
-    return remoteItems.filter((item) => {
-      return [
-        item.upstreamModelName,
-        item.suggestedPlatformModelName || "",
-        item.suggestedProtocol || "",
-        ...(item.suggestedProtocols ?? []),
-        t(`modelsDialog.remoteStatus.${remoteModelStatusKey(item)}`),
-      ].some((value) => value.toLowerCase().includes(normalizedQuery));
-    });
-  }, [normalizedQuery, remoteItems, t]);
-  const selectedRemoteItems = React.useMemo(
-    () => remoteItems.filter((item) => selected.has(item.upstreamModelName)),
-    [remoteItems, selected],
+  const syncPlanStatuses = React.useMemo(
+    (): { key: SyncPlanStatusKey; label: string; models: string[] }[] =>
+      syncPlan
+        ? [
+            { key: "added", label: t("modelsDialog.syncPlanAddedLabel"), models: syncPlan.addedModels },
+            { key: "updated", label: t("modelsDialog.syncPlanUpdatedLabel"), models: syncPlan.updatedModels },
+            { key: "reactivated", label: t("modelsDialog.syncPlanReactivatedLabel"), models: syncPlan.reactivatedModels },
+            { key: "inactivated", label: t("modelsDialog.syncPlanInactivatedLabel"), models: syncPlan.inactivatedModels },
+            { key: "unchanged", label: t("modelsDialog.syncPlanUnchangedLabel"), models: syncPlan.unchangedModels },
+            { key: "protected", label: t("modelsDialog.syncPlanProtectedLabel"), models: syncPlan.protectedModels },
+          ]
+        : [],
+    [syncPlan, t],
   );
-  const allSelected = filteredRemoteItems.length > 0 && filteredRemoteItems.every((i) => selected.has(i.upstreamModelName));
-  const someSelected = filteredRemoteItems.some((i) => selected.has(i.upstreamModelName));
+  const statusFilterNames = React.useMemo(() => {
+    if (!statusFilter) return null;
+    const status = syncPlanStatuses.find((item) => item.key === statusFilter);
+    return new Set((status?.models ?? []).map((name) => name.trim()));
+  }, [statusFilter, syncPlanStatuses]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const catalogRows = React.useMemo((): CatalogRow[] => {
+    const remoteNames = new Set(remoteItems.map((item) => item.upstreamModelName.trim()));
+    const inactivatedRows = (syncPlan?.inactivatedModels ?? [])
+      .filter((name) => !remoteNames.has(name.trim()))
+      .map((name): CatalogRow => ({ kind: "inactivated", name }));
+    return [
+      ...remoteItems.map((item): CatalogRow => ({ kind: "remote", name: item.upstreamModelName, item })),
+      ...inactivatedRows,
+    ];
+  }, [remoteItems, syncPlan]);
+  const filteredRows = React.useMemo(() => {
+    return catalogRows.filter((row) => {
+      if (statusFilterNames && !statusFilterNames.has(row.name.trim())) return false;
+      if (!normalizedQuery) return true;
+      const values = row.kind === "remote"
+        ? [
+            row.item.upstreamModelName,
+            row.item.suggestedPlatformModelName || "",
+            row.item.suggestedProtocol || "",
+            ...(row.item.suggestedProtocols ?? []),
+            t(`modelsDialog.remoteStatus.${remoteModelStatusKey(row.item)}`),
+          ]
+        : [row.name, t("modelsDialog.syncPlanInactivatedLabel")];
+      return values.some((value) => value.toLowerCase().includes(normalizedQuery));
+    });
+  }, [catalogRows, normalizedQuery, statusFilterNames, t]);
+  const syncableItems = React.useMemo(() => remoteItems.filter((item) => !item.alreadyBound), [remoteItems]);
+  const visibleSyncableItems = React.useMemo(
+    () => filteredRows.flatMap((row) => (row.kind === "remote" && !row.item.alreadyBound ? [row.item] : [])),
+    [filteredRows],
+  );
+  const selectedRemoteItems = React.useMemo(
+    () => syncableItems.filter((item) => selected.has(item.upstreamModelName)),
+    [syncableItems, selected],
+  );
+  const allSelected = visibleSyncableItems.length > 0 && visibleSyncableItems.every((i) => selected.has(i.upstreamModelName));
+  const someSelected = visibleSyncableItems.some((i) => selected.has(i.upstreamModelName));
   const hasQuery = normalizedQuery.length > 0;
   const catalogChangeCount = syncPlan
     ? syncPlan.addedModels.length
@@ -648,16 +655,10 @@ function RemoteModelsDialog({
     : 0;
   const hasCatalogChanges = catalogChangeCount > 0;
   const hasSyncWork = hasCatalogChanges || selectedRemoteItems.length > 0;
-  const syncPlanStatuses = syncPlan
-    ? [
-        { key: "added", label: t("modelsDialog.syncPlanAddedLabel"), models: syncPlan.addedModels },
-        { key: "updated", label: t("modelsDialog.syncPlanUpdatedLabel"), models: syncPlan.updatedModels },
-        { key: "reactivated", label: t("modelsDialog.syncPlanReactivatedLabel"), models: syncPlan.reactivatedModels },
-        { key: "inactivated", label: t("modelsDialog.syncPlanInactivatedLabel"), models: syncPlan.inactivatedModels },
-        { key: "unchanged", label: t("modelsDialog.syncPlanUnchangedLabel"), models: syncPlan.unchangedModels },
-        { key: "protected", label: t("modelsDialog.syncPlanProtectedLabel"), models: syncPlan.protectedModels },
-      ]
-    : [];
+
+  function toggleStatusFilter(key: SyncPlanStatusKey) {
+    setStatusFilter((prev) => (prev === key ? null : key));
+  }
 
   function formatCatalogSummary(result: Awaited<ReturnType<typeof applySync>>["catalog"]) {
     return t("modelsDialog.catalogSyncSummary", {
@@ -755,54 +756,64 @@ function RemoteModelsDialog({
           </DialogHeader>
 
           <div className="shrink-0 px-5 pb-2">
-            <div className="border-y border-border/60">
-              <div className="flex min-h-10 items-center gap-3 py-1.5">
-                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <span className="mr-1 shrink-0 text-xs font-medium">{t("modelsDialog.syncPlanTitle")}</span>
+            <div className="flex h-8 items-center gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {loading && !syncPlan ? (
                     <span className="shrink-0 text-[11px] text-muted-foreground">
                       {t("modelsDialog.syncPlanLoading")}
                     </span>
                   ) : (
-                    syncPlanStatuses.map((status) => {
-                      const destructive = status.key === "inactivated" && status.models.length > 0;
-                      return (
-                        <Tooltip key={status.key}>
-                          <TooltipTrigger
-                            type="button"
-                            aria-label={`${status.label} ${status.models.length}`}
-                            className={cn(
-                              "inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50",
-                              destructive && "text-destructive",
-                            )}
-                          >
-                            <span>{status.label}</span>
-                            <span className="font-mono tabular-nums text-foreground/75">{status.models.length}</span>
-                          </TooltipTrigger>
-                          <TooltipContent
-                            portalContainer={tooltipPortalContainer}
-                            side="bottom"
-                            sideOffset={6}
-                            className="w-72 px-3 py-2.5"
-                          >
-                            <p className="mb-1.5 font-medium">
-                              {status.label} · {status.models.length}
-                            </p>
-                            {status.models.length > 0 ? (
-                              <div className="max-h-48 space-y-0.5 overflow-y-auto overscroll-contain pr-1">
-                                {status.models.map((modelName) => (
-                                  <div key={modelName} className="break-all font-mono text-[11px] leading-5 text-background/80">
-                                    {modelName}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-background/70">{t("modelsDialog.syncPlanNoModels")}</p>
-                            )}
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    })
+                    <>
+                      <button
+                        type="button"
+                        aria-pressed={statusFilter === null}
+                        onClick={() => setStatusFilter(null)}
+                        className={cn(syncPlanChipClassName, statusFilter === null && syncPlanChipActiveClassName)}
+                      >
+                        <span>{t("modelsDialog.syncPlanAllLabel")}</span>
+                        <span className="font-mono tabular-nums">{catalogRows.length}</span>
+                      </button>
+                      {syncPlanStatuses
+                        .filter((status) => status.models.length > 0)
+                        .map((status) => {
+                          const active = statusFilter === status.key;
+                          return (
+                            <Tooltip key={status.key}>
+                              <TooltipTrigger
+                                type="button"
+                                aria-label={`${status.label} ${status.models.length}`}
+                                aria-pressed={active}
+                                onClick={() => toggleStatusFilter(status.key)}
+                                className={cn(
+                                  syncPlanChipClassName,
+                                  status.key === "inactivated" && "text-destructive",
+                                  active && syncPlanChipActiveClassName,
+                                )}
+                              >
+                                <span>{status.label}</span>
+                                <span className="font-mono tabular-nums">{status.models.length}</span>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                portalContainer={tooltipPortalContainer}
+                                side="bottom"
+                                sideOffset={6}
+                                className="w-72 px-3 py-2.5"
+                              >
+                                <p className="mb-1.5 font-medium">
+                                  {status.label} · {status.models.length}
+                                </p>
+                                <div className="max-h-48 space-y-0.5 overflow-y-auto overscroll-contain pr-1">
+                                  {status.models.map((modelName) => (
+                                    <div key={modelName} className="break-all font-mono text-[11px] leading-5 text-background/80">
+                                      {modelName}
+                                    </div>
+                                  ))}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        })}
+                    </>
                   )}
                 </div>
                 <Button
@@ -817,13 +828,12 @@ function RemoteModelsDialog({
                 >
                   <RefreshCw className={cn("size-3.5 stroke-1", loading && "animate-spin")} />
                 </Button>
-              </div>
             </div>
           </div>
 
-          <DialogCollapsible open={remoteItems.length > 0} className="shrink-0">
+          <DialogCollapsible open={catalogRows.length > 0} className="shrink-0">
             <div>
-              <div className="grid grid-cols-1 gap-2 px-5 pb-2 sm:grid-cols-2">
+              <div className="px-5 pb-2">
                 <div className="relative">
                   <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 stroke-1 text-muted-foreground" />
                   <Input
@@ -832,19 +842,6 @@ function RemoteModelsDialog({
                     onChange={(event) => setQuery(event.target.value)}
                     disabled={loading || importing}
                     className="bg-background pl-8"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <PermissionGroupSelector
-                    groups={permissionGroups}
-                    selectedIDs={permissionGroupIDs}
-                    disabled={loading || importing}
-                    loading={permissionGroupsLoading}
-                    triggerPrefix={t("modelsDialog.importPermissionGroups")}
-                    placeholder={t("modelsDialog.permissionGroupsPlaceholder")}
-                    emptyLabel={t("modelsDialog.permissionGroupsEmpty")}
-                    autoBadgeLabel={t("modelsDialog.permissionGroupsAutoBadge")}
-                    onSelectedIDsChange={setPermissionGroupIDs}
                   />
                 </div>
               </div>
@@ -862,6 +859,7 @@ function RemoteModelsDialog({
                           <Checkbox
                             checked={allSelected ? true : someSelected ? "indeterminate" : false}
                             onCheckedChange={(v) => toggleAll(v === true)}
+                            disabled={visibleSyncableItems.length === 0}
                             aria-label={t("table.selectAll")}
                           />
                         </div>
@@ -872,44 +870,67 @@ function RemoteModelsDialog({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {!loading && filteredRemoteItems.length === 0 ? (
+                    {!loading && filteredRows.length === 0 ? (
                       <TableEmptyRow colSpan={4}>
-                        {hasQuery ? t("modelsDialog.noMatchedModels") : t("modelsDialog.noSyncableModels")}
+                        {hasQuery
+                          ? t("modelsDialog.noMatchedModels")
+                          : statusFilter
+                            ? t("modelsDialog.syncPlanNoModels")
+                            : t("modelsDialog.noSyncableModels")}
                       </TableEmptyRow>
                     ) : null}
-                    {filteredRemoteItems.map((item) => (
+                    {filteredRows.map((row) => (
                       <TableRow
-                        key={item.upstreamModelName}
-                        selected={selected.has(item.upstreamModelName)}
+                        key={row.name}
+                        selected={row.kind === "remote" && selected.has(row.name)}
                       >
                         <TableCell className="w-14 px-2 py-1.5 text-center">
                           <div className="flex h-7 items-center justify-center">
-                            <Checkbox
-                              checked={selected.has(item.upstreamModelName)}
-                              onCheckedChange={(v) => toggleOne(item.upstreamModelName, v === true)}
-                              aria-label={item.upstreamModelName}
-                            />
+                            {row.kind === "remote" && !row.item.alreadyBound ? (
+                              <Checkbox
+                                checked={selected.has(row.name)}
+                                onCheckedChange={(v) => toggleOne(row.name, v === true)}
+                                aria-label={row.name}
+                              />
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="py-1.5 font-mono text-xs text-muted-foreground">
-                          <span className="flex h-7 items-center truncate" title={item.upstreamModelName}>
-                            {item.upstreamModelName}
+                          <span className="flex h-7 items-center truncate" title={row.name}>
+                            {row.name}
                           </span>
                         </TableCell>
                         <TableCell className="min-w-0 py-1.5">
                           <div className="flex h-7 items-center">
-                            <Input
-                              className="w-full min-w-0 font-mono text-xs"
-                              value={draftPlatformModelNames.get(item.upstreamModelName) ?? ""}
-                              onChange={(e) => setDraftPlatformModelName(item.upstreamModelName, e.target.value)}
-                            />
+                            {row.kind === "inactivated" ? (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            ) : row.item.alreadyBound ? (
+                              <span
+                                className="truncate font-mono text-xs text-muted-foreground"
+                                title={row.item.boundPlatformModels.join(", ")}
+                              >
+                                {row.item.boundPlatformModels.join(", ")}
+                              </span>
+                            ) : (
+                              <Input
+                                className="w-full min-w-0 font-mono text-xs"
+                                value={draftPlatformModelNames.get(row.name) ?? ""}
+                                onChange={(e) => setDraftPlatformModelName(row.name, e.target.value)}
+                              />
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="w-20 py-1.5 text-center">
                           <div className="flex h-7 items-center justify-center">
-                            <Badge variant="secondary" className={cn(!item.alreadyBound && "text-muted-foreground")}>
-                              {t(`modelsDialog.remoteStatus.${remoteModelStatusKey(item)}`)}
-                            </Badge>
+                            {row.kind === "inactivated" ? (
+                              <Badge variant="secondary" className="text-destructive">
+                                {t("modelsDialog.syncPlanInactivatedLabel")}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className={cn(!row.item.alreadyBound && "text-muted-foreground")}>
+                                {t(`modelsDialog.remoteStatus.${remoteModelStatusKey(row.item)}`)}
+                              </Badge>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -920,10 +941,10 @@ function RemoteModelsDialog({
             </div>
           </DialogCollapsible>
 
-          <DialogCollapsible open={remoteItems.length === 0} className="shrink-0">
+          <DialogCollapsible open={catalogRows.length === 0} className="shrink-0">
             <div className="px-5 py-2">
               <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
-                {loading || remoteItems.length > 0 ? (
+                {loading || catalogRows.length > 0 ? (
                   <SpinnerLabel>{t("modelsDialog.loadingRemote")}</SpinnerLabel>
                 ) : (
                   t("modelsDialog.noSyncableModels")
@@ -933,18 +954,27 @@ function RemoteModelsDialog({
           </DialogCollapsible>
 
           <DialogFooter className="shrink-0 items-center justify-between px-5 py-3">
-            <span className="text-xs text-muted-foreground">
-              {remoteItems.length > 0
-                ? t("modelsDialog.syncSummary", {
-                    total: remoteItems.length,
-                    shown: filteredRemoteItems.length,
-                    selected: selectedRemoteItems.length,
-                    hasQuery: hasQuery ? "true" : "false",
-                    hasSelected: selectedRemoteItems.length > 0 ? "true" : "false",
-                  })
-                : t("modelsDialog.remoteCatalogSummary", { total: remoteTotal ?? 0 })}
-            </span>
-            <div className="flex gap-2">
+            <div className="flex min-w-0 items-center text-xs text-muted-foreground">
+              {catalogRows.length === 0 && !loading ? (
+                <span>{t("modelsDialog.remoteCatalogSummary", { total: remoteTotal ?? 0 })}</span>
+              ) : selectedRemoteItems.length > 0 ? (
+                <FeatureGate feature="multiUser">
+                  <PermissionGroupSelector
+                    variant="inline"
+                    groups={permissionGroups}
+                    selectedIDs={permissionGroupIDs}
+                    disabled={loading || importing}
+                    loading={permissionGroupsLoading}
+                    triggerPrefix={t("modelsDialog.importPermissionGroups")}
+                    placeholder={t("modelsDialog.permissionGroupsPlaceholder")}
+                    emptyLabel={t("modelsDialog.permissionGroupsEmpty")}
+                    autoBadgeLabel={t("modelsDialog.permissionGroupsAutoBadge")}
+                    onSelectedIDsChange={setPermissionGroupIDs}
+                  />
+                </FeatureGate>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2">
               <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>
                 {commonT("actions.cancel")}
               </Button>
@@ -1009,9 +1039,8 @@ function NewBindingDialog({
 }: NewBindingDialogProps) {
   const t = useTranslations("adminUpstreams");
   const commonT = useTranslations("common");
-  const resolveErrorMessage = useLocalizedErrorMessage();
   const [form, setForm] = React.useState<NewBindingFormState>(DEFAULT_NEW_BINDING);
-  const [saving, setSaving] = React.useState(false);
+  const { saving, createBinding } = useAdminUpstreamsModelBinding();
 
   React.useEffect(() => {
     if (!open) return;
@@ -1026,32 +1055,11 @@ function NewBindingDialog({
   }
 
   async function handleSave() {
-    if (!form.upstreamModelName.trim() || !form.platformModelName.trim()) {
-      toast.error(t("modelsDialog.bindingNamesRequired"));
-      return;
-    }
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      const payload: UpsertAdminLLMUpstreamModelRequest = {
-        upstreamModelName: form.upstreamModelName.trim(),
-        platformModelName: form.platformModelName.trim(),
-        protocols: form.protocols,
-        kindsJSON: displayToKindsJson(form.kindsDisplay),
-        status: form.status,
-        priority: 1,
-        weight: 1,
-      };
-      await upsertAdminLLMUpstreamModel(token, upstreamId, payload);
-      toast.success(t("modelsDialog.bindingCreated"));
+    await createBinding(upstreamId, form, () => {
       setForm(DEFAULT_NEW_BINDING);
       onOpenChange(false);
       onCreated();
-    } catch (err) {
-      toast.error(t("toast.createFailed"), { description: resolveErrorMessage(err) });
-    } finally {
-      setSaving(false);
-    }
+    });
   }
 
   return (
@@ -1148,35 +1156,13 @@ type UpstreamModelsDialogProps = {
   onRemoteOpenHandled?: () => void;
 };
 
-type RouteStatusFilter = "bound" | "active" | "inactive";
-type UpstreamStatusFilter = "all" | "active" | "inactive";
-type RouteSortValue = "upstream_asc" | "upstream_desc" | "platform_asc" | "platform_desc" | "status_asc" | "protocol_asc";
-
-type RouteListParams = {
-  upstreamID: number | null;
-  page: number;
-  pageSize: number;
-  query: string;
-  routeStatusFilter: RouteStatusFilter;
-  upstreamStatusFilter: UpstreamStatusFilter;
-  protocolFilter: string;
-  sortValue: RouteSortValue;
-};
-
 type BulkPatchConfirm = {
   patch: RowDraftPatch;
 };
 
-const DEFAULT_ROUTE_LIST_PARAMS: RouteListParams = {
-  upstreamID: null,
-  page: 1,
-  pageSize: PAGE_SIZE_DEFAULT,
-  query: "",
-  routeStatusFilter: "bound",
-  upstreamStatusFilter: "all",
-  protocolFilter: "",
-  sortValue: "upstream_asc",
-};
+const isRouteStatusFilter = isOneOf(ROUTE_STATUS_FILTERS);
+const isUpstreamStatusFilter = isOneOf(UPSTREAM_STATUS_FILTERS);
+const isRouteSortValue = isOneOf(ROUTE_SORT_VALUES);
 
 export function UpstreamModelsDialog({
   open,
@@ -1187,111 +1173,56 @@ export function UpstreamModelsDialog({
   onRemoteOpenHandled,
 }: UpstreamModelsDialogProps) {
   const t = useTranslations("adminUpstreams");
-  const modelT = useTranslations("adminModels");
   const commonT = useTranslations("common");
-  const resolveErrorMessage = useLocalizedErrorMessage();
-  const [rows, setRows] = React.useState<RowDraft[]>([]);
-  const [loadedUpstreamID, setLoadedUpstreamID] = React.useState<number | null>(null);
-  const [loadingList, setLoadingList] = React.useState(false);
   const [remoteModelsOpen, setRemoteModelsOpen] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [deleting, setDeleting] = React.useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
-  const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [newBindingOpen, setNewBindingOpen] = React.useState(false);
   const [bulkRouteStatus, setBulkRouteStatus] = React.useState<"active" | "inactive">("active");
   const [bulkProtocols, setBulkProtocols] = React.useState<AdminLLMAdapter[]>([]);
   const [bulkKindsDisplay, setBulkKindsDisplay] = React.useState("chat");
   const [bulkPatchConfirm, setBulkPatchConfirm] = React.useState<BulkPatchConfirm | null>(null);
-  const [query, setQuery] = React.useState("");
-  const [listParams, setListParams] = React.useState<RouteListParams>(DEFAULT_ROUTE_LIST_PARAMS);
-  const [total, setTotal] = React.useState(0);
-  const [probeOpen, setProbeOpen] = React.useState(false);
-  const [probeLoading, setProbeLoading] = React.useState(false);
-  const [probeTargetName, setProbeTargetName] = React.useState("");
-  const [probeResults, setProbeResults] = React.useState<AdminLLMModelProbeResult[]>([]);
-  const requestSeqRef = React.useRef(0);
   const stableUpstream = useDialogSnapshot(upstream);
   const upstreamID = stableUpstream?.id ?? null;
+  const {
+    rows,
+    loadedUpstreamID,
+    loadingList,
+    saving,
+    deleting,
+    selected,
+    setSelected,
+    query,
+    setQuery,
+    listParams,
+    total,
+    loadBindings,
+    updateListParams,
+    updateRow,
+    applyBulkPatch,
+    removeRouteLocally,
+    deleteSelected,
+    save: handleSave,
+  } = useAdminUpstreamsModels({ open, upstream: stableUpstream, onUpstreamUpdated });
+  const {
+    probeOpen,
+    setProbeOpen,
+    probeLoading,
+    probeTargetName,
+    probeResults,
+    testRoute: handleTestRoute,
+    deleteProbeRoute: handleDeleteProbeRoute,
+  } = useAdminUpstreamsRouteProbe({
+    upstream: stableUpstream,
+    onRouteDeleted: (result, probedUpstream) => {
+      removeRouteLocally(result.routeID);
+      void loadBindings();
+      onUpstreamUpdated({ ...probedUpstream });
+    },
+  });
 
   React.useEffect(() => {
     setBulkProtocols([]);
   }, [upstreamID]);
-
-  const loadBindings = React.useCallback(async (params: RouteListParams = listParams) => {
-    if (!upstreamID || params.upstreamID !== upstreamID) return;
-    const requestSeq = requestSeqRef.current + 1;
-    requestSeqRef.current = requestSeq;
-    setLoadingList(true);
-    try {
-      const token = await resolveAccessToken();
-      const result = await listAdminLLMUpstreamModels(token, upstreamID, {
-        page: params.page,
-        pageSize: params.pageSize,
-        query: params.query,
-        routeStatus: params.routeStatusFilter,
-        upstreamStatus: params.upstreamStatusFilter === "all" ? "" : params.upstreamStatusFilter,
-        protocol: params.protocolFilter,
-        sort: params.sortValue,
-      });
-      if (requestSeq !== requestSeqRef.current) {
-        return;
-      }
-      setRows(buildRowDrafts(result.results));
-      setTotal(result.total);
-      setLoadedUpstreamID(upstreamID);
-      setSelected(new Set());
-    } catch (err) {
-      if (requestSeq !== requestSeqRef.current) {
-        return;
-      }
-      setRows([]);
-      setTotal(0);
-      setLoadedUpstreamID(upstreamID);
-      toast.error(t("modelsDialog.loadFailed"), { description: resolveErrorMessage(err) });
-    } finally {
-      if (requestSeq === requestSeqRef.current) {
-        setLoadingList(false);
-      }
-    }
-  }, [listParams, resolveErrorMessage, t, upstreamID]);
-
-  React.useEffect(() => {
-    if (!open || !upstreamID) return;
-    requestSeqRef.current += 1;
-    setRows([]);
-    setTotal(0);
-    setLoadedUpstreamID(null);
-    setSelected(new Set());
-    setQuery("");
-    setListParams({ ...DEFAULT_ROUTE_LIST_PARAMS, upstreamID });
-    return () => {
-      requestSeqRef.current += 1;
-    };
-  }, [open, upstreamID]);
-
-  React.useEffect(() => {
-    if (!open || !upstreamID || listParams.upstreamID !== upstreamID) {
-      return;
-    }
-    void loadBindings(listParams);
-  }, [listParams, loadBindings, open, upstreamID]);
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const nextQuery = query.trim();
-      setListParams((prev) => {
-        if (!open || !upstreamID || prev.upstreamID !== upstreamID) {
-          return prev;
-        }
-        if (prev.query === nextQuery && prev.page === 1) {
-          return prev;
-        }
-        return { ...prev, query: nextQuery, page: 1 };
-      });
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [open, query, upstreamID]);
 
   React.useEffect(() => {
     if (!open || !stableUpstream || !openRemoteOnOpen) return;
@@ -1327,10 +1258,6 @@ export function UpstreamModelsDialog({
     upstreamStatusFilter !== "all" ||
     protocolFilter !== "";
 
-  const updateListParams = React.useCallback((patch: Partial<RouteListParams>) => {
-    setListParams((prev) => ({ ...prev, ...patch, page: patch.page ?? 1 }));
-  }, []);
-
   const selectableRows = React.useMemo(
     () => visibleRows.filter((row) => routeIDsForRow(row).length > 0),
     [visibleRows],
@@ -1359,236 +1286,11 @@ export function UpstreamModelsDialog({
       else next.delete(draftKey);
       return next;
     });
-  }, []);
-
-  const handleTestRoute = React.useCallback(
-    async (row: RowDraft, routeID: number) => {
-      if (!upstreamID || routeID <= 0 || row.upstreamModelStatus === "inactive" || stableUpstream?.status === "inactive") return;
-      setProbeTargetName(`${row.platformModelNameDraft || row.platformModelName} / ${row.upstreamModelName}`);
-      setProbeResults([]);
-      setProbeOpen(true);
-      setProbeLoading(true);
-      try {
-        const token = await resolveAccessToken();
-        if (!token) {
-          toast.error(modelT("toast.sessionExpired"), { description: modelT("toast.signInAgain") });
-          setProbeOpen(false);
-          return;
-        }
-        setProbeResults([await testAdminLLMUpstreamModelRoute(token, upstreamID, routeID)]);
-      } catch (error) {
-        toast.error(t("toast.operationFailed"), { description: resolveErrorMessage(error) });
-        setProbeOpen(false);
-      } finally {
-        setProbeLoading(false);
-      }
-    },
-    [modelT, resolveErrorMessage, stableUpstream?.status, t, upstreamID],
-  );
-
-  const handleDeleteProbeRoute = React.useCallback(
-    async (result: AdminLLMModelProbeResult) => {
-      if (!stableUpstream) {
-        return;
-      }
-      try {
-        const token = await resolveAccessToken();
-        await deleteAdminLLMUpstreamModel(token, result.upstreamID, result.routeID);
-        const nextResults = probeResults.filter((item) => item.routeID !== result.routeID);
-        setRows((prev) => removeRouteIDFromRows(prev, result.routeID));
-        setProbeResults(nextResults);
-        if (nextResults.length === 0) {
-          setProbeOpen(false);
-        }
-        setSelected((prev) => {
-          const next = new Set(prev);
-          rows.forEach((row) => {
-            if (routeIDsForRow(row).includes(result.routeID)) {
-              next.delete(row.draftKey);
-            }
-          });
-          return next;
-        });
-        toast.success(modelT("toast.sourceDeleted"));
-        void loadBindings();
-        onUpstreamUpdated({ ...stableUpstream });
-      } catch (error) {
-        toast.error(modelT("toast.sourceDeleteFailed"), { description: resolveErrorMessage(error) });
-        throw error;
-      }
-    },
-    [loadBindings, modelT, onUpstreamUpdated, probeResults, resolveErrorMessage, rows, stableUpstream],
-  );
-
-  const updateRow = React.useCallback((
-    draftKey: string,
-    patch: RowDraftPatch,
-  ) => {
-    setRows((prev) =>
-      prev.map((r) =>
-        r.draftKey === draftKey
-          ? {
-              ...r,
-              ...patch,
-              isDirty: true,
-              routeStatusOverridden: r.routeStatusOverridden || patch.routeStatus !== undefined,
-            }
-          : r,
-      ),
-    );
-  }, []);
-
-  const applyBulkPatch = React.useCallback((patch: RowDraftPatch) => {
-    if (selected.size === 0) return;
-    setRows((prev) =>
-      prev.map((row) => {
-        if (routeIDsForRow(row).length === 0 || !selected.has(row.draftKey)) return row;
-        // 上游已下架的模型路由开关不可操作，批量修改路由状态时同样跳过，避免暗中改写被禁用的开关。
-        const { routeStatus: _routeStatus, ...rest } = patch;
-        const rowPatch: RowDraftPatch = row.upstreamModelStatus === "inactive" ? rest : patch;
-        if (Object.keys(rowPatch).length === 0) return row;
-        return {
-          ...row,
-          ...rowPatch,
-          isDirty: true,
-          routeStatusOverridden: row.routeStatusOverridden || rowPatch.routeStatus !== undefined,
-        };
-      }),
-    );
-  }, [selected]);
+  }, [setSelected]);
 
   async function handleDeleteSelected() {
-    if (!stableUpstream || selected.size === 0) return;
-    const routeIDs = rows
-      .filter((row) => selected.has(row.draftKey))
-      .flatMap(routeIDsForRow);
-    if (routeIDs.length === 0) return;
-    setDeleting(true);
-    try {
-      const token = await resolveAccessToken();
-      const result = mergeBatchResultData(await runBulkActionInChunks({
-        items: routeIDs,
-        title: t("modelsDialog.batchDeleteTitle"),
-        runChunk: (ids) => batchDeleteAdminLLMUpstreamModels(token, stableUpstream.id, { ids }),
-      }));
-      const deletedIDs = new Set(
-        result.results
-          .filter((item) => item.status === "deleted" || item.status === "not_found")
-          .map((item) => item.id),
-      );
-      setRows((prev) =>
-        prev.filter((row) => routeIDsForRow(row).some((routeID) => !deletedIDs.has(routeID))),
-      );
-      setSelected(new Set());
-      if (result.failedCount > 0) {
-        toast.error(t("modelsDialog.batchDeletePartialFailed"), {
-          description: summarizeBatchDeleteResult(result, {
-            batchDeleteSummary: (successCount, notFoundCount, failedCount) =>
-              t("modelsDialog.batchDeleteSummary", { successCount, notFoundCount, failedCount }),
-          }),
-        });
-      } else {
-        toast.success(t("modelsDialog.batchDeleteDone"), {
-          description: summarizeBatchDeleteResult(result, {
-            batchDeleteSummary: (successCount, notFoundCount, failedCount) =>
-              t("modelsDialog.batchDeleteSummary", { successCount, notFoundCount, failedCount }),
-          }),
-        });
-      }
-      void loadBindings();
-      onUpstreamUpdated({ ...stableUpstream });
-    } catch (err) {
-      toast.error(t("toast.deleteFailed"), { description: resolveErrorMessage(err) });
-    } finally {
-      setDeleting(false);
+    if (await deleteSelected()) {
       setDeleteConfirmOpen(false);
-    }
-  }
-
-  async function handleSave() {
-    if (!stableUpstream) return;
-    const dirty = rows.filter((r) => r.isDirty);
-    if (dirty.length === 0) {
-      toast.info(t("modelsDialog.noPendingChanges"));
-      return;
-    }
-    const validationError = validateRowDrafts(rows, {
-      upstreamModelRequired: t("modelsDialog.upstreamModelRequired"),
-      activeRouteRequiresPlatformModel: t("modelsDialog.activeRouteRequiresPlatformModel"),
-      duplicateBinding: (upstreamModelName, platformModelName) =>
-        t("modelsDialog.duplicateBinding", { upstreamModelName, platformModelName }),
-    });
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      const deleteOperations: Array<() => Promise<unknown>> = [];
-      const upsertOperations: Array<() => Promise<unknown>> = [];
-      let savedCount = 0;
-      let deletedCount = 0;
-
-      for (const row of dirty) {
-        const platformModelName = row.platformModelNameDraft.trim();
-        const existingRouteIDs = routeIDsForRow(row);
-        const shouldDeleteRoute =
-          existingRouteIDs.length > 0 &&
-          row.routeStatus === "inactive" &&
-          platformModelName.length === 0;
-
-        if (shouldDeleteRoute) {
-          for (const routeID of existingRouteIDs) {
-            deleteOperations.push(() => deleteAdminLLMUpstreamModel(token, stableUpstream.id, routeID));
-            deletedCount += 1;
-          }
-          continue;
-        }
-        if (!platformModelName) {
-          continue;
-        }
-
-        const basePayload: Omit<UpsertAdminLLMUpstreamModelRequest, "protocols"> = {
-          platformModelName,
-          upstreamModelName: row.upstreamModelName.trim(),
-          kindsJSON: displayToKindsJson(row.kindsDisplay),
-          ...(row.routeStatusOverridden ? { status: row.routeStatus || "active" } : {}),
-        };
-        const desiredProtocols = selectedProtocolsForSave(row);
-        upsertOperations.push(() =>
-          upsertAdminLLMUpstreamModel(token, stableUpstream.id, {
-            ...basePayload,
-            routeIDs: existingRouteIDs,
-            protocols: desiredProtocols,
-          }),
-        );
-        savedCount += 1;
-      }
-
-      if (deleteOperations.length === 0 && upsertOperations.length === 0) {
-        toast.info(t("modelsDialog.noSavableChanges"));
-        await loadBindings();
-        return;
-      }
-
-      await runOperationsInOrder(upsertOperations);
-      await runOperationsInOrder(deleteOperations);
-      if (savedCount > 0 && deletedCount > 0) {
-        toast.success(t("modelsDialog.savedAndDeleted", { savedCount, deletedCount }));
-      } else if (deletedCount > 0) {
-        toast.success(t("modelsDialog.deletedBindings", { deletedCount }), {
-          description: t("modelsDialog.deleteBindingDescription"),
-        });
-      } else {
-        toast.success(t("modelsDialog.savedChanges", { savedCount }));
-      }
-      await loadBindings();
-      onUpstreamUpdated({ ...stableUpstream });
-    } catch (err) {
-      toast.error(t("toast.updateFailed"), { description: resolveErrorMessage(err) });
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -1632,7 +1334,10 @@ export function UpstreamModelsDialog({
                     key: "route-status",
                     label: t("modelsDialog.routeStatus"),
                     value: routeStatusFilter === "bound" ? "" : routeStatusFilter,
-                    onValueChange: (value) => updateListParams({ routeStatusFilter: (value || "bound") as RouteStatusFilter }),
+                    onValueChange: (value) => {
+                      const routeStatusFilter = value || "bound";
+                      if (isRouteStatusFilter(routeStatusFilter)) updateListParams({ routeStatusFilter });
+                    },
                     options: [
                       { label: t("modelsDialog.allRoutes"), value: "" },
                       { label: t("status.active"), value: "active" },
@@ -1643,7 +1348,10 @@ export function UpstreamModelsDialog({
                     key: "upstream-status",
                     label: t("modelsDialog.upstreamStatus"),
                     value: upstreamStatusFilter === "all" ? "" : upstreamStatusFilter,
-                    onValueChange: (value) => updateListParams({ upstreamStatusFilter: (value || "all") as UpstreamStatusFilter }),
+                    onValueChange: (value) => {
+                      const upstreamStatusFilter = value || "all";
+                      if (isUpstreamStatusFilter(upstreamStatusFilter)) updateListParams({ upstreamStatusFilter });
+                    },
                     options: [
                       { label: t("modelsDialog.allUpstreams"), value: "" },
                       { label: t("modelsDialog.upstreamActive"), value: "active" },
@@ -1663,7 +1371,9 @@ export function UpstreamModelsDialog({
                 ]}
                 sort={{
                   value: sortValue,
-                  onValueChange: (value) => updateListParams({ sortValue: value as RouteSortValue }),
+                  onValueChange: (value) => {
+                    if (isRouteSortValue(value)) updateListParams({ sortValue: value });
+                  },
                   options: [
                     { label: t("modelsDialog.sort.upstreamAsc"), value: "upstream_asc" },
                     { label: t("modelsDialog.sort.upstreamDesc"), value: "upstream_desc" },
@@ -1684,7 +1394,7 @@ export function UpstreamModelsDialog({
                       <Select
                         value={bulkRouteStatus}
                         onValueChange={(value) => {
-                          setBulkRouteStatus(value as "active" | "inactive");
+                          if (isAdminLLMStatus(value)) setBulkRouteStatus(value);
                         }}
                         disabled={selectedCount === 0}
                       >

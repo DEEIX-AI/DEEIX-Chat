@@ -2,8 +2,8 @@ import { toBranchKey } from "@/features/chat/model/chat-thread";
 import { resolvePersistedPublicID } from "@/features/chat/model/message-submit";
 import type { PendingAttachment, PendingExchange } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage } from "@/features/chat/types/messages";
-import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation.types";
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
+import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation-types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 import { createSecureUUID } from "@/shared/lib/secure-id";
 
 export const MAX_CONCURRENT_RUNS = 5;

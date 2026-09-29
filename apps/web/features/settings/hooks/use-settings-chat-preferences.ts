@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { useUserSettings } from "@/shared/model/user-settings-store";
+import { useUserSettings } from "@/entities/user-settings";
 
 type ChatPreferences = {
   autoGenerateTitle: boolean;

@@ -8,11 +8,9 @@ export function detectCurrentTimeZone(): string {
 
 export function resolveTimeZoneOptions(): string[] {
   const options = new Set<string>(["Etc/UTC"]);
-  const intlWithSupportedValues = Intl as typeof Intl & {
-    supportedValuesOf?: (key: "timeZone") => string[];
-  };
-
-  for (const timeZone of intlWithSupportedValues.supportedValuesOf?.("timeZone") ?? []) {
+  // lib.es2022 declares supportedValuesOf unconditionally; older WebKit builds lack it.
+  const timeZones = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+  for (const timeZone of timeZones) {
     options.add(timeZone);
   }
 

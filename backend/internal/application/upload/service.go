@@ -21,7 +21,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/filetype"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstorage"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/google/uuid"
@@ -118,7 +118,7 @@ type ListFilesInput struct {
 }
 
 type saveUploadedFileInput struct {
-	Store          objectstore.Store
+	Store          objectstorage.Store
 	Reader         io.Reader
 	UserPublicID   string
 	FileID         string
@@ -156,7 +156,7 @@ func (s *Service) SetObjectStoreProvider(provider appstorage.Provider) {
 	}
 }
 
-func (s *Service) openObjectStore(ctx context.Context) (objectstore.Store, error) {
+func (s *Service) openObjectStore(ctx context.Context) (objectstorage.Store, error) {
 	if s == nil || s.storeProvider == nil {
 		return nil, appstorage.ErrProviderNotConfigured
 	}
@@ -405,7 +405,7 @@ func (s *Service) releaseUploadGate(key string, gate *uploadContentGate) {
 
 func (s *Service) tryReuseExistingFile(
 	ctx context.Context,
-	store objectstore.Store,
+	store objectstorage.Store,
 	userID uint,
 	shaValue string,
 	sizeBytes int64,
@@ -468,14 +468,14 @@ func (s *Service) tryReuseExistingFile(
 	}
 }
 
-func objectMatchesContent(ctx context.Context, store objectstore.Store, path string, expectedSHA256 string, expectedSize int64) (bool, error) {
+func objectMatchesContent(ctx context.Context, store objectstorage.Store, path string, expectedSHA256 string, expectedSize int64) (bool, error) {
 	normalizedPath := strings.TrimSpace(path)
 	if normalizedPath == "" {
 		return false, nil
 	}
 	reader, info, err := store.Open(ctx, normalizedPath)
 	if err != nil {
-		if errors.Is(err, objectstore.ErrNotFound) || errors.Is(err, objectstore.ErrInvalidKey) {
+		if errors.Is(err, objectstorage.ErrNotFound) || errors.Is(err, objectstorage.ErrInvalidKey) {
 			return false, nil
 		}
 		return false, err
@@ -626,7 +626,7 @@ func (s *Service) OpenFileContent(ctx context.Context, userID uint, fileID strin
 	}
 	reader, info, err := store.Open(ctx, item.StoragePath)
 	if err != nil {
-		if errors.Is(err, objectstore.ErrNotFound) {
+		if errors.Is(err, objectstorage.ErrNotFound) {
 			return nil, s.errFileNotFound()
 		}
 		return nil, err
@@ -959,7 +959,7 @@ func saveUploadedFile(ctx context.Context, input saveUploadedFileInput) (string,
 		return "", "", "", 0, err
 	}
 	defer tmpFile.Close() //nolint:errcheck
-	if _, err = input.Store.Put(ctx, relativePath, tmpFile, objectstore.PutOptions{
+	if _, err = input.Store.Put(ctx, relativePath, tmpFile, objectstorage.PutOptions{
 		SizeBytes:   staged.sizeBytes,
 		ContentType: staged.detectedMIME,
 	}); err != nil {

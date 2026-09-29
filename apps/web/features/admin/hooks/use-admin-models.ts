@@ -16,7 +16,7 @@ import type {
   AdminLLMModelDTO,
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMStatus,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import {
   PAGE_SIZE_DEFAULT,
   displayToKindsJson,

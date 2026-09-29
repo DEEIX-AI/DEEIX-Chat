@@ -1,5 +1,5 @@
 import { authedRequest } from "@/shared/api/authed-client";
-import type { PublicModelDTO } from "@/shared/api/model.types";
+import type { PublicModelDTO } from "@/shared/api/model-types";
 
 export async function listPublicModels(accessToken: string, signal?: AbortSignal): Promise<PublicModelDTO[]> {
   return authedRequest<PublicModelDTO[]>(

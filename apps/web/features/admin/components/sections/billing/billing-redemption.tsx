@@ -17,28 +17,21 @@ import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import { AdminDateTimePicker, adminDateTimeFormValue, adminDateTimeValueToISOString } from "@/features/admin/components/admin-date-time-picker";
-import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
-import { RedemptionRecordsDialog } from "@/features/admin/components/sections/billing/redemption-records-dialog";
+import { AdminDateTimePicker, adminDateTimeFormValue, adminDateTimeValueToISOString } from "@/features/admin/components/shared/date-time-picker";
+import { AdminBulkConfirmDialog } from "@/features/admin/components/shared/bulk-confirm-dialog";
+import { RedemptionRecordsDialog } from "@/features/admin/components/sections/billing/billing-redemption-records-dialog";
+import type { AdminBillingMode, AdminBillingPlanDTO, AdminRedemptionCodeDTO } from "@/features/admin/api/billing-types";
+import { useAdminBillingRedemptionBulk } from "@/features/admin/hooks/use-admin-billing-redemption-bulk";
 import {
-  batchDeleteAdminRedemptionCodes,
-  createAdminRedemptionCodes,
-  deleteAdminRedemptionCode,
-  listAdminRedemptionCodes,
-  revealAdminRedemptionCode,
-  updateAdminRedemptionCode,
-} from "@/features/admin/api";
-import type { AdminBillingMode, AdminBillingPlanDTO, AdminRedemptionCodeDTO } from "@/features/admin/api/billing.types";
+  type RedemptionFormState,
+  useAdminBillingRedemptionCodes,
+} from "@/features/admin/hooks/use-admin-billing-redemption-codes";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import {
-  DEFAULT_PAGE_SIZE,
-  downloadJSONFile,
   formatCreditUSD,
   formatDateTime,
 } from "@/features/admin/model/billing-settings";
 import { CopyActionButton, useCopyAction } from "@/shared/components/copy-action";
-import { mergeBatchResultData, runBulkActionInChunks } from "@/shared/lib/bulk-action";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { cn } from "@/lib/utils";
 
@@ -48,27 +41,7 @@ type BillingRedemptionSectionProps = {
   loading: boolean;
 };
 
-type RedemptionFormState = {
-  id?: number;
-  code: string;
-  quantity: string;
-  mode: "usage" | "period";
-  creditUSD: string;
-  planID: string;
-  durationDays: string;
-  maxRedemptions: string;
-  perUserLimit: string;
-  expiresAt: string;
-  description: string;
-  status: "active" | "inactive";
-};
-
 type RedemptionBulkAction = "activate" | "deactivate" | "delete";
-
-function redemptionCodesExportFilename(): string {
-  const date = new Date().toISOString().slice(0, 10);
-  return `deeix-chat-redemption-codes-${date}.json`;
-}
 
 function createRedemptionFormState(mode: AdminBillingMode, planID = ""): RedemptionFormState {
   return {
@@ -107,28 +80,6 @@ function redemptionFormFromCode(item: AdminRedemptionCodeDTO): RedemptionFormSta
   };
 }
 
-function datetimeLocalToISOString(value: string): string | null | undefined {
-  return adminDateTimeValueToISOString(value);
-}
-
-function parseOptionalPositiveInt(value: string): number | null | undefined {
-  const text = value.trim();
-  if (!text) return null;
-  const parsed = Number(text);
-  if (!Number.isInteger(parsed) || parsed <= 0) return undefined;
-  return parsed;
-}
-
-function parseRequiredPositiveInt(value: string): number | undefined {
-  const parsed = parseOptionalPositiveInt(value);
-  return parsed && parsed > 0 ? parsed : undefined;
-}
-
-function isRedemptionCodeFormatValid(value: string): boolean {
-  const text = value.trim();
-  return !text || /^[A-Za-z0-9_-]{3,64}$/.test(text);
-}
-
 export function BillingRedemptionSection({ plans, billingMode, loading }: BillingRedemptionSectionProps) {
   const locale = useLocale();
   const t = useTranslations("adminBilling");
@@ -140,30 +91,62 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
       failed: tCommonErrors("copyFailed"),
     },
   });
-  const [redemptionCodes, setRedemptionCodes] = React.useState<AdminRedemptionCodeDTO[]>([]);
-  const [redemptionLoading, setRedemptionLoading] = React.useState(false);
-  const [redemptionQuery, setRedemptionQuery] = React.useState("");
-  const [redemptionModeFilter, setRedemptionModeFilter] = React.useState("");
-  const [redemptionStatusFilter, setRedemptionStatusFilter] = React.useState("");
-  const [redemptionAvailabilityFilter, setRedemptionAvailabilityFilter] = React.useState("");
-  const [redemptionPage, setRedemptionPage] = React.useState(1);
-  const [redemptionPageSize, setRedemptionPageSize] = React.useState(DEFAULT_PAGE_SIZE);
-  const [redemptionTotal, setRedemptionTotal] = React.useState(0);
+  const {
+    redemptionCodes,
+    setRedemptionCodes,
+    redemptionLoading,
+    redemptionQuery,
+    setRedemptionQuery,
+    redemptionModeFilter,
+    setRedemptionModeFilter,
+    redemptionStatusFilter,
+    setRedemptionStatusFilter,
+    redemptionAvailabilityFilter,
+    setRedemptionAvailabilityFilter,
+    redemptionPage,
+    setRedemptionPage,
+    redemptionPageSize,
+    setRedemptionPageSize,
+    redemptionTotal,
+    setRedemptionTotal,
+    redemptionSaving,
+    selectedRedemptionIDs,
+    setSelectedRedemptionIDs,
+    redemptionVisibleIDs,
+    createdRedemptionCodes,
+    setCreatedRedemptionCodes,
+    redemptionStatusPendingID,
+    loadRedemptionCodes,
+    setRedemptionCodeStatus,
+    saveRedemptionCode: persistRedemptionCode,
+  } = useAdminBillingRedemptionCodes({ billingMode });
+  const {
+    redemptionBulkPending,
+    revealRedemptionCode,
+    copySelectedRedemptionCodes,
+    exportSelectedRedemptionCodes,
+    applyRedemptionBulkStatus,
+    deleteSelectedRedemptionCodes,
+    deleteSingleRedemptionCode: deleteSingleRedemptionCodeRequest,
+  } = useAdminBillingRedemptionBulk({
+    redemptionCodes,
+    setRedemptionCodes,
+    redemptionTotal,
+    setRedemptionTotal,
+    selectedRedemptionIDs,
+    setSelectedRedemptionIDs,
+    loadRedemptionCodes,
+    copy,
+  });
   const [redemptionForm, setRedemptionForm] = React.useState<RedemptionFormState | null>(null);
   const redemptionDialogForm = useDialogSnapshot(redemptionForm);
-  const [redemptionSaving, setRedemptionSaving] = React.useState(false);
-  const [selectedRedemptionIDs, setSelectedRedemptionIDs] = React.useState<Set<number>>(new Set());
   const [redemptionBulkAction, setRedemptionBulkAction] = React.useState<RedemptionBulkAction | null>(null);
   const stableRedemptionBulkAction = useDialogSnapshot(redemptionBulkAction);
-  const [redemptionBulkPending, setRedemptionBulkPending] = React.useState(false);
   const [redemptionDeleteTarget, setRedemptionDeleteTarget] = React.useState<AdminRedemptionCodeDTO | null>(null);
   const [redemptionRecordsTarget, setRedemptionRecordsTarget] = React.useState<AdminRedemptionCodeDTO | null>(null);
-  const [createdRedemptionCodes, setCreatedRedemptionCodes] = React.useState<string[]>([]);
-  const [redemptionStatusPendingID, setRedemptionStatusPendingID] = React.useState<number | null>(null);
 
   const activePlanOptions = React.useMemo(() => plans.filter((plan) => plan.isActive && plan.code.trim() !== "free"), [plans]);
   const defaultRedemptionPlanID = activePlanOptions[0]?.id ? String(activePlanOptions[0].id) : "";
-  const redemptionVisibleIDs = React.useMemo(() => redemptionCodes.map((item) => item.id), [redemptionCodes]);
   const redemptionVisibleSelectedCount = React.useMemo(
     () => redemptionVisibleIDs.filter((id) => selectedRedemptionIDs.has(id)).length,
     [redemptionVisibleIDs, selectedRedemptionIDs],
@@ -191,67 +174,6 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
   });
   const redemptionInitialLoading = redemptionTableLoading && redemptionCodes.length === 0;
   const showRedemptionRows = redemptionCodes.length > 0;
-
-  const loadRedemptionCodes = React.useCallback(async (overrides: {
-    page?: number;
-    pageSize?: number;
-    query?: string;
-    mode?: string;
-    status?: string;
-    availability?: string;
-  } = {}, options: { showLoading?: boolean; showError?: boolean } = {}) => {
-    const showLoading = options.showLoading ?? true;
-    const showError = options.showError ?? showLoading;
-    if (showLoading) {
-      setRedemptionLoading(true);
-    }
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const result = await listAdminRedemptionCodes(token, {
-        page: overrides.page ?? redemptionPage,
-        pageSize: overrides.pageSize ?? redemptionPageSize,
-        query: overrides.query ?? redemptionQuery,
-        mode: overrides.mode ?? redemptionModeFilter,
-        status: overrides.status ?? redemptionStatusFilter,
-        availability: overrides.availability ?? redemptionAvailabilityFilter,
-      });
-      setRedemptionCodes(result.results ?? []);
-      setRedemptionTotal(result.total ?? 0);
-    } catch (error) {
-      if (showError) {
-        toast.error(t("toast.redemptionLoadFailed"), { description: resolveAdminErrorMessage(error) });
-      }
-    } finally {
-      if (showLoading) {
-        setRedemptionLoading(false);
-      }
-    }
-  }, [redemptionAvailabilityFilter, redemptionModeFilter, redemptionPage, redemptionPageSize, redemptionQuery, redemptionStatusFilter, t]);
-
-  React.useEffect(() => {
-    void loadRedemptionCodes();
-  }, [loadRedemptionCodes]);
-
-  React.useEffect(() => {
-    if (redemptionAvailabilityFilter === "available") {
-      void loadRedemptionCodes({}, { showLoading: false });
-    }
-  }, [billingMode, loadRedemptionCodes, redemptionAvailabilityFilter]);
-
-  React.useEffect(() => {
-    const visibleSet = new Set(redemptionVisibleIDs);
-    setSelectedRedemptionIDs((current) => {
-      const next = new Set<number>();
-      current.forEach((id) => {
-        if (visibleSet.has(id)) next.add(id);
-      });
-      return next.size === current.size ? current : next;
-    });
-  }, [redemptionVisibleIDs]);
 
   function openRedemptionCreate() {
     setCreatedRedemptionCodes([]);
@@ -289,280 +211,27 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
     });
   }
 
-  async function fetchRedemptionCodePlaintext(item: AdminRedemptionCodeDTO): Promise<string> {
-    const token = await resolveAccessToken();
-    if (!token) {
-      throw new Error(t("toast.sessionExpired"));
-    }
-    return fetchRedemptionCodePlaintextWithToken(token, item);
-  }
-
-  async function fetchRedemptionCodePlaintextWithToken(accessToken: string, item: AdminRedemptionCodeDTO): Promise<string> {
-    const data = await revealAdminRedemptionCode(accessToken, item.id);
-    const code = data.code.code?.trim();
-    if (!code) {
-      throw new Error(t("toast.redemptionCodeRevealUnavailable"));
-    }
-    return code;
-  }
-
-  async function revealSelectedRedemptionCodes(): Promise<{
-    results: Array<{ item: AdminRedemptionCodeDTO; code: string }>;
-    failedCount: number;
-  }> {
-    const selectedItems = redemptionCodes.filter((item) => selectedRedemptionIDs.has(item.id));
-    if (selectedItems.length === 0) {
-      return { results: [], failedCount: 0 };
-    }
-    const token = await resolveAccessToken();
-    if (!token) {
-      throw new Error(t("toast.sessionExpired"));
-    }
-    const results: Array<{ item: AdminRedemptionCodeDTO; code: string }> = [];
-    let failedCount = 0;
-    for (const item of selectedItems) {
-      try {
-        const code = await fetchRedemptionCodePlaintextWithToken(token, item);
-        results.push({ item, code });
-      } catch {
-        failedCount += 1;
-      }
-    }
-    if (results.length === 0 && failedCount > 0) {
-      throw new Error(t("toast.redemptionBulkRevealSkipped", { count: failedCount }));
-    }
-    return { results, failedCount };
-  }
-
-  async function copySelectedRedemptionCodes() {
-    setRedemptionBulkPending(true);
-    try {
-      const { results, failedCount } = await revealSelectedRedemptionCodes();
-      if (results.length === 0) return;
-      const copied = await copy(results.map((result) => result.code).join("\n"), {
-        key: "selected-redemption-codes",
-        copied: t("toast.redemptionBulkCopied", { count: results.length }),
-        copiedDescription: failedCount > 0 ? t("toast.redemptionBulkRevealSkipped", { count: failedCount }) : undefined,
-        failed: t("toast.redemptionBulkCopyFailed"),
-      });
-      if (!copied) {
-        return;
-      }
-    } catch (error) {
-      toast.error(t("toast.redemptionBulkCopyFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setRedemptionBulkPending(false);
-    }
-  }
-
-  async function exportSelectedRedemptionCodes() {
-    setRedemptionBulkPending(true);
-    try {
-      const { results, failedCount } = await revealSelectedRedemptionCodes();
-      if (results.length === 0) return;
-      downloadJSONFile(redemptionCodesExportFilename(), {
-        exportedAt: new Date().toISOString(),
-        total: results.length,
-        results: results.map(({ item, code }) => ({
-          id: item.id,
-          code,
-          codeHint: item.codeHint,
-          mode: item.mode,
-          rewardType: item.rewardType,
-          creditUSD: item.creditUSD,
-          planID: item.planID,
-          durationDays: item.durationDays,
-          maxRedemptions: item.maxRedemptions,
-          perUserLimit: item.perUserLimit,
-          redeemedCount: item.redeemedCount,
-          remainingRedemptions: item.remainingRedemptions,
-          status: item.status,
-          expiresAt: item.expiresAt,
-          description: item.description,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-        })),
-      });
-      toast.success(t("toast.redemptionBulkExported", { count: results.length }), {
-        description: failedCount > 0 ? t("toast.redemptionBulkRevealSkipped", { count: failedCount }) : undefined,
-      });
-    } catch (error) {
-      toast.error(t("toast.redemptionBulkExportFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setRedemptionBulkPending(false);
-    }
-  }
-
-  async function applyRedemptionBulkStatus(status: "active" | "inactive") {
-    const ids = Array.from(selectedRedemptionIDs);
-    if (ids.length === 0) return;
-    const previousRedemptionCodes = redemptionCodes;
-    const idSet = new Set(ids);
-    const updatedAt = new Date().toISOString();
-    setRedemptionCodes((current) => current.map((item) => (
-      idSet.has(item.id) ? { ...item, status, updatedAt } : item
-    )));
-    setRedemptionBulkPending(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        setRedemptionCodes(previousRedemptionCodes);
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const updatedCodes = (await runBulkActionInChunks({
-        chunkSize: 10,
-        items: ids,
-        title: t("redemption.bulkPending"),
-        runChunk: async (chunk) => {
-          const codes: AdminRedemptionCodeDTO[] = [];
-          for (const id of chunk) {
-            const data = await updateAdminRedemptionCode(token, id, { status });
-            codes.push(data.code);
-          }
-          return codes;
-        },
-      })).flat();
-      setRedemptionCodes((current) => current.map((item) => updatedCodes.find((code) => code.id === item.id) ?? item));
-      setSelectedRedemptionIDs(new Set());
-      setRedemptionBulkAction(null);
-      toast.success(status === "active" ? t("toast.redemptionBulkEnabled", { count: ids.length }) : t("toast.redemptionBulkDisabled", { count: ids.length }));
-      void loadRedemptionCodes({}, { showLoading: false });
-    } catch (error) {
-      setRedemptionCodes(previousRedemptionCodes);
-      toast.error(t("toast.redemptionBulkFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setRedemptionBulkPending(false);
-    }
-  }
-
-  async function setRedemptionCodeStatus(item: AdminRedemptionCodeDTO, checked: boolean) {
-    const status = checked ? "active" : "inactive";
-    if (item.status === status) return;
-    const previousRedemptionCodes = redemptionCodes;
-    const updatedAt = new Date().toISOString();
-    setRedemptionCodes((current) => current.map((code) => (
-      code.id === item.id ? { ...code, status, updatedAt } : code
-    )));
-    setRedemptionStatusPendingID(item.id);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        setRedemptionCodes(previousRedemptionCodes);
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const data = await updateAdminRedemptionCode(token, item.id, { status });
-      setRedemptionCodes((current) => current.map((code) => code.id === data.code.id ? data.code : code));
-      toast.success(status === "active" ? t("toast.redemptionEnabled") : t("toast.redemptionDisabled"));
-      void loadRedemptionCodes({}, { showLoading: false });
-    } catch (error) {
-      setRedemptionCodes(previousRedemptionCodes);
-      toast.error(t("toast.redemptionUpdateFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setRedemptionStatusPendingID(null);
-    }
-  }
-
-  async function deleteSelectedRedemptionCodes() {
-    const ids = Array.from(selectedRedemptionIDs);
-    if (ids.length === 0) return;
-    const previousRedemptionCodes = redemptionCodes;
-    const previousRedemptionTotal = redemptionTotal;
-    const idSet = new Set(ids);
-    const removedVisibleCount = redemptionCodes.filter((item) => idSet.has(item.id)).length;
-    setRedemptionCodes((current) => current.filter((item) => !idSet.has(item.id)));
-    setRedemptionTotal((current) => Math.max(0, current - removedVisibleCount));
-    setRedemptionBulkPending(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        setRedemptionCodes(previousRedemptionCodes);
-        setRedemptionTotal(previousRedemptionTotal);
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const result = mergeBatchResultData(await runBulkActionInChunks({
-        items: ids,
-        title: t("redemption.bulkDeleteTitle"),
-        runChunk: (chunk) => batchDeleteAdminRedemptionCodes(token, { ids: chunk }),
-      }));
-      setSelectedRedemptionIDs(new Set());
-      setRedemptionBulkAction(null);
-      if (result.failedCount > 0) {
-        toast.error(t("toast.redemptionDeletePartialFailed"), {
-          description: t("toast.redemptionDeleteSummary", {
-            successCount: result.successCount,
-            notFoundCount: result.notFoundCount,
-            failedCount: result.failedCount,
-          }),
-        });
-      } else {
-        toast.success(t("toast.redemptionDeleted", { count: result.successCount }), {
-          description: result.notFoundCount > 0
-            ? t("toast.redemptionDeleteSummary", {
-              successCount: result.successCount,
-              notFoundCount: result.notFoundCount,
-              failedCount: result.failedCount,
-            })
-            : undefined,
-        });
-      }
-      void loadRedemptionCodes({}, { showLoading: false });
-    } catch (error) {
-      setRedemptionCodes(previousRedemptionCodes);
-      setRedemptionTotal(previousRedemptionTotal);
-      toast.error(t("toast.redemptionDeleteFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setRedemptionBulkPending(false);
-    }
-  }
-
   async function deleteSingleRedemptionCode() {
     if (!redemptionDeleteTarget) return;
-    const target = redemptionDeleteTarget;
-    const previousRedemptionCodes = redemptionCodes;
-    const previousRedemptionTotal = redemptionTotal;
-    const removedVisibleCount = redemptionCodes.some((item) => item.id === target.id) ? 1 : 0;
-    setRedemptionCodes((current) => current.filter((item) => item.id !== target.id));
-    setRedemptionTotal((current) => Math.max(0, current - removedVisibleCount));
-    setRedemptionBulkPending(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        setRedemptionCodes(previousRedemptionCodes);
-        setRedemptionTotal(previousRedemptionTotal);
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      await deleteAdminRedemptionCode(token, target.id);
-      setSelectedRedemptionIDs((current) => {
-        const next = new Set(current);
-        next.delete(target.id);
-        return next;
-      });
+    if (await deleteSingleRedemptionCodeRequest(redemptionDeleteTarget)) {
       setRedemptionDeleteTarget(null);
-      toast.success(t("toast.redemptionDeleted", { count: 1 }));
-      void loadRedemptionCodes({}, { showLoading: false });
-    } catch (error) {
-      setRedemptionCodes(previousRedemptionCodes);
-      setRedemptionTotal(previousRedemptionTotal);
-      toast.error(t("toast.redemptionDeleteFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setRedemptionBulkPending(false);
     }
+  }
+
+  function closeBulkActionOnSuccess(succeeded: boolean) {
+    if (succeeded) setRedemptionBulkAction(null);
   }
 
   function confirmRedemptionBulkAction() {
     switch (redemptionBulkAction) {
       case "activate":
-        void applyRedemptionBulkStatus("active");
+        void applyRedemptionBulkStatus("active").then(closeBulkActionOnSuccess);
         break;
       case "deactivate":
-        void applyRedemptionBulkStatus("inactive");
+        void applyRedemptionBulkStatus("inactive").then(closeBulkActionOnSuccess);
         break;
       case "delete":
-        void deleteSelectedRedemptionCodes();
+        void deleteSelectedRedemptionCodes().then(closeBulkActionOnSuccess);
         break;
     }
   }
@@ -571,110 +240,8 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
     event?.preventDefault();
     if (!redemptionForm) return;
 
-    const maxRedemptions = parseOptionalPositiveInt(redemptionForm.maxRedemptions);
-    const perUserLimit = parseRequiredPositiveInt(redemptionForm.perUserLimit);
-    const expiresAt = datetimeLocalToISOString(redemptionForm.expiresAt);
-    if (!isRedemptionCodeFormatValid(redemptionForm.code)) {
-      toast.error(t("toast.redemptionInvalid"), { description: t("toast.redemptionInvalidCodeFormat") });
-      return;
-    }
-    if (maxRedemptions === undefined) {
-      toast.error(t("toast.redemptionInvalid"), { description: t("toast.redemptionInvalidMaxRedemptions") });
-      return;
-    }
-    if (!perUserLimit) {
-      toast.error(t("toast.redemptionInvalid"), { description: t("toast.redemptionInvalidPerUserLimit") });
-      return;
-    }
-    if (expiresAt === undefined) {
-      toast.error(t("toast.redemptionInvalid"), { description: t("toast.redemptionInvalidExpiresAt") });
-      return;
-    }
-    if (expiresAt !== null && new Date(expiresAt).getTime() <= Date.now()) {
-      toast.error(t("toast.redemptionInvalid"), { description: t("toast.redemptionExpiredAtPast") });
-      return;
-    }
-    if (maxRedemptions !== null && perUserLimit > maxRedemptions) {
-      toast.error(t("toast.redemptionUserLimitExceedsTotal"));
-      return;
-    }
-
-    setRedemptionSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-
-      if (redemptionForm.id) {
-        const data = await updateAdminRedemptionCode(token, redemptionForm.id, {
-          status: redemptionForm.status,
-          maxRedemptions,
-          perUserLimit,
-          expiresAt,
-          description: redemptionForm.description.trim(),
-        });
-        setRedemptionCodes((current) => current.map((item) => item.id === data.code.id ? data.code : item));
-        setRedemptionForm(null);
-        toast.success(t("toast.redemptionUpdated"));
-        void loadRedemptionCodes({}, { showLoading: false });
-        return;
-      }
-
-      const quantity = parseRequiredPositiveInt(redemptionForm.quantity);
-      if (!quantity) {
-        toast.error(t("toast.redemptionInvalid"), { description: t("toast.redemptionInvalidQuantity") });
-        return;
-      }
-      if (redemptionForm.code.trim() && quantity !== 1) {
-        toast.error(t("toast.redemptionManualQuantityInvalid"));
-        return;
-      }
-      const payload = {
-        code: redemptionForm.code.trim() || undefined,
-        quantity,
-        mode: redemptionForm.mode,
-        maxRedemptions: maxRedemptions ?? undefined,
-        perUserLimit,
-        expiresAt,
-        description: redemptionForm.description.trim() || undefined,
-      };
-
-      const data = redemptionForm.mode === "usage"
-        ? await (async () => {
-          const creditUSD = Number(redemptionForm.creditUSD);
-          if (!Number.isFinite(creditUSD) || creditUSD <= 0) {
-            throw new Error(t("toast.redemptionInvalidCredit"));
-          }
-          return createAdminRedemptionCodes(token, {
-            ...payload,
-            creditUSD,
-          });
-        })()
-        : await (async () => {
-          const planID = parseRequiredPositiveInt(redemptionForm.planID);
-          const durationDays = parseRequiredPositiveInt(redemptionForm.durationDays);
-          if (!planID || !durationDays) {
-            throw new Error(!planID ? t("toast.redemptionInvalidPlan") : t("toast.redemptionInvalidDuration"));
-          }
-          return createAdminRedemptionCodes(token, {
-            ...payload,
-            planID,
-            durationDays,
-          });
-        })();
-      const created = data.results ?? [];
-      setRedemptionCodes((current) => [...created, ...current].slice(0, redemptionPageSize));
-      setRedemptionTotal((current) => current + created.length);
-      setCreatedRedemptionCodes(created.map((item) => item.code || "").filter(Boolean));
+    if (await persistRedemptionCode(redemptionForm, adminDateTimeValueToISOString(redemptionForm.expiresAt))) {
       setRedemptionForm(null);
-      toast.success(t("toast.redemptionCreated", { count: created.length }));
-      void loadRedemptionCodes({}, { showLoading: false });
-    } catch (error) {
-      toast.error(redemptionForm.id ? t("toast.redemptionUpdateFailed") : t("toast.redemptionCreateFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setRedemptionSaving(false);
     }
   }
 
@@ -897,7 +464,7 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                           size="icon-xs"
                           className="h-6 w-6 text-muted-foreground shadow-none"
                           messages={{ copied: tActions("copied"), failed: t("toast.redemptionCopyFailed") }}
-                          resolveValue={() => fetchRedemptionCodePlaintext(item)}
+                          resolveValue={() => revealRedemptionCode(item)}
                           onResolveError={(error) => toast.error(t("toast.redemptionCopyFailed"), { description: resolveAdminErrorMessage(error) })}
                           iconClassName="size-3.5 stroke-1.5"
                           aria-label={tActions("copy")}
@@ -907,6 +474,7 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                             <TooltipTrigger asChild>
                               <span
                                 tabIndex={0}
+                                role="img"
                                 aria-label={t("redemption.unavailable")}
                                 className="inline-flex size-4 items-center justify-center text-amber-600 outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-amber-400"
                               >

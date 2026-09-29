@@ -8,7 +8,7 @@ import { HeightTransition } from "@/components/ui/height-transition";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
-import { type UIBlockSkeletonProps, parseUIBlock, resolveDefinition, validateProps } from "./block";
+import { type UIBlockSkeletonProps, parseUIBlock, resolveDefinition } from "./block";
 import { useUIBlockRegistry } from "./registry";
 import type { Issue } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
@@ -48,17 +48,12 @@ function UIBlockBody({ raw, streaming }: UIBlockHostProps) {
     return <UIBlockFallback reason="unknown" component={envelope.component} version={envelope.version} raw={parsed.raw} />;
   }
 
-  const props = validateProps(definition, envelope.props);
-  if (!props.ok) {
-    return <UIBlockFallback reason="invalid" component={envelope.component} issues={props.issues} raw={parsed.raw} />;
+  const rendered = definition.render(envelope.id, envelope.props);
+  if (!rendered.ok) {
+    return <UIBlockFallback reason="invalid" component={envelope.component} issues={rendered.issues} raw={parsed.raw} />;
   }
 
-  const Component = definition.Component;
-  return (
-    <UIBlockFrame>
-      <Component id={envelope.id} props={props.value} definition={definition} />
-    </UIBlockFrame>
-  );
+  return <UIBlockFrame>{rendered.element}</UIBlockFrame>;
 }
 
 // While streaming, the component name is usually the first key to arrive;

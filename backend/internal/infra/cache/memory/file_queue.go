@@ -38,12 +38,12 @@ func newFileQueueState() fileQueueState {
 	}
 }
 
-// InitFileProcessingStream initializes the file-processing queue backend.
+// InitFileProcessingStream 初始化文件处理队列后端。
 func (c *Cache) InitFileProcessingStream(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// EnqueueFileProcessing queues a file for extraction and processing.
+// EnqueueFileProcessing 将文件加入提取与处理队列。
 func (c *Cache) EnqueueFileProcessing(ctx context.Context, userID uint, fileID string, retry int, lastError string) error {
 	return c.enqueueFileMessage(ctx, repository.FileProcessingMessage{
 		UserID:    userID,
@@ -54,7 +54,7 @@ func (c *Cache) EnqueueFileProcessing(ctx context.Context, userID uint, fileID s
 	})
 }
 
-// EnqueueFileEmbedding queues a file for embedding with the requested service configuration.
+// EnqueueFileEmbedding 按请求的服务配置将文件加入 embedding 队列。
 func (c *Cache) EnqueueFileEmbedding(
 	ctx context.Context,
 	userID uint,
@@ -105,12 +105,12 @@ func (c *Cache) enqueueFileMessage(ctx context.Context, message repository.FileP
 	return nil
 }
 
-// ClaimTimedOutFileProcessingMessages reclaims one timed-out extraction lease.
+// ClaimTimedOutFileProcessingMessages 回收一个超时的提取租约。
 func (c *Cache) ClaimTimedOutFileProcessingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
 	return c.claimTimedOutFileMessages(ctx, consumerName, repository.FileProcessingQueueDefault)
 }
 
-// ClaimTimedOutFileEmbeddingMessages reclaims one timed-out embedding lease.
+// ClaimTimedOutFileEmbeddingMessages 回收一个超时的 embedding 租约。
 func (c *Cache) ClaimTimedOutFileEmbeddingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
 	return c.claimTimedOutFileMessages(ctx, consumerName, repository.FileProcessingQueueEmbedding)
 }
@@ -147,12 +147,12 @@ func (c *Cache) claimTimedOutFileMessages(ctx context.Context, consumerName stri
 	return []repository.FileProcessingMessage{candidate.message}, nil
 }
 
-// ReadFileProcessingMessages reads one extraction message and leases it to a consumer.
+// ReadFileProcessingMessages 读取一条提取消息并租给消费者。
 func (c *Cache) ReadFileProcessingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
 	return c.readFileMessages(ctx, consumerName, repository.FileProcessingQueueDefault)
 }
 
-// ReadFileEmbeddingMessages reads one embedding message and leases it to a consumer.
+// ReadFileEmbeddingMessages 读取一条 embedding 消息并租给消费者。
 func (c *Cache) ReadFileEmbeddingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
 	return c.readFileMessages(ctx, consumerName, repository.FileProcessingQueueEmbedding)
 }
@@ -195,7 +195,7 @@ func (c *Cache) readFileMessages(ctx context.Context, consumerName string, queue
 	}
 }
 
-// RenewFileProcessingMessageLease extends a consumer's lease for a file message.
+// RenewFileProcessingMessageLease 延长消费者对文件消息的租约。
 func (c *Cache) RenewFileProcessingMessageLease(ctx context.Context, consumerName string, message repository.FileProcessingMessage) (bool, error) {
 	if c == nil {
 		return false, nil
@@ -216,7 +216,7 @@ func (c *Cache) RenewFileProcessingMessageLease(ctx context.Context, consumerNam
 	return true, nil
 }
 
-// SettleFileProcessingMessage acknowledges and removes a leased file message.
+// SettleFileProcessingMessage 确认并移除已租出的文件消息。
 func (c *Cache) SettleFileProcessingMessage(ctx context.Context, consumerName string, message repository.FileProcessingMessage) (bool, error) {
 	if c == nil {
 		return false, nil
@@ -237,7 +237,7 @@ func (c *Cache) SettleFileProcessingMessage(ctx context.Context, consumerName st
 	return true, nil
 }
 
-// RequeueFileProcessingMessage returns a leased file message to its queue.
+// RequeueFileProcessingMessage 将已租出的文件消息放回其队列。
 func (c *Cache) RequeueFileProcessingMessage(
 	ctx context.Context,
 	consumerName string,
@@ -278,7 +278,7 @@ func (c *Cache) RequeueFileProcessingMessage(
 	return true, nil
 }
 
-// DeadLetterFileProcessingMessage moves a leased file message to the dead-letter queue.
+// DeadLetterFileProcessingMessage 将已租出的文件消息移入死信队列。
 func (c *Cache) DeadLetterFileProcessingMessage(
 	ctx context.Context,
 	consumerName string,

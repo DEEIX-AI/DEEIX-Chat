@@ -77,8 +77,8 @@ func (h *Handler) ListPublicModels(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param q query string false "搜索关键词"
 // @Param status query string false "状态：active/inactive/circuit"
 // @Param compatible query string false "兼容类型"
@@ -361,8 +361,8 @@ func (h *Handler) ResetUpstreamCircuit(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "上游ID"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param q query string false "搜索关键词"
 // @Param route_status query string false "路由状态：bound/active/inactive"
 // @Param upstream_status query string false "上游模型状态：active/inactive"
@@ -912,8 +912,8 @@ func (h *Handler) ImportUpstreamModels(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param only_active query bool false "仅查询启用模型"
 // @Param only_available query bool false "仅查询公开且可路由模型"
 // @Param q query string false "搜索关键词"
@@ -1331,8 +1331,8 @@ func (h *Handler) TestModelAll(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "模型ID"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} ModelUpstreamSourceListResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc

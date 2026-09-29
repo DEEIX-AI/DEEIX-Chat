@@ -25,7 +25,7 @@ func newAccountLockedError(lockedUntil *time.Time, now time.Time) error {
 	return locked
 }
 
-// ProviderEmailConflictActionSignInThenBind identifies the safe sign-in-then-bind recovery flow.
+// ProviderEmailConflictActionSignInThenBind 标识安全的“先登录再绑定”恢复流程。
 const ProviderEmailConflictActionSignInThenBind = "sign_in_then_bind"
 
 var (
@@ -79,7 +79,7 @@ var (
 	ErrTwoFactorSetupNotStarted = apperr.New("auth.two_factor_not_started", "two factor setup not started")
 	// ErrTwoFactorSetupNotPersisted 两步验证确认后持久化状态未生效。
 	ErrTwoFactorSetupNotPersisted = apperr.NewMasked("internal.error", "internal server error", "two factor setup not persisted")
-	// ErrTwoFactorAlreadyEnabled indicates that two-factor authentication is already enabled.
+	// ErrTwoFactorAlreadyEnabled 表示双因素认证已启用。
 	ErrTwoFactorAlreadyEnabled = apperr.New("auth.two_factor_already_enabled", "two factor authentication is already enabled")
 	// ErrTwoFactorChallengeExpired 登录二次验证挑战已过期。
 	ErrTwoFactorChallengeExpired = apperr.New("auth.two_factor_expired", "two factor challenge expired")
@@ -88,7 +88,7 @@ var (
 	// ErrProviderEmailConflict 表示第三方身份邮箱已存在但不能安全自动合并。
 	ErrProviderEmailConflict = apperr.NewMasked("auth.provider_email_conflict", "provider email belongs to another account", "provider email conflict")
 
-	// Stable registration and verification errors form the public auth API contract.
+	// 稳定的注册与验证错误构成公开的认证 API 契约。
 	ErrEmailRegistrationDisabled = apperr.New("auth.email_registration_disabled", "email registration is disabled")
 	ErrEmailVerificationDisabled = apperr.New("auth.email_verification_disabled", "email verification is disabled")
 	ErrEmailAlreadyExists        = apperr.New("auth.email_already_exists", "email already exists")
@@ -104,8 +104,8 @@ var (
 	ErrUserIDRequired            = apperr.New("request.required", "user id is required")
 	ErrUnauthorized              = apperr.New("auth.unauthorized", "unauthorized")
 
-	// Turnstile and SMTP failures are returned by authentication endpoints with
-	// stable codes so callers do not need to inspect internal text.
+	// Turnstile 与 SMTP 失败由认证端点以稳定错误码返回，
+	// 调用方无需检查内部文本。
 	ErrTurnstileNotConfigured = apperr.New("auth.turnstile_not_configured", "turnstile is not configured")
 	ErrTurnstileRequired      = apperr.New("auth.turnstile_required", "turnstile verification is required")
 	ErrTurnstileInvalid       = apperr.New("auth.turnstile_invalid", "turnstile token is invalid")
@@ -115,15 +115,13 @@ var (
 	ErrSMTPFromInvalid        = apperr.New("settings.smtp_invalid", "smtp from is invalid")
 	ErrSMTPAuthUnsupported    = apperr.New("settings.smtp_invalid", "smtp auth is not supported")
 
-	// Provider configuration and OAuth flow errors are public validation or
-	// authentication outcomes. Upstream details remain internal to logs.
+	// 提供方配置与 OAuth 流程错误属于公开的校验或认证结果，
+	// 上游细节仅保留在内部日志中。
 	ErrProviderAuthBridgeUnavailable     = apperr.New("auth.provider_invalid", "provider auth bridge is not configured")
 	ErrThirdPartyLoginDisabled           = apperr.New("auth.provider_login_disabled", "third-party login is disabled")
 	ErrProviderLoginDisabled             = apperr.New("auth.provider_login_disabled", "provider login is disabled")
 	ErrProviderRegistrationDisabled      = apperr.New("auth.provider_registration_disabled", "provider registration is disabled")
-	ErrProviderBindingFlowRequired       = apperr.New("auth.provider_bind_endpoint_required", "provider binding must use the authenticated binding flow")
 	ErrProviderBindEndpointRequired      = apperr.New("auth.provider_bind_endpoint_required", "provider bind must use account binding endpoint")
-	ErrAuthorizationCodeRequired         = apperr.New("auth.authorization_code_required", "authorization code is required")
 	ErrProviderIDRequired                = apperr.New("auth.provider_id_required", "provider id is required")
 	ErrProviderOrderInvalid              = apperr.New("auth.provider_order_invalid", "provider ids must be unique")
 	ErrProviderTypeInvalid               = apperr.New("auth.provider_type_invalid", "provider type must be oidc or oauth2")
@@ -141,7 +139,6 @@ var (
 	ErrProviderIdentityConflict          = apperr.New("auth.provider_identity_conflict", "provider identity is already bound to another account")
 	ErrProviderAlreadyBound              = apperr.New("auth.provider_already_bound", "provider is already bound")
 	ErrProviderAccountNotRegistered      = apperr.New("auth.provider_account_not_registered", "provider account is not registered")
-	ErrOAuthIntentMismatch               = apperr.New("auth.oauth_intent_mismatch", "oauth intent mismatch")
 	ErrOAuthStateInvalid                 = apperr.New("auth.oauth_state_invalid", "invalid oauth state")
 	ErrOAuthStateMismatch                = apperr.NewMasked("auth.oauth_state_invalid", "invalid oauth state", "oauth state mismatch")
 	ErrOAuthStateExpired                 = apperr.New("auth.oauth_state_expired", "oauth state expired")
@@ -179,12 +176,12 @@ type IdentityProviderDeleteConflictError struct {
 	DependentUsers int
 }
 
-// Error returns the stable public identity-provider conflict error message.
+// Error 返回稳定的公开身份提供方冲突错误信息。
 func (e *IdentityProviderDeleteConflictError) Error() string {
 	return ErrIdentityProviderDeleteConflict.Error()
 }
 
-// Unwrap exposes the sentinel used by transport error mapping.
+// Unwrap 暴露传输层错误映射所使用的哨兵错误。
 func (e *IdentityProviderDeleteConflictError) Unwrap() error {
 	return ErrIdentityProviderDeleteConflict
 }
@@ -196,12 +193,12 @@ type ProviderEmailConflictError struct {
 	Action       string
 }
 
-// Error returns the stable public provider-email conflict error message.
+// Error 返回稳定的公开提供方邮箱冲突错误信息。
 func (e *ProviderEmailConflictError) Error() string {
 	return ErrProviderEmailConflict.Error()
 }
 
-// Unwrap exposes the sentinel used by transport error mapping.
+// Unwrap 暴露传输层错误映射所使用的哨兵错误。
 func (e *ProviderEmailConflictError) Unwrap() error {
 	return ErrProviderEmailConflict
 }

@@ -1,4 +1,4 @@
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
 
 export const DEFAULT_MCP_TOOLS_SETTING_KEY = "chat.default_mcp_tool_ids";
 
@@ -8,7 +8,7 @@ export function parseDefaultMCPToolIDs(raw: string | null | undefined): number[]
     return [];
   }
   try {
-    const parsed = JSON.parse(value) as unknown;
+    const parsed: unknown = JSON.parse(value);
     if (!Array.isArray(parsed)) {
       return [];
     }

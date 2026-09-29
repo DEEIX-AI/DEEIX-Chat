@@ -7,6 +7,7 @@ import type * as Monaco from "monaco-editor";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/shared/components/theme-provider";
+import { isRecord } from "@/shared/lib/type-guards";
 
 export type JsonCodeEditorProps = {
   id?: string;
@@ -31,9 +32,17 @@ type JsonDiagnosticsDefaults = {
     trailingCommas: "ignore" | "error";
   }) => void;
 };
-type MonacoLanguagesWithJson = MonacoModule["languages"] & {
-  json?: { jsonDefaults?: JsonDiagnosticsDefaults };
-};
+
+function isJsonDiagnosticsDefaults(value: unknown): value is JsonDiagnosticsDefaults {
+  return isRecord(value) && typeof value.setDiagnosticsOptions === "function";
+}
+
+// The JSON contribution still registers `languages.json` at runtime, while the typings only
+// describe it as a deprecated marker; read it defensively instead of trusting either shape.
+function resolveJsonDiagnosticsDefaults(monaco: MonacoModule): JsonDiagnosticsDefaults | undefined {
+  const legacyJson: unknown = monaco.languages.json;
+  return isRecord(legacyJson) && isJsonDiagnosticsDefaults(legacyJson.jsonDefaults) ? legacyJson.jsonDefaults : undefined;
+}
 
 let monacoLoadPromise: Promise<MonacoModule> | null = null;
 const BASE_EDITOR_FONT_SIZE = 12;
@@ -85,13 +94,7 @@ function configureMonacoWorkers() {
     return;
   }
 
-  const browserGlobal = globalThis as typeof globalThis & {
-    MonacoEnvironment?: {
-      getWorker?: (workerID: string, label: string) => Worker;
-    };
-  };
-
-  browserGlobal.MonacoEnvironment = {
+  globalThis.MonacoEnvironment = {
     getWorker: (_workerID: string, label: string) => {
       if (label === "json") {
         return new Worker(
@@ -231,7 +234,7 @@ export function JsonCodeEditor({
       }
 
       monacoRef.current = monaco;
-      const jsonDefaults = (monaco.languages as MonacoLanguagesWithJson).json?.jsonDefaults;
+      const jsonDefaults = resolveJsonDiagnosticsDefaults(monaco);
       jsonDefaults?.setDiagnosticsOptions({
         validate: true,
         allowComments: true,

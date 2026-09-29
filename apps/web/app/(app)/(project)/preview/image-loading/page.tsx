@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { AssistantImageGenerationSkeleton } from "@/features/chat/components/message/message-bot";
+import { AssistantImageGenerationSkeleton } from "@/features/chat";
 
 export default function Page() {
   const t = useTranslations("chat.submit.mediaStatus");

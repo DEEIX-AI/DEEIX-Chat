@@ -4,8 +4,8 @@ export {
   useConversationRunning,
 } from "@/features/chat/context/chat-session-context";
 
-// 以下导出是 share（公开分享页）消费的只读消息渲染契约。
-// 内部重构时不得破坏这些符号的语义；新增跨 feature 消费必须经本出口，不允许深入内部路径。
+// The exports below are the read-only message rendering contract consumed by share (the public share page).
+// Internal refactors must not break these symbols' semantics; new cross-feature consumers must go through this entry point, never deep internal paths.
 export { ChatMessageBot } from "@/features/chat/components/message/message-bot";
 export { ChatMessageUser } from "@/features/chat/components/message/message-user";
 export {
@@ -16,3 +16,9 @@ export {
   toBranchKey,
 } from "@/features/chat/model/chat-thread";
 export type { ChatAreaMessage } from "@/features/chat/types/messages";
+export { ChatArtifactWorkspace } from "@/features/chat/components/sections/chat-artifact";
+export { useChatArtifactResize } from "@/features/chat/hooks/use-chat-artifact-resize";
+export { useChatArtifacts } from "@/features/chat/hooks/use-chat-artifacts";
+export type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts";
+export { AppChatArea } from "@/features/chat/components/app-chat-area";
+export { AssistantImageGenerationSkeleton } from "@/features/chat/components/message/message-bot";

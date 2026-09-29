@@ -6,9 +6,11 @@ import type { TooltipValueType } from "recharts"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { isRecord, readString } from "@/shared/lib/type-guards"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
+const THEME_NAMES = ["light", "dark"] as const satisfies readonly (keyof typeof THEMES)[]
 
 const INITIAL_DIMENSION = { width: 320, height: 200 } as const
 type TooltipNameType = number | string
@@ -98,14 +100,14 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null
   }
 
-  const stylesheet = Object.entries(THEMES)
+  const stylesheet = THEME_NAMES
     .map(
-      ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+      (theme) => `
+${THEMES[theme]} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ??
+      itemConfig.theme?.[theme] ??
       itemConfig.color
     return color ? `  --color-${key}: ${color};` : null
   })
@@ -239,7 +241,7 @@ function ChartTooltipContent({
                             {
                               "--color-bg": indicatorColor,
                               "--color-border": indicatorColor,
-                            } as React.CSSProperties
+                            }
                           }
                         />
                       )
@@ -407,33 +409,19 @@ function getPayloadConfigFromPayload(
   payload: unknown,
   key: string
 ) {
-  if (typeof payload !== "object" || payload === null) {
+  if (!isRecord(payload)) {
     return undefined
   }
 
-  const payloadPayload =
-    "payload" in payload &&
-    typeof payload.payload === "object" &&
-    payload.payload !== null
-      ? payload.payload
-      : undefined
+  const payloadRecord = payload
+  const payloadPayload = isRecord(payloadRecord.payload)
+    ? payloadRecord.payload
+    : undefined
 
-  let configLabelKey: string = key
-
-  if (
-    key in payload &&
-    typeof payload[key as keyof typeof payload] === "string"
-  ) {
-    configLabelKey = payload[key as keyof typeof payload] as string
-  } else if (
-    payloadPayload &&
-    key in payloadPayload &&
-    typeof payloadPayload[key as keyof typeof payloadPayload] === "string"
-  ) {
-    configLabelKey = payloadPayload[
-      key as keyof typeof payloadPayload
-    ] as string
-  }
+  const configLabelKey: string =
+    readString(payloadRecord, key) ??
+    (payloadPayload ? readString(payloadPayload, key) : undefined) ??
+    key
 
   return configLabelKey in config ? config[configLabelKey] : config[key]
 }

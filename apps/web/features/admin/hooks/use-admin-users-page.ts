@@ -19,8 +19,8 @@ import {
   revokeAdminUserSessions,
   updateAdminBillingAccountBalance,
 } from "@/features/admin/api";
-import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
-import type { AdminBillingMode, AdminBillingPlanDTO } from "@/features/admin/api/billing.types";
+import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin-types";
+import type { AdminBillingMode, AdminBillingPlanDTO } from "@/features/admin/api/billing-types";
 import {
   isDisplayNameLengthValid,
   isPasswordPolicyValid,
@@ -34,28 +34,26 @@ import {
   type InlineEditableField,
   type PendingAction,
   type UserSortValue,
-} from "@/features/admin/types/accounts";
+} from "@/features/admin/types/users";
 import {
   resolveSubscriptionExpiryInputValue,
   resolveSubscriptionExpiryDate,
   resolveSubscriptionExpiryISO,
-} from "@/features/admin/utils/account-display";
+} from "@/features/admin/utils/user-display";
+import { isAdminUserRole, isAdminUserStatus } from "@/features/admin/model/admin-unions";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
+import { isFiniteNumber, isRecord, isString } from "@/shared/lib/type-guards";
 import { patchByID, removeByID, removeManyByID, replaceByID, restoreAt, restoreManyAt } from "@/shared/lib/optimistic-list";
 import { runBulkActionInChunks, runSettledBulkItems } from "@/shared/lib/bulk-action";
 import { resolveTimeZoneOptions } from "@/shared/lib/time-zone";
-import {
-  normalizeBillingDisplayCurrency,
-  type BillingDisplayOptions,
-} from "@/shared/lib/billing-display";
-import { useAdminUserFilters } from "./use-admin-user-filters";
-import { useAdminUserSelection } from "./use-admin-user-selection";
+import { normalizeBillingDisplayCurrency, type BillingDisplayOptions } from "@/entities/billing";
+import { useAdminUsersFilters } from "./use-admin-users-filters";
+import { useAdminUsersSelection } from "./use-admin-users-selection";
 
 type UseAdminUsersPageParams = {
   items: AdminUserDTO[];
   total: number;
   page: number;
-  pageSize: number;
   query: string;
   setQuery: (value: string) => void;
   viewerRole?: string;
@@ -127,7 +125,7 @@ type UseAdminUsersPageState = {
   handleInlineUserPatch: (
     item: AdminUserDTO,
     field: InlineEditableField,
-    payload: Partial<Pick<AdminUserDTO, "role" | "status">>,
+    payload: { role?: AdminUserRole; status?: AdminUserStatus },
   ) => Promise<void>;
   onCreateUser: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
   handleSaveAvatarDialog: () => Promise<void>;
@@ -168,8 +166,8 @@ function createEditPayload(user: AdminUserDTO, fallbackSubscriptionTier = "free"
     displayName: user.displayName,
     email: user.email,
     phone: user.phone,
-    role: user.role as AdminUserRole,
-    status: user.status as AdminUserStatus,
+    role: user.role,
+    status: user.status,
     timezone: user.timezone.trim() || "Etc/UTC",
     locale: user.locale.trim() || "en-US",
     subscriptionTier,
@@ -188,19 +186,23 @@ function roundBillingBalance(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
 }
 
+// Minimal shape check for a user echoed back by an admin endpoint; anything
+// else falls back to patching the cached row locally.
+function isAdminUserDTO(value: unknown): value is AdminUserDTO {
+  return isRecord(value) && isFiniteNumber(value.id) && isString(value.role) && isString(value.status);
+}
+
 function userFromUnknownResponse(response: unknown): AdminUserDTO | null {
-  if (!response || typeof response !== "object" || !("user" in response)) {
+  if (!isRecord(response)) {
     return null;
   }
-  const user = (response as { user?: unknown }).user;
-  return user && typeof user === "object" ? (user as AdminUserDTO) : null;
+  return isAdminUserDTO(response.user) ? response.user : null;
 }
 
 export function useAdminUsersPage({
   items,
   total,
   page,
-  pageSize,
   query,
   setQuery,
   viewerRole,
@@ -233,7 +235,7 @@ export function useAdminUsersPage({
     sortValue,
     setSortValue,
     filteredItems,
-  } = useAdminUserFilters(items);
+  } = useAdminUsersFilters(items);
   const canManageUser = React.useCallback(
     (user: AdminUserDTO) => viewerRole === "superadmin" || user.role !== "superadmin",
     [viewerRole],
@@ -249,7 +251,7 @@ export function useAdminUsersPage({
     handleSelectAllVisible,
     handleToggleSelectedUser,
     setSelectedUserIDs,
-  } = useAdminUserSelection(items, selectableFilteredItems);
+  } = useAdminUsersSelection(items, selectableFilteredItems);
   const [batchRole, setBatchRole] = React.useState<AdminUserRole | "">("");
   const [batchStatus, setBatchStatus] = React.useState<AdminUserStatus | "">("");
   const [batchTimezone, setBatchTimezone] = React.useState("");
@@ -388,7 +390,7 @@ export function useAdminUsersPage({
     async (
       item: AdminUserDTO,
       field: InlineEditableField,
-      payload: Partial<Pick<AdminUserDTO, "role" | "status">>,
+      payload: { role?: AdminUserRole; status?: AdminUserStatus },
     ) => {
       if (!canManageUser(item)) {
         return;
@@ -405,8 +407,8 @@ export function useAdminUsersPage({
 
         onSetUsers((current) => patchByID<AdminUserDTO, number>(current, item.id, (user) => user.id, payload));
         const response = await patchAdminUser(token, item.id, {
-          role: payload.role as AdminUserRole | undefined,
-          status: payload.status as AdminUserStatus | undefined,
+          role: payload.role,
+          status: payload.status,
           reason: "inline_admin_table",
         });
 
@@ -580,10 +582,12 @@ export function useAdminUsersPage({
     if (nextPhone !== editDialogTarget.phone.trim()) {
       patchPayload.phone = nextPhone;
     }
-    if (editPayload.role !== editDialogTarget.role) {
+    // Changed values always come from the role/status selects, so the guards
+    // only filter out untouched unknown server values (which are unchanged anyway).
+    if (editPayload.role !== editDialogTarget.role && isAdminUserRole(editPayload.role)) {
       patchPayload.role = editPayload.role;
     }
-    if (editPayload.status !== editDialogTarget.status) {
+    if (editPayload.status !== editDialogTarget.status && isAdminUserStatus(editPayload.status)) {
       patchPayload.status = editPayload.status;
     }
     if (nextTimezone !== (editDialogTarget.timezone.trim() || "Etc/UTC")) {
@@ -970,7 +974,8 @@ export function useAdminUsersPage({
       if (failedUsers.length > 0) {
         const failedRollbackUsers = failedUsers.map((item) => ({ item, index: items.findIndex((current) => current.id === item.id) }));
         onSetUsers((current) => restoreManyAt(current, failedRollbackUsers, (item) => item.id));
-        onSetTotal((current) => Math.max(0, total - successCount));
+        // Only the successful deletions stay removed from the optimistic total.
+        onSetTotal((current) => current + failedUsers.length);
         setSelectedUserIDs(new Set(failedUsers.map((item) => item.id)));
         toast.error(t("toast.bulkDeletePartialFailed"), { description: t("toast.bulkPartialDescription", { success: successCount, failed: failedUsers.length }) });
         return;

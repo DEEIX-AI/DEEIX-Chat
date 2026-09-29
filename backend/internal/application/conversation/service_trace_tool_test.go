@@ -438,9 +438,7 @@ func TestBuildMessageProcessTraceDTOIncludesOrderedEvents(t *testing.T) {
 func TestToolTraceKeepsRepeatedCallIDsInSeparateRounds(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_tool_rounds"},
 	}
@@ -494,8 +492,7 @@ func TestToolTraceKeepsRepeatedCallIDsInSeparateRounds(t *testing.T) {
 func TestToolTraceUpdatesStreamingCallWithoutCreatingDuplicateEvent(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:       true,
-			ProcessTraceVisibleToUser: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_tool_update"},
 	}
@@ -536,9 +533,7 @@ func TestToolTraceUpdatesStreamingCallWithoutCreatingDuplicateEvent(t *testing.T
 func TestToolTraceStartsNewRoundAfterPreviousToolRoundCloses(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_tool_without_next_think"},
 	}
@@ -599,9 +594,7 @@ func TestTracePayloadJSONBoundsOversizedPayload(t *testing.T) {
 func TestProcessTraceStaysStreamingUntilNextVisiblePhase(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_1"},
 	}
@@ -651,9 +644,7 @@ func TestUpstreamReasoningPayloadStoresMetadataOnly(t *testing.T) {
 func TestFinalReasoningSnapshotReconcilesCompletedStreamEvent(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_reconcile"},
 	}
@@ -677,9 +668,7 @@ func TestFinalReasoningSnapshotReconcilesCompletedStreamEvent(t *testing.T) {
 func TestFinalReasoningSnapshotStartsNewRoundForDifferentItem(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_reconcile_items"},
 	}
@@ -700,9 +689,7 @@ func TestFinalReasoningSnapshotStartsNewRoundForDifferentItem(t *testing.T) {
 func TestStreamingReasoningItemChangeClosesPriorToolRound(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_stream_items"},
 	}
@@ -739,9 +726,7 @@ func TestStreamingReasoningItemChangeClosesPriorToolRound(t *testing.T) {
 func TestStreamingFinalizationDoesNotReplayObservedTraceEvents(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_stream_finalize"},
 	}
@@ -777,9 +762,7 @@ func TestStreamingFinalizationDoesNotReplayObservedTraceEvents(t *testing.T) {
 func TestStreamingFinalizationAddsUnobservedServerToolsBeforeFinalReasoning(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_stream_missing_tool_event"},
 	}
@@ -801,9 +784,7 @@ func TestStreamingFinalizationAddsUnobservedServerToolsBeforeFinalReasoning(t *t
 func TestStreamingFinalizationRestoresOnlyMissingServerTools(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_stream_partial_tools"},
 	}
@@ -835,9 +816,7 @@ func TestStreamingFinalizationRestoresOnlyMissingServerTools(t *testing.T) {
 func TestStreamingFinalizationReconcilesNonTerminalServerTool(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_stream_pending_tool"},
 	}
@@ -893,9 +872,7 @@ func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 	var events []map[string]any
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_1"},
 		onEvent: func(eventType string, payload map[string]any) error {
@@ -956,9 +933,7 @@ func TestFailedUpstreamThinkingFlushesBufferedContent(t *testing.T) {
 	var events []map[string]any
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_cancel"},
 		onEvent: func(eventType string, payload map[string]any) error {
@@ -992,9 +967,7 @@ func TestUpstreamThinkingLiveDeltaChunksOversizedContent(t *testing.T) {
 	var events []map[string]any
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_1"},
 		onEvent: func(eventType string, payload map[string]any) error {
@@ -1218,8 +1191,7 @@ func TestBuildCompactionProcessTraceUsesReadableLines(t *testing.T) {
 func TestTraceRecorderContinuesProcessTraceAfterRequestCompletion(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:       true,
-			ProcessTraceVisibleToUser: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{},
 		onEvent:   func(string, map[string]any) error { return nil },
@@ -1256,8 +1228,7 @@ func TestTraceRecorderContinuesProcessTraceAfterRequestCompletion(t *testing.T) 
 func TestTraceRecorderKeepsAndReplacesPendingCompactionStage(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:       true,
-			ProcessTraceVisibleToUser: true,
+			ProcessTraceEnabled: true,
 		},
 		assistant: &model.Message{},
 		onEvent:   func(string, map[string]any) error { return nil },

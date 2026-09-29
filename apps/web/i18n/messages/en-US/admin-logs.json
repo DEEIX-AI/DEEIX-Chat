@@ -121,10 +121,6 @@
       }
     }
   },
-  "system": {
-    "searchPlaceholder": "Search source, event, resource, request ID, or detail",
-    "empty": "No system events"
-  },
   "tabs": {
     "audit": "Operation audit",
     "usage": "Model calls",
@@ -132,8 +128,7 @@
     "orders": "Order records",
     "redemptions": "Redemptions",
     "conversation": "Conversation events",
-    "moderation": "Moderation events",
-    "system": "System events"
+    "moderation": "Moderation events"
   },
   "cleanup": {
     "trigger": "Clean up logs",
@@ -153,7 +148,7 @@
       "usage": "Model calls",
       "orders": "Order records",
       "conversation": "Conversation events",
-      "system": "System events"
+      "moderation": "Moderation events"
     },
     "impacts": {
       "audit": "Deletes operation tracking records only. Users, conversations, and other business data are not deleted.",
@@ -161,7 +156,7 @@
       "usage": "Deletes usage and cost ledgers. Historical daily and monthly usage, current-cycle quota calculations, and billing traceability are affected, and cleared periods may show lower consumed quota.",
       "orders": "Deletes payment orders and callback correlation data. Granted balances and subscriptions are not revoked, but old callbacks may fail and payment traceability and idempotency evidence are lost.",
       "conversation": "Deletes message processing traces, tool calls, and run events. Conversations and message content remain, but historical processing and tool details may no longer appear.",
-      "system": "Deletes diagnostic and troubleshooting events. System configuration and current runtime state are not changed."
+      "moderation": "Deletes content moderation events and their verdicts. Moderation settings and conversation content are unaffected."
     },
     "toast": {
       "sessionExpired": "Session expired",
@@ -175,7 +170,6 @@
     "signInAgain": "Please sign in again before continuing.",
     "auditLoadFailed": "Failed to load audit logs",
     "authLoadFailed": "Failed to load auth logs",
-    "systemLoadFailed": "Failed to load system events",
     "usageLoadFailed": "Failed to load usage logs",
     "ordersLoadFailed": "Failed to load order records",
     "redemptionsLoadFailed": "Failed to load redemption records",
@@ -223,9 +217,6 @@
     "event": "Event",
     "result": "Result",
     "reason": "Reason",
-    "level": "Level",
-    "source": "Source",
-    "message": "Message",
     "caller": "Caller",
     "model": "Model",
     "usage": "Usage",
@@ -306,18 +297,6 @@
       "streaming": "Streaming",
       "completed": "Completed",
       "error": "Error"
-    },
-    "cleanup": {
-      "action": "Delete run traces",
-      "title": "Delete run traces",
-      "description": "Permanently deletes all trace events for the selected {count} runs. Conversations, messages, attachments, calls, and billing records are preserved.",
-      "confirm": "Delete",
-      "deleting": "Deleting",
-      "success": "Deleted {events} trace events from {runs} runs",
-      "failed": "Failed to delete run traces",
-      "maxSelection": "You can select up to 100 runs at a time",
-      "selectAll": "Select runs on this page",
-      "selectRun": "Select run {runID}"
     }
   },
   "detail": {
@@ -327,8 +306,7 @@
       "usage": "Usage log detail",
       "order": "Order record detail",
       "redemption": "Redemption record detail",
-      "conversation": "Conversation event detail",
-      "system": "System event detail"
+      "conversation": "Conversation event detail"
     },
     "fallbacks": {
       "authEvent": "Auth event",
@@ -336,7 +314,6 @@
       "order": "Order record",
       "redemption": "Redemption record",
       "conversationEvent": "Conversation event",
-      "systemEvent": "System event",
       "auditEvent": "Audit event"
     },
     "blocks": {
@@ -377,9 +354,6 @@
       "result": "Result",
       "reason": "Reason",
       "occurredAt": "Occurred at",
-      "level": "Level",
-      "source": "Source",
-      "message": "Message",
       "caller": "Caller",
       "conversationID": "Conversation ID",
       "callTime": "Call time",

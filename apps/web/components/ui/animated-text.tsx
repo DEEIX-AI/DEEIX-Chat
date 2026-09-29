@@ -98,12 +98,8 @@ function OverflowScrollingText({
         "no-scrollbar scroll-fade-x scroll-fade-8 block min-w-0 overflow-x-hidden whitespace-nowrap",
         className,
       )}
-      aria-label={text}
     >
-      <span
-        aria-hidden="true"
-        className={cn("block w-max whitespace-nowrap", textClassName)}
-      >
+      <span className={cn("block w-max whitespace-nowrap", textClassName)}>
         {text}
       </span>
     </span>
@@ -177,8 +173,9 @@ export function AnimatedText({
   }
 
   return (
-    <span className={cn("relative block min-w-0 overflow-hidden", className)} aria-label={transition.next}>
-      <span className={cn("invisible block truncate", textClassName)}>{transition.next}</span>
+    <span className={cn("relative block min-w-0 overflow-hidden", className)}>
+      <span className="sr-only">{transition.next}</span>
+      <span aria-hidden="true" className={cn("invisible block truncate", textClassName)}>{transition.next}</span>
       <span
         aria-hidden="true"
         className={cn(

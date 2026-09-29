@@ -9,8 +9,7 @@ function setRefValue<T>(ref: React.Ref<T> | undefined, value: T | null) {
   }
 
   if (ref) {
-    const mutableRef = ref as React.MutableRefObject<T | null>
-    mutableRef.current = value
+    ref.current = value
   }
 }
 

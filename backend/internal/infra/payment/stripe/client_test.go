@@ -48,8 +48,8 @@ func TestCreateCheckoutSessionMapsProtocolAndValidatesResponse(t *testing.T) {
 
 	result, err := client.CreateCheckoutSession(t.Context(), paymentport.StripeCheckoutInput{
 		SecretKey:          "sk_test_example",
-		SuccessURL:         "https://chat.example.com/settings?payment=success",
-		CancelURL:          "https://chat.example.com/settings?payment=cancel",
+		SuccessURL:         "https://chat.example.com/settings/subscription?payment=success",
+		CancelURL:          "https://chat.example.com/settings/subscription?payment=cancel",
 		OrderNo:            "order-123",
 		OrderType:          "subscription",
 		UserID:             42,

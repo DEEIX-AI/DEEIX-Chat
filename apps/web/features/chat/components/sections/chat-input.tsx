@@ -2,7 +2,6 @@
 
 import { Box, CornerDownRight, Eye, EyeOff, Film, HatGlasses, Image, ImageOff, ImagePlus, LoaderCircle, PencilLine, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import dynamic from "next/dynamic";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -63,24 +62,25 @@ import {
 } from "@/features/chat/utils/markdown-paste";
 import type { SendShortcut } from "@/features/settings";
 import { cn } from "@/lib/utils";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
-import type { FileObjectDTO } from "@/shared/api/file.types";
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
-import type { UIComponentDTO } from "@/shared/api/ui-components.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
+import type { FileObjectDTO } from "@/shared/api/file-types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
+import type { UIComponentDTO } from "@/shared/api/ui-components-types";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";
-import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
-import { formatBytes, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
-import { isFileProcessing, resolveFileProcessingBadge } from "@/shared/lib/file-processing";
-import type { ModelOptionPolicy } from "@/shared/lib/model-option-policy";
+import type { BillingDisplayCurrency } from "@/entities/billing";
+import {
+  LazyFilePreviewDialog,
+  formatBytes,
+  isFileProcessing,
+  resolveFileExtension,
+  resolveFileIcon,
+  resolveFileProcessingBadge,
+} from "@/entities/file";
+import type { ModelOptionPolicy } from "@/entities/model";
 import { isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
-
-const FilePreviewDialog = dynamic(
-  () => import("@/shared/components/file-preview/preview-dialog").then((module) => module.FilePreviewDialog),
-  { ssr: false },
-);
 
 const TEMPORARY_NOTICE_TRANSITION = {
   duration: 0.22,
@@ -346,6 +346,7 @@ function ChatInputComponent({
   const [previewAttachment, setPreviewAttachment] = React.useState<PendingAttachment | null>(null);
   const [markdownPreview, setMarkdownPreview] = React.useState(false);
   const stablePreviewAttachment = useDialogSnapshot(previewAttachment);
+  const previewLocalFile = stablePreviewAttachment?.localFile;
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const inputGroupRef = React.useRef<HTMLDivElement | null>(null);
   const inputGroupMeasureRef = React.useRef<HTMLDivElement | null>(null);
@@ -857,20 +858,20 @@ function ChatInputComponent({
                 ))}
               </AttachmentGroup>
               {stablePreviewAttachment ? (
-                <FilePreviewDialog
+                <LazyFilePreviewDialog
                   file={stablePreviewAttachment}
                   open={previewAttachment !== null}
                   onOpenChange={closePreviewDialog}
-                  loadContent={stablePreviewAttachment.localFile
+                  loadContent={previewLocalFile
                     ? async (_file, signal) => {
                         if (signal.aborted) {
                           throw new DOMException("The operation was aborted", "AbortError");
                         }
                         return {
-                          blob: stablePreviewAttachment.localFile as File,
-                          contentType: stablePreviewAttachment.localFile?.type || "application/octet-stream",
+                          blob: previewLocalFile,
+                          contentType: previewLocalFile.type || "application/octet-stream",
                           disposition: null,
-                          contentLength: stablePreviewAttachment.localFile?.size ?? null,
+                          contentLength: previewLocalFile.size,
                         };
                       }
                     : undefined}

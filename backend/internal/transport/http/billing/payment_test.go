@@ -54,7 +54,7 @@ func TestPreparePaymentCheckoutAcceptsClassicEPayEndpoint(t *testing.T) {
 		EPayTypes:      defaultEPayTypes(),
 	}, CreateCheckoutRequest{
 		EPayType:   "alipay",
-		SuccessURL: "https://chat.example.com/setting/subscription?payment=success",
+		SuccessURL: "https://chat.example.com/settings/subscription?payment=success",
 	})
 	if err != nil {
 		t.Fatalf("preparePaymentCheckout() error = %v", err)
@@ -73,7 +73,7 @@ func TestSameOriginPublicURLReturnsTypedReturnURLErrors(t *testing.T) {
 		{name: "protocol relative", raw: "//evil.example.com/callback", want: errPaymentReturnURLCrossOrigin},
 		{name: "foreign origin", raw: "https://evil.example.com/callback", want: errPaymentReturnURLCrossOrigin},
 		{name: "not a url", raw: "callback", want: errPaymentReturnURLInvalid},
-		{name: "unparsable relative path", raw: "/settings%zz", want: errPaymentReturnURLInvalid},
+		{name: "unparsable relative path", raw: "/settings/subscription%zz", want: errPaymentReturnURLInvalid},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -83,7 +83,7 @@ func TestSameOriginPublicURLReturnsTypedReturnURLErrors(t *testing.T) {
 			}
 		})
 	}
-	if got, err := sameOriginPublicURL("https://chat.example.com", "/settings?payment=success"); err != nil || got != "https://chat.example.com/settings?payment=success" {
+	if got, err := sameOriginPublicURL("https://chat.example.com", "/settings/subscription?payment=success"); err != nil || got != "https://chat.example.com/settings/subscription?payment=success" {
 		t.Fatalf("relative path = %q, %v", got, err)
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Policy holds the four category arrays (empty array = skip that surface).
+// Policy 保存四个类别数组（空数组 = 跳过该检查面）。
 type Policy struct {
 	InputTextCategories   []string
 	OutputTextCategories  []string
@@ -30,7 +30,7 @@ func (document policyJSON) toPolicy() Policy {
 	return Policy(document)
 }
 
-// Enabled reports whether any surface has categories selected.
+// Enabled 报告是否有任一检查面选择了类别。
 func (p Policy) Enabled() bool {
 	return len(p.InputTextCategories) > 0 ||
 		len(p.OutputTextCategories) > 0 ||
@@ -38,7 +38,7 @@ func (p Policy) Enabled() bool {
 		len(p.OutputImageCategories) > 0
 }
 
-// CategoriesFor returns selected categories for a direction+modality surface.
+// CategoriesFor 返回某个方向+模态检查面所选的类别。
 func (p Policy) CategoriesFor(direction, modality string) []string {
 	switch {
 	case direction == DirectionInput && modality == ModalityText:
@@ -54,7 +54,7 @@ func (p Policy) CategoriesFor(direction, modality string) []string {
 	}
 }
 
-// NormalizePolicy validates and normalizes category selections.
+// NormalizePolicy 校验并规范化类别选择。
 func NormalizePolicy(p Policy) (Policy, error) {
 	out := Policy{Version: p.Version}
 	var err error

@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { SpinnerLabel } from "@/components/ui/spinner";
-import type { UserDTO } from "@/shared/api/auth.types";
-import type { BillingOverviewData, BillingSubscriptionEntitlementDTO } from "@/shared/api/billing.types";
-import type { BillingPlanDTO, BillingPlanPriceDTO } from "@/shared/api/billing.types";
+import type { UserDTO } from "@/shared/api/auth-types";
+import type { BillingOverviewData, BillingSubscriptionEntitlementDTO } from "@/shared/api/billing-types";
+import type { BillingPlanDTO, BillingPlanPriceDTO } from "@/shared/api/billing-types";
 import {
   formatAccountBalance,
   formatMediumDate,
@@ -28,7 +28,7 @@ import {
   resolvePlanButtonVariant,
   resolvePlanFeatures,
 } from "@/features/settings/model/subscription-format";
-import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
+import type { BillingDisplayOptions } from "@/entities/billing";
 
 type BillingMode = "period" | "usage" | "self";
 type PaymentProvider = "stripe" | "epay";

@@ -8,7 +8,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-// mountSwagger serves the embedded Swagger UI; excluded with -tags noswagger.
+// mountSwagger 提供内嵌的 Swagger UI；可通过 -tags noswagger 排除。
 func mountSwagger(engine *gin.Engine) {
 	engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 }

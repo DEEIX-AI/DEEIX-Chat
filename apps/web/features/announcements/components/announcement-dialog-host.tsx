@@ -4,8 +4,6 @@ import { Pin } from "lucide-react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import * as React from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,11 +15,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAnnouncementDialog } from "@/features/announcements/hooks/use-announcement-dialog";
+import { isAnnouncementRead, normalizeAnnouncementType } from "@/features/announcements/model/announcement-order";
 import { cn } from "@/lib/utils";
-import { closeAnnouncement, dismissAnnouncementToday, listAnnouncements } from "@/shared/api/announcements";
-import type { AnnouncementDTO } from "@/shared/api/announcements.types";
-import { useAuthSession } from "@/shared/auth/auth-session-context";
-import { dispatchAnnouncementUnreadChanged, subscribeOpenAnnouncements } from "@/shared/events/announcement-events";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 
 const StreamdownRender = dynamic(
@@ -37,17 +33,6 @@ const StreamdownRender = dynamic(
     ),
   },
 );
-
-type AnnouncementSortMode = "default" | "type" | "time";
-type AnnouncementDialogMode = "auto" | "manual";
-type AnnouncementType = "critical" | "warning" | "info" | "normal" | "general";
-
-function isSkippedPath(pathname: string | null): boolean {
-  if (!pathname) {
-    return false;
-  }
-  return pathname === "/share" || pathname.startsWith("/share/");
-}
 
 function formatAnnouncementDate(value: string, locale: string): string {
   const date = new Date(value);
@@ -73,38 +58,6 @@ function formatAnnouncementTime(value: string, locale: string): string {
   }).format(date);
 }
 
-function isAnnouncementSortMode(value: string): value is AnnouncementSortMode {
-  return value === "default" || value === "type" || value === "time";
-}
-
-function normalizeAnnouncementType(value: string): AnnouncementType {
-  switch (value) {
-    case "critical":
-    case "warning":
-    case "info":
-    case "normal":
-    case "general":
-      return value;
-    default:
-      return "general";
-  }
-}
-
-function announcementTypeRank(value: string): number {
-  switch (normalizeAnnouncementType(value)) {
-    case "critical":
-      return 5;
-    case "warning":
-      return 4;
-    case "info":
-      return 3;
-    case "normal":
-      return 2;
-    default:
-      return 1;
-  }
-}
-
 function announcementTypeAccentClassName(value: string): string {
   switch (normalizeAnnouncementType(value)) {
     case "critical":
@@ -120,220 +73,32 @@ function announcementTypeAccentClassName(value: string): string {
   }
 }
 
-function announcementTime(value: string): number {
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? 0 : time;
-}
-
-function isAnnouncementRead(item: AnnouncementDTO): boolean {
-  return Boolean(item.closedAt);
-}
-
-function compareReadState(a: AnnouncementDTO, b: AnnouncementDTO): number {
-  return Number(isAnnouncementRead(a)) - Number(isAnnouncementRead(b));
-}
-
-function compareAnnouncementByTime(a: AnnouncementDTO, b: AnnouncementDTO): number {
-  return announcementTime(b.updatedAt) - announcementTime(a.updatedAt) || b.id - a.id;
-}
-
-function compareAnnouncementByType(a: AnnouncementDTO, b: AnnouncementDTO): number {
-  return announcementTypeRank(b.type) - announcementTypeRank(a.type) || compareAnnouncementByTime(a, b);
-}
-
 export function AnnouncementDialogHost() {
   const t = useTranslations("announcements");
   const locale = useLocale();
   const pathname = usePathname();
-  const { accessToken, user, userStatus } = useAuthSession();
-  const [autoQueue, setAutoQueue] = React.useState<AnnouncementDTO[]>([]);
-  const [manualQueue, setManualQueue] = React.useState<AnnouncementDTO[]>([]);
-  const [activeIndex, setActiveIndex] = React.useState(0);
-  const [sortMode, setSortMode] = React.useState<AnnouncementSortMode>("default");
-  const [stateSaving, setStateSaving] = React.useState(false);
-  const [autoOpen, setAutoOpen] = React.useState(false);
-  const [manualOpen, setManualOpen] = React.useState(false);
-  const [manualLoading, setManualLoading] = React.useState(false);
-  const [dialogMode, setDialogMode] = React.useState<AnnouncementDialogMode>("auto");
-  const autoLoadRequestIDRef = React.useRef(0);
-  const manualLoadRequestIDRef = React.useRef(0);
+  const {
+    open,
+    dialogMode,
+    sortedQueue,
+    activeIndex,
+    setActiveIndex,
+    sortMode,
+    handleSortModeChange,
+    manualLoading,
+    stateSaving,
+    hasUnreadInQueue,
+    handleOpenChange,
+    closeManualDialog,
+    dismissAllToday,
+    closeAll,
+  } = useAnnouncementDialog(pathname);
 
-  React.useEffect(() => {
-    let cancelled = false;
-    if (userStatus !== "ready" || !accessToken || user?.initialSecurityRequired || isSkippedPath(pathname)) {
-      autoLoadRequestIDRef.current += 1;
-      manualLoadRequestIDRef.current += 1;
-      setAutoQueue([]);
-      setManualQueue([]);
-      setActiveIndex(0);
-      setAutoOpen(false);
-      setManualOpen(false);
-      setManualLoading(false);
-      setDialogMode("auto");
-      return;
-    }
-
-    async function load() {
-      const requestID = autoLoadRequestIDRef.current + 1;
-      autoLoadRequestIDRef.current = requestID;
-      try {
-        const items = await listAnnouncements(accessToken);
-        if (!cancelled && autoLoadRequestIDRef.current === requestID) {
-          setAutoQueue(items);
-          setAutoOpen(items.some((item) => !isAnnouncementRead(item)));
-          setDialogMode((current) => (current === "manual" ? current : "auto"));
-          setActiveIndex(0);
-        }
-      } catch {
-        if (!cancelled && autoLoadRequestIDRef.current === requestID) {
-          setAutoQueue([]);
-          setAutoOpen(false);
-          setActiveIndex(0);
-        }
-      }
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [accessToken, pathname, user?.initialSecurityRequired, userStatus]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    const unsubscribe = subscribeOpenAnnouncements(() => {
-      if (userStatus !== "ready" || !accessToken || user?.initialSecurityRequired || isSkippedPath(pathname)) {
-        return;
-      }
-      const requestID = manualLoadRequestIDRef.current + 1;
-      manualLoadRequestIDRef.current = requestID;
-      setDialogMode("manual");
-      setAutoOpen(false);
-      setManualOpen(true);
-      setManualLoading(true);
-      setManualQueue([]);
-      setActiveIndex(0);
-      setSortMode("default");
-
-      void listAnnouncements(accessToken, { includeDismissed: true })
-        .then((items) => {
-          if (!cancelled && manualLoadRequestIDRef.current === requestID) {
-            setManualQueue(items);
-            setActiveIndex(0);
-          }
-        })
-        .catch(() => {
-          if (!cancelled && manualLoadRequestIDRef.current === requestID) {
-            setManualQueue([]);
-            toast.error(t("openFailed"));
-          }
-        })
-        .finally(() => {
-          if (!cancelled && manualLoadRequestIDRef.current === requestID) {
-            setManualLoading(false);
-          }
-        });
-    });
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [accessToken, pathname, t, user?.initialSecurityRequired, userStatus]);
-
-  const queue = dialogMode === "manual" ? manualQueue : autoQueue;
-  const sortedQueue = React.useMemo(() => {
-    if (sortMode === "time") {
-      return [...queue].sort((a, b) => compareReadState(a, b) || compareAnnouncementByTime(a, b));
-    }
-    if (sortMode === "type") {
-      return [...queue].sort((a, b) => compareReadState(a, b) || compareAnnouncementByType(a, b));
-    }
-    return queue;
-  }, [queue, sortMode]);
-
-  React.useEffect(() => {
-    setActiveIndex(0);
-  }, [sortMode]);
-
-  const hasUnread = autoQueue.some((item) => !isAnnouncementRead(item));
-  React.useEffect(() => {
-    dispatchAnnouncementUnreadChanged(hasUnread);
-  }, [hasUnread]);
-
-  const open = manualOpen || autoOpen;
   const renderMode = useDialogSnapshot(open ? dialogMode : null) ?? dialogMode;
   const renderQueue = useDialogSnapshot(open ? sortedQueue : null) ?? sortedQueue;
   const renderActiveIndex = useDialogSnapshot(open ? activeIndex : null) ?? activeIndex;
   const renderManualLoading = useDialogSnapshot(open ? manualLoading : null) ?? manualLoading;
   const active = renderQueue[Math.min(renderActiveIndex, Math.max(renderQueue.length - 1, 0))] ?? null;
-  const unreadQueue = React.useMemo(() => queue.filter((item) => !isAnnouncementRead(item)), [queue]);
-
-  const closeDialog = React.useCallback(() => {
-    setActiveIndex(0);
-    setAutoOpen(false);
-    setManualOpen(false);
-    setManualLoading(false);
-    dispatchAnnouncementUnreadChanged(false);
-  }, []);
-
-  const closeManualDialog = React.useCallback(() => {
-    setManualOpen(false);
-    setManualLoading(false);
-    setActiveIndex(0);
-  }, []);
-
-  const hideAutoDialog = React.useCallback(() => {
-    setAutoOpen(false);
-    setActiveIndex(0);
-  }, []);
-
-  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
-    if (nextOpen) {
-      return;
-    }
-    if (manualOpen) {
-      closeManualDialog();
-      return;
-    }
-    hideAutoDialog();
-  }, [closeManualDialog, hideAutoDialog, manualOpen]);
-
-  const handleSortModeChange = React.useCallback((value: string) => {
-    if (isAnnouncementSortMode(value)) {
-      setSortMode(value);
-    }
-  }, []);
-
-  const dismissAllToday = React.useCallback(async () => {
-    if (!accessToken || stateSaving) {
-      return;
-    }
-    setStateSaving(true);
-    try {
-      await Promise.all(unreadQueue.map((item) => dismissAnnouncementToday(accessToken, item.id, item.updatedAt)));
-      closeDialog();
-    } catch {
-      toast.error(t("dismissFailed"));
-    } finally {
-      setStateSaving(false);
-    }
-  }, [accessToken, closeDialog, stateSaving, t, unreadQueue]);
-
-  const closeAll = React.useCallback(async () => {
-    if (!accessToken || stateSaving) {
-      return;
-    }
-    setStateSaving(true);
-    try {
-      await Promise.all(unreadQueue.map((item) => closeAnnouncement(accessToken, item.id, item.updatedAt)));
-      closeDialog();
-    } catch {
-      toast.error(t("closeFailed"));
-    } finally {
-      setStateSaving(false);
-    }
-  }, [accessToken, closeDialog, stateSaving, t, unreadQueue]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -414,7 +179,7 @@ export function AnnouncementDialogHost() {
           </div>
           <DialogFooter className="shrink-0">
             {renderMode === "manual" ? (
-              <Button type="button" onClick={() => unreadQueue.length > 0 ? void closeAll() : closeManualDialog()} disabled={stateSaving}>
+              <Button type="button" onClick={() => hasUnreadInQueue ? void closeAll() : closeManualDialog()} disabled={stateSaving}>
                 {t("close")}
               </Button>
             ) : (

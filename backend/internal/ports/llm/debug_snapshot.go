@@ -19,8 +19,8 @@ type SanitizedUpstreamDebugBody struct {
 	RedactedParts int
 }
 
-// SanitizeUpstreamDebugBody removes inline binary data and bounds a debug body
-// before it crosses into application-level errors or trace payloads.
+// SanitizeUpstreamDebugBody 移除内联二进制数据并限制调试 body 的大小，
+// 之后才会进入应用层错误或 trace 载荷。
 func SanitizeUpstreamDebugBody(raw string) string {
 	return SanitizeUpstreamDebugPayload([]byte(raw)).Body
 }

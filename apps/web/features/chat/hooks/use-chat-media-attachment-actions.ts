@@ -6,11 +6,11 @@ import { toast } from "sonner";
 import { toPendingAttachment } from "@/features/chat/model/message-submit";
 import type { ChatModelOption, PendingAttachment } from "@/features/chat/types/chat-runtime";
 import type { MessageAttachment } from "@/features/chat/types/messages";
-import type { FileObjectDTO } from "@/shared/api/file.types";
+import type { FileObjectDTO } from "@/shared/api/file-types";
 
 /**
- * 生成媒体的再利用：把已生成的图片挂回输入框并在当前模型不支持图片编辑时自动切换到可用模型；
- * 把已生成的视频设为延展输入并切换到支持视频延展的模型；附加历史文件（含数量上限校验）。
+ * Reusing generated media: attach generated images back to the composer, auto-switching to a capable model if the current one can't edit images;
+ * set a generated video as extension input and switch to a model that supports video extension; attach history files (with count limit checks).
  */
 export function useChatMediaAttachmentActions({
   attachments,

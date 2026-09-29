@@ -57,6 +57,51 @@ type messageRAGRetrievalResult struct {
 	retrievalFallbacks []ragFallbackEvidence
 	// notice 在显式选择的知识库没有可用证据时提示模型不得声称答案有知识库依据。
 	notice string
+	// imageEvidence 是命中的图片分片对应的文件；图片向量检索命中后模型需要看到原图而不是空文本。
+	imageEvidence []AttachmentInput
+}
+
+// retrievedImageEvidence 把命中的图片分片映射回文件附件，按命中顺序返回；
+// 已经以其它方式随本轮发送的文件（exclude）不再重复附上。
+func retrievedImageEvidence(chunks []model.RAGChunk, files []model.FileObject, exclude []AttachmentInput) []AttachmentInput {
+	byFileID := make(map[string]model.FileObject, len(files))
+	for _, file := range files {
+		byFileID[strings.TrimSpace(file.FileID)] = file
+	}
+	seen := make(map[string]struct{}, len(exclude))
+	for _, item := range exclude {
+		if fileID := strings.TrimSpace(item.FileID); fileID != "" {
+			seen[fileID] = struct{}{}
+		}
+	}
+	result := make([]AttachmentInput, 0)
+	for _, chunk := range chunks {
+		if chunk.Modality != model.FileChunkModalityImage {
+			continue
+		}
+		fileID := strings.TrimSpace(chunk.FileID)
+		file, ok := byFileID[fileID]
+		if !ok || strings.TrimSpace(file.StoragePath) == "" {
+			continue
+		}
+		if _, dup := seen[fileID]; dup {
+			continue
+		}
+		seen[fileID] = struct{}{}
+		result = append(result, AttachmentInput{
+			FileObjID:    file.ID,
+			FileID:       file.FileID,
+			Kind:         "image",
+			FileName:     file.FileName,
+			MimeType:     file.MimeType,
+			DetectedMIME: file.DetectedMIME,
+			FileCategory: file.FileCategory,
+			StoragePath:  file.StoragePath,
+			ContextMode:  fileContextModeRAG,
+			Current:      true,
+		})
+	}
+	return result
 }
 
 // retrieveMessageRAGContext 对本轮可检索附件与知识库文件执行语义检索，并把失败与未命中折叠为
@@ -193,6 +238,7 @@ func (s *Service) retrieveMessageRAGContext(ctx context.Context, in messageRAGRe
 			traceRecorder.appendProcessSection(summary, markdown, payload, messageTraceStatusStreaming)
 		}
 		result.chunks = append(result.chunks, ragChunks...)
+		result.imageEvidence = retrievedImageEvidence(ragChunks, readyObjs, fileContextPlan.FullAttachments)
 		if knowledgeBaseSelected && !knowledgeBaseHit {
 			result.notice = knowledgeBaseNoEvidenceNotice
 		}

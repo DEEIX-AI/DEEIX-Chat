@@ -7,7 +7,7 @@ import {
   resolveGreetingPeriodByHour,
   resolveHourByTimeZone,
 } from "@/features/chat/utils/chat-runtime";
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { UserDTO } from "@/shared/api/auth-types";
 import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
 
 const DEFAULT_VIEWER_PROFILE: ViewerProfile = {

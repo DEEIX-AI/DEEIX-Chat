@@ -137,7 +137,9 @@
     "registrationControlFor": "{name} 注册控制",
     "edit": "编辑身份源",
     "delete": "删除身份源",
-    "empty": "暂无身份源"
+    "empty": "暂无身份源",
+    "bridgeMissingTitle": "第三方登录当前不可用",
+    "bridgeMissingDescription": "服务器未配置 PUBLIC_API_BASE_URL，无法生成身份源回调地址。请在服务器环境变量或 config.yaml 中设置后重启，再在身份源处注册下方显示的回调地址。"
   },
   "providerDialog": {
     "createTitle": "新增身份源",
@@ -146,8 +148,7 @@
     "loginControlDescription": "允许登录平台账号",
     "registrationControlDescription": "允许自动创建账号",
     "callbackURL": "回调地址",
-    "serverCallbackURL": "服务器回调地址（推荐）",
-    "legacyWebCallbackURL": "旧版 Web 回调地址（即将废弃）",
+    "callbackURLUnavailable": "未配置 PUBLIC_API_BASE_URL，无法生成回调地址",
     "copyCallbackURL": "复制回调地址",
     "logoURL": "Logo URL",
     "clientID": "Client ID",
@@ -210,5 +211,11 @@
     "providerOrderUpdated": "身份源排序已更新",
     "providerOrderSaveFailed": "保存身份源排序失败",
     "callbackCopied": "回调地址已复制"
+  },
+  "bridgeNotice": {
+    "title": "第三方登录当前不可用",
+    "description": "已配置身份源，但服务器缺少 PUBLIC_API_BASE_URL，用户无法通过第三方身份源登录或绑定账号。设置后重启服务即可恢复。",
+    "dismiss": "本次会话不再提示",
+    "openSettings": "查看登录设置"
   }
 }

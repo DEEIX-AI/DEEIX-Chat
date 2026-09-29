@@ -1,6 +1,6 @@
 import { authedRequest } from "@/shared/api/authed-client";
 import { pathParam } from "@/shared/api/http-client";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 import type {
   PatchSkillRequest,
   SkillDTO,
@@ -10,7 +10,7 @@ import type {
   SkillSummaryDTO,
   SkillSummaryPage,
   WriteSkillRequest,
-} from "@/shared/api/skills.types";
+} from "@/shared/api/skills-types";
 
 type SkillListOptions = {
   ids?: number[];

@@ -1,4 +1,4 @@
-import type { ActiveSessionDTO, UserDTO } from "@/shared/api/auth.types";
+import type { ActiveSessionDTO, UserDTO } from "@/shared/api/auth-types";
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 

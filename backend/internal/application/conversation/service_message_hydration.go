@@ -46,7 +46,7 @@ func (s *Service) hydrateMessageFeedback(ctx context.Context, userID uint, items
 
 func (s *Service) hydrateMessageProcessTraces(ctx context.Context, items []model.Message) error {
 	cfg := s.cfg.Snapshot()
-	if !cfg.ProcessTraceEnabled || !cfg.ProcessTraceVisibleToUser || len(items) == 0 {
+	if !cfg.ProcessTraceEnabled || len(items) == 0 {
 		return nil
 	}
 

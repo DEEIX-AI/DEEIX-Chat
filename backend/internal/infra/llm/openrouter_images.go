@@ -33,7 +33,7 @@ func (a *openRouterImagesAdapter) Generate(ctx context.Context, route portllm.Ro
 }
 
 // GenerateStream 调用 OpenRouter 图片端点并以 SSE 接收部分图片；对不支持原生流式的
-// 提供商，上游会忽略 stream 返回缓冲 JSON，由共享传输层退化为非流式解析。
+// 提供方，上游会忽略 stream 返回缓冲 JSON，由共享传输层退化为非流式解析。
 func (a *openRouterImagesAdapter) GenerateStream(
 	ctx context.Context,
 	route portllm.RouteConfig,

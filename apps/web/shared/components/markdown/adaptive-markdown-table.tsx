@@ -7,6 +7,7 @@ import { TableDownloadDropdown } from "streamdown";
 
 import { cn } from "@/lib/utils";
 import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";
+import { isRecord, readString } from "@/shared/lib/type-guards";
 import {
   type ColumnAnalyzerOptions,
   type ColumnType,
@@ -32,12 +33,19 @@ type TableSnapshot = {
   rows: string[][];
 };
 
-type ElementWithChildren = React.ReactElement<{
+type TableElementProps = {
   children?: React.ReactNode;
   className?: string;
   node?: unknown;
   scope?: string;
-}>;
+  "data-markdown-column-type"?: string;
+};
+type ElementWithChildren = React.ReactElement<TableElementProps>;
+
+// Table parts come from Streamdown's markdown renderer, which only ever passes these props.
+function isElementWithChildren(node: React.ReactNode): node is ElementWithChildren {
+  return React.isValidElement<TableElementProps>(node);
+}
 
 export function AdaptiveMarkdownTable({ children, className, node: _node, ...props }: MarkdownTableProps) {
   const t = useTranslations("chat.markdown");
@@ -259,7 +267,7 @@ function areColumnTypesEqual(
 }
 
 function getTableSnapshot(children: React.ReactNode): TableSnapshot {
-  const sections = React.Children.toArray(children).filter(React.isValidElement) as ElementWithChildren[];
+  const sections = React.Children.toArray(children).filter(isElementWithChildren);
   let headers: string[] = [];
   const rows: string[][] = [];
 
@@ -285,27 +293,27 @@ function getTableSnapshot(children: React.ReactNode): TableSnapshot {
 
 function decorateTableChildren(children: React.ReactNode, columnTypes: readonly ColumnType[]): React.ReactNode {
   return React.Children.map(children, (sectionNode) => {
-    if (!React.isValidElement(sectionNode)) {
+    if (!isElementWithChildren(sectionNode)) {
       return sectionNode;
     }
-    const section = sectionNode as ElementWithChildren;
+    const section = sectionNode;
     const headerSection = getElementTagName(section) === "thead";
     const rows = React.Children.map(section.props.children, (rowNode) => {
-      if (!React.isValidElement(rowNode)) {
+      if (!isElementWithChildren(rowNode)) {
         return rowNode;
       }
-      const row = rowNode as ElementWithChildren;
+      const row = rowNode;
       const cells = React.Children.map(row.props.children, (cellNode, columnIndex) => {
-        if (!React.isValidElement(cellNode)) {
+        if (!isElementWithChildren(cellNode)) {
           return cellNode;
         }
-        const cell = cellNode as ElementWithChildren;
+        const cell = cellNode;
         const type = columnTypes[columnIndex] ?? "normal";
         return React.cloneElement(cell, {
           className: cn(cell.props.className, "markdown-table-cell", `markdown-table-cell--${type}`),
           "data-markdown-column-type": type,
           ...(headerSection ? { scope: "col" } : {}),
-        } as React.HTMLAttributes<HTMLTableCellElement>);
+        });
       });
       return React.cloneElement(row, undefined, cells);
     });
@@ -314,18 +322,23 @@ function decorateTableChildren(children: React.ReactNode, columnTypes: readonly 
 }
 
 function getChildElements(children: React.ReactNode): ElementWithChildren[] {
-  return React.Children.toArray(children).filter(React.isValidElement) as ElementWithChildren[];
+  return React.Children.toArray(children).filter(isElementWithChildren);
 }
 
 function getElementTagName(element: ElementWithChildren): string {
-  const node = element.props.node as { tagName?: string } | undefined;
-  if (node?.tagName) {
-    return node.tagName.toLowerCase();
+  const node = element.props.node;
+  const nodeTagName = isRecord(node) ? readString(node, "tagName") : undefined;
+  if (nodeTagName) {
+    return nodeTagName.toLowerCase();
   }
-  if (typeof element.type === "string") {
-    return element.type.toLowerCase();
+  const componentType = element.type;
+  if (typeof componentType === "string") {
+    return componentType.toLowerCase();
   }
-  const displayName = (element.type as React.ComponentType).displayName ?? (element.type as React.ComponentType).name ?? "";
+  const displayName =
+    ("displayName" in componentType && typeof componentType.displayName === "string" ? componentType.displayName : undefined) ??
+    componentType.name ??
+    "";
   return displayName.toLowerCase().replace(/^markdown/, "");
 }
 

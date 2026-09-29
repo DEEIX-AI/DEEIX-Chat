@@ -7,7 +7,7 @@ import (
 
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/sqlitevec"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/vectorutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -41,7 +41,7 @@ func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemo
 	if item == nil {
 		return nil
 	}
-	var existing model.UserMemory
+	var existing models.UserMemory
 	err := r.db.WithContext(ctx).
 		Where("user_id = ? AND memory_key = ?", item.UserID, item.MemoryKey).
 		First(&existing).Error
@@ -60,7 +60,7 @@ func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemo
 		// 新增前检查单用户记忆条数上限。
 		var count int64
 		if err := r.db.WithContext(ctx).
-			Model(&model.UserMemory{}).
+			Model(&models.UserMemory{}).
 			Where("user_id = ?", item.UserID).
 			Count(&count).Error; err != nil {
 			return dberror.Translate(err)
@@ -68,7 +68,7 @@ func (r *Repo) UpsertUserMemory(ctx context.Context, item *domainmemory.UserMemo
 		if count >= maxUserMemoriesPerUser {
 			return repository.ErrUserMemoryLimitExceeded
 		}
-		record := model.UserMemory{
+		record := models.UserMemory{
 			UserID:    item.UserID,
 			MemoryKey: item.MemoryKey,
 			Value:     item.Value,
@@ -91,7 +91,7 @@ func (r *Repo) clearUserMemoryEmbedding(ctx context.Context, tx *gorm.DB, memory
 		).Error; err != nil {
 			return dberror.Translate(err)
 		}
-		return dberror.Translate(tx.Model(&model.UserMemory{}).Where("id = ?", memoryID).Update("embedding_signature", "").Error)
+		return dberror.Translate(tx.Model(&models.UserMemory{}).Where("id = ?", memoryID).Update("embedding_signature", "").Error)
 	}
 	if !r.postgresUserMemoryEmbeddingColumnAvailable(ctx, tx) {
 		return nil
@@ -132,13 +132,13 @@ func (r *Repo) DeleteUserMemory(ctx context.Context, userID uint, memoryKey stri
 		}
 		return dberror.Translate(tx.
 			Where("user_id = ? AND memory_key = ?", userID, memoryKey).
-			Delete(&model.UserMemory{}).Error)
+			Delete(&models.UserMemory{}).Error)
 	})
 }
 
 // ListUserMemories 查询用户长期记忆。
 func (r *Repo) ListUserMemories(ctx context.Context, userID uint) ([]domainmemory.UserMemory, error) {
-	items := make([]model.UserMemory, 0)
+	items := make([]models.UserMemory, 0)
 	if err := r.db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Order("updated_at DESC").
@@ -296,7 +296,7 @@ func (r *Repo) UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memor
 }
 
 func (r *Repo) upsertSQLiteUserMemoryEmbedding(ctx context.Context, userID uint, memoryKey string, expectedValue string, embedding []float32, embeddingSignature string) error {
-	var item model.UserMemory
+	var item models.UserMemory
 	query := r.db.WithContext(ctx).Where("user_id = ? AND memory_key = ?", userID, memoryKey)
 	if strings.TrimSpace(expectedValue) != "" {
 		query = query.Where("value = ?", strings.TrimSpace(expectedValue))
@@ -312,7 +312,7 @@ func (r *Repo) upsertSQLiteUserMemoryEmbedding(ctx context.Context, userID uint,
 		return err
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		update := tx.Model(&model.UserMemory{}).Where("id = ?", item.ID)
+		update := tx.Model(&models.UserMemory{}).Where("id = ?", item.ID)
 		if strings.TrimSpace(expectedValue) != "" {
 			update = update.Where("value = ?", strings.TrimSpace(expectedValue))
 		}

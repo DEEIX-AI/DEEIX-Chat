@@ -7,10 +7,10 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-export interface HatGlassesIconHandle {
+export type HatGlassesIconHandle = {
   startAnimation: () => void;
   stopAnimation: () => void;
-}
+};
 
 interface HatGlassesIconProps extends HTMLAttributes<HTMLDivElement> {
   size?: number;
@@ -90,6 +90,7 @@ const HatGlassesIcon = forwardRef<HatGlassesIconHandle, HatGlassesIconProps>(
         {...props}
       >
         <svg
+          aria-hidden="true"
           fill="none"
           height={size}
           stroke="currentColor"

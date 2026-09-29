@@ -1130,8 +1130,8 @@ func geminiInteractionStreamToolCallID(name string, index int64) string {
 	return fmt.Sprintf("gemini_interaction_%s_%d", name, index)
 }
 
-// mergeGeminiInteractionFinalServerToolCalls uses the completed interaction to fill streamed
-// native-tool traces while preserving any stable ID already emitted to conversation consumers.
+// mergeGeminiInteractionFinalServerToolCalls 使用已完成的 interaction 补全流式输出的
+// 原生工具轨迹，同时保留已向会话消费方发出的稳定 ID。
 func mergeGeminiInteractionFinalServerToolCalls(current []portllm.ToolCall, final []portllm.ToolCall) []portllm.ToolCall {
 	if len(current) == 0 {
 		return final

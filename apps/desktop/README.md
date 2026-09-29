@@ -127,6 +127,10 @@ brew install mingw-w64
 CC=x86_64-w64-mingw32-gcc node scripts/build-sidecar.mjs --target x86_64-pc-windows-msvc
 ```
 
+Which features the local server offers is declared by `GET /api/v1/capabilities`
+and enforced by the server (`404 feature.disabled`); the web app renders from
+those flags and never checks the platform. See `docs/ARCHITECTURE.md` §4.
+
 ## Credential model
 
 The browser build keeps the refresh token in an HttpOnly cookie, so page script
@@ -162,7 +166,9 @@ and cannot redirect the credential to a server it controls.
 pnpm --filter @deeix/desktop dev
 ```
 
-`beforeDevCommand` starts `next dev` on port 3000 and the shell loads it. The Go
+`beforeDevCommand` (`scripts/dev-web.mjs`) starts `next dev` on port 3000, or reuses a
+web dev server that is already running there (e.g. from `pnpm dev:web`), and the shell
+loads it. The Go
 server must already be reachable at the address you enter on the setup screen
 (default `http://127.0.0.1:8080`).
 
@@ -172,7 +178,14 @@ server must already be reachable at the address you enter on the setup screen
 pnpm --filter @deeix/desktop build
 ```
 
-Artifacts land in `apps/desktop/src-tauri/target/release/bundle/`.
+Artifacts land in `apps/desktop/src-tauri/target/release/bundle/`. The Windows
+portable zip is assembled afterwards by `pnpm --filter @deeix/desktop package:portable`
+(see [Windows distribution](#windows-distribution)).
+
+A local Windows build of a prerelease version (`x.y.z-beta.n`) fails at the MSI
+step, because MSI versions must be numeric. Build the setup only
+(`pnpm tauri build --bundles nsis`) or pass the config CI uses:
+`node scripts/release-config.mjs --channel beta` prints the `--config` argument.
 
 Building is not enough to ship: macOS packages must be **notarized** and Windows
 packages **code-signed**, otherwise users cannot install them. Signing keys and
@@ -205,9 +218,19 @@ for the desktop app.
 
 ## Auto-update
 
-The updater is configured in `tauri.conf.json` (`plugins.updater`). The app
-checks on launch and every four hours (`desktop-update-notifier.tsx`) and
-offers the update in a toast; nothing downloads until the user accepts.
+The updater is configured in `tauri.conf.json` (`plugins.updater`). How a build
+updates depends on how it was distributed (`src-tauri/src/distribution.rs`):
+
+| Build | Update mode | Behavior |
+| --- | --- | --- |
+| NSIS setup (macOS/Linux bundles too) | `auto` | Checks on launch and every four hours (`desktop-update-notifier.tsx`) and offers the update in a toast; nothing downloads until the user accepts. |
+| Portable zip | `notify` | Same checks, but only announces the new version and links to the download page; it never replaces its own files. |
+| MSI | `disabled` | No checks. IT deploys new versions. |
+| Policy `DisableAutoUpdate=1`, dev builds | `disabled` | No checks. |
+
+The JS updater permission is not in the static capability: it is granted at
+runtime only in `auto` mode, so a portable or MSI build cannot install updates
+even if the web layer asked.
 
 Release assets are renamed by `scripts/rename-release-assets.mjs` to
 `DEEIX-Chat-<version>-<os>-<arch>[-setup|-updater].<ext>`, e.g.
@@ -218,15 +241,15 @@ which references assets by file name, is reconciled from its own URLs, so the
 job can be re-run after an interruption. Only the artifact bytes are signed, so
 verification is unaffected. `pnpm test` covers the mapping.
 
-Windows ships the NSIS installer only. An MSI would need a numeric-only
-product version (no `-beta.1`) and one file per installer language, for a
-deployment path (Group Policy) nobody uses yet.
-
 Release flow: merging a `VERSION` bump into `main` creates the tag
 `v<VERSION>` (`release-tag.yml`), which builds every target and opens a
 **draft** GitHub Release with the installers and a signed `latest.json`.
 Publishing the draft is the step that ships the update; until then existing
 installs see nothing. Pushing the tag by hand does the same.
+
+Windows assets: `-windows-x64-setup.exe`, `-windows-x64.msi`,
+`-windows-x64-portable.zip` (and `-portable-offline.zip` when built). Every
+release also carries `SHA256SUMS` and GitHub build provenance attestations.
 
 ### Channels
 
@@ -240,6 +263,78 @@ build time via `tauri build --config`. Both channels are signed with the same
 updater key: a channel is a distribution lane, not a trust boundary. Beta
 installs keep receiving betas; to move a user back to stable, have them install
 a stable build. Stable installs never see prereleases.
+
+## Windows distribution
+
+One signed binary set ships in three forms:
+
+| Form | For | Install scope | Updates |
+| --- | --- | --- | --- |
+| `…-windows-x64-setup.exe` (NSIS) | Most users | Per user, no admin prompt (`installMode: currentUser`); English/Chinese by system language | `auto` |
+| `…-windows-x64.msi` (WiX) | IT deployment (Intune, SCCM, Group Policy) | Per machine | `disabled`, IT manages versions |
+| `…-windows-x64-portable.zip` | Restricted machines, USB drives, trying the app | None: unzip and run | `notify` |
+
+Silent installs: `DEEIX-Chat-<v>-windows-x64-setup.exe /S` (per user) or
+`msiexec /i DEEIX-Chat-<v>-windows-x64.msi /qn` (per machine). The MSI
+`upgradeCode` in `tauri.conf.json` identifies the product family for upgrades and
+deployment assignments and must never change. MSI versions are numeric, so
+`x.y.z-beta.n` is built as `x.y.z.n` (`scripts/release-config.mjs`).
+
+### Portable edition
+
+```text
+DEEIX Chat/
+  DEEIX Chat.exe            signed app
+  deeix-chat-server.exe     signed sidecar (local mode)
+  portable                  marker: its presence switches the app to portable mode
+  README.txt
+  data/                     created on first run
+    instance-id             identity of this copy
+    webview/  tmp/  ...     WebView2 profile, sidecar temp files, tabs, local-mode data
+```
+
+- **Detection**: the `portable` marker next to the exe decides; the same binary
+  runs as an installed app without it. Kind precedence is marker → debug build
+  → Tauri bundle type.
+- **Data stays in the folder.** All app-owned paths go through
+  `src-tauri/src/paths.rs`, including the WebView2 profile and the sidecar's
+  temp directory. If `data/` is not writable the app shows an error and exits;
+  it never falls back to `%APPDATA%`. Temp files WebView2 itself writes to the
+  system `%TEMP%` are the one exception.
+- **Credentials stay in Windows Credential Manager**, never in `data/`, so a lost
+  USB drive does not leak sign-ins; moving to another machine means signing in
+  again. Each copy runs under `com.deeix.chat.desktop.portable-<instance-id>`,
+  which keeps its credentials and single-instance lock separate from an installed
+  copy and from other portable copies. The id survives moving the folder, a new
+  drive letter, and updating by extracting over the old folder. Sign out before
+  deleting the folder to remove the stored credential.
+- **WebView2**: the online zip uses the system runtime (built into Windows 10
+  21H1+ and 11, missing on Windows Server by default); without one the app shows
+  a download link instead of crashing. The `-portable-offline.zip` adds a Fixed
+  Version runtime in `webview2/`, used automatically. CI builds it only when the
+  repository variable `WEBVIEW2_FIXED_RUNTIME_URL` is set (optionally pinned with
+  `WEBVIEW2_FIXED_RUNTIME_SHA256`); the runtime's Microsoft signature is verified
+  first.
+- **Why a zip, not a single exe**: a self-extracting exe unpacks to `%TEMP%` on
+  every launch, which AppLocker/WDAC rules commonly block and antivirus often
+  flags; a zip runs the signed binaries in place.
+
+### Enterprise policy
+
+The app reads policy once at startup from
+`HKLM\SOFTWARE\Policies\DEEIX\Chat` and `HKCU\SOFTWARE\Policies\DEEIX\Chat`; a
+value set under HKLM wins. Rust enforces it (`src-tauri/src/policy.rs`); the UI
+only reflects it.
+
+| Value | Type | Effect |
+| --- | --- | --- |
+| `DefaultServerUrl` | REG_SZ | Prefilled server address on the setup screen. |
+| `LockServerUrl` | REG_DWORD `1` | Only `DefaultServerUrl` may be used (requires a valid `DefaultServerUrl`); also disables local mode. Saved tabs for other servers are dropped with their credentials. |
+| `DisableLocalMode` | REG_DWORD `1` | The bundled local server cannot be used. |
+| `DisableAutoUpdate` | REG_DWORD `1` | No update checks in any form. |
+
+Group Policy templates and an example `.reg` live in
+[`deploy/windows/`](../../deploy/windows/README.md).
 
 ## Build times and sizes
 
@@ -279,8 +374,12 @@ app icon.
 | All | Updater keypair (`tauri signer generate`); the private key is kept git-ignored in `deploy/secrets/` (see its README) | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` |
 
 `tauri.conf.json` already enables the hardened runtime on macOS and SHA-256 +
-RFC 3161 timestamping on Windows; CI imports the Windows certificate into the
-runner's store and passes its thumbprint to the bundler.
+RFC 3161 timestamping on Windows. CI imports the Windows certificate into the
+runner's store and passes its thumbprint as `bundle.windows.certificateThumbprint`
+through `--config` (tauri-cli has no environment variable for it). The bundler
+signs the exe inside each installer and the sidecar; the portable exe is signed
+separately with signtool. A CI step then requires a valid Authenticode signature
+on the setup, MSI, portable exe and sidecar whenever a certificate is configured.
 
 Only the updater key is mandatory. Platform signing switches on by itself once
 its secrets exist. Without a Developer ID the macOS app is signed **ad-hoc**
@@ -301,4 +400,6 @@ To obtain the .p12 on macOS: Keychain Access → My Certificates → right-click
 | Account | `refresh-token:<origin>` (e.g. `refresh-token:https://chat.example.com`) |
 
 One entry per origin; switching servers deletes the previous entry rather than
-leaving dormant credentials behind.
+leaving dormant credentials behind. A Windows portable copy uses the service
+`com.deeix.chat.desktop.portable-<instance-id>` instead (see
+[Portable edition](#portable-edition)).

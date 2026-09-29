@@ -7,7 +7,7 @@ import type {
 	IdentityProviderResponse,
 	UpsertIdentityProviderRequest,
 } from "@deeix/api-contract";
-import type { IdentityProviderDTO } from "@/shared/api/auth.types";
+import type { IdentityProviderDTO } from "@/shared/api/auth-types";
 
 export async function listAdminIdentityProviders(accessToken: string): Promise<{ total: number; results: IdentityProviderDTO[] }> {
   const data = await authedRequest<IdentityProviderListResponse>(

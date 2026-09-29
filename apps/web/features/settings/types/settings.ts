@@ -1,8 +1,8 @@
-import type { ChatContentWidth } from "@/shared/model/chat-content-width";
+import type { ChatContentWidth } from "@/entities/user-settings";
 import type { ChatFontOption, ChatFontWeightOption } from "@/features/settings/utils/chat-font";
 import type { FontSizeOption } from "@/features/settings/utils/font-size";
 import type { ThemePreset } from "@/shared/model/theme";
-import type { PublicModelDTO } from "@/shared/api/model.types";
+import type { PublicModelDTO } from "@/shared/api/model-types";
 
 export type SendShortcut = "enter" | "ctrl_enter" | "meta_enter";
 export type FileMode = "auto" | "full_context" | "rag";
@@ -14,6 +14,7 @@ export type ChatSettings = {
   showModelInfo: boolean;
   showLatency: boolean;
   showBillingCost: boolean;
+  showProcessTrace: boolean;
   markdownRender: boolean;
   autoExpandThinking: boolean;
   autoExpandToolCalls: boolean;

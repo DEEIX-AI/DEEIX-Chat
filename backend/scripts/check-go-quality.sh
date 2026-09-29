@@ -31,12 +31,12 @@ if [[ -s "$work_dir/interface-legacy.txt" ]]; then
   exit 1
 fi
 
-echo "Checking context.Background policy..."
+echo "Checking context.Background/context.TODO policy..."
 find internal/application internal/transport \
   -type f \
   -name '*.go' \
   ! -name '*_test.go' \
-  -exec awk '/context[[:space:]]*\.[[:space:]]*Background[[:space:]]*\(/ { print FILENAME ":" $0 }' {} + \
+  -exec awk '/context[[:space:]]*\.[[:space:]]*(Background|TODO)[[:space:]]*\(/ { print FILENAME ":" $0 }' {} + \
   | sed -E \
     -e 's|^\./||' \
     -e 's|^([^:]+):[[:space:]]*|\1: |' \
@@ -45,7 +45,7 @@ find internal/application internal/transport \
 LC_ALL=C sort "$context_background_baseline_file" > "$work_dir/context-background.baseline"
 
 if ! cmp -s "$context_background_baseline_file" "$work_dir/context-background.baseline"; then
-  echo "context.Background baseline must remain sorted: $context_background_baseline_file" >&2
+  echo "context.Background/TODO baseline must remain sorted: $context_background_baseline_file" >&2
   exit 1
 fi
 
@@ -54,11 +54,11 @@ comm -23 "$work_dir/context-background.baseline" "$work_dir/context-background.c
 
 if [[ -s "$work_dir/context-background.new" || -s "$work_dir/context-background.resolved" ]]; then
   if [[ -s "$work_dir/context-background.new" ]]; then
-    echo "New context.Background calls in application/transport code:" >&2
+    echo "New context.Background/context.TODO calls in application/transport code:" >&2
     cat "$work_dir/context-background.new" >&2
   fi
   if [[ -s "$work_dir/context-background.resolved" ]]; then
-    echo "Resolved context.Background calls must be removed from $context_background_baseline_file:" >&2
+    echo "Resolved context.Background/context.TODO calls must be removed from $context_background_baseline_file:" >&2
     cat "$work_dir/context-background.resolved" >&2
   fi
   exit 1

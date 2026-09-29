@@ -1,5 +1,5 @@
-import { AdminConversationSettingsPage } from "@/features/admin/components/sections/conversation/admin-conversation";
+import { AdminConversationPage } from "@/features/admin";
 
-export default function AdminConversationSettingsRoute() {
-  return <AdminConversationSettingsPage />;
+export default function Page() {
+  return <AdminConversationPage />;
 }

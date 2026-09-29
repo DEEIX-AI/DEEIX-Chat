@@ -6,7 +6,7 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -28,7 +28,7 @@ func openRedemptionSQLiteTestDB(t *testing.T) *gorm.DB {
 		_ = sqlDB.Close()
 	})
 
-	if err := db.AutoMigrate(&model.Redemption{}, &model.RedemptionCode{}, &model.BillingPlan{}, &model.BalanceTransaction{}); err != nil {
+	if err := db.AutoMigrate(&models.Redemption{}, &models.RedemptionCode{}, &models.BillingPlan{}, &models.BalanceTransaction{}); err != nil {
 		t.Fatalf("migrate redemption tables: %v", err)
 	}
 	return db
@@ -39,7 +39,7 @@ func TestListRedemptionsJoinsCodeAndBalanceContext(t *testing.T) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 
-	usageCode := model.RedemptionCode{
+	usageCode := models.RedemptionCode{
 		CodeHash:    "hash-usage",
 		CodeHint:    "AAAA***0001",
 		Mode:        domainbilling.RedemptionCodeModeUsage,
@@ -47,7 +47,7 @@ func TestListRedemptionsJoinsCodeAndBalanceContext(t *testing.T) {
 		Status:      domainbilling.RedemptionCodeStatusActive,
 		Description: "邀请返利",
 	}
-	deletedCode := model.RedemptionCode{
+	deletedCode := models.RedemptionCode{
 		CodeHash:   "hash-period",
 		CodeHint:   "BBBB***0002",
 		Mode:       domainbilling.RedemptionCodeModePeriod,
@@ -60,11 +60,11 @@ func TestListRedemptionsJoinsCodeAndBalanceContext(t *testing.T) {
 	if err := db.Create(&deletedCode).Error; err != nil {
 		t.Fatalf("create deleted code: %v", err)
 	}
-	plan := model.BillingPlan{Code: "pro", Name: "Pro"}
+	plan := models.BillingPlan{Code: "pro", Name: "Pro"}
 	if err := db.Create(&plan).Error; err != nil {
 		t.Fatalf("create plan: %v", err)
 	}
-	balanceTx := model.BalanceTransaction{
+	balanceTx := models.BalanceTransaction{
 		UserID:              7,
 		Type:                domainbilling.BalanceTransactionTypeRedemption,
 		AmountNanousd:       5_000_000_000,
@@ -75,7 +75,7 @@ func TestListRedemptionsJoinsCodeAndBalanceContext(t *testing.T) {
 	}
 
 	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
-	redemptions := []model.Redemption{
+	redemptions := []models.Redemption{
 		{
 			CodeID:               usageCode.ID,
 			UserID:               7,

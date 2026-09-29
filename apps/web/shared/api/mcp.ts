@@ -1,5 +1,5 @@
 import { authedRequest } from "@/shared/api/authed-client";
-import type { MCPToolDTO, MCPToolListResponse } from "@/shared/api/mcp.types";
+import type { MCPToolDTO, MCPToolListResponse } from "@/shared/api/mcp-types";
 
 export async function listAvailableMCPTools(accessToken: string): Promise<MCPToolDTO[]> {
   const data = await authedRequest<MCPToolListResponse>(

@@ -36,11 +36,10 @@ import {
   type PricingFormState,
   type TieredPricingTierForm,
 } from "@/features/admin/model/billing-settings";
-import { normalizeSchedulePeriods, parseSchedulePricing, schedulePeriodsToForm } from "@/shared/model/schedule-pricing";
+import { normalizeSchedulePeriods, parseSchedulePricing, schedulePeriodsToForm } from "@/entities/billing";
+import { isRecord, parseJSON, type UnknownRecord } from "@/shared/lib/type-guards";
 import { BillingScheduleEditor } from "./billing-schedule-editor";
 import type { PermissionGroup } from "@/features/admin/api/permission-groups";
-
-type PricingJSONValue = Record<string, unknown>;
 
 function pricingFormToJSON(form: PricingFormState): string {
   const pricingMode = normalizePricingMode(form.pricingMode);
@@ -56,13 +55,13 @@ function pricingFormToJSON(form: PricingFormState): string {
     outputUSDPerMTokens: pricingMode === "token" ? parsePrice(form.output) : 0,
     callUSDPerCall: pricingMode === "call" ? parsePrice(form.call) : 0,
     durationUSDPerSecond: pricingMode === "duration" ? parsePrice(form.duration) : 0,
-    ...(pricingMode === "tiered" ? { tieredPricing: JSON.parse(stringifyTieredPricing(form.tieredTiers)) as unknown } : {}),
+    ...(pricingMode === "tiered" ? { tieredPricing: parseJSON(stringifyTieredPricing(form.tieredTiers)) } : {}),
     ...(form.schedulePeriods.length > 0 ? { schedulePricing: { periods: normalizeSchedulePeriods(form.schedulePeriods).periods } } : {}),
   };
   return JSON.stringify(payload, null, 2);
 }
 
-function readPricingNumber(payload: PricingJSONValue, key: string): string {
+function readPricingNumber(payload: UnknownRecord, key: string): string {
   const value = payload[key];
   if (value === undefined || value === null || value === "") {
     return "0";
@@ -81,11 +80,11 @@ function pricingFormFromJSON(
   durationPricingEnabled: boolean,
   messages: { root: string; model: string; mode: string; durationVideoOnly: string; tiered: string; schedule: string },
 ): PricingFormState {
-  const parsed = JSON.parse(raw) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+  // Plain JSON.parse on purpose: a syntax error must propagate to the caller's error toast.
+  const payload: unknown = JSON.parse(raw);
+  if (!isRecord(payload)) {
     throw new Error(messages.root);
   }
-  const payload = parsed as PricingJSONValue;
   const platformModelName = typeof payload.platformModelName === "string" ? payload.platformModelName.trim() : current.platformModelName;
   if (platformModelName !== current.platformModelName) {
     throw new Error(messages.model);

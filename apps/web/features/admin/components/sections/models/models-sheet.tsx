@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDownIcon, CircleHelp, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
@@ -53,45 +53,39 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { getModelOptionPolicy } from "@/shared/api/settings";
-import {
-  bindAdminLLMModelUpstreamSource,
-  createAdminLLMModel,
-  getAdminReferenceData,
-  invalidateAdminReferenceDataCache,
-  listAdminSettingsByNamespace,
-  listAdminLLMModelUpstreamSources,
-  listAdminLLMUpstreamModels,
-  listAdminLLMUpstreams,
-  updateAdminLLMModel,
-} from "@/features/admin/api";
-import { getAdminOpenRouterOfficialPricing } from "@/features/admin/api/billing";
-import { listAllAdminPages } from "@/features/admin/api/shared";
-import type { AdminOfficialPricingCatalogItemDTO } from "@/features/admin/api/billing.types";
+import { FeatureGate, useFeature } from "@/shared/capabilities";
 import { resolveAutomaticModelContextWindow } from "@/features/admin/model/openrouter-model-catalog";
+import { useAdminModelsCapabilityContext } from "@/features/admin/hooks/use-admin-models-capability-context";
+import { useAdminModelsOpenrouterCatalog } from "@/features/admin/hooks/use-admin-models-openrouter-catalog";
+import { useAdminModelsPermissionGroups } from "@/features/admin/hooks/use-admin-models-permission-groups";
+import { useAdminModelsSheetSources } from "@/features/admin/hooks/use-admin-models-sheet-sources";
 import {
-  listModelPermissionGroups,
-  listPermissionGroups,
-  setModelPermissionGroups,
-  type PermissionGroup,
-} from "@/features/admin/api/permission-groups";
-import { ModelIcon } from "@/shared/components/model-icon";
-import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
+  type AdminModelSheetForm,
+  FOLLOW_VENDOR_GROUP,
+  isSameContextWindowTarget,
+  useAdminModelsSheetSubmit,
+} from "@/features/admin/hooks/use-admin-models-sheet-submit";
+import {
+  ADMIN_LLM_ADAPTERS,
+  isAdminLLMAdapter,
+  isAdminLLMModelAccessScope,
+  isAdminLLMModelCbPolicyMode,
+  isAdminLLMStatus,
+} from "@/features/admin/model/admin-unions";
+import {
+  ModelIcon,
+  parseKindsJSON,
+  parseProtocolsJSON,
+  resolveModelIconURL,
+  resolveModelIdentity,
+} from "@/entities/model";
 import type {
   AdminLLMModelDisplayGroupDTO,
   AdminLLMModelDTO,
-  AdminLLMModelAccessScope,
-  AdminLLMModelCbPolicyMode,
-  AdminLLMModelUpstreamSourceDTO,
   AdminLLMModelVendor,
   AdminLLMModelVendorDTO,
-  AdminLLMStatus,
-  AdminLLMUpstreamModelDTO,
-  AdminLLMUpstreamView,
   AdminLLMAdapter,
-  UpdateAdminLLMModelRequest,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 
 import {
   ADAPTER_LABELS,
@@ -100,12 +94,6 @@ import {
   formatDateTime,
   resolveValue,
 } from "@/features/admin/types/llm";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import {
-  parseKindsJSON,
-  stringifyKinds,
-} from "@/shared/model/llm-schema";
-import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 import {
   imageStreamEnabledFromCapabilities,
@@ -117,47 +105,23 @@ import {
 } from "@/features/admin/components/sections/models/models-capabilities-config";
 import {
   modelContextWindowOverride,
-  setAutomaticModelContextWindowInCapabilities,
   setModelContextWindowInCapabilities,
 } from "@/features/admin/model/model-context-window";
-import type { NativeToolDefinition } from "@/shared/lib/model-option-policy";
 import {
   DEFAULT_MODEL_SOURCE_BIND_DRAFT,
   createModelSourceBindDraftRow,
   modelSourceBindDraftHasSelection,
   type ModelSourceBindDraftRow,
-  resolveModelSourceBindDraftRows,
-  uniqueUpstreamModels,
 } from "@/features/admin/model/models-source-binding";
-import { PermissionGroupSelector } from "@/features/admin/components/sections/groups/permission-group-selector";
-import { ModelContextWindowField } from "@/features/admin/components/sections/models/model-context-window-field";
-import { ModelIconField } from "@/features/admin/components/sections/models/model-icon-field";
+import { PermissionGroupSelector } from "@/features/admin/components/shared/permission-group-selector";
+import { ModelContextWindowField } from "@/features/admin/components/sections/models/models-context-window-field";
+import { ModelIconField } from "@/features/admin/components/sections/models/models-icon-field";
 
 // ---------------------------------------------------------------------------
 // Form state
 // ---------------------------------------------------------------------------
 
-type FormState = {
-  platformModelName: string;
-  vendor: AdminLLMModelVendor | "";
-  displayGroupID: string;
-  kinds: string[];
-  icon: string;
-  capabilitiesJSON: string;
-  systemPrompt: string;
-  accessScope: AdminLLMModelAccessScope;
-  status: AdminLLMStatus;
-  description: string;
-  cbPolicyMode: AdminLLMModelCbPolicyMode;
-  cbFailureThreshold: string;
-  cbDurationMin: string;
-  cbWindowMin: string;
-};
-
-type OpenRouterCatalogState = {
-  status: "idle" | "loaded" | "unavailable";
-  items: AdminOfficialPricingCatalogItemDTO[];
-};
+type FormState = AdminModelSheetForm;
 
 type VendorOption = {
   value: AdminLLMModelVendor;
@@ -166,23 +130,6 @@ type VendorOption = {
 };
 
 const UNKNOWN_VENDOR = "unknown";
-const FOLLOW_VENDOR_GROUP = "vendor";
-
-function normalizeModelIdentityPart(value: string | null | undefined): string {
-  return value?.normalize("NFKC").trim().toLowerCase() ?? "";
-}
-
-function isSameContextWindowTarget(
-  target: AdminLLMModelDTO | null,
-  platformModelName: string,
-  vendor: string,
-): boolean {
-  return Boolean(
-    target
-    && normalizeModelIdentityPart(platformModelName) === normalizeModelIdentityPart(target.platformModelName)
-    && normalizeModelIdentityPart(vendor) === normalizeModelIdentityPart(target.vendor),
-  );
-}
 
 const IMAGE_MEDIA_PROTOCOLS = new Set([
   "openai_image_generations",
@@ -306,68 +253,47 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
   const commonT = useTranslations("common");
   const locale = useLocale();
   const [form, setForm] = useState<FormState>(() => buildInitialState(target));
-  const [pending, setPending] = useState(false);
   const [iconUploading, setIconUploading] = useState(false);
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
   const [showCapabilitiesJSONAdvanced, setShowCapabilitiesJSONAdvanced] = useState(false);
   const sheetContentRef = useRef<HTMLDivElement | null>(null);
-  const [nativeTools, setNativeTools] = useState<NativeToolDefinition[]>([]);
-  const [capabilitySourceModels, setCapabilitySourceModels] = useState<AdminLLMModelDTO[]>(models);
-  const [openRouterCatalog, setOpenRouterCatalog] = useState<OpenRouterCatalogState>({
-    status: "idle",
-    items: [],
-  });
-  const openRouterCatalogRequestRef = useRef<Promise<AdminOfficialPricingCatalogItemDTO[] | null> | null>(null);
-  const [contextWindowFallbackTokens, setContextWindowFallbackTokens] = useState(128_000);
-  // Upstream sources for accordion
-  const [sources, setSources] = useState<AdminLLMModelUpstreamSourceDTO[]>([]);
-  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const { nativeTools, capabilitySourceModels, contextWindowFallbackTokens } = useAdminModelsCapabilityContext({ open, models });
+  const { openRouterCatalog, loadOpenRouterCatalog } = useAdminModelsOpenrouterCatalog(open);
   const [bindRows, setBindRows] = useState<ModelSourceBindDraftRow[]>(() => [createModelSourceBindDraftRow()]);
-  const [upstreams, setUpstreams] = useState<AdminLLMUpstreamView[]>([]);
-  const [upstreamsLoading, setUpstreamsLoading] = useState(false);
-  const [upstreamsLoaded, setUpstreamsLoaded] = useState(false);
-  const [upstreamModelsByID, setUpstreamModelsByID] = useState<Record<string, AdminLLMUpstreamModelDTO[]>>({});
-  const [upstreamModelsLoadingByID, setUpstreamModelsLoadingByID] = useState<Record<string, boolean>>({});
-  const [permissionGroups, setPermissionGroups] = useState<PermissionGroup[]>([]);
-  const [manualPermissionGroupIDs, setManualPermissionGroupIDs] = useState<number[]>([]);
-  const [matchedPermissionGroupIDs, setMatchedPermissionGroupIDs] = useState<number[]>([]);
-  const [effectivePermissionGroupIDs, setEffectivePermissionGroupIDs] = useState<number[]>([]);
-  const [permissionGroupsUnassigned, setPermissionGroupsUnassigned] = useState(false);
-  const [permissionGroupsLoading, setPermissionGroupsLoading] = useState(false);
+  const {
+    sources,
+    sourcesLoading,
+    upstreams,
+    upstreamsLoading,
+    upstreamModelsByID,
+    upstreamModelsLoadingByID,
+    loadUpstreamModels,
+  } = useAdminModelsSheetSources({ open, mode, target });
+  const multiUser = useFeature("multiUser");
+  const {
+    permissionGroups,
+    manualPermissionGroupIDs,
+    setManualPermissionGroupIDs,
+    matchedPermissionGroupIDs,
+    effectivePermissionGroupIDs,
+    permissionGroupsUnassigned,
+    permissionGroupsLoading,
+    saveModelPermissionGroups,
+  } = useAdminModelsPermissionGroups({ open, mode, target, multiUser });
+  const { pending, submit } = useAdminModelsSheetSubmit({
+    mode,
+    target,
+    openRouterCatalog,
+    loadOpenRouterCatalog,
+    manualPermissionGroupIDs,
+    saveModelPermissionGroups,
+    onClose,
+    onSuccess,
+  });
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
-
-  const loadOpenRouterCatalog = useCallback(async (
-    accessToken?: string,
-  ): Promise<AdminOfficialPricingCatalogItemDTO[] | null> => {
-    if (openRouterCatalog.status === "loaded") {
-      return openRouterCatalog.items;
-    }
-    if (openRouterCatalogRequestRef.current) {
-      return openRouterCatalogRequestRef.current;
-    }
-    const request = (async () => {
-      try {
-        const token = accessToken ?? await resolveAccessToken();
-        if (!token) {
-          setOpenRouterCatalog({ status: "unavailable", items: [] });
-          return null;
-        }
-        const result = await getAdminOpenRouterOfficialPricing(token);
-        setOpenRouterCatalog({ status: "loaded", items: result.items });
-        return result.items;
-      } catch {
-        setOpenRouterCatalog({ status: "unavailable", items: [] });
-        return null;
-      } finally {
-        openRouterCatalogRequestRef.current = null;
-      }
-    })();
-    openRouterCatalogRequestRef.current = request;
-    return request;
-  }, [openRouterCatalog]);
 
   const contextWindowOverride = useMemo(
     () => modelContextWindowOverride(form.capabilitiesJSON),
@@ -418,55 +344,6 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
         : [...prev.kinds, kind],
     }));
   }
-
-  const loadUpstreams = useCallback(async () => {
-    setUpstreamsLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        return;
-      }
-      const results = await listAllAdminPages((options) =>
-        listAdminLLMUpstreams(token, { ...options, status: "active", sort: "name_asc" }),
-      );
-      setUpstreams(results);
-    } catch (error) {
-      toast.error(t("toast.upstreamsLoadFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setUpstreamsLoaded(true);
-      setUpstreamsLoading(false);
-    }
-  }, [t]);
-
-  const loadUpstreamModels = useCallback(async (upstreamID: string) => {
-    const parsedUpstreamID = Number.parseInt(upstreamID, 10);
-    if (!Number.isFinite(parsedUpstreamID) || parsedUpstreamID <= 0) {
-      return;
-    }
-    if (upstreamModelsByID[upstreamID] || upstreamModelsLoadingByID[upstreamID]) {
-      return;
-    }
-    setUpstreamModelsLoadingByID((current) => ({ ...current, [upstreamID]: true }));
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        return;
-      }
-      const results = await listAllAdminPages((options) =>
-        listAdminLLMUpstreamModels(token, parsedUpstreamID, {
-          ...options,
-          upstreamStatus: "active",
-          sort: "upstream_asc",
-        }),
-      );
-      const items = uniqueUpstreamModels(results).filter((item) => item.upstreamModelStatus === "active");
-      setUpstreamModelsByID((current) => ({ ...current, [upstreamID]: items }));
-    } catch (error) {
-      toast.error(t("toast.upstreamModelsLoadFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setUpstreamModelsLoadingByID((current) => ({ ...current, [upstreamID]: false }));
-    }
-  }, [t, upstreamModelsByID, upstreamModelsLoadingByID]);
 
   function addBindRow() {
     setBindRows((current) => [createModelSourceBindDraftRow(), ...current]);
@@ -603,7 +480,7 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
   function getBindProtocolOptions(row: ModelSourceBindDraftRow): AdminLLMAdapter[] {
     const upstreamModels = upstreamModelsByID[row.draft.upstreamID] ?? [];
     const selectedUpstreamModel = upstreamModels.find((item) => String(item.id) === row.draft.upstreamModelID);
-    const values = new Set<string>(Object.keys(ADAPTER_LABELS));
+    const values = new Set<AdminLLMAdapter>(ADMIN_LLM_ADAPTERS);
     if (selectedUpstreamModel?.suggestedProtocol) {
       values.add(selectedUpstreamModel.suggestedProtocol);
     }
@@ -611,10 +488,10 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
       values.add(selectedUpstreamModel.protocol);
     }
     return Array.from(values).sort((a, b) => {
-      const labelA = ADAPTER_LABELS[a as AdminLLMAdapter] ?? a;
-      const labelB = ADAPTER_LABELS[b as AdminLLMAdapter] ?? b;
+      const labelA = ADAPTER_LABELS[a] ?? a;
+      const labelB = ADAPTER_LABELS[b] ?? b;
       return labelA.localeCompare(labelB);
-    }) as AdminLLMAdapter[];
+    });
   }
   const imageStreamEnabled = imageStreamEnabledFromCapabilities(form.capabilitiesJSON);
   const showImageStreamControl = routeProtocols.some((protocol) => IMAGE_MEDIA_PROTOCOLS.has(protocol.trim()));
@@ -634,120 +511,21 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
     onClose();
   }
 
-  async function saveModelPermissionGroups(accessToken: string, modelID: number) {
-    const data = await setModelPermissionGroups(accessToken, modelID, manualPermissionGroupIDs);
-    setManualPermissionGroupIDs(data.manualGroupIDs);
-    setMatchedPermissionGroupIDs(data.matchedGroupIDs);
-    setEffectivePermissionGroupIDs(data.effectiveGroupIDs);
-    setPermissionGroupsUnassigned(data.unassigned);
-  }
-
   // -------------------------------------------------------------------------
   // Load when sheet opens
   // -------------------------------------------------------------------------
 
+  // Route data resets live in useAdminModelsSheetSources; this resets the form UI.
   useEffect(() => {
     if (!open) {
-      setNativeTools([]);
-      setCapabilitySourceModels(models);
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      try {
-        const token = await resolveAccessToken();
-        if (!token) {
-          return;
-        }
-        const policy = await getModelOptionPolicy(token);
-        if (!cancelled) {
-          setNativeTools(policy.nativeTools);
-        }
-        const referenceData = await getAdminReferenceData(token);
-        if (!cancelled) {
-          setCapabilitySourceModels(referenceData.models);
-        }
-      } catch {
-        if (!cancelled) {
-          setNativeTools([]);
-          setCapabilitySourceModels(models);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [models, open]);
-
-  useEffect(() => {
-    if (!open) {
-      setPermissionGroups([]);
-      setManualPermissionGroupIDs([]);
-      setMatchedPermissionGroupIDs([]);
-      setEffectivePermissionGroupIDs([]);
-      setPermissionGroupsUnassigned(false);
-      setPermissionGroupsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setPermissionGroupsLoading(true);
-    void (async () => {
-      try {
-        const token = await resolveAccessToken();
-        if (!token) {
-          return;
-        }
-        const [groups, modelGroups] = await Promise.all([
-          listPermissionGroups(token),
-          mode === "edit" && target
-            ? listModelPermissionGroups(token, target.id)
-            : Promise.resolve({ manualGroupIDs: [], matchedGroupIDs: [], effectiveGroupIDs: [], unassigned: false }),
-        ]);
-        if (cancelled) {
-          return;
-        }
-        setPermissionGroups(groups);
-        setManualPermissionGroupIDs(modelGroups.manualGroupIDs);
-        setMatchedPermissionGroupIDs(modelGroups.matchedGroupIDs);
-        setEffectivePermissionGroupIDs(modelGroups.effectiveGroupIDs);
-        setPermissionGroupsUnassigned(modelGroups.unassigned);
-      } catch (error) {
-        if (!cancelled) {
-          setPermissionGroups([]);
-          setManualPermissionGroupIDs([]);
-          setMatchedPermissionGroupIDs([]);
-          setEffectivePermissionGroupIDs([]);
-          setPermissionGroupsUnassigned(false);
-          toast.error(t("toast.permissionGroupsLoadFailed"), { description: resolveAdminErrorMessage(error) });
-        }
-      } finally {
-        if (!cancelled) {
-          setPermissionGroupsLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, open, t, target]);
-
-  useEffect(() => {
-    if (!open) {
-      setSources([]);
       setForm(buildInitialState(null));
       setBindRows([createModelSourceBindDraftRow()]);
       setExpandedSections([]);
       setShowCapabilitiesJSONAdvanced(false);
-      setUpstreams([]);
-      setUpstreamsLoaded(false);
-      setUpstreamModelsByID({});
-      setUpstreamModelsLoadingByID({});
       return;
     }
 
     if (mode === "create" || !target) {
-      setSources([]);
       setForm(buildInitialState(null));
       setBindRows([createModelSourceBindDraftRow()]);
       setExpandedSections(["capabilities", "sources"]);
@@ -759,61 +537,7 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
     setBindRows([createModelSourceBindDraftRow()]);
     setExpandedSections(["capabilities"]);
     setShowCapabilitiesJSONAdvanced(false);
-
-    setSourcesLoading(true);
-    void (async () => {
-      try {
-        const token = await resolveAccessToken();
-        if (!token) return;
-        const data = await listAdminLLMModelUpstreamSources(token, target.id, {
-          page: 1,
-          pageSize: 100,
-        });
-        setSources(data.results);
-      } catch {
-        setSources([]);
-      } finally {
-        setSourcesLoading(false);
-      }
-    })();
   }, [mode, open, target]);
-
-  useEffect(() => {
-    if (!open || openRouterCatalog.status !== "idle") {
-      return;
-    }
-    void loadOpenRouterCatalog();
-  }, [loadOpenRouterCatalog, open, openRouterCatalog.status]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      try {
-        const token = await resolveAccessToken();
-        if (!token) return;
-        const settings = await listAdminSettingsByNamespace(token, "chat");
-        const rawValue = settings.find((item) => item.key === "context_window_fallback_tokens")?.value;
-        const parsedValue = Number(rawValue);
-        if (!cancelled && Number.isSafeInteger(parsedValue) && parsedValue >= 4_096 && parsedValue <= 16_000_000) {
-          setContextWindowFallbackTokens(parsedValue);
-        }
-      } catch {
-        // 设置读取失败时保留系统默认值；已有模型仍优先使用后端返回的生效窗口。
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (open && mode === "create" && !upstreamsLoaded && !upstreamsLoading) {
-      void loadUpstreams();
-    }
-  }, [loadUpstreams, mode, open, upstreamsLoaded, upstreamsLoading]);
 
   // -------------------------------------------------------------------------
   // Submit
@@ -821,158 +545,17 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (pending || iconUploading || (mode === "edit" && !target)) return;
-
-    const bindDraftResult = mode === "create"
-      ? resolveModelSourceBindDraftRows(bindRows)
-      : { status: "empty" as const };
-    if (bindDraftResult.status === "invalid") {
-      const messageKey = {
-        required: "toast.bindRequired",
-        protocolRequired: "toast.bindProtocolRequired",
-        priorityMustBePositive: "sources.priorityMustBePositive",
-        weightMustBePositive: "sources.weightMustBePositive",
-        duplicate: "toast.bindDuplicateSource",
-      }[bindDraftResult.error];
-      toast.error(t(messageKey));
-      return;
-    }
-
-    setPending(true);
-    try {
-      const token = await resolveAccessToken();
-      let capabilitiesJSON = form.capabilitiesJSON;
-      if (contextWindowOverride === null) {
-        const catalog = openRouterCatalog.status === "loaded"
-          ? openRouterCatalog.items
-          : await loadOpenRouterCatalog(token);
-        if (catalog) {
-          const catalogContextWindow = resolveAutomaticModelContextWindow(
-            catalog,
-            form.platformModelName,
-            form.vendor,
-          );
-          const nextCapabilitiesJSON = setAutomaticModelContextWindowInCapabilities(
-            capabilitiesJSON,
-            catalogContextWindow,
-          );
-          if (nextCapabilitiesJSON === null) {
-            toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
-            return;
-          }
-          capabilitiesJSON = nextCapabilitiesJSON;
-        } else if (!isSameContextWindowTarget(target, form.platformModelName, form.vendor)) {
-          // 自动值只属于保存时匹配到的模型身份。切换型号或厂商后目录临时
-          // 不可用时必须移除旧值，由后端内置目录或全局回退值接管。
-          const nextCapabilitiesJSON = setAutomaticModelContextWindowInCapabilities(
-            capabilitiesJSON,
-            null,
-          );
-          if (nextCapabilitiesJSON === null) {
-            toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
-            return;
-          }
-          capabilitiesJSON = nextCapabilitiesJSON;
-        }
-      }
-      const normalizedCapabilitiesJSON = normalizeModelCapabilitiesJSON(
-        capabilitiesJSON,
-        nativeTools,
-        routeProtocols,
-      );
-      const kindsJson =
-        form.kinds.length > 0 ? stringifyKinds(form.kinds) : undefined;
-      const cbFailureThreshold = Math.max(
-        0,
-        Number.parseInt(form.cbFailureThreshold.trim() || "0", 10) || 0,
-      );
-      const cbDurationMin = Math.max(
-        0,
-        Number.parseInt(form.cbDurationMin.trim() || "0", 10) || 0,
-      );
-      const cbWindowMin = Math.max(
-        0,
-        Number.parseInt(form.cbWindowMin.trim() || "0", 10) || 0,
-      );
-
-      if (mode === "create") {
-        const data = await createAdminLLMModel(token, {
-          platformModelName: form.platformModelName.trim(),
-          vendor: form.vendor || undefined,
-          displayGroupID: form.displayGroupID === FOLLOW_VENDOR_GROUP ? undefined : Number(form.displayGroupID),
-          kindsJSON: kindsJson,
-          icon: form.icon.trim() || undefined,
-          capabilitiesJSON: normalizedCapabilitiesJSON || undefined,
-          systemPrompt: form.systemPrompt.trim() || undefined,
-          accessScope: form.accessScope,
-          status: form.status,
-          description: form.description.trim() || undefined,
-          cbPolicyMode: form.cbPolicyMode,
-          cbFailureThreshold,
-          cbDurationMin,
-          cbWindowMin,
-        });
-        if (manualPermissionGroupIDs.length > 0) {
-          await saveModelPermissionGroups(token, data.model.id);
-        }
-        if (bindDraftResult.status === "valid" && bindDraftResult.payloads.length > 0) {
-          let failedCount = 0;
-          let lastBindError: unknown = null;
-          for (const payload of bindDraftResult.payloads) {
-            try {
-              await bindAdminLLMModelUpstreamSource(token, data.model.id, payload);
-            } catch (bindError) {
-              failedCount += 1;
-              lastBindError = bindError;
-            }
-          }
-          if (failedCount > 0) {
-            toast.error(t("toast.modelCreatedSourcesBindPartialFailed", { count: failedCount }), {
-              description: lastBindError ? resolveAdminErrorMessage(lastBindError) : undefined,
-            });
-          } else {
-            toast.success(t("toast.modelCreatedWithSources", { count: bindDraftResult.payloads.length }));
-          }
-        } else {
-          toast.success(t("toast.modelCreated"));
-        }
-        setForm(buildInitialState(data.model));
+    if (iconUploading) return;
+    await submit({
+      form,
+      contextWindowOverride,
+      bindRows,
+      normalizeCapabilities: (capabilitiesJSON) => normalizeModelCapabilitiesJSON(capabilitiesJSON, nativeTools, routeProtocols),
+      onCreated: (model) => {
+        setForm(buildInitialState(model));
         setBindRows([createModelSourceBindDraftRow()]);
-        invalidateAdminReferenceDataCache();
-        handleClose();
-        onSuccess();
-        return;
-      }
-
-      if (!target) return;
-      const payload: UpdateAdminLLMModelRequest = {
-        platformModelName: form.platformModelName.trim() || undefined,
-        vendor: form.vendor || undefined,
-        displayGroupID: form.displayGroupID === FOLLOW_VENDOR_GROUP ? 0 : Number(form.displayGroupID),
-        kindsJSON: kindsJson,
-        icon: form.icon.trim(),
-        capabilitiesJSON: normalizedCapabilitiesJSON,
-        systemPrompt: form.systemPrompt.trim(),
-        accessScope: form.accessScope,
-        status: form.status,
-        description: form.description.trim() || undefined,
-        cbPolicyMode: form.cbPolicyMode,
-        cbFailureThreshold,
-        cbDurationMin,
-        cbWindowMin,
-      };
-      await updateAdminLLMModel(token, target.id, payload);
-      await saveModelPermissionGroups(token, target.id);
-      invalidateAdminReferenceDataCache();
-
-      handleClose();
-      onSuccess();
-      toast.success(t("toast.modelUpdated"));
-    } catch (err) {
-      toast.error(mode === "create" ? t("toast.createFailed") : t("toast.updateFailed"), { description: resolveAdminErrorMessage(err) });
-    } finally {
-      setPending(false);
-    }
+      },
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -1102,7 +685,9 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
                 <Label className="text-xs font-normal text-muted-foreground">{t("fields.status")}</Label>
                 <Select
                   value={form.status}
-                  onValueChange={(v) => setField("status", v as AdminLLMStatus)}
+                  onValueChange={(v) => {
+                    if (isAdminLLMStatus(v)) setField("status", v);
+                  }}
                   disabled={pending}
                 >
                   <SelectTrigger>
@@ -1280,7 +865,9 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
                       </Label>
                       <Select
                         value={form.cbPolicyMode}
-                        onValueChange={(v) => setField("cbPolicyMode", v as AdminLLMModelCbPolicyMode)}
+                        onValueChange={(v) => {
+                          if (isAdminLLMModelCbPolicyMode(v)) setField("cbPolicyMode", v);
+                        }}
                         disabled={pending}
                       >
                         <SelectTrigger id="model-cb-policy-mode">
@@ -1347,7 +934,9 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
                     <Label className="text-xs font-normal text-muted-foreground">{t("sheet.accessScope")}</Label>
                     <Select
                       value={form.accessScope}
-                      onValueChange={(v) => setField("accessScope", v as AdminLLMModelAccessScope)}
+                      onValueChange={(v) => {
+                        if (isAdminLLMModelAccessScope(v)) setField("accessScope", v);
+                      }}
                       disabled={pending}
                     >
                       <SelectTrigger>
@@ -1360,27 +949,29 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
                     </Select>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-normal text-muted-foreground">
-                      {t("sheet.permissionGroups")}
-                    </Label>
-                    <PermissionGroupSelector
-                      groups={permissionGroups}
-                      selectedIDs={manualPermissionGroupIDs}
-                      matchedIDs={matchedPermissionGroupIDs}
-                      disabled={pending}
-                      loading={permissionGroupsLoading}
-                      placeholder={t("sheet.permissionGroupsPlaceholder")}
-                      emptyLabel={t("sheet.permissionGroupsEmpty")}
-                      autoBadgeLabel={t("sheet.permissionGroupsAutoBadge")}
-                      onSelectedIDsChange={setManualPermissionGroupIDs}
-                    />
-                    <p className={cn("text-[11px] leading-4", showPermissionGroupUnassigned ? "text-destructive" : "text-muted-foreground")}>
-                      {showPermissionGroupUnassigned
-                        ? t("sheet.permissionGroupsUnassigned")
-                        : t("sheet.permissionGroupsDescription")}
-                    </p>
-                  </div>
+                  <FeatureGate feature="multiUser">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-normal text-muted-foreground">
+                        {t("sheet.permissionGroups")}
+                      </Label>
+                      <PermissionGroupSelector
+                        groups={permissionGroups}
+                        selectedIDs={manualPermissionGroupIDs}
+                        matchedIDs={matchedPermissionGroupIDs}
+                        disabled={pending}
+                        loading={permissionGroupsLoading}
+                        placeholder={t("sheet.permissionGroupsPlaceholder")}
+                        emptyLabel={t("sheet.permissionGroupsEmpty")}
+                        autoBadgeLabel={t("sheet.permissionGroupsAutoBadge")}
+                        onSelectedIDsChange={setManualPermissionGroupIDs}
+                      />
+                      <p className={cn("text-[11px] leading-4", showPermissionGroupUnassigned ? "text-destructive" : "text-muted-foreground")}>
+                        {showPermissionGroupUnassigned
+                          ? t("sheet.permissionGroupsUnassigned")
+                          : t("sheet.permissionGroupsDescription")}
+                      </p>
+                    </div>
+                  </FeatureGate>
 
                   <div className="space-y-1">
                     <Label className="text-xs font-normal text-muted-foreground" htmlFor="model-desc">{t("sheet.description")}</Label>
@@ -1515,7 +1106,9 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
                                   <Label className="text-xs font-normal text-muted-foreground">{t("sources.protocol")}</Label>
                                   <Select
                                     value={draft.protocol}
-                                    onValueChange={(value) => setBindRowField(row.id, "protocol", value as AdminLLMAdapter)}
+                                    onValueChange={(value) => {
+                                      if (isAdminLLMAdapter(value)) setBindRowField(row.id, "protocol", value);
+                                    }}
                                     disabled={pending || !draft.upstreamModelID}
                                   >
                                     <SelectTrigger className="h-8 bg-background text-xs">
@@ -1535,7 +1128,9 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
                                   <Label className="text-xs font-normal text-muted-foreground">{t("sources.status")}</Label>
                                   <Select
                                     value={draft.status}
-                                    onValueChange={(value) => setBindRowField(row.id, "status", value as AdminLLMStatus)}
+                                    onValueChange={(value) => {
+                                      if (isAdminLLMStatus(value)) setBindRowField(row.id, "status", value);
+                                    }}
                                     disabled={pending || !rowHasSelection}
                                   >
                                     <SelectTrigger className="h-8 bg-background text-xs">

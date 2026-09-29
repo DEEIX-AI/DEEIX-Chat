@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -24,11 +24,11 @@ func TestUpdateFieldsKeepsLastSuperAdminProtected(t *testing.T) {
 	db, cleanup := openUserRepositoryIntegrationDB(t, dsn)
 	defer cleanup()
 
-	userItem := model.User{
+	userItem := models.User{
 		PublicID: "superadmin_public_id",
 		Username: "root",
-		Role:     model.RoleSuperAdmin,
-		Status:   model.UserStatusActive,
+		Role:     models.RoleSuperAdmin,
+		Status:   models.UserStatusActive,
 		Timezone: "Etc/UTC",
 		Locale:   "en-US",
 	}
@@ -36,7 +36,7 @@ func TestUpdateFieldsKeepsLastSuperAdminProtected(t *testing.T) {
 		t.Fatalf("create superadmin: %v", err)
 	}
 
-	nextRole := model.RoleAdmin
+	nextRole := models.RoleAdmin
 	_, err := NewRepo(db).UpdateFields(context.Background(), userItem.ID, repository.UpdateUserFieldsInput{
 		Role: &nextRole,
 	})
@@ -44,12 +44,12 @@ func TestUpdateFieldsKeepsLastSuperAdminProtected(t *testing.T) {
 		t.Fatalf("expected last superadmin guard, got %v", err)
 	}
 
-	var persisted model.User
+	var persisted models.User
 	if err := db.First(&persisted, userItem.ID).Error; err != nil {
 		t.Fatalf("reload user: %v", err)
 	}
-	if persisted.Role != model.RoleSuperAdmin {
-		t.Fatalf("expected role to remain %q, got %q", model.RoleSuperAdmin, persisted.Role)
+	if persisted.Role != models.RoleSuperAdmin {
+		t.Fatalf("expected role to remain %q, got %q", models.RoleSuperAdmin, persisted.Role)
 	}
 }
 
@@ -79,7 +79,7 @@ func openUserRepositoryIntegrationDB(t *testing.T, dsn string) (*gorm.DB, func()
 		cleanup()
 		t.Fatalf("set search_path: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}); err != nil {
 		cleanup()
 		t.Fatalf("migrate user table: %v", err)
 	}

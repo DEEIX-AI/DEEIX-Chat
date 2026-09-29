@@ -13,7 +13,7 @@ import { SpinnerLabel } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import type { ProfileDraft } from "@/features/settings/types/settings";
 import { DISPLAY_NAME_MAX_LENGTH, USERNAME_MAX_LENGTH } from "@/shared/auth/account-policy";
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { UserDTO } from "@/shared/api/auth-types";
 import { SettingsSection } from "@/shared/components/settings-layout";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
 

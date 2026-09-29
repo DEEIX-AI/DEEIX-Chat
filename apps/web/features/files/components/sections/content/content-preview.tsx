@@ -7,25 +7,32 @@ import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { ContentMeta } from "@/features/files/components/sections/content/content-meta";
-import { PreviewDocument } from "@/shared/components/file-preview/preview-document";
-import { PreviewDocx } from "@/shared/components/file-preview/preview-docx";
-import { PreviewLoading } from "@/shared/components/file-preview/preview-loading";
-import { PreviewMedia } from "@/shared/components/file-preview/preview-media";
-import { PreviewPdf } from "@/shared/components/file-preview/preview-pdf";
-import { PreviewSheet } from "@/shared/components/file-preview/preview-sheet";
-import { PreviewText } from "@/shared/components/file-preview/preview-text";
+import {
+  PreviewDocument,
+  PreviewDocx,
+  PreviewLoading,
+  PreviewMedia,
+  PreviewPdf,
+  PreviewSheet,
+  PreviewText,
+} from "@/entities/file";
 import type { FileExtractState } from "@/features/files/hooks/use-file-extract";
 import type { FilePreviewState } from "@/features/files/hooks/use-file-preview";
-import type { FileObjectDTO } from "@/shared/api/file.types";
+import type { FileObjectDTO } from "@/shared/api/file-types";
 import { cn } from "@/lib/utils";
+import { isOneOf } from "@/shared/lib/type-guards";
+
+const CONTENT_TABS = ["preview", "extract"] as const;
+type ContentTab = (typeof CONTENT_TABS)[number];
+const isContentTab = isOneOf(CONTENT_TABS);
 
 type ContentPreviewProps = {
   file: FileObjectDTO | null;
   deferEmptyState: boolean;
   preview: FilePreviewState;
   extract: FileExtractState;
-  contentTab: "preview" | "extract";
-  onContentTabChange: (value: "preview" | "extract") => void;
+  contentTab: ContentTab;
+  onContentTabChange: (value: ContentTab) => void;
 };
 
 function PreviewEmpty({ title, description }: { title: string; description: string }) {
@@ -157,7 +164,11 @@ export function ContentPreview({ file, deferEmptyState, preview, extract, conten
       <div className="relative z-20 flex h-8 items-center justify-between gap-3">
         <Tabs
           value={contentTab}
-          onValueChange={(value) => onContentTabChange(value as "preview" | "extract")}
+          onValueChange={(value) => {
+            if (isContentTab(value)) {
+              onContentTabChange(value);
+            }
+          }}
           className="gap-0"
         >
           <TabsList className="h-8">

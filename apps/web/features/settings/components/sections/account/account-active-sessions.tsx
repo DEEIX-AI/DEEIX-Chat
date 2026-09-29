@@ -18,7 +18,7 @@ import {
   resolveSessionTitle,
 } from "@/features/settings/model/account-settings";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
-import type { ActiveSessionDTO } from "@/shared/api/auth.types";
+import type { ActiveSessionDTO } from "@/shared/api/auth-types";
 import { SettingsSection } from "@/shared/components/settings-layout";
 
 export function AccountActiveSessionsSection({

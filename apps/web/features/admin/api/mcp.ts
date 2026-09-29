@@ -1,6 +1,6 @@
 import { authedRequest } from "@/shared/api/authed-client";
 import { pathParam } from "@/shared/api/http-client";
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
 import type {
   AdminMCPServerDTO,
   AdminMCPServerDataResponse,
@@ -11,7 +11,7 @@ import type {
   AdminMCPServerPayload,
   AdminMCPToolPayload,
   AdminMCPToolListResponse,
-} from "@/features/admin/api/mcp.types";
+} from "@/features/admin/api/mcp-types";
 
 export async function listAdminMCPServers(accessToken: string): Promise<AdminMCPServerDTO[]> {
   const data = await authedRequest<AdminMCPServerListResponse>(

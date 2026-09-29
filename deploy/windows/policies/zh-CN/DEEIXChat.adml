@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                           revision="1.0" schemaVersion="1.0"
+                           xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>DEEIX Chat</displayName>
+  <description>DEEIX Chat 桌面应用的组策略设置。</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_Windows10">至少 Windows 10 或 Windows Server 2016</string>
+      <string id="Category_DEEIXChat">DEEIX Chat</string>
+      <string id="Category_DEEIXChat_Explain">DEEIX Chat 桌面应用（安装版、MSI 版和便携版）的设置。
+
+在“计算机配置”中配置的设置优先于“用户配置”中的同名设置；开关类设置无论启用还是禁用都如此。“默认服务器地址”例外：禁用它会删除计算机级的值，此时“用户配置”中设置的地址仍会生效。DEEIX Chat 在启动时读取这些设置，更改后需重新启动应用才会生效。</string>
+
+      <string id="DefaultServerUrl">默认服务器地址</string>
+      <string id="DefaultServerUrl_Explain">指定 DEEIX Chat 在设置页面上预填的服务器地址，例如 https://chat.example.com。
+
+该值必须是不带路径的 http:// 或 https:// 地址（末尾可以带“/”）。无效的值将被忽略。
+
+如果启用此策略设置，每个新标签页的设置页面都会预填此地址。除非同时启用“锁定服务器地址”，用户仍可选择其他服务器。
+
+如果禁用或未配置此策略设置，设置页面的地址为空。</string>
+
+      <string id="LockServerUrl">锁定服务器地址</string>
+      <string id="LockServerUrl_Explain">将 DEEIX Chat 限制为只能使用“默认服务器地址”中指定的服务器。
+
+如果启用此策略设置，并且“默认服务器地址”为有效地址：
+- 设置页面上的地址不可修改；
+- 其他服务器地址一律被拒绝；
+- 内置本地服务器（本地模式）不可用；
+- 之前保存的其他服务器标签页会在下次启动时关闭，其保存的登录凭据会被删除。
+
+如果未配置有效的默认服务器地址，此策略设置不起作用。
+
+如果禁用或未配置此策略设置，用户可以连接任意服务器。</string>
+
+      <string id="DisableLocalMode">禁用本地模式</string>
+      <string id="DisableLocalMode_Explain">控制内置本地服务器（“本地模式”）。本地模式在本机上完整运行 DEEIX Chat，并将数据保存在本地。
+
+如果启用此策略设置，本地模式将被隐藏且无法启动。使用本地模式的标签页会在下次启动时关闭，其保存的登录凭据会被删除；本地服务器的数据不会被删除。
+
+如果禁用或未配置此策略设置，用户可以使用本地模式。</string>
+
+      <string id="DisableAutoUpdate">禁用更新检查</string>
+      <string id="DisableAutoUpdate_Explain">控制 DEEIX Chat 是否检查新版本。
+
+如果启用此策略设置，DEEIX Chat 不会检查、下载或安装更新，也不显示更新提示。请通过软件分发系统部署新版本（例如使用 Intune、Configuration Manager 或组策略软件安装分发 MSI 包）。
+
+如果禁用或未配置此策略设置，按用户安装的安装版会自动更新，便携版会在有新版本时显示提示。
+
+无论此设置如何，MSI 版都不会自行更新。</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="DefaultServerUrl">
+        <textBox refId="DefaultServerUrl">
+          <label>服务器地址（例如 https://chat.example.com）：</label>
+        </textBox>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

@@ -11,7 +11,7 @@ import {
   upsertLiveUpstreamThinkTrace,
 } from "@/features/chat/model/upstream-think-store";
 import type { PendingAttachment } from "@/features/chat/types/chat-runtime";
-import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
+import type { ChatAreaMessage, MessageAttachment, UserMessageEditMode } from "@/features/chat/types/messages";
 import {
   resolveErrorDetails,
   resolveErrorMessage,
@@ -23,8 +23,8 @@ import {
   TEMPORARY_CHAT_MAX_IMAGE_ATTACHMENTS,
 } from "@/shared/api/conversation";
 import type { TemporaryChatRequestAttachment } from "@/shared/api/conversation";
-import type { ConversationOptions, TemporaryChatHistoryMessage } from "@/shared/api/conversation.types";
-import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
+import type { ConversationOptions, TemporaryChatHistoryMessage } from "@/shared/api/conversation-types";
+import type { FileContentLoader } from "@/entities/file";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { createSecureUUID } from "@/shared/lib/secure-id";
 
@@ -446,7 +446,7 @@ export function useChatTemporaryRuntime({
           },
           onModerationBlocked: (event) => {
             moderationBlocked = true;
-            // 临时对话没有可回看的账单，拦截后仍计费的说明只能随实时事件一并展示。
+            // Temporary chats have no billing to review later, so the still-billed-after-block notice can only be shown with the live event.
             updateMessage(assistantID, (message) => ({
               ...message,
               content: [t("blocked"), event.billedReason ? tSubmit("moderationBlockedBilled") : ""]
@@ -594,11 +594,25 @@ export function useChatTemporaryRuntime({
     });
   }, [resolveUserTurn, submitTurn, t]);
 
-  const editUserMessage = React.useCallback(async (message: ChatAreaMessage, content: string) => {
+  const editUserMessage = React.useCallback(async (message: ChatAreaMessage, content: string, mode: UserMessageEditMode) => {
     const turn = resolveUserTurn(message);
     if (!turn) {
       toast.error(t("failed"));
       return false;
+    }
+    if (mode === "save") {
+      const nextContent = content.trim();
+      if (!nextContent || sendingRef.current) {
+        return false;
+      }
+      updateMessage(turn.message.id, (current) => ({ ...current, content: nextContent }));
+      const historyEntry = historyRef.current[turn.message.historyOffset];
+      if (historyEntry?.role === "user") {
+        const nextHistory = historyRef.current.slice();
+        nextHistory[turn.message.historyOffset] = { ...historyEntry, content: nextContent };
+        historyRef.current = nextHistory;
+      }
+      return true;
     }
     return submitTurn({
       content,
@@ -607,7 +621,7 @@ export function useChatTemporaryRuntime({
       replaceFromIndex: turn.index,
       consumeComposer: false,
     });
-  }, [resolveUserTurn, submitTurn, t]);
+  }, [resolveUserTurn, submitTurn, t, updateMessage]);
 
   const editAssistantMessage = React.useCallback(async (message: ChatAreaMessage, content: string) => {
     const nextContent = content.trim();

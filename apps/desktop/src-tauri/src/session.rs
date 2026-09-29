@@ -9,6 +9,7 @@ use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Runtime, Webview};
 
+use crate::distribution::Distribution;
 use crate::sidecar;
 use crate::tabs::{self, Server};
 
@@ -24,7 +25,7 @@ static LOCAL_SIGN_IN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(())
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionError {
-    /// "network" | "http" | "storage" | "no_session" | "invalid_origin" | "sidecar" | "no_server" | "tabs"
+    /// "network" | "http" | "storage" | "no_session" | "invalid_origin" | "sidecar" | "no_server" | "tabs" | "policy"
     pub kind: &'static str,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -53,6 +54,10 @@ impl SessionError {
     }
     fn no_server() -> Self {
         Self::new("no_server", "no server configured")
+    }
+    /// `message` is one of the `policy::*` texts, which start with "policy: ".
+    fn policy(message: &'static str) -> Self {
+        Self::new("policy", message)
     }
 }
 
@@ -127,11 +132,23 @@ fn server_for<R: Runtime>(webview: &Webview<R>) -> Option<Server> {
     tabs::server_of(webview.app_handle(), webview.label())
 }
 
+/// Enterprise policy gate for binding or using a server. Enforced here, not in
+/// the UI; tabs restored from disk are filtered by the same rule (tabs.rs).
+fn check_policy<R: Runtime>(app: &AppHandle<R>, server: &Server) -> Result<(), SessionError> {
+    let policy = &app.state::<Distribution>().policy;
+    match server.mode {
+        ServerMode::Local => policy.check_local(),
+        ServerMode::Remote => policy.check_remote(&server.origin),
+    }
+    .map_err(SessionError::policy)
+}
+
 /// Live origin for a server (starts the sidecar in local mode).
 async fn resolve_origin<R: Runtime>(
     app: &AppHandle<R>,
     server: &Server,
 ) -> Result<String, SessionError> {
+    check_policy(app, server)?;
     match server.mode {
         ServerMode::Local => Ok(sidecar::ensure_running(app).await?),
         ServerMode::Remote => Ok(server.origin.clone()),
@@ -165,7 +182,9 @@ pub(crate) fn normalize_origin(raw: &str) -> Option<String> {
 
 // ---------- keychain ----------
 
-/// Keychain service = bundle identifier, so dev and installed builds never share.
+/// Keychain service = bundle identifier, so dev and installed builds never
+/// share. Portable copies run with `<identifier>.portable-<instance id>`
+/// (distribution::bootstrap), so they never share with either.
 fn entry<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Entry, SessionError> {
     Entry::new(&app.config().identifier, &format!("refresh-token:{key}"))
         .map_err(SessionError::storage)
@@ -223,7 +242,9 @@ pub async fn set_remote_server<R: Runtime>(
             "origin must be an absolute http(s) URL without a path",
         )
     })?;
-    tabs::bind(&app, webview.label(), Server::remote(normalized.clone()))?;
+    let server = Server::remote(normalized.clone());
+    check_policy(&app, &server)?;
+    tabs::bind(&app, webview.label(), server)?;
     Ok(ServerInfo {
         mode: ServerMode::Remote,
         origin: normalized,
@@ -236,6 +257,7 @@ pub async fn set_local_server<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
 ) -> Result<ServerInfo, SessionError> {
+    check_policy(&app, &Server::local())?;
     tabs::bind(&app, webview.label(), Server::local())?;
     let origin = sidecar::ensure_running(&app).await?;
     Ok(ServerInfo {
@@ -325,6 +347,7 @@ pub async fn local_sign_in<R: Runtime>(
             "local sign-in requires local mode",
         ));
     }
+    check_policy(&app, &server)?;
     let key = server.keychain_key();
     // Serialise: a concurrent caller would restart the sidecar mid-exchange.
     let _guard = LOCAL_SIGN_IN.lock().await;

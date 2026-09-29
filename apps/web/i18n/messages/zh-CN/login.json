@@ -48,7 +48,7 @@
     "providerStartFailed": "无法启动第三方登录，请刷新页面后重试",
     "registerFailed": "注册失败，请稍后重试",
     "turnstileRequired": "请先完成人机验证",
-    "providerBridgeRequired": "桌面端第三方登录需要服务器启用 OAuth 桥接，请联系管理员配置 PUBLIC_API_BASE_URL。"
+    "providerBridgeRequired": "第三方登录当前不可用，请联系管理员配置 PUBLIC_API_BASE_URL。"
   },
   "oauthCallback": {
     "missingParams": "第三方登录返回缺少必要参数",

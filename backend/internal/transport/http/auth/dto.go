@@ -13,24 +13,24 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required,min=6,max=128"`
 }
 
-// TwoFactorVerifyRequest verifies a pending two-factor login challenge.
+// TwoFactorVerifyRequest 用于校验待完成的双因素登录挑战。
 type TwoFactorVerifyRequest struct {
 	ChallengeToken     string `json:"challengeToken" binding:"required,min=20,max=4096"`
 	VerificationMethod string `json:"verificationMethod,omitempty" binding:"omitempty,oneof=two_factor email"`
 	Code               string `json:"code" binding:"required,min=6,max=32"`
 }
 
-// TwoFactorEmailStartRequest requests an email code for a login challenge.
+// TwoFactorEmailStartRequest 为登录挑战请求邮箱验证码。
 type TwoFactorEmailStartRequest struct {
 	ChallengeToken string `json:"challengeToken" binding:"required,min=20,max=4096"`
 }
 
-// TwoFactorCodeRequest contains a one-time verification code.
+// TwoFactorCodeRequest 包含一次性验证码。
 type TwoFactorCodeRequest struct {
 	Code string `json:"code" binding:"required,min=6,max=32"`
 }
 
-// TwoFactorStatusResponse describes the current two-factor status.
+// TwoFactorStatusResponse 描述当前双因素认证状态。
 type TwoFactorStatusResponse struct {
 	Available     bool       `json:"available"`
 	TOTPEnabled   bool       `json:"totpEnabled"`
@@ -39,42 +39,42 @@ type TwoFactorStatusResponse struct {
 	EnabledAt     *time.Time `json:"enabledAt" extensions:"x-nullable,!x-omitempty"`
 }
 
-// TwoFactorSetupStartResponse contains a new two-factor setup secret.
+// TwoFactorSetupStartResponse 包含新的双因素设置密钥。
 type TwoFactorSetupStartResponse struct {
 	Secret     string    `json:"secret"`
 	OTPAuthURL string    `json:"otpauthURL"`
 	ExpiresAt  time.Time `json:"expiresAt"`
 }
 
-// TwoFactorRecoveryCodesResponse contains regenerated recovery codes and status.
+// TwoFactorRecoveryCodesResponse 包含重新生成的恢复码及状态。
 type TwoFactorRecoveryCodesResponse struct {
 	RecoveryCodes []string                `json:"recoveryCodes"`
 	Status        TwoFactorStatusResponse `json:"status"`
 }
 
-// TwoFactorDisableResponse confirms that two-factor authentication was disabled.
+// TwoFactorDisableResponse 确认双因素认证已关闭。
 type TwoFactorDisableResponse struct {
 	Disabled bool `json:"disabled"`
 }
 
-// TwoFactorSetupCancelResponse confirms that setup was canceled.
+// TwoFactorSetupCancelResponse 确认设置已取消。
 type TwoFactorSetupCancelResponse struct {
 	Canceled bool `json:"canceled"`
 }
 
-// EmailRegistrationStartRequest starts email-based registration.
+// EmailRegistrationStartRequest 发起基于邮箱的注册。
 type EmailRegistrationStartRequest struct {
 	Email          string `json:"email" binding:"required,max=128,email"`
 	TurnstileToken string `json:"turnstileToken,omitempty" binding:"omitempty,max=2048"`
 }
 
-// EmailRegistrationStartResponse reports the email registration code expiry.
+// EmailRegistrationStartResponse 返回邮箱注册验证码的过期时间。
 type EmailRegistrationStartResponse struct {
 	Sent      bool      `json:"sent"`
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-// PasswordChangeVerificationStartResponse reports password-change verification options.
+// PasswordChangeVerificationStartResponse 返回修改密码的验证选项。
 type PasswordChangeVerificationStartResponse struct {
 	Sent               bool      `json:"sent"`
 	ExpiresAt          time.Time `json:"expiresAt"`
@@ -82,7 +82,7 @@ type PasswordChangeVerificationStartResponse struct {
 	AvailableMethods   []string  `json:"availableMethods"`
 }
 
-// EmailRegistrationCompleteRequest completes email registration.
+// EmailRegistrationCompleteRequest 完成邮箱注册。
 type EmailRegistrationCompleteRequest struct {
 	Email          string `json:"email" binding:"required,max=128,email"`
 	Password       string `json:"password" binding:"required,min=8,max=128"`
@@ -90,30 +90,30 @@ type EmailRegistrationCompleteRequest struct {
 	TurnstileToken string `json:"turnstileToken,omitempty" binding:"omitempty,max=2048"`
 }
 
-// PasswordResetStartRequest starts password recovery for an email address.
+// PasswordResetStartRequest 为邮箱地址发起密码找回。
 type PasswordResetStartRequest struct {
 	Email string `json:"email" binding:"required,max=128,email"`
 }
 
-// PasswordResetCompleteRequest completes password recovery.
+// PasswordResetCompleteRequest 完成密码找回。
 type PasswordResetCompleteRequest struct {
 	Email       string `json:"email" binding:"required,max=128,email"`
 	Code        string `json:"code" binding:"required,len=6"`
 	NewPassword string `json:"newPassword" binding:"required,min=8,max=128"`
 }
 
-// PasswordResetStartResponse reports the password reset code expiry.
+// PasswordResetStartResponse 返回密码重置验证码的过期时间。
 type PasswordResetStartResponse struct {
 	Sent      bool      `json:"sent"`
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-// PasswordResetCompleteResponse confirms that the password was changed.
+// PasswordResetCompleteResponse 确认密码已修改。
 type PasswordResetCompleteResponse struct {
 	Changed bool `json:"changed"`
 }
 
-// ChangePasswordRequest contains the credentials and verification code for a password change.
+// ChangePasswordRequest 包含修改密码所需的凭据与验证码。
 type ChangePasswordRequest struct {
 	CurrentPassword    string `json:"currentPassword,omitempty" binding:"omitempty,max=128"`
 	NewPassword        string `json:"newPassword" binding:"required,min=8,max=128"`
@@ -121,33 +121,33 @@ type ChangePasswordRequest struct {
 	Code               string `json:"code,omitempty" binding:"omitempty,min=6,max=32"`
 }
 
-// ChangePasswordResponse confirms that the password was changed.
+// ChangePasswordResponse 确认密码已修改。
 type ChangePasswordResponse struct {
 	Changed bool `json:"changed"`
 }
 
-// CompleteOnboardingRequest contains optional first-login password setup.
+// CompleteOnboardingRequest 包含可选的首次登录密码设置。
 type CompleteOnboardingRequest struct {
 	NewPassword string `json:"newPassword,omitempty" binding:"omitempty,min=8,max=128"`
 }
 
-// EmailVerificationStartRequest starts verification for an email address.
+// EmailVerificationStartRequest 为邮箱地址发起验证。
 type EmailVerificationStartRequest struct {
 	Email string `json:"email" binding:"required,max=128,email"`
 }
 
-// SecurityVerificationStartRequest selects a security verification method.
+// SecurityVerificationStartRequest 选择安全验证方式。
 type SecurityVerificationStartRequest struct {
 	VerificationMethod string `json:"verificationMethod,omitempty" binding:"omitempty,oneof=none two_factor email"`
 }
 
-// DeleteAccountRequest contains the verification required to delete an account.
+// DeleteAccountRequest 包含删除账号所需的验证信息。
 type DeleteAccountRequest struct {
 	VerificationMethod string `json:"verificationMethod" binding:"required,oneof=two_factor email"`
 	Code               string `json:"code" binding:"required,min=6,max=32"`
 }
 
-// EmailVerificationStartResponse reports email verification options and expiry.
+// EmailVerificationStartResponse 返回邮箱验证选项及过期时间。
 type EmailVerificationStartResponse struct {
 	Sent               bool      `json:"sent"`
 	ExpiresAt          time.Time `json:"expiresAt"`
@@ -155,18 +155,18 @@ type EmailVerificationStartResponse struct {
 	AvailableMethods   []string  `json:"availableMethods"`
 }
 
-// EmailBootstrapCompleteRequest completes initial email setup.
+// EmailBootstrapCompleteRequest 完成初始邮箱设置。
 type EmailBootstrapCompleteRequest struct {
 	Email string `json:"email" binding:"required,max=128,email"`
 	Code  string `json:"code,omitempty" binding:"omitempty,len=6"`
 }
 
-// EmailVerificationCompleteRequest completes email verification.
+// EmailVerificationCompleteRequest 完成邮箱验证。
 type EmailVerificationCompleteRequest struct {
 	Code string `json:"code" binding:"required,len=6"`
 }
 
-// EmailChangeCompleteRequest completes an email address change.
+// EmailChangeCompleteRequest 完成邮箱地址变更。
 type EmailChangeCompleteRequest struct {
 	Email                     string `json:"email" binding:"required,max=128,email"`
 	CurrentVerificationMethod string `json:"currentVerificationMethod,omitempty" binding:"omitempty,oneof=none two_factor email"`
@@ -174,7 +174,7 @@ type EmailChangeCompleteRequest struct {
 	NewCode                   string `json:"newCode,omitempty" binding:"omitempty,len=6"`
 }
 
-// IdentityProviderResponse is the public representation of an identity provider.
+// IdentityProviderResponse 是身份提供方的公开表示。
 type IdentityProviderResponse struct {
 	PublicID            string    `json:"publicID"`
 	Type                string    `json:"type" enums:"oidc,oauth2"`
@@ -201,23 +201,23 @@ type IdentityProviderResponse struct {
 	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
-// IdentityProviderListResponse contains configured identity providers.
+// IdentityProviderListResponse 包含已配置的身份提供方。
 type IdentityProviderListResponse struct {
 	Results []IdentityProviderResponse `json:"results"`
 	Total   int                        `json:"total"`
 }
 
-// IdentityProviderReorderResponse confirms provider ordering was updated.
+// IdentityProviderReorderResponse 确认提供方排序已更新。
 type IdentityProviderReorderResponse struct {
 	Updated bool `json:"updated"`
 }
 
-// IdentityProviderDeleteResponse confirms provider deletion.
+// IdentityProviderDeleteResponse 确认提供方已删除。
 type IdentityProviderDeleteResponse struct {
 	Deleted bool `json:"deleted"`
 }
 
-// UserIdentityResponse describes an identity linked to a user.
+// UserIdentityResponse 描述关联到用户的身份。
 type UserIdentityResponse struct {
 	ID                  uint       `json:"id"`
 	ProviderID          uint       `json:"providerID"`
@@ -232,17 +232,17 @@ type UserIdentityResponse struct {
 	LastLoginAt         *time.Time `json:"lastLoginAt" extensions:"x-nullable,!x-omitempty"`
 }
 
-// UserIdentityListResponse contains identities linked to the current user.
+// UserIdentityListResponse 包含关联到当前用户的身份。
 type UserIdentityListResponse struct {
 	Results []UserIdentityResponse `json:"results"`
 }
 
-// DeleteUserIdentityResponse confirms an identity was unlinked.
+// DeleteUserIdentityResponse 确认身份已解除关联。
 type DeleteUserIdentityResponse struct {
 	Deleted bool `json:"deleted"`
 }
 
-// LoginOptionsResponse describes the authentication methods available to the client.
+// LoginOptionsResponse 描述客户端可用的认证方式。
 type LoginOptionsResponse struct {
 	UsernameEnabled              bool                       `json:"usernameEnabled"`
 	EmailEnabled                 bool                       `json:"emailEnabled"`
@@ -255,14 +255,14 @@ type LoginOptionsResponse struct {
 	Providers                    []IdentityProviderResponse `json:"providers"`
 }
 
-// ProviderAuthBridgeResponse describes native provider handoff capabilities.
+// ProviderAuthBridgeResponse 描述原生 provider 交接能力。
 type ProviderAuthBridgeResponse struct {
 	Enabled         bool   `json:"enabled"`
 	ProtocolVersion int    `json:"protocolVersion"`
 	CallbackBaseURL string `json:"callbackBaseURL"`
 }
 
-// UpsertIdentityProviderRequest contains administrator-managed provider settings.
+// UpsertIdentityProviderRequest 包含管理员管理的提供方设置。
 type UpsertIdentityProviderRequest struct {
 	Type                string `json:"type" binding:"required,oneof=oidc oauth2"`
 	Name                string `json:"name" binding:"required,max=80"`
@@ -287,21 +287,12 @@ type UpsertIdentityProviderRequest struct {
 	AvatarField         string `json:"avatarField,omitempty" binding:"omitempty,max=64"`
 }
 
-// ReorderIdentityProvidersRequest contains the desired provider order.
+// ReorderIdentityProvidersRequest 包含期望的提供方顺序。
 type ReorderIdentityProvidersRequest struct {
 	ProviderIDs []string `json:"providerIDs" binding:"required,dive,required,max=64"`
 }
 
-// CompleteProviderLoginRequest completes a provider login callback.
-type CompleteProviderLoginRequest struct {
-	Code         string `json:"code" binding:"required"`
-	State        string `json:"state" binding:"required,max=4096"`
-	RedirectURI  string `json:"redirectURI" binding:"required,max=2048"`
-	CodeVerifier string `json:"codeVerifier" binding:"required,min=43,max=128"`
-	Intent       string `json:"intent,omitempty" binding:"omitempty,oneof=login register bind"`
-}
-
-// ProviderAuthBridgeStartRequest starts an OAuth handoff for a client.
+// ProviderAuthBridgeStartRequest 为客户端发起 OAuth 交接。
 type ProviderAuthBridgeStartRequest struct {
 	ClientID      string `json:"clientID" binding:"required,max=128"`
 	RedirectURI   string `json:"redirectURI" binding:"required,max=2048"`
@@ -311,28 +302,29 @@ type ProviderAuthBridgeStartRequest struct {
 	Next          string `json:"next,omitempty" binding:"omitempty,max=2048"`
 }
 
-// ProviderAuthBridgeStartResponse contains the provider authorization URL.
+// ProviderBindBridgeStartRequest 发起 OAuth 交接，将 provider 身份关联到当前用户。
+type ProviderBindBridgeStartRequest struct {
+	ClientID      string `json:"clientID" binding:"required,max=128"`
+	RedirectURI   string `json:"redirectURI" binding:"required,max=2048"`
+	CodeChallenge string `json:"codeChallenge" binding:"required,min=43,max=128"`
+	ClientState   string `json:"clientState" binding:"required,min=43,max=128"`
+	Next          string `json:"next,omitempty" binding:"omitempty,max=2048"`
+}
+
+// ProviderAuthBridgeStartResponse 包含 provider 授权 URL。
 type ProviderAuthBridgeStartResponse struct {
 	AuthorizationURL string    `json:"authorizationURL"`
 	ExpiresAt        time.Time `json:"expiresAt"`
 }
 
-// ProviderAuthBridgeExchangeRequest exchanges a provider handoff grant.
+// ProviderAuthBridgeExchangeRequest 兑换 provider 交接的一次性授权凭证。
 type ProviderAuthBridgeExchangeRequest struct {
 	ClientID     string `json:"clientID" binding:"required,max=128"`
 	Grant        string `json:"grant" binding:"required,min=43,max=128"`
 	CodeVerifier string `json:"codeVerifier" binding:"required,min=43,max=128"`
 }
 
-// CompleteProviderBindRequest completes linking a provider identity.
-type CompleteProviderBindRequest struct {
-	Code         string `json:"code" binding:"required"`
-	State        string `json:"state" binding:"required,max=4096"`
-	RedirectURI  string `json:"redirectURI" binding:"required,max=2048"`
-	CodeVerifier string `json:"codeVerifier" binding:"required,min=43,max=128"`
-}
-
-// UserIdentityResponseData contains identity details returned by provider flows.
+// UserIdentityResponseData 包含 provider 流程返回的身份详情。
 type UserIdentityResponseData struct {
 	Identity UserIdentityResponse `json:"identity"`
 }
@@ -347,7 +339,7 @@ type PatchMeRequest struct {
 	AppearancePreferences *string `json:"appearancePreferences,omitempty" binding:"omitempty,max=2048"`
 }
 
-// PatchUsernameRequest contains the requested username.
+// PatchUsernameRequest 包含请求的用户名。
 type PatchUsernameRequest struct {
 	Username string `json:"username" binding:"required,min=3,max=16"`
 }
@@ -491,10 +483,16 @@ type LoginOptionsResponseDoc struct {
 	Data     LoginOptionsResponse `json:"data"`
 }
 
-// ProviderAuthBridgeStartResponseDoc documents the provider handoff start schema.
+// ProviderAuthBridgeStartResponseDoc 描述 provider 交接发起的响应结构。
 type ProviderAuthBridgeStartResponseDoc struct {
 	ErrorMsg string                          `json:"errorMsg"`
 	Data     ProviderAuthBridgeStartResponse `json:"data"`
+}
+
+// UserIdentityResponseDoc 绑定身份响应（Swagger 用）。
+type UserIdentityResponseDoc struct {
+	ErrorMsg string                   `json:"errorMsg"`
+	Data     UserIdentityResponseData `json:"data"`
 }
 
 // IdentityProviderListResponseDoc 管理员身份源列表响应（Swagger 用）。
@@ -527,13 +525,13 @@ type EmailRegistrationStartResponseDoc struct {
 	Data     EmailRegistrationStartResponse `json:"data"`
 }
 
-// PasswordResetStartResponseDoc documents the password reset start schema.
+// PasswordResetStartResponseDoc 描述密码重置发起的响应结构。
 type PasswordResetStartResponseDoc struct {
 	ErrorMsg string                     `json:"errorMsg"`
 	Data     PasswordResetStartResponse `json:"data"`
 }
 
-// PasswordResetCompleteResponseDoc documents the password reset completion schema.
+// PasswordResetCompleteResponseDoc 描述密码重置完成的响应结构。
 type PasswordResetCompleteResponseDoc struct {
 	ErrorMsg string                        `json:"errorMsg"`
 	Data     PasswordResetCompleteResponse `json:"data"`
@@ -551,19 +549,19 @@ type PatchMeResponseDoc struct {
 	Data     MeResponse `json:"data"`
 }
 
-// PasswordChangeVerificationStartResponseDoc documents password-change verification.
+// PasswordChangeVerificationStartResponseDoc 描述修改密码验证的响应结构。
 type PasswordChangeVerificationStartResponseDoc struct {
 	ErrorMsg string                                  `json:"errorMsg"`
 	Data     PasswordChangeVerificationStartResponse `json:"data"`
 }
 
-// ChangePasswordResponseDoc documents the password change response.
+// ChangePasswordResponseDoc 描述修改密码的响应。
 type ChangePasswordResponseDoc struct {
 	ErrorMsg string                 `json:"errorMsg"`
 	Data     ChangePasswordResponse `json:"data"`
 }
 
-// EmailVerificationStartResponseDoc documents email verification start.
+// EmailVerificationStartResponseDoc 描述邮箱验证发起的响应。
 type EmailVerificationStartResponseDoc struct {
 	ErrorMsg string                         `json:"errorMsg"`
 	Data     EmailVerificationStartResponse `json:"data"`
@@ -597,6 +595,48 @@ type ActiveSessionListResponseDoc struct {
 type UpdateCurrentSessionLocationResponseDoc struct {
 	ErrorMsg string                `json:"errorMsg"`
 	Data     ActiveSessionResponse `json:"data"`
+}
+
+// UserIdentityListResponseDoc 当前用户第三方身份列表响应（Swagger 用）。
+type UserIdentityListResponseDoc struct {
+	ErrorMsg string                   `json:"errorMsg"`
+	Data     UserIdentityListResponse `json:"data"`
+}
+
+// DeleteUserIdentityResponseDoc 解绑第三方身份响应（Swagger 用）。
+type DeleteUserIdentityResponseDoc struct {
+	ErrorMsg string                     `json:"errorMsg"`
+	Data     DeleteUserIdentityResponse `json:"data"`
+}
+
+// TwoFactorStatusResponseDoc 双因素认证状态响应（Swagger 用）。
+type TwoFactorStatusResponseDoc struct {
+	ErrorMsg string                  `json:"errorMsg"`
+	Data     TwoFactorStatusResponse `json:"data"`
+}
+
+// TwoFactorSetupStartResponseDoc 双因素设置开始响应（Swagger 用）。
+type TwoFactorSetupStartResponseDoc struct {
+	ErrorMsg string                      `json:"errorMsg"`
+	Data     TwoFactorSetupStartResponse `json:"data"`
+}
+
+// TwoFactorRecoveryCodesResponseDoc 双因素恢复码响应（Swagger 用）。
+type TwoFactorRecoveryCodesResponseDoc struct {
+	ErrorMsg string                         `json:"errorMsg"`
+	Data     TwoFactorRecoveryCodesResponse `json:"data"`
+}
+
+// TwoFactorSetupCancelResponseDoc 取消双因素设置响应（Swagger 用）。
+type TwoFactorSetupCancelResponseDoc struct {
+	ErrorMsg string                       `json:"errorMsg"`
+	Data     TwoFactorSetupCancelResponse `json:"data"`
+}
+
+// TwoFactorDisableResponseDoc 关闭双因素认证响应（Swagger 用）。
+type TwoFactorDisableResponseDoc struct {
+	ErrorMsg string                   `json:"errorMsg"`
+	Data     TwoFactorDisableResponse `json:"data"`
 }
 
 // ErrorDoc 错误响应（Swagger 用）。

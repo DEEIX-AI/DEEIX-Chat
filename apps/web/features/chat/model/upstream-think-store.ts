@@ -4,12 +4,12 @@ import * as React from "react";
 
 import type { ChatMessageProcessTrace, ChatTraceBlock, ChatTraceEvent } from "@/features/chat/types/messages";
 import { toPendingProcessTrace } from "@/features/chat/model/message-submit";
-import type { StreamMessageEvent } from "@/shared/api/conversation.types";
+import type { StreamMessageEvent } from "@/shared/api/conversation-types";
 
 type UpstreamThinkDeltaEvent = Extract<StreamMessageEvent, { type: "upstream_think_delta" }>;
 type Listener = () => void;
 
-// 实时快照不再携带思考正文，已结束轮次的思考块以 events 形式留在 live trace 里，用于回填快照事件的正文与终态。
+// Live snapshots no longer carry thinking bodies; thinking blocks of finished rounds stay in the live trace as events, used to backfill snapshot event bodies and final state.
 type LiveThinkEntry = {
   trace: ChatMessageProcessTrace;
   currentEventID: string;
@@ -185,7 +185,7 @@ function liveThinkBlockFor(event: ChatTraceEvent, live: ChatMessageProcessTrace)
   return undefined;
 }
 
-// 快照里的思考事件只带结构与摘要，正文与终态由实时思考块回填。
+// Thinking events in snapshots carry only structure and summary; body and final state are backfilled from live thinking blocks.
 function enrichThinkEvents(events: ChatTraceEvent[] | undefined, live: ChatMessageProcessTrace): ChatTraceEvent[] | undefined {
   if (!events?.length) {
     return events;

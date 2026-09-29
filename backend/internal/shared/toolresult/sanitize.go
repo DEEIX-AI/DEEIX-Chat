@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// SanitizeOpaque preserves readable tool output while removing data URIs and
-// base64-like payloads that should not enter model context or display projections.
+// SanitizeOpaque 保留可读的工具输出，同时移除不应进入模型上下文
+// 或展示投影的 data URI 与类 base64 载荷。
 func SanitizeOpaque(raw string) string {
 	value := strings.TrimSpace(raw)
 	if value == "" {

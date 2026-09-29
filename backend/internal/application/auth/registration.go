@@ -47,7 +47,7 @@ type verificationEmailTemplate struct {
 	SecurityNote string
 }
 
-// EmailRegistrationStartResult reports the result of sending a registration code.
+// EmailRegistrationStartResult 报告发送注册验证码的结果。
 type EmailRegistrationStartResult struct {
 	Sent      bool
 	ExpiresAt time.Time
@@ -59,7 +59,7 @@ type PasswordResetStartResult struct {
 	ExpiresAt time.Time
 }
 
-// PasswordChangeVerificationStartResult reports the verification methods available for a password change.
+// PasswordChangeVerificationStartResult 报告修改密码可用的验证方式。
 type PasswordChangeVerificationStartResult struct {
 	Sent             bool
 	ExpiresAt        time.Time
@@ -67,7 +67,7 @@ type PasswordChangeVerificationStartResult struct {
 	AvailableMethods []SecurityVerificationMethod
 }
 
-// EmailChangeVerificationStartResult reports the verification methods available for an email change.
+// EmailChangeVerificationStartResult 报告修改邮箱可用的验证方式。
 type EmailChangeVerificationStartResult struct {
 	Sent             bool
 	ExpiresAt        time.Time
@@ -127,7 +127,7 @@ type requestEmailVerificationCodeInput struct {
 	AuditContext requestmeta.SessionAuditContext
 }
 
-// RequestEmailRegistration sends a verification code for a new email account.
+// RequestEmailRegistration 为新邮箱账号发送验证码。
 func (s *Service) RequestEmailRegistration(ctx context.Context, email string, turnstileToken string, remoteIP string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailRegistrationStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailLoginEnabled || !cfg.EmailRegistrationEnabled {
@@ -213,7 +213,7 @@ func (s *Service) RequestEmailRegistration(ctx context.Context, email string, tu
 	}, nil
 }
 
-// RegisterWithEmail creates an account after validating the registration code.
+// RegisterWithEmail 在校验注册验证码后创建账号。
 func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterWithEmailInput) (*LoginResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailLoginEnabled || !cfg.EmailRegistrationEnabled {
@@ -230,8 +230,8 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterWithEmail
 	if err != nil {
 		return nil, err
 	}
-	// With email verification enabled, Turnstile is checked before issuing the registration code.
-	// Without that step, completion is the first registration write path and must verify it here.
+	// 启用邮箱验证时，Turnstile 会在签发注册验证码前校验。
+	// 未启用该步骤时，完成注册是首个注册写入路径，必须在此处校验。
 	if !cfg.EmailVerificationEnabled {
 		if err = s.verifyRegistrationTurnstile(ctx, cfg, input.TurnstileToken, input.RemoteIP); err != nil {
 			return nil, err
@@ -325,7 +325,7 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterWithEmail
 	return result, nil
 }
 
-// RequestPasswordChangeVerification sends the selected verification code for a password change.
+// RequestPasswordChangeVerification 为修改密码发送所选方式的验证码。
 func (s *Service) RequestPasswordChangeVerification(ctx context.Context, userID uint, requestedMethod string, requestID string, auditCtx requestmeta.SessionAuditContext) (*PasswordChangeVerificationStartResult, error) {
 	item, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -416,7 +416,7 @@ func (s *Service) RequestPasswordChangeVerification(ctx context.Context, userID 
 	}, nil
 }
 
-// ChangePassword validates the current security requirements and changes the password.
+// ChangePassword 校验当前安全要求并修改密码。
 func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput) error {
 	normalizedPassword, err := userapp.NormalizePassword(input.NewPassword)
 	if err != nil {
@@ -503,7 +503,7 @@ func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput)
 	return nil
 }
 
-// RequestPasswordReset sends a password reset code without revealing account existence.
+// RequestPasswordReset 发送密码重置验证码，且不泄露账号是否存在。
 func (s *Service) RequestPasswordReset(ctx context.Context, email string, requestID string, auditCtx requestmeta.SessionAuditContext) (*PasswordResetStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	normalizedEmail, err := normalizeRegistrationEmail(email)
@@ -599,7 +599,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string, reques
 	}, nil
 }
 
-// CompletePasswordReset verifies a reset code and sets the new password.
+// CompletePasswordReset 校验重置验证码并设置新密码。
 func (s *Service) CompletePasswordReset(ctx context.Context, email string, code string, newPassword string, requestID string, auditCtx requestmeta.SessionAuditContext) error {
 	cfg := s.cfg.Snapshot()
 	normalizedEmail, err := normalizeRegistrationEmail(email)
@@ -741,7 +741,7 @@ func hashAuditEmail(email string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// RequestEmailBootstrapVerification sends a code for setting the initial account email.
+// RequestEmailBootstrapVerification 为设置账号初始邮箱发送验证码。
 func (s *Service) RequestEmailBootstrapVerification(ctx context.Context, userID uint, newEmail string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailChangeVerificationStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailVerificationEnabled {
@@ -776,7 +776,7 @@ func (s *Service) RequestEmailBootstrapVerification(ctx context.Context, userID 
 	})
 }
 
-// CompleteEmailBootstrap verifies and stores the initial account email.
+// CompleteEmailBootstrap 校验并保存账号初始邮箱。
 func (s *Service) CompleteEmailBootstrap(ctx context.Context, userID uint, newEmail string, code string, requestID string, auditCtx requestmeta.SessionAuditContext) (*domainuser.User, error) {
 	cfg := s.cfg.Snapshot()
 	item, err := s.repo.GetByID(ctx, userID)
@@ -820,7 +820,7 @@ func (s *Service) CompleteEmailBootstrap(ctx context.Context, userID uint, newEm
 	return updated, nil
 }
 
-// RequestCurrentEmailVerification sends a verification code for the current email.
+// RequestCurrentEmailVerification 为当前邮箱发送验证码。
 func (s *Service) RequestCurrentEmailVerification(ctx context.Context, userID uint, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailChangeVerificationStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailVerificationEnabled {
@@ -847,7 +847,7 @@ func (s *Service) RequestCurrentEmailVerification(ctx context.Context, userID ui
 	})
 }
 
-// CompleteCurrentEmailVerification verifies the current account email.
+// CompleteCurrentEmailVerification 验证当前账号邮箱。
 func (s *Service) CompleteCurrentEmailVerification(ctx context.Context, userID uint, code string, requestID string, auditCtx requestmeta.SessionAuditContext) (*domainuser.User, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailVerificationEnabled {
@@ -879,7 +879,7 @@ func (s *Service) CompleteCurrentEmailVerification(ctx context.Context, userID u
 	return updated, nil
 }
 
-// RequestCurrentEmailChangeVerification starts the security verification for an email change.
+// RequestCurrentEmailChangeVerification 启动修改邮箱的安全验证。
 func (s *Service) RequestCurrentEmailChangeVerification(ctx context.Context, userID uint, requestedMethod string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailChangeVerificationStartResult, error) {
 	item, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -913,7 +913,7 @@ func (s *Service) RequestCurrentEmailChangeVerification(ctx context.Context, use
 	})
 }
 
-// RequestNewEmailChangeVerification sends a code to the proposed new email.
+// RequestNewEmailChangeVerification 向拟使用的新邮箱发送验证码。
 func (s *Service) RequestNewEmailChangeVerification(ctx context.Context, userID uint, newEmail string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailChangeVerificationStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailVerificationEnabled {
@@ -941,7 +941,7 @@ func (s *Service) RequestNewEmailChangeVerification(ctx context.Context, userID 
 	})
 }
 
-// CompleteEmailChange verifies both sides of an email change and updates the account.
+// CompleteEmailChange 校验邮箱变更的新旧两端并更新账号。
 func (s *Service) CompleteEmailChange(ctx context.Context, input CompleteEmailChangeInput) (*domainuser.User, error) {
 	cfg := s.cfg.Snapshot()
 	item, err := s.repo.GetByID(ctx, input.UserID)
@@ -1482,9 +1482,9 @@ func publicAssetURL(publicWebBaseURL string, assetPath string) string {
 	return baseURL + "/" + strings.TrimLeft(strings.TrimSpace(assetPath), "/")
 }
 
-// smtpConnection contains the SMTP session settings and envelope addresses.
-// The message payload is passed separately so transport configuration cannot
-// be confused with untrusted mail content at the SMTP DATA boundary.
+// smtpConnection 包含 SMTP 会话设置与信封地址。
+// 邮件内容单独传递，避免在 SMTP DATA 边界处
+// 将传输配置与不可信的邮件内容混淆。
 type smtpConnection struct {
 	Addr string
 	Host string

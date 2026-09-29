@@ -395,7 +395,8 @@
       "latencyDescription": "控制 AI 回复下方是否展示本次调用的总耗时。",
       "costTitle": "显示调用总费用",
       "costDescription": "控制 AI 回复下方是否展示本次调用的总费用。",
-      "costDescriptionSelfMode": "控制 AI 回复下方是否展示本次调用的总费用。自用模式不展示。",
+      "processTraceTitle": "显示处理过程",
+      "processTraceDescription": "控制 AI 回复上方是否展示本轮的处理过程，如上下文规划、检索与工具调用摘要。",
       "widthTitle": "对话区域宽度",
       "width": {
         "compact": "紧凑",

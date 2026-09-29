@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { SpinnerLabel } from "@/components/ui/spinner";
-import type { ConversationShareDTO } from "@/shared/api/conversation.types";
+import type { ConversationShareDTO } from "@/shared/api/conversation-types";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { useConversationShareDialog } from "@/entities/conversation/hooks/use-conversation-share-dialog";
 

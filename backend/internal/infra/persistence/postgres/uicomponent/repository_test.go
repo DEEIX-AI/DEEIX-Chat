@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	domainuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/uicomponent"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/schema"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
@@ -23,7 +23,7 @@ func openTestDB(t *testing.T, name string) *gorm.DB {
 		t.Fatalf("open sqlite connection: %v", err)
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	if err = db.AutoMigrate(&model.UIComponent{}); err != nil {
+	if err = db.AutoMigrate(&models.UIComponent{}); err != nil {
 		t.Fatalf("migrate sqlite: %v", err)
 	}
 	return db

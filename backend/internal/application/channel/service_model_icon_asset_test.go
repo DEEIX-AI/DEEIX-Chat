@@ -15,13 +15,13 @@ import (
 
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstorage"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
 func TestUploadModelIconAssetStoresAndDeduplicatesValidatedImage(t *testing.T) {
 	repo := newModelIconAssetRepoFake()
-	store := objectstore.NewLocal(t.TempDir())
+	store := objectstorage.NewLocal(t.TempDir())
 	service := &Service{iconAssetRepo: repo, objectStoreProvider: modelIconStoreProvider{store: store}}
 	data := encodeTestModelIconPNG(t, 4, 3)
 
@@ -41,7 +41,7 @@ func TestUploadModelIconAssetStoresAndDeduplicatesValidatedImage(t *testing.T) {
 	}
 	corrupted := append([]byte(nil), data...)
 	corrupted[len(corrupted)-1] ^= 0xff
-	if _, err = store.Put(t.Context(), stored.StoragePath, bytes.NewReader(corrupted), objectstore.PutOptions{
+	if _, err = store.Put(t.Context(), stored.StoragePath, bytes.NewReader(corrupted), objectstorage.PutOptions{
 		SizeBytes: int64(len(corrupted)), ContentType: "image/png",
 	}); err != nil {
 		t.Fatalf("corrupt stored icon to exercise integrity repair: %v", err)
@@ -83,7 +83,7 @@ func TestUploadModelIconAssetStoresAndDeduplicatesValidatedImage(t *testing.T) {
 func TestUploadModelIconAssetRejectsOversizedAndUnsupportedContent(t *testing.T) {
 	service := &Service{
 		iconAssetRepo:       newModelIconAssetRepoFake(),
-		objectStoreProvider: modelIconStoreProvider{store: objectstore.NewLocal(t.TempDir())},
+		objectStoreProvider: modelIconStoreProvider{store: objectstorage.NewLocal(t.TempDir())},
 	}
 
 	_, err := service.UploadModelIconAsset(t.Context(), 1, bytes.NewReader(make([]byte, MaxModelIconBytes+1)))
@@ -135,7 +135,7 @@ func TestReserveModelIconReferenceRequiresReadyManagedAsset(t *testing.T) {
 
 func TestCleanupExpiredModelIconAssetsKeepsReferencedAssets(t *testing.T) {
 	repo := newModelIconAssetRepoFake()
-	store := objectstore.NewLocal(t.TempDir())
+	store := objectstorage.NewLocal(t.TempDir())
 	service := &Service{iconAssetRepo: repo, objectStoreProvider: modelIconStoreProvider{store: store}}
 
 	expiredAt := time.Now().Add(-time.Hour)
@@ -149,7 +149,7 @@ func TestCleanupExpiredModelIconAssetsKeepsReferencedAssets(t *testing.T) {
 	if _, err := repo.GetModelIconAssetByPublicID(t.Context(), temporary.PublicID); !errors.Is(err, repository.ErrNotFound) {
 		t.Fatalf("expired temporary asset was not removed: %v", err)
 	}
-	if reader, _, err := store.Open(t.Context(), temporary.StoragePath); !errors.Is(err, objectstore.ErrNotFound) {
+	if reader, _, err := store.Open(t.Context(), temporary.StoragePath); !errors.Is(err, objectstorage.ErrNotFound) {
 		if reader != nil {
 			_ = reader.Close()
 		}
@@ -162,7 +162,7 @@ func TestCleanupExpiredModelIconAssetsKeepsReferencedAssets(t *testing.T) {
 
 func TestCleanupModelIconAssetStartsFullUnreferencedGracePeriod(t *testing.T) {
 	repo := newModelIconAssetRepoFake()
-	store := objectstore.NewLocal(t.TempDir())
+	store := objectstorage.NewLocal(t.TempDir())
 	service := &Service{iconAssetRepo: repo, objectStoreProvider: modelIconStoreProvider{store: store}}
 	item := seedTestModelIconAsset(t, repo, store, "ico_00000000000000000000000000000006", time.Now().Add(-time.Hour))
 	repo.clearUnreferenced(item.PublicID)
@@ -187,7 +187,7 @@ func TestCleanupModelIconAssetStartsFullUnreferencedGracePeriod(t *testing.T) {
 
 func TestModelIconAssetLibraryRemovalRejectsReferencesAndHidesUnusedAsset(t *testing.T) {
 	repo := newModelIconAssetRepoFake()
-	store := objectstore.NewLocal(t.TempDir())
+	store := objectstorage.NewLocal(t.TempDir())
 	service := &Service{iconAssetRepo: repo, objectStoreProvider: modelIconStoreProvider{store: store}}
 	uploaded, err := service.UploadModelIconAsset(t.Context(), 1, bytes.NewReader(encodeTestModelIconPNG(t, 2, 2)))
 	if err != nil {
@@ -220,7 +220,7 @@ func TestModelIconAssetLibraryRemovalRejectsReferencesAndHidesUnusedAsset(t *tes
 
 func TestUploadModelIconAssetRenewsExpiredDuplicateBeforeCleanup(t *testing.T) {
 	repo := newModelIconAssetRepoFake()
-	store := objectstore.NewLocal(t.TempDir())
+	store := objectstorage.NewLocal(t.TempDir())
 	service := &Service{iconAssetRepo: repo, objectStoreProvider: modelIconStoreProvider{store: store}}
 	data := encodeTestModelIconPNG(t, 2, 2)
 	first, err := service.UploadModelIconAsset(t.Context(), 1, bytes.NewReader(data))
@@ -243,7 +243,7 @@ func TestUploadModelIconAssetRenewsExpiredDuplicateBeforeCleanup(t *testing.T) {
 
 func TestCleanupExpiredModelIconAssetRetriesObjectDeletion(t *testing.T) {
 	repo := newModelIconAssetRepoFake()
-	local := objectstore.NewLocal(t.TempDir())
+	local := objectstorage.NewLocal(t.TempDir())
 	store := &modelIconDeleteFailureStore{Store: local, fail: true}
 	service := &Service{iconAssetRepo: repo, objectStoreProvider: modelIconStoreProvider{store: store}}
 	item := seedTestModelIconAsset(t, repo, local, "ico_00000000000000000000000000000004", time.Now().Add(-time.Hour))
@@ -266,7 +266,7 @@ func TestCleanupExpiredModelIconAssetRetriesObjectDeletion(t *testing.T) {
 
 func TestUploadModelIconAssetKeepsFailedObjectWriteRecoverable(t *testing.T) {
 	repo := newModelIconAssetRepoFake()
-	local := objectstore.NewLocal(t.TempDir())
+	local := objectstorage.NewLocal(t.TempDir())
 	store := &modelIconPutFailureStore{Store: local, fail: true}
 	service := &Service{iconAssetRepo: repo, objectStoreProvider: modelIconStoreProvider{store: store}}
 
@@ -300,7 +300,7 @@ func TestUploadModelIconAssetKeepsFailedObjectWriteRecoverable(t *testing.T) {
 
 func TestOpenModelIconAssetRejectsMetadataAndObjectMismatches(t *testing.T) {
 	repo := newModelIconAssetRepoFake()
-	store := objectstore.NewLocal(t.TempDir())
+	store := objectstorage.NewLocal(t.TempDir())
 	service := &Service{iconAssetRepo: repo, objectStoreProvider: modelIconStoreProvider{store: store}}
 	uploaded, err := service.UploadModelIconAsset(t.Context(), 1, bytes.NewReader(encodeTestModelIconPNG(t, 2, 2)))
 	if err != nil {
@@ -316,7 +316,7 @@ func TestOpenModelIconAssetRejectsMetadataAndObjectMismatches(t *testing.T) {
 	if _, err = service.OpenModelIconAsset(t.Context(), tampered); !errors.Is(err, ErrModelIconAssetUnavailable) {
 		t.Fatalf("tampered path error = %v", err)
 	}
-	if _, err = store.Put(t.Context(), info.StoragePath, bytes.NewReader([]byte("wrong-size")), objectstore.PutOptions{
+	if _, err = store.Put(t.Context(), info.StoragePath, bytes.NewReader([]byte("wrong-size")), objectstorage.PutOptions{
 		SizeBytes: 10, ContentType: info.ContentType,
 	}); err != nil {
 		t.Fatalf("replace icon object: %v", err)
@@ -328,7 +328,7 @@ func TestOpenModelIconAssetRejectsMetadataAndObjectMismatches(t *testing.T) {
 
 func TestCleanupExpiredModelIconAssetRetriesMetadataDeletion(t *testing.T) {
 	repo := newModelIconAssetRepoFake()
-	store := objectstore.NewLocal(t.TempDir())
+	store := objectstorage.NewLocal(t.TempDir())
 	service := &Service{iconAssetRepo: repo, objectStoreProvider: modelIconStoreProvider{store: store}}
 	item := seedTestModelIconAsset(t, repo, store, "ico_00000000000000000000000000000005", time.Now().Add(-time.Hour))
 	repo.deleteClaimedErr = errors.New("injected metadata deletion failure")
@@ -372,7 +372,7 @@ func TestNormalizeModelPresentationIconAllowsOnlyDocumentedFormats(t *testing.T)
 func seedTestModelIconAsset(
 	t *testing.T,
 	repo *modelIconAssetRepoFake,
-	store objectstore.Store,
+	store objectstorage.Store,
 	publicID string,
 	leaseExpiresAt time.Time,
 ) domainchannel.ModelIconAsset {
@@ -387,7 +387,7 @@ func seedTestModelIconAsset(
 	}
 	unreferencedAt := leaseExpiresAt.Add(-modelIconLeaseTTL)
 	item.UnreferencedAt = &unreferencedAt
-	if _, err := store.Put(t.Context(), item.StoragePath, bytes.NewReader(data), objectstore.PutOptions{SizeBytes: int64(len(data)), ContentType: item.ContentType}); err != nil {
+	if _, err := store.Put(t.Context(), item.StoragePath, bytes.NewReader(data), objectstorage.PutOptions{SizeBytes: int64(len(data)), ContentType: item.ContentType}); err != nil {
 		t.Fatalf("seed icon object: %v", err)
 	}
 	if err := repo.CreateModelIconAsset(t.Context(), &item); err != nil {
@@ -408,22 +408,22 @@ func encodeTestModelIconPNG(t *testing.T, width int, height int) []byte {
 }
 
 type modelIconStoreProvider struct {
-	store objectstore.Store
+	store objectstorage.Store
 }
 
 type modelIconDeleteFailureStore struct {
-	objectstore.Store
+	objectstorage.Store
 	fail bool
 }
 
 type modelIconPutFailureStore struct {
-	objectstore.Store
+	objectstorage.Store
 	fail bool
 }
 
-func (s *modelIconPutFailureStore) Put(ctx context.Context, key string, body io.Reader, opts objectstore.PutOptions) (objectstore.ObjectInfo, error) {
+func (s *modelIconPutFailureStore) Put(ctx context.Context, key string, body io.Reader, opts objectstorage.PutOptions) (objectstorage.ObjectInfo, error) {
 	if s.fail {
-		return objectstore.ObjectInfo{}, errors.New("injected object write failure")
+		return objectstorage.ObjectInfo{}, errors.New("injected object write failure")
 	}
 	return s.Store.Put(ctx, key, body, opts)
 }
@@ -435,7 +435,7 @@ func (s *modelIconDeleteFailureStore) Delete(ctx context.Context, key string) er
 	return s.Store.Delete(ctx, key)
 }
 
-func (p modelIconStoreProvider) Open(context.Context) (objectstore.Store, error) {
+func (p modelIconStoreProvider) Open(context.Context) (objectstorage.Store, error) {
 	return p.store, nil
 }
 

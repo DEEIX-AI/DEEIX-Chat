@@ -7,8 +7,9 @@ import (
 
 	domainannouncement "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/announcement"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -35,12 +36,12 @@ func NewRepo(db *gorm.DB) *Repo {
 // ListActiveAnnouncements 查询当前可展示公告。
 func (r *Repo) ListActiveAnnouncements(ctx context.Context, userID uint, now time.Time, includeDismissed bool) ([]domainannouncement.Announcement, error) {
 	type announcementRow struct {
-		model.Announcement
+		models.Announcement
 		UserClosedAt *time.Time `gorm:"column:user_closed_at"`
 	}
 	items := make([]announcementRow, 0)
 	query := r.db.WithContext(ctx).
-		Model(&model.Announcement{}).
+		Model(&models.Announcement{}).
 		Select("system_announcements.*, states.closed_at AS user_closed_at").
 		Joins(`LEFT JOIN announcement_user_states states
 			ON states.deleted_at IS NULL
@@ -72,12 +73,13 @@ func (r *Repo) ListAdminAnnouncements(ctx context.Context, filter repository.Ann
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 200 {
-		limit = 200
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
-	items := make([]model.Announcement, 0, limit)
+	items := make([]models.Announcement, 0)
 	var total int64
-	query := r.db.WithContext(ctx).Model(&model.Announcement{})
+	query := r.db.WithContext(ctx).Model(&models.Announcement{})
 	if status := strings.TrimSpace(filter.Status); status != "" {
 		query = query.Where("status = ?", status)
 	}
@@ -113,7 +115,7 @@ func (r *Repo) CreateAnnouncement(ctx context.Context, item *domainannouncement.
 	if item == nil {
 		return nil, repository.ErrInvalidInput
 	}
-	record := model.Announcement{
+	record := models.Announcement{
 		Title:           strings.TrimSpace(item.Title),
 		ContentMarkdown: strings.TrimSpace(item.ContentMarkdown),
 		Status:          domainannouncement.NormalizeStatus(item.Status),
@@ -138,7 +140,7 @@ func (r *Repo) PatchAnnouncement(ctx context.Context, id uint, patch repository.
 	}
 	var result domainannouncement.Announcement
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var record model.Announcement
+		var record models.Announcement
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ?", id).
 			First(&record).Error; err != nil {
@@ -213,7 +215,7 @@ func (r *Repo) DeleteAnnouncement(ctx context.Context, id uint) error {
 	if id == 0 {
 		return repository.ErrInvalidInput
 	}
-	result := r.db.WithContext(ctx).Delete(&model.Announcement{}, id)
+	result := r.db.WithContext(ctx).Delete(&models.Announcement{}, id)
 	if result.Error != nil {
 		return dberror.Translate(result.Error)
 	}
@@ -253,7 +255,7 @@ func (r *Repo) CloseAnnouncement(ctx context.Context, userID uint, announcementI
 
 func (r *Repo) saveUserState(ctx context.Context, input announcementUserStateInput) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var announcement model.Announcement
+		var announcement models.Announcement
 		if err := tx.
 			Where("id = ?", input.AnnouncementID).
 			Where("updated_at = ?", input.AnnouncementUpdatedAt).
@@ -264,7 +266,7 @@ func (r *Repo) saveUserState(ctx context.Context, input announcementUserStateInp
 			return dberror.Translate(err)
 		}
 
-		state := model.AnnouncementUserState{
+		state := models.AnnouncementUserState{
 			AnnouncementID:        announcement.ID,
 			UserID:                input.UserID,
 			AnnouncementUpdatedAt: announcement.UpdatedAt,
@@ -292,7 +294,7 @@ func (r *Repo) saveUserState(ctx context.Context, input announcementUserStateInp
 	})
 }
 
-func toDomain(item model.Announcement) domainannouncement.Announcement {
+func toDomain(item models.Announcement) domainannouncement.Announcement {
 	return domainannouncement.Announcement{
 		ID:              item.ID,
 		Title:           item.Title,

@@ -162,8 +162,8 @@ func withoutOpenAIPromptCacheOptions(options map[string]any) map[string]any {
 	}
 	filtered := cloneModelOptionMap(options)
 	delete(filtered, openAIPromptCacheOptionKey)
-	// Legacy model options may still contain this key. Always discard it so the
-	// server never forwards a caller-controlled retention policy upstream.
+	// 旧版模型选项可能仍包含此键。始终丢弃它，使
+	// 服务端绝不将调用方控制的保留策略转发给上游。
 	delete(filtered, "prompt_cache_retention")
 	if len(filtered) == 0 {
 		return nil

@@ -34,14 +34,25 @@ import {
 } from "@/features/chat/model/conversation-options";
 import type { ModelOptionControl } from "@/features/chat/types/chat-runtime";
 import { cn } from "@/lib/utils";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
-import type { ModelNativeToolConfig, ModelOptionPolicy, NativeToolDefinition } from "@/shared/lib/model-option-policy";
-import { isModelOptionPathFiltered, resolveModelOptionPolicyProtocol } from "@/shared/lib/model-option-policy";
-import { localizedNativeToolText } from "@/shared/lib/native-tool-i18n";
-import { nativeToolDefinitionVariantsFromConfig, nativeToolPayloadSignature } from "@/shared/lib/native-tool-payload";
+import {
+  isModelOptionPathFiltered,
+  localizedNativeToolText,
+  type ModelNativeToolConfig,
+  type ModelOptionPolicy,
+  type NativeToolDefinition,
+  nativeToolDefinitionVariantsFromConfig,
+  nativeToolPayloadSignature,
+  resolveModelOptionPolicyProtocol,
+} from "@/entities/model";
+import { isOneOf, isRecord } from "@/shared/lib/type-guards";
 
 type EditableOptionValue = string | number | boolean | null;
+
+const OPTIONS_VIEW_MODES = ["json", "visual"] as const;
+type OptionsViewMode = (typeof OPTIONS_VIEW_MODES)[number];
+const isOptionsViewMode = isOneOf(OPTIONS_VIEW_MODES);
 type VisualOptionKind = "boolean" | "number" | "select" | "text";
 
 type VisualOption = {
@@ -432,11 +443,11 @@ function parseOptionsDraft(value: string): {
   error: string;
 } {
   try {
-    const parsed = JSON.parse(value.trim() || "{}") as unknown;
-    if (parsed === null || Array.isArray(parsed) || typeof parsed !== "object") {
+    const parsed: unknown = JSON.parse(value.trim() || "{}");
+    if (!isRecord(parsed)) {
       return { options: null, rawOptions: null, error: "JSON must be an object" };
     }
-    const rawOptions = parsed as ConversationOptions;
+    const rawOptions: ConversationOptions = parsed;
     return {
       options: sanitizeConversationOptions(rawOptions),
       rawOptions,
@@ -1052,7 +1063,7 @@ export function ChatModelConfig({
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [optionsDraft, setOptionsDraft] = React.useState("");
   const [optionsObject, setOptionsObject] = React.useState<ConversationOptions>({});
-  const [mobileView, setMobileView] = React.useState<"json" | "visual">("visual");
+  const [mobileView, setMobileView] = React.useState<OptionsViewMode>("visual");
   const [defaultRestorePending, setDefaultRestorePending] = React.useState(false);
   const [restoredDefaultOptions, setRestoredDefaultOptions] = React.useState<ConversationOptions | null>(null);
   const optionsObjectRef = React.useRef<ConversationOptions>({});
@@ -1222,7 +1233,9 @@ export function ChatModelConfig({
   const renderOptionsViewToggle = () => (
     <Tabs
       value={mobileView}
-      onValueChange={(value) => setMobileView(value as "json" | "visual")}
+      onValueChange={(value) => {
+        if (isOptionsViewMode(value)) setMobileView(value);
+      }}
       className="w-fit gap-0"
     >
       <TabsList className="h-7">

@@ -15,12 +15,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { getConversationToolCallDetail } from "@/shared/api/conversation";
-import type { ConversationToolCallDetailDTO } from "@/shared/api/conversation.types";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useChatToolCallDetail } from "@/features/chat/hooks/use-chat-tool-call-detail";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
-import { formatBytes } from "@/shared/lib/file-display";
+import { formatBytes } from "@/entities/file";
 
 type ToolResultSection = {
   key: "output" | "error";
@@ -76,51 +74,7 @@ export function MessageToolResultDialog({
 }) {
   const t = useTranslations("chat.processTrace.tool.detail");
   const [open, setOpen] = React.useState(false);
-  const [detail, setDetail] = React.useState<ConversationToolCallDetailDTO | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const [loadFailed, setLoadFailed] = React.useState(false);
-
-  React.useEffect(() => {
-    setDetail(null);
-    setLoadFailed(false);
-  }, [runID, toolCallID]);
-
-  React.useEffect(() => {
-    if (!open || detail) {
-      return;
-    }
-
-    const controller = new AbortController();
-    setLoading(true);
-    setLoadFailed(false);
-    void (async () => {
-      try {
-        const accessToken = await resolveAccessToken();
-        if (!accessToken) {
-          throw new Error("missing access token");
-        }
-        const result = await getConversationToolCallDetail(
-          accessToken,
-          runID,
-          toolCallID,
-          controller.signal,
-        );
-        if (!controller.signal.aborted) {
-          setDetail(result);
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          setLoadFailed(true);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    })();
-
-    return () => controller.abort();
-  }, [detail, open, runID, toolCallID]);
+  const { detail, loading, loadFailed, reset } = useChatToolCallDetail({ open, runID, toolCallID });
 
   const sections = React.useMemo<ToolResultSection[]>(() => {
     if (!detail) {
@@ -177,11 +131,7 @@ export function MessageToolResultDialog({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           className="w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[720px]"
-          onCloseAutoFocus={() => {
-            setDetail(null);
-            setLoading(false);
-            setLoadFailed(false);
-          }}
+          onCloseAutoFocus={reset}
         >
           <DialogHeightTransition contentClassName="max-h-[min(86svh,760px)]">
             <DialogHeader className="shrink-0 px-5 pb-3 pt-5">

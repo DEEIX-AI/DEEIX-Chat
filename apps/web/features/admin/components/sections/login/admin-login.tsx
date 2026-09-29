@@ -1,12 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowRight, Pencil, Plus, Save, Trash2, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
-import { SettingsFieldEditor } from "../shared/settings-runtime-panel";
+import { SettingsFieldEditor } from "../../shared/settings-runtime-panel";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   AlertDialog,
@@ -19,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogHeightTransition, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -26,23 +26,17 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { createAdminIdentityProvider, deleteAdminIdentityProvider, listAdminIdentityProviders, listAdminSettings, patchAdminSettings, reorderAdminIdentityProviders, updateAdminIdentityProvider } from "@/features/admin/api";
+import { useAdminLoginSettings } from "@/features/admin/hooks/use-admin-login-settings";
 import {
   AdminSortableHandle,
   AdminSortableItem,
   AdminSortableList,
-  moveSortableItem,
-} from "@/features/admin/components/sections/shared/admin-sortable-list";
-import type { UpsertIdentityProviderRequest } from "@deeix/api-contract";
+} from "@/features/admin/components/shared/sortable-list";
 import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, TableLoadingRow, TableRow } from "@/components/ui/table";
-import { ApiError } from "@/shared/api/http-client";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { configuredSettingsMap } from "@/shared/lib/settings-meta";
-import type { IdentityProviderDTO } from "@/shared/api/auth.types";
-import type { PatchSettingItem } from "@/shared/api/settings.types";
-import { IdentityProviderIcon } from "@/shared/components/identity-provider-icon";
+import type { IdentityProviderDTO } from "@/shared/api/auth-types";
+import { IdentityProviderIcon } from "@/entities/identity-provider";
 import {
   SettingsFieldInset,
   SettingsFieldItem,
@@ -52,16 +46,11 @@ import {
   SettingsSectionSeparator,
 } from "@/shared/components/settings-layout";
 import {
-  applyLoginDefaults,
   buildLoginSettingsGroups,
   createProviderForm,
   DEFAULT_PROVIDER_FORM,
   type IdentityProviderForm,
   fieldID,
-  flattenLoginSettings,
-  includesEmailVerificationSettings,
-  includesPasswordLoginSettings,
-  includesTurnstileSettings,
   isEmailSMTPField,
   isRateLimitChildField,
   isTurnstileChildField,
@@ -69,15 +58,13 @@ import {
   providerToForm,
   PROVIDER_TEMPLATES,
   toEditorField,
-  validateEmailVerificationSettings,
-  validatePasswordLoginSettings,
-  validateTurnstileSettings,
   type LoginSettingsField,
-  type LoginSettingsGroup,
   type ProviderTemplate,
+  type IdentityProviderType,
+  isIdentityProviderType,
+  isOIDCEndpointMode,
+  type OIDCEndpointMode,
 } from "@/features/admin/model/login-settings";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { getLoginOptions } from "@/shared/api/auth";
 
 function RequiredMark() {
   return <span className="ml-0.5 text-destructive">*</span>;
@@ -91,91 +78,37 @@ function FieldMappingArrow() {
   );
 }
 
-export function AdminLoginSettingsPage() {
+export function AdminLoginPage() {
   const t = useTranslations("adminLogin");
   const commonT = useTranslations("common");
   const loginSettingsGroups = React.useMemo(() => buildLoginSettingsGroups(t), [t]);
-  const [settingsMap, setSettingsMap] = React.useState<Record<string, string>>(() => applyLoginDefaults({}));
-  const [savedMap, setSavedMap] = React.useState<Record<string, string>>(() => applyLoginDefaults({}));
-  const [configuredMap, setConfiguredMap] = React.useState<Record<string, boolean>>({});
-  const [providers, setProviders] = React.useState<IdentityProviderDTO[]>([]);
   const [providerDialogOpen, setProviderDialogOpen] = React.useState(false);
   const [editingProvider, setEditingProvider] = React.useState<IdentityProviderDTO | null>(null);
-  const [deleteProviderTarget, setDeleteProviderTarget] = React.useState<IdentityProviderDTO | null>(null);
-  const [forceDeleteProviderTarget, setForceDeleteProviderTarget] = React.useState<IdentityProviderDTO | null>(null);
-  const [forceDeleteProviderMessage, setForceDeleteProviderMessage] = React.useState("");
   const [providerForm, setProviderForm] = React.useState<IdentityProviderForm>(DEFAULT_PROVIDER_FORM);
-  const [oidcEndpointMode, setOidcEndpointMode] = React.useState<"issuer" | "discovery">("issuer");
-  const [frontendOrigin, setFrontendOrigin] = React.useState("");
-  const [providerCallbackBaseURL, setProviderCallbackBaseURL] = React.useState("");
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
+  const [oidcEndpointMode, setOidcEndpointMode] = React.useState<OIDCEndpointMode>("issuer");
+  const {
+    settingsMap,
+    savedMap,
+    configuredMap,
+    providers,
+    deleteProviderTarget,
+    setDeleteProviderTarget,
+    forceDeleteProviderTarget,
+    setForceDeleteProviderTarget,
+    forceDeleteProviderMessage,
+    setForceDeleteProviderMessage,
+    providerCallbackBaseURL,
+    loading,
+    saving,
+    dirtyFieldIDs,
+    updateSettingValue,
+    handleSaveGroup,
+    saveProvider: saveIdentityProvider,
+    deleteProvider,
+    updateProviderControl,
+    moveProviderTo,
+  } = useAdminLoginSettings(loginSettingsGroups);
   const stableDeleteProviderTarget = useDialogSnapshot(deleteProviderTarget);
-
-  const loadData = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-        return;
-      }
-      const [grouped, providerPage, loginOptions] = await Promise.all([listAdminSettings(token), listAdminIdentityProviders(token), getLoginOptions()]);
-      const flattened = flattenLoginSettings(grouped);
-      setConfiguredMap(configuredSettingsMap(grouped));
-      setSettingsMap(flattened);
-      setSavedMap(flattened);
-      setProviders(providerPage.results);
-      setProviderCallbackBaseURL(loginOptions.providerAuthBridge.callbackBaseURL);
-    } catch (error) {
-      toast.error(t("toast.loadFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  React.useEffect(() => {
-    void loadData();
-  }, [loadData]);
-
-  React.useEffect(() => {
-    setFrontendOrigin(window.location.origin);
-  }, []);
-
-  const dirtyFieldIDs = React.useMemo(() => {
-    const result = new Set<string>();
-    for (const group of loginSettingsGroups) {
-      for (const field of group.fields) {
-        const id = fieldID(field);
-        if ((settingsMap[id] ?? "") !== (savedMap[id] ?? "")) result.add(id);
-      }
-    }
-    return result;
-  }, [loginSettingsGroups, savedMap, settingsMap]);
-
-  const updateSettingValue = React.useCallback((field: LoginSettingsField, value: string) => {
-    setSettingsMap((prev) => {
-      const next = { ...prev, [fieldID(field)]: value };
-      if (
-        (field.key === "username_login_enabled" || field.key === "email_login_enabled") &&
-        validatePasswordLoginSettings(next, t("validation.passwordLoginRequired"))
-      ) {
-        toast.error(t("toast.cannotDisableLoginMethod"), { description: t("toast.thirdPartyOnlyRequiresAdminBinding") });
-        return prev;
-      }
-      if (field.key === "email_login_enabled" && value !== "true") {
-        next["auth.email_registration_enabled"] = "false";
-        next["auth.turnstile_registration_enabled"] = "false";
-      }
-      if (field.key === "email_registration_enabled" && value !== "true") {
-        next["auth.turnstile_registration_enabled"] = "false";
-      }
-      if (field.key === "email_verification_enabled" && value !== "true") {
-        next["auth.password_reset_enabled"] = "false";
-      }
-      return next;
-    });
-  }, [t]);
 
   const isFieldDisabled = React.useCallback((field: LoginSettingsField) => {
     if (loading || saving) return true;
@@ -185,74 +118,7 @@ export function AdminLoginSettingsPage() {
     return false;
   }, [loading, saving, settingsMap]);
 
-  const handleSaveGroup = React.useCallback(
-    async (group: LoginSettingsGroup) => {
-      const nextSettingsMap = applyLoginDefaults(settingsMap);
-      const nextPath = nextSettingsMap["auth.login_default_next_path"] ?? "";
-      if (!nextPath.startsWith("/") || nextPath.startsWith("//")) {
-        toast.error(t("toast.saveFailed"), { description: t("validation.defaultNextPath") });
-        return;
-      }
-      if (includesPasswordLoginSettings(group)) {
-        const validationError = validatePasswordLoginSettings(nextSettingsMap, t("validation.passwordLoginRequired"));
-        if (validationError) {
-          toast.error(t("toast.saveFailed"), { description: validationError });
-          return;
-        }
-      }
-      if (includesEmailVerificationSettings(group)) {
-        const validationError = validateEmailVerificationSettings(nextSettingsMap, configuredMap, {
-          smtpHost: t("fields.smtpHost.label"),
-          smtpPort: t("fields.smtpPort.label"),
-          smtpUsername: t("fields.smtpUsername.label"),
-          smtpPassword: t("fields.smtpPassword.label"),
-          missingSMTP: (labels) => t("validation.missingSMTP", { fields: labels.join(t("punctuation.listSeparator")) }),
-          invalidSMTPPort: t("validation.invalidSMTPPort"),
-        });
-        if (validationError) {
-          toast.error(t("toast.saveFailed"), { description: validationError });
-          return;
-        }
-      }
-      if (includesTurnstileSettings(group)) {
-        const validationError = validateTurnstileSettings(nextSettingsMap, configuredMap, {
-          siteKey: t("fields.turnstileSiteKey.label"),
-          secretKey: t("fields.turnstileSecretKey.label"),
-          registrationRequired: t("validation.turnstileRegistrationRequired"),
-          missing: (labels) => t("validation.missingTurnstile", { fields: labels.join(t("punctuation.listSeparator")) }),
-        });
-        if (validationError) {
-          toast.error(t("toast.saveFailed"), { description: validationError });
-          return;
-        }
-      }
-      const items: PatchSettingItem[] = group.fields
-        .map((field) => ({ namespace: field.namespace, key: field.key, value: nextSettingsMap[fieldID(field)] ?? "" }))
-        .filter((item) => item.value !== (savedMap[`${item.namespace}.${item.key}`] ?? ""));
-      if (items.length === 0) return;
-      setSaving(true);
-      try {
-        const token = await resolveAccessToken();
-        if (!token) {
-          toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-          return;
-        }
-        const grouped = await patchAdminSettings(token, { items });
-        const flattened = flattenLoginSettings(grouped);
-        setConfiguredMap(configuredSettingsMap(grouped));
-        setSettingsMap(flattened);
-        setSavedMap(flattened);
-        toast.success(t("toast.settingsUpdated"));
-      } catch (error) {
-        toast.error(t("toast.saveFailed"), { description: resolveAdminErrorMessage(error) });
-      } finally {
-        setSaving(false);
-      }
-    },
-    [configuredMap, savedMap, settingsMap, t],
-  );
-
-  const openCreateProvider = React.useCallback((type: "oidc" | "oauth2") => {
+  const openCreateProvider = React.useCallback((type: IdentityProviderType) => {
     setEditingProvider(null);
     setProviderForm(createProviderForm({ type, scopes: type === "oidc" ? "openid profile email" : "profile email" }));
     setOidcEndpointMode("issuer");
@@ -273,126 +139,14 @@ export function AdminLoginSettingsPage() {
     setProviderDialogOpen(true);
   }, []);
 
-  const saveProvider = React.useCallback(async () => {
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) return;
-      const payload: UpsertIdentityProviderRequest = {
-        ...providerForm,
-        registrationEnabled: providerForm.loginEnabled && providerForm.registrationEnabled,
-      };
-      if (editingProvider) {
-        await updateAdminIdentityProvider(token, editingProvider.publicID, payload);
-      } else {
-        await createAdminIdentityProvider(token, payload);
-      }
-      toast.success(t("toast.providerSaved"));
-      setProviderDialogOpen(false);
-      const page = await listAdminIdentityProviders(token);
-      setProviders(page.results);
-    } catch (error) {
-      toast.error(t("toast.providerSaveFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
-  }, [editingProvider, providerForm, t]);
-
-  const deleteProvider = React.useCallback(async (provider: IdentityProviderDTO, force = false) => {
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) return;
-      await deleteAdminIdentityProvider(token, provider.publicID, { force });
-      setProviders((prev) => prev.filter((item) => item.publicID !== provider.publicID));
-      setDeleteProviderTarget(null);
-      setForceDeleteProviderTarget(null);
-      setForceDeleteProviderMessage("");
-      toast.success(t("toast.providerDeleted"));
-    } catch (error) {
-      if (!force && error instanceof ApiError && error.status === 409) {
-        setDeleteProviderTarget(null);
-        setForceDeleteProviderTarget(provider);
-        setForceDeleteProviderMessage(resolveAdminErrorMessage(error));
-        return;
-      }
-      toast.error(t("toast.providerDeleteFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
-  }, [t]);
-
-  const updateProviderControl = React.useCallback(async (provider: IdentityProviderDTO, key: "loginEnabled" | "registrationEnabled", value: boolean) => {
-    if (key === "registrationEnabled" && value && !provider.loginEnabled) {
-      toast.error(t("toast.enableLoginFirst"), { description: t("toast.registrationRequiresLogin") });
-      return;
-    }
-    const previousProviders = providers;
-    const updatedProvider = {
-      ...provider,
-      [key]: value,
-      ...(key === "loginEnabled" && !value ? { registrationEnabled: false } : {}),
-    };
-    const nextProviders = providers.map((item) => (item.publicID === provider.publicID ? updatedProvider : item));
-    setProviders(nextProviders);
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        setProviders(previousProviders);
-        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-        return;
-      }
-      await updateAdminIdentityProvider(token, provider.publicID, providerToForm(updatedProvider));
-      toast.success(t("toast.providerControlUpdated"));
-    } catch (error) {
-      setProviders(previousProviders);
-      toast.error(t("toast.providerControlSaveFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
-  }, [providers, t]);
-
-  const saveProviderOrder = React.useCallback(async (orderedProviders: IdentityProviderDTO[], previousProviders: IdentityProviderDTO[]) => {
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        setProviders(previousProviders);
-        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-        return;
-      }
-      await reorderAdminIdentityProviders(token, orderedProviders.map((provider) => provider.publicID));
-      toast.success(t("toast.providerOrderUpdated"));
-    } catch (error) {
-      setProviders(previousProviders);
-      toast.error(t("toast.providerOrderSaveFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
-  }, [t]);
-
-  const moveProviderTo = React.useCallback((providerID: string, targetProviderID: string) => {
-    if (providerID === targetProviderID) {
-      return;
-    }
-    const index = providers.findIndex((provider) => provider.publicID === providerID);
-    const targetIndex = providers.findIndex((provider) => provider.publicID === targetProviderID);
-    const previousProviders = providers;
-    const orderedProviders = moveSortableItem(providers, index, targetIndex);
-    if (orderedProviders === providers) {
-      return;
-    }
-    setProviders(orderedProviders);
-    void saveProviderOrder(orderedProviders, previousProviders);
-  }, [providers, saveProviderOrder]);
+  const saveProvider = React.useCallback(
+    () => saveIdentityProvider({ editingProvider, providerForm }, () => setProviderDialogOpen(false)),
+    [editingProvider, providerForm, saveIdentityProvider],
+  );
 
   const oidcEndpointValue = oidcEndpointMode === "discovery" ? (providerForm.discoveryURL ?? "") : (providerForm.issuerURL ?? "");
   const callbackSlug = providerForm.slug?.trim() || normalizeProviderSlugPreview(providerForm.name) || "provider";
-  const legacyCallbackURL = `${frontendOrigin || "http://localhost:3000"}/auth/callback?provider=${encodeURIComponent(callbackSlug)}`;
-  const callbackURL = providerCallbackBaseURL
-    ? `${providerCallbackBaseURL}/${encodeURIComponent(callbackSlug)}/callback`
-    : legacyCallbackURL;
+  const callbackURL = providerCallbackBaseURL ? `${providerCallbackBaseURL}/${encodeURIComponent(callbackSlug)}/callback` : "";
 
   return (
     <SettingsPage>
@@ -539,6 +293,14 @@ export function AdminLoginSettingsPage() {
                           </div>
                         </div>
                       </div>
+
+                      {!loading && !providerCallbackBaseURL ? (
+                        <Alert variant="destructive" className="mb-3">
+                          <TriangleAlert />
+                          <AlertTitle>{t("providers.bridgeMissingTitle")}</AlertTitle>
+                          <AlertDescription>{t("providers.bridgeMissingDescription")}</AlertDescription>
+                        </Alert>
+                      ) : null}
 
                       <AdminSortableList
                         items={providers.map((provider) => provider.publicID)}
@@ -692,7 +454,8 @@ export function AdminLoginSettingsPage() {
                 <Select
                   value={providerForm.type}
                   onValueChange={(value) => {
-                    const type = value as "oidc" | "oauth2";
+                    if (!isIdentityProviderType(value)) return;
+                    const type = value;
                     setProviderForm((prev) => ({ ...prev, type }));
                     if (type === "oidc") setOidcEndpointMode(providerForm.discoveryURL ? "discovery" : "issuer");
                   }}
@@ -709,11 +472,9 @@ export function AdminLoginSettingsPage() {
                 <Input value={providerForm.name} onChange={(event) => setProviderForm((prev) => ({ ...prev, name: event.target.value }))} />
               </label>
               <label className="col-span-2 space-y-1 text-sm">
-                <span className="text-xs text-muted-foreground">
-                  {t(providerCallbackBaseURL ? "providerDialog.serverCallbackURL" : "providerDialog.callbackURL")}
-                </span>
+                <span className="text-xs text-muted-foreground">{t("providerDialog.callbackURL")}</span>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                  <Input value={callbackURL} disabled readOnly />
+                  <Input value={callbackURL} placeholder={t("providerDialog.callbackURLUnavailable")} disabled readOnly />
                   <CopyActionButton
                     type="button"
                     variant="ghost"
@@ -726,24 +487,6 @@ export function AdminLoginSettingsPage() {
                   />
                 </div>
               </label>
-              {callbackURL !== legacyCallbackURL ? (
-                <label className="col-span-2 space-y-1 text-sm">
-                  <span className="text-xs text-muted-foreground">{t("providerDialog.legacyWebCallbackURL")}</span>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                    <Input value={legacyCallbackURL} disabled readOnly />
-                    <CopyActionButton
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground shadow-none"
-                      value={legacyCallbackURL}
-                      messages={{ copied: t("toast.callbackCopied"), failed: commonT("errors.copyFailed") }}
-                      aria-label={t("providerDialog.copyCallbackURL")}
-                      title={t("providerDialog.copyCallbackURL")}
-                    />
-                  </div>
-                </label>
-              ) : null}
               <label className="col-span-2 space-y-1 text-sm">
                 <span className="text-xs text-muted-foreground">{t("providerDialog.logoURL")}</span>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
@@ -775,7 +518,8 @@ export function AdminLoginSettingsPage() {
                     <Select
                       value={oidcEndpointMode}
                       onValueChange={(value) => {
-                        const mode = value as "issuer" | "discovery";
+                        if (!isOIDCEndpointMode(value)) return;
+                        const mode = value;
                         setOidcEndpointMode(mode);
                         setProviderForm((prev) =>
                           mode === "discovery"

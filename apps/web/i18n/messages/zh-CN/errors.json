@@ -36,6 +36,7 @@
     "invalidCredentials": "用户名或密码错误。",
     "invalidCurrentPassword": "当前密码错误。",
     "invalidEmail": "邮箱地址无效。",
+    "invalidLocalGrant": "本地登录凭证无效或已被使用，请重启应用后重试。",
     "invalidPassword": "密码至少 8 位，且不能为纯数字。",
     "invalidPkce": "登录校验参数无效，请重新登录。",
     "invalidRedirectUri": "回调地址无效。",
@@ -370,8 +371,6 @@
     "invalidModelOrder": "模型排序无效。",
     "invalidModelVendor": "模型厂商无效。",
     "invalidOverwriteCustomizedMetadata": "元数据覆盖选项无效。",
-    "invalidPage": "页码无效。",
-    "invalidPagesize": "分页大小无效。",
     "invalidPromptPreset": "提示词预设无效。",
     "invalidRunIds": "运行 ID 无效。",
     "invalidSkill": "技能无效。",
@@ -532,5 +531,19 @@
     "configRequired": "启用内容审核时必须配置完整服务并至少选择一个审核类别。",
     "probeFailed": "内容审核连接测试失败。",
     "eventNotFound": "未找到内容审核事件。"
+  },
+  "feature": {
+    "disabled": "此服务器未提供该功能。",
+    "byFeature": {
+      "multiUser": "此服务器只有一个账号，不提供账号与权限组管理。",
+      "registration": "此服务器不开放注册。",
+      "identityProviders": "此服务器不提供第三方登录。",
+      "accountSecurity": "此服务器不提供密码、邮箱、两步验证与会话管理。",
+      "announcements": "此服务器不提供公告。",
+      "billingGating": "此服务器不提供套餐、余额与支付。",
+      "usageMetering": "此服务器不提供用量统计。",
+      "contentModeration": "此服务器不提供内容审核。",
+      "sharing": "此服务器不提供公开分享。"
+    }
   }
 }

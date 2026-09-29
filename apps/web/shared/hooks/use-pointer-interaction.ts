@@ -55,7 +55,7 @@ function samePointerInteraction(left: PointerInteraction, right: PointerInteract
   );
 }
 
-// usePointerInteraction 暴露设备交互能力，用于区分 hover-first 与 touch-first UI 行为。
+// usePointerInteraction exposes device interaction capabilities to distinguish hover-first from touch-first UI behavior.
 export function usePointerInteraction(): PointerInteraction {
   const [interaction, setInteraction] = React.useState(DEFAULT_POINTER_INTERACTION);
 

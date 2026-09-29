@@ -142,8 +142,18 @@
       },
       "embedding_host": {
         "label": "Embedding service URL *",
-        "description": "Embedding service URL. The service must be compatible with the OpenAI /embeddings API.",
+        "description": "Base URL of the Embedding service, for example https://api.openai.com/v1 or https://generativelanguage.googleapis.com/v1beta.",
         "placeholder": "Service URL"
+      },
+      "embedding_protocol": {
+        "label": "Request protocol",
+        "description": "Wire format of the Embedding service. Gemini, Voyage, and Jina accept image inputs, so images are vectorized directly instead of through OCR text.",
+        "options": {
+          "openai": "OpenAI-compatible",
+          "gemini": "Gemini",
+          "voyage": "Voyage AI",
+          "jina": "Jina AI"
+        }
       },
       "embedding_key": {
         "label": "Embedding auth key",

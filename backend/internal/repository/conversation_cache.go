@@ -120,12 +120,12 @@ type GenerationStreamCacheRepository interface {
 	GetGenerationStreamUpstreamThinkSnapshot(ctx context.Context, runID string) (GenerationStreamUpstreamThinkSnapshot, bool, error)
 	ListGenerationStreamEvents(ctx context.Context, runID string, limit int64) ([]GenerationStreamMessage, error)
 	ReadGenerationStreamEvents(ctx context.Context, runID string, afterID string, block time.Duration, limit int64) ([]GenerationStreamMessage, error)
-	// ResetGenerationStreamEvents clears retained events while keeping owner metadata so
-	// blocked rounds cannot be replayed with withdrawn content on reconnect.
+	// ResetGenerationStreamEvents 清除保留的事件但保留所有者元数据，
+	// 使被拦截的轮次在重连时无法重放已撤回的内容。
 	ResetGenerationStreamEvents(ctx context.Context, lease GenerationStreamLease) (bool, error)
 }
 
-// ActiveGenerationStream identifies one currently leased generation owned by a user.
+// ActiveGenerationStream 标识用户当前持有租约的一次生成。
 type ActiveGenerationStream struct {
 	RunID                string
 	ConversationPublicID string

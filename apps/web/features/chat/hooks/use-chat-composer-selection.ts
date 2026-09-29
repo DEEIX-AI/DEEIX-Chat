@@ -2,7 +2,8 @@
 
 import * as React from "react";
 
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
+import { isRecord } from "@/shared/lib/type-guards";
 
 const LEGACY_CHAT_COMPOSER_SELECTION_STORAGE_KEY = "deeix-chat:chat-composer-selection:v1";
 const CHAT_COMPOSER_SELECTION_STORAGE_KEY_PREFIX = "deeix-chat:chat-composer-selection:v2:";
@@ -43,10 +44,10 @@ function hasSelection(selection: ComposerSelection): boolean {
 }
 
 function isSkillSummary(value: unknown): value is SkillSummaryDTO {
-  if (!value || typeof value !== "object") {
+  if (!isRecord(value)) {
     return false;
   }
-  const item = value as Record<string, unknown>;
+  const item = value;
   return (
     typeof item.id === "number" &&
     (item.scope === "builtin" || item.scope === "user") &&
@@ -111,18 +112,17 @@ function readSelectionStore(storageKey: string): PersistedComposerSelectionStore
     if (!raw) {
       return {};
     }
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) {
       return {};
     }
 
     const entries: Array<[string, PersistedComposerSelection, number]> = [];
     const expiresBefore = Date.now() - COMPOSER_SELECTION_MAX_AGE_MS;
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (!value || typeof value !== "object" || Array.isArray(value)) {
+    for (const [key, entry] of Object.entries(parsed)) {
+      if (!isRecord(entry)) {
         continue;
       }
-      const entry = value as Record<string, unknown>;
       const selection = {
         selectedToolIDs: normalizeToolIDs(entry.selectedToolIDs),
         selectedSkills: normalizeSkills(entry.selectedSkills),

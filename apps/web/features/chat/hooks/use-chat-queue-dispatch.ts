@@ -21,8 +21,8 @@ import type { PendingAttachment, PendingExchangeMap } from "@/features/chat/type
 import type { ChatAreaMessage } from "@/features/chat/types/messages";
 
 /**
- * 排队消息的派发调度：父 run 失败时级联清理其后代排队消息并提示；
- * 当父 run 已成功落库且未超并发上限时，把符合条件的队首消息交给 submitMessage 发送。
+ * Dispatch scheduling for queued messages: when a parent run fails, cascade-remove its queued descendants and notify;
+ * once the parent run is persisted successfully and under the concurrency limit, hand the eligible head message to submitMessage.
  */
 export function useChatQueueDispatch({
   queuedSubmissions,

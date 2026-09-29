@@ -1,5 +1,5 @@
-import { AdminToolsPage } from "@/features/admin/components/sections/tools/admin-tools";
+import { AdminToolsPage } from "@/features/admin";
 
-export default function AdminToolsRoute() {
+export default function Page() {
   return <AdminToolsPage />;
 }

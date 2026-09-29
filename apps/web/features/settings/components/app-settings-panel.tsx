@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 
+import { SettingsSectionGuard } from "@/features/settings/components/settings-section-guard";
 import { SettingsSidebar } from "@/features/settings/components/settings-sidebar";
 import { CustomBrandAttribution } from "@/shared/components/powered-by-deeix";
 
 export function AppSettingsPanel({
   children,
-  basePath = "/setting",
+  basePath = "/settings",
 }: {
   children: ReactNode;
   basePath?: string;
@@ -16,7 +17,7 @@ export function AppSettingsPanel({
         <SettingsSidebar basePath={basePath} />
         <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <div className="mx-auto w-full min-w-0 max-w-[1080px] xl:pt-20">
-            {children}
+            <SettingsSectionGuard basePath={basePath}>{children}</SettingsSectionGuard>
           </div>
         </main>
       </div>

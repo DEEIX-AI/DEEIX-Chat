@@ -13,7 +13,7 @@ import { InputGroupButton } from "@/components/ui/input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
 
 const DEFAULT_MCP_TOOL_SELECTION_LIMIT = 32;
 const MAX_MCP_TOOL_SELECTION_LIMIT = 128;
@@ -328,14 +328,14 @@ export function ChatMCP({
         onMouseDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
         onPointerDownOutside={(event) => {
-          const target = event.target as HTMLElement | null;
-          if (target?.closest("[data-mcp-tools-popover-content]")) {
+          const target = event.target;
+          if (target instanceof Element && target.closest("[data-mcp-tools-popover-content]")) {
             event.preventDefault();
           }
         }}
         onFocusOutside={(event) => {
-          const target = event.target as HTMLElement | null;
-          if (target?.closest("[data-mcp-tools-popover-content]")) {
+          const target = event.target;
+          if (target instanceof Element && target.closest("[data-mcp-tools-popover-content]")) {
             event.preventDefault();
           }
         }}
@@ -496,6 +496,7 @@ export function ChatMCP({
                                     <TooltipTrigger asChild>
                                       <span
                                         className="flex size-4 shrink-0 items-center justify-center rounded text-primary/75"
+                                        role="img"
                                         aria-label={tComposer("mcpImageProcessor")}
                                       >
                                         <ImageIcon className="size-3" strokeWidth={1.8} />

@@ -1,6 +1,6 @@
 [package]
 name = "deeix-chat-desktop"
-version = "0.4.4-beta.2"
+version = "0.4.4-beta.3"
 description = "DEEIX Chat desktop shell"
 authors = ["DEEIX"]
 edition = "2021"
@@ -36,6 +36,9 @@ rustls = { version = "0.23", default-features = false, features = ["ring"] }
 tauri-plugin-shell = "2"
 tauri-plugin-single-instance = "2"
 tokio = { version = "1", features = ["time", "macros", "rt-multi-thread"] }
+# Strips Windows verbatim (\\?\) prefixes from canonical paths before they reach
+# WebView2 or the sidecar. Already in the tree through tauri-utils.
+dunce = "1"
 
 
 [features]
@@ -50,6 +53,17 @@ lto = "fat"
 opt-level = "s"
 panic = "abort"
 strip = true
+
+# Windows-only: enterprise policy (registry) and the native error dialogs shown
+# before any window exists. Both crates are already in the tree through tauri,
+# wry and reqwest; no new code is downloaded.
+[target.'cfg(windows)'.dependencies]
+windows-registry = "0.6"
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

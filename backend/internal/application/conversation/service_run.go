@@ -162,7 +162,7 @@ func (r *messageSendRunState) finalizeRun(retErr error) {
 		r.run.ErrorCode = classifyRunErrorCode(retErr)
 		r.run.ErrorMessage = textutil.TruncateTrimmed(messageErrorSummary(retErr), 255)
 	}
-	// Preserve barrier pass/fail-open state written mid-flight (do not default to not_required).
+	// 保留运行中途写入的屏障通过/fail-open 状态（不要默认设为 not_required）。
 	if result := r.currentResult(); result != nil {
 		applyModerationRunState(r.run, result)
 	}
@@ -177,7 +177,7 @@ func (r *messageSendRunState) finalizeUserMessage(ctx context.Context, retErr er
 		return
 	}
 	if result := r.currentResult(); result != nil && result.IsModerationBlocked() {
-		// Block path already wrote message moderation state; do not overwrite.
+		// 拦截路径已写入消息审核状态；不要覆盖。
 		return
 	}
 	messageStatus := "success"
@@ -212,7 +212,7 @@ func (r *messageSendRunState) finalizeAssistantMessage(ctx context.Context, retE
 		return
 	}
 	if result := r.currentResult(); result != nil && result.IsModerationBlocked() {
-		// Block path already wrote assistant moderation state; do not overwrite.
+		// 拦截路径已写入助手审核状态；不要覆盖。
 		return
 	}
 	assistantMessage := r.currentAssistantMessage()

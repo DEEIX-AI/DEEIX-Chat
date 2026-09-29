@@ -15,17 +15,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  ConversationShareDialog,
-  sharePatchFromDTO,
-  useSidebarConversationField,
-} from "@/entities/conversation";
+import { ConversationShareDialog, sharePatchFromDTO, useSidebarConversationField } from "@/entities/conversation";
 import { ChatArea, ChatAreaLoadError, ChatAreaSkeleton } from "@/features/chat/components/sections/chat-area";
 import { ChatArtifactWorkspace } from "@/features/chat/components/sections/chat-artifact";
 import { ChatEmptyState } from "@/features/chat/components/sections/chat-empty";
 import { ChatInput } from "@/features/chat/components/sections/chat-input";
 import { ChatScreenshotPreviewDialog } from "@/features/chat/components/sections/chat-screenshot-preview-dialog";
-import { TemporaryChatModeControl } from "@/features/chat/components/temporary-chat-mode-control";
+import { TemporaryChatModeControl } from "@/features/chat/components/sections/chat-temporary-mode-control";
 import { useChatSession } from "@/features/chat/context/chat-session-context";
 import { useChatArtifactResize } from "@/features/chat/hooks/use-chat-artifact-resize";
 import { useChatArtifacts } from "@/features/chat/hooks/use-chat-artifacts";
@@ -47,6 +43,7 @@ import { useChatData } from "@/features/chat/hooks/use-chat-data";
 import { useChatModelOptions } from "@/features/chat/hooks/use-chat-model-options";
 import { useChatRuntime } from "@/features/chat/hooks/use-chat-runtime";
 import { useChatScreenshot } from "@/features/chat/hooks/use-chat-screenshot";
+import { useChatLoadedConversation } from "@/features/chat/hooks/use-chat-loaded-conversation";
 import { useChatViewerProfile } from "@/features/chat/hooks/use-chat-viewer-profile";
 import { useChatVisualPrompt } from "@/features/chat/hooks/use-chat-visual-prompt";
 import { useChatConversationDefaults } from "@/features/chat/hooks/use-chat-conversation-defaults";
@@ -55,16 +52,11 @@ import { filterAvailableMCPToolIDs } from "@/features/chat/model/chat-mcp-tool-d
 import type { ChatAreaMessage, } from "@/features/chat/types/messages";
 import { useSettingsChatPreferences } from "@/features/settings";
 import { cn } from "@/lib/utils";
-import { getConversation } from "@/shared/api/conversation";
-import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation.types";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation-types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
-import { DeleteFilesOption } from "@/shared/components/delete-files-option";
-import {
-  hasMultipleImageAttachmentProcessors,
-  normalizeImageAttachmentProcessorSelection,
-} from "@/shared/lib/mcp-tool-selection";
-import { resolveChatContentWidthClassName } from "@/shared/model/chat-content-width";
+import { DeleteFilesOption } from "@/entities/file";
+import { hasMultipleImageAttachmentProcessors, normalizeImageAttachmentProcessorSelection } from "@/entities/mcp";
+import { resolveChatContentWidthClassName } from "@/entities/user-settings";
 
 const EMPTY_CONVERSATION_OPTIONS: ConversationOptions = {};
 const EMPTY_LIST: never[] = [];
@@ -130,7 +122,7 @@ export function AppChatArea() {
     router.push(projectID ? `/chat?project_id=${encodeURIComponent(projectID)}` : "/chat");
   }, [requestNewConversation, routeProjectID, router]);
   const activeGenerationRunsRef = React.useRef<Set<string>>(new Set());
-  // Set 的原地增删不会触发 effect，revision 用于同步断流恢复判断。
+  // In-place Set mutations don't trigger effects; revision keeps the stream-resume check in sync.
   const [activeGenerationRunsRevision, setActiveGenerationRunsRevision] = React.useState(0);
   const onActiveGenerationRunsChange = React.useCallback(() => {
     setActiveGenerationRunsRevision((current) => current + 1);
@@ -175,38 +167,7 @@ export function AppChatArea() {
     }
     return items.find((item) => item.publicID === conversationID) ?? null;
   }, [conversationID, items]);
-  const [loadedConversation, setLoadedConversation] = React.useState<ConversationDTO | null>(null);
-  React.useEffect(() => {
-    const normalizedConversationID = conversationID?.trim() || "";
-    if (!normalizedConversationID || activeConversation?.publicID === normalizedConversationID) {
-      setLoadedConversation(null);
-      return;
-    }
-
-    let cancelled = false;
-    async function loadConversation() {
-      const token = await resolveAccessToken();
-      if (!token) {
-        return;
-      }
-      const item = await getConversation(token, normalizedConversationID);
-      if (cancelled) {
-        return;
-      }
-      setLoadedConversation(item);
-    }
-
-    void loadConversation().catch(() => {
-      if (!cancelled) {
-        setLoadedConversation(null);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeConversation?.publicID, conversationID]);
-  const currentConversation =
-    activeConversation ?? (loadedConversation?.publicID === conversationID ? loadedConversation : null);
+  const currentConversation = useChatLoadedConversation(conversationID, activeConversation);
   const activeRouteProject = React.useMemo(() => {
     if (!routeProjectID || conversationID) {
       return null;
@@ -263,6 +224,7 @@ export function AppChatArea() {
     showLatency,
     showTokenUsage,
     showBillingCost,
+    showProcessTrace,
     billingDisplayCurrency,
     billingDisplayUsdToCnyRate,
     modelOptionPolicy,
@@ -882,6 +844,7 @@ export function AppChatArea() {
                   showLatency={showLatency}
                   showTokenUsage={showTokenUsage}
                   showBillingCost={showBillingCost}
+                  showProcessTrace={showProcessTrace}
                   billingDisplayCurrency={billingDisplayCurrency}
                   billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
                   splitRightInset={hasInlineArtifact}

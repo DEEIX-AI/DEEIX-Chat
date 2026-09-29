@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import type { FontSizeOption } from "@/features/settings/utils/font-size";
-import { TOAST_POSITIONS, type ToastPosition } from "@/features/settings/utils/toast-position";
+import { TOAST_POSITIONS, type ToastPosition } from "@/shared/lib/toast-position";
 import type {
   FontSizePreview,
   ThemeMode,
@@ -420,10 +420,19 @@ function FontSizePreviewCard({
   );
 }
 
+const TOAST_POSITION_PLACEMENT = {
+  "top-left": ["top", "left"],
+  "top-center": ["top", "center"],
+  "top-right": ["top", "right"],
+  "bottom-left": ["bottom", "left"],
+  "bottom-center": ["bottom", "center"],
+  "bottom-right": ["bottom", "right"],
+} as const satisfies Record<ToastPosition, readonly ["top" | "bottom", "left" | "center" | "right"]>;
+
 // A miniature viewport with the toast drawn in the chosen corner, so the
 // option reads as a place rather than as a label.
 function ToastPositionCard({ value, label, active, onSelect }: { value: ToastPosition; label: string; active: boolean; onSelect: (value: ToastPosition) => void }) {
-  const [vertical, horizontal] = value.split("-") as ["top" | "bottom", "left" | "center" | "right"];
+  const [vertical, horizontal] = TOAST_POSITION_PLACEMENT[value];
   return (
     <button type="button" onClick={() => onSelect(value)} className="group rounded-xl text-left" aria-pressed={active} aria-label={label}>
       <div

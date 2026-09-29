@@ -22,3 +22,9 @@ var (
 	errUpstreamServiceUnavailable  = apperr.New("upstream.unavailable", "upstream service unavailable")
 	errWebhookBodyTooLarge         = apperr.New("payment.webhook_body_too_large", "webhook body too large")
 )
+
+// 客户端传入的 return_url 校验失败属于请求错误（400），与公开地址未配置等服务端问题区分开。
+var (
+	errPaymentReturnURLInvalid     = apperr.New("payment.return_url_invalid", "payment return url is invalid")
+	errPaymentReturnURLCrossOrigin = apperr.New("payment.return_url_cross_origin", "payment return url must use the configured public web origin")
+)

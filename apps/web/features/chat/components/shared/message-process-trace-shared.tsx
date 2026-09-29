@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { Image as ImageIcon } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ChatPromptTrace, ChatTraceBlock, RAGCitation } from "@/features/chat/types/messages";
@@ -83,6 +84,7 @@ type GroupedRAGCitation = {
   sharePercent: number;
   maxScore: number;
   previews: string[];
+  imageMatch: boolean;
 };
 
 function groupRAGCitations(citations: RAGCitation[], labels: ProcessTraceLabels): GroupedRAGCitation[] {
@@ -98,8 +100,12 @@ function groupRAGCitations(citations: RAGCitation[], labels: ProcessTraceLabels)
       sharePercent: 0,
       maxScore: 0,
       previews: [],
+      imageMatch: false,
     };
     current.chunkCount += 1;
+    if (item.modality === "image") {
+      current.imageMatch = true;
+    }
     current.maxScore = Math.max(current.maxScore, item.score || 0);
     const preview = item.preview
       ?.replace(/\s+/g, " ")
@@ -147,6 +153,7 @@ export function RAGCitationList({
             className="inline-flex max-w-[180px] items-center gap-1 rounded-full border border-border/35 bg-background/45 px-1.5 py-0 text-[11px] leading-5 text-muted-foreground/76"
             title={item.previews.join("\n")}
           >
+            {item.imageMatch ? <ImageIcon className="size-3 shrink-0 stroke-1" aria-label={labels.rag.imageMatch} /> : null}
             <span className="truncate font-medium">{item.fileName}</span>
             <span className="shrink-0 text-muted-foreground/50">
               {labels.rag.chunksShort(item.chunkCount, Math.round(item.maxScore * 100))}
@@ -175,6 +182,7 @@ export function RAGCitationList({
               <div className="flex min-w-0 items-center justify-between gap-3 px-0.5">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="size-1 shrink-0 rounded-full bg-foreground/40" aria-hidden="true" />
+                  {item.imageMatch ? <ImageIcon className="size-3 shrink-0 stroke-1 text-muted-foreground/70" aria-label={labels.rag.imageMatch} /> : null}
                   <div className="truncate text-[11px] font-medium text-foreground/82" title={item.fileName}>{item.fileName}</div>
                 </div>
                 {itemMeta ? <span className="shrink-0 text-[10px] text-muted-foreground/50">{itemMeta}</span> : null}
@@ -192,6 +200,8 @@ export function RAGCitationList({
                     </div>
                   ))}
                 </div>
+              ) : item.imageMatch ? (
+                <p className="mt-1.5 px-2.5 text-[10px] leading-4 text-muted-foreground/55">{labels.rag.imageMatch}</p>
               ) : null}
             </div>
           );

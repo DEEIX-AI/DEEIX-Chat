@@ -10,6 +10,7 @@ import {
   type Theme,
   type ThemePreset,
 } from "@/shared/model/theme";
+import { isOneOf } from "@/shared/lib/type-guards";
 
 type ThemeContextValue = {
   theme: Theme;
@@ -29,12 +30,15 @@ function resolveSystemTheme(): "light" | "dark" {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+const isTheme = isOneOf(THEMES);
+const isThemePreset = isOneOf(THEME_PRESETS);
+
 export function normalizeTheme(value: string | null | undefined): Theme {
-  return (THEMES as readonly string[]).includes(value ?? "") ? (value as Theme) : "system";
+  return isTheme(value) ? value : "system";
 }
 
 export function normalizeThemePreset(value: string | null | undefined): ThemePreset {
-  return (THEME_PRESETS as readonly string[]).includes(value ?? "") ? (value as ThemePreset) : "default";
+  return isThemePreset(value) ? value : "default";
 }
 
 function applyTheme(theme: Theme, systemTheme: "light" | "dark", preset: ThemePreset) {
@@ -141,8 +145,8 @@ export function useTheme(): ThemeContextValue {
   const context = React.useContext(ThemeContext);
   if (!context) {
     return {
-      theme: "system" as Theme,
-      preset: "default" as ThemePreset,
+      theme: "system",
+      preset: "default",
       setTheme: () => undefined,
       setPreset: () => undefined,
       resolvedTheme: "light" as const,

@@ -280,7 +280,7 @@ func (h *Handler) GetChatContextPolicy(c *gin.Context) {
 // @Router /settings/feature-policy [get]
 func (h *Handler) GetFeaturePolicy(c *gin.Context) {
 	cfg := h.runtime.Snapshot()
-	response.Success(c, FeaturePolicyResponse{KnowledgeBaseEnabled: cfg.KnowledgeBaseEnabled})
+	response.Success(c, FeaturePolicyResponse{KnowledgeBaseEnabled: cfg.KnowledgeBaseEnabled, ProcessTraceEnabled: cfg.ProcessTraceEnabled})
 }
 
 // Patch godoc
@@ -300,9 +300,9 @@ func (h *Handler) Patch(c *gin.Context) {
 		return
 	}
 
-	// Derive and persist the vector-space signature in the same settings write
-	// as the user-visible configuration. Retrieval therefore switches to the
-	// new space atomically and can never query old chunks with a new endpoint.
+	// 在与用户可见配置相同的设置写入中派生并持久化向量空间签名。
+	// 因此检索会原子地切换到新空间，
+	// 绝不会用新端点查询旧分块。
 	prevCfg := h.runtime.Snapshot()
 	nextModel, nextDimensions, nextHost := prospectiveEmbeddingSpace(prevCfg, req.Items)
 	embeddingSettingsTouched := touchesEmbeddingSpace(req.Items)
@@ -315,14 +315,14 @@ func (h *Handler) Patch(c *gin.Context) {
 	if embeddingSpaceChanged {
 		nextEmbeddingSignature = appembedding.ComputeSpaceSignature(nextModel, nextDimensions, nextHost)
 	} else if signatureMissing {
-		// Preserve the legacy signature when merely backfilling this internal
-		// setting so an upgrade does not invalidate otherwise compatible vectors.
+		// 仅回填该内部设置时保留旧版签名，
+		// 避免升级导致原本兼容的向量失效。
 		nextEmbeddingSignature = appembedding.ComputeModelSignature(nextModel, nextDimensions)
 	}
 	if embeddingSpaceChanged || signatureMissing || containsSettingPatch(req.Items, "file", "embedding_model_signature") {
-		// embedding_model_signature is derived server-side. Never trust a value
-		// supplied by an API client, even though the key remains in the settings
-		// schema for persistence and backwards compatibility.
+		// embedding_model_signature 由服务端派生。绝不信任 API 客户端
+		// 提交的值，即使该 key 仍保留在设置 schema 中
+		// 以用于持久化与向后兼容。
 		patchItems = upsertSettingPatchItem(patchItems, appsettings.PatchItem{
 			Namespace: "file",
 			Key:       "embedding_model_signature",
@@ -332,6 +332,11 @@ func (h *Handler) Patch(c *gin.Context) {
 
 	data, err := h.service.BatchUpdate(c.Request.Context(), patchItems)
 	if err != nil {
+		var disabled *appsettings.FeatureDisabledError
+		if errors.As(err, &disabled) {
+			middleware.WriteFeatureDisabled(c, disabled.Feature, disabled.Keys...)
+			return
+		}
 		if errors.Is(err, appsettings.ErrInvalidSetting) {
 			writeSettingValidationError(c, err)
 			return
@@ -343,17 +348,17 @@ func (h *Handler) Patch(c *gin.Context) {
 	// 清除 Redis 缓存，下次读取自动从 DB 刷新
 	h.runtimeSettings.InvalidateCacheMulti(c.Request.Context(), patchItems)
 
-	// Publish the new runtime before invalidating old files. In-flight jobs carry
-	// their starting signature and therefore cannot publish an old vector space as
-	// ready after this point. Signature-aware invalidation also leaves concurrently
-	// completed new-space files intact.
+	// 先发布新的运行时，再使旧文件失效。进行中的任务携带
+	// 其启动时的签名，因此在此之后无法将旧向量空间发布为
+	// 就绪。基于签名的失效处理也会保留并发完成的
+	// 新空间文件。
 	if err = h.runtimeSettings.ApplyTo(c.Request.Context(), h.runtime); err != nil {
 		response.InternalError(c)
 		return
 	}
-	// Reconcile whenever vector-space settings were submitted, even when their
-	// values are unchanged. This makes a failed invalidation safely retryable
-	// through the same idempotent settings request instead of requiring restart.
+	// 只要提交了向量空间相关设置就执行对账，即使取值
+	// 未变。这使失败的失效处理可通过同一幂等设置请求
+	// 安全重试，而无需重启。
 	if (embeddingSettingsTouched || signatureMissing) && h.embeddingSvc != nil {
 		if _, reconcileErr := h.embeddingSvc.ReconcileIndex(c.Request.Context()); reconcileErr != nil {
 			response.InternalError(c)

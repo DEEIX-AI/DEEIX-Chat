@@ -1,3 +1,5 @@
+import { isRecord, parseJSON, readString } from "@/shared/lib/type-guards";
+
 export type ReleaseInfo = {
   version: string;
   url: string;
@@ -56,13 +58,13 @@ export function resolveAvailableRelease(currentVersion: string, release: Release
 function parseReleaseSnapshot(raw: string | null): ReleaseInfo | null {
   if (!raw) return null;
 
-  try {
-    const parsed = JSON.parse(raw) as Partial<ReleaseInfo>;
-    if (!parsed.version || !parsed.url) return null;
-    return { version: parsed.version, url: parsed.url };
-  } catch {
-    return null;
-  }
+  const parsed = parseJSON(raw);
+  if (!isRecord(parsed)) return null;
+  // Non-string or empty fields are treated as a missing cache entry.
+  const version = readString(parsed, "version");
+  const url = readString(parsed, "url");
+  if (!version || !url) return null;
+  return { version, url };
 }
 
 export function getCachedLatestReleaseSnapshot(): ReleaseInfo | null {

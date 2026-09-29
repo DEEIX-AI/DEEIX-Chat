@@ -1,6 +1,6 @@
 import { Geist } from "next/font/google";
 
-import { ShellProviders } from "@/features/platform/components/shell-providers";
+import { ShellProviders } from "@/features/desktop";
 import { ThemeBootstrapScript } from "@/shared/components/theme-bootstrap-script";
 
 import "../globals.css";

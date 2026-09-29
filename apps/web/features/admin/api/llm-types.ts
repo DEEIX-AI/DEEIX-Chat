@@ -1,0 +1,315 @@
+import type {
+  BatchDeleteRequest,
+  BatchDeleteResponse,
+  BatchDeleteResultResponse,
+  BindModelUpstreamSourceRequest,
+  CircuitResetResponse,
+  CreateModelDisplayGroupRequest,
+  CreateModelRequest,
+  CreateModelVendorRequest,
+  CreateUpstreamRequest,
+  ImportUpstreamModelsRequest,
+  ImportUpstreamModelsResponse,
+  ModelDataResponse,
+  ModelDisplayGroupDataResponse,
+  ModelDisplayGroupResponse,
+  ModelIconAssetListItemResponse,
+  ModelIconAssetResponse,
+  ModelProbeBatchResponse,
+  ModelProbeDebugRequestResponse,
+  ModelProbeDebugResponse,
+  ModelProbeDebugResponseResponse,
+  ModelProbeResponse,
+  ModelResponse,
+  ModelUpstreamSourceDataResponse,
+  ModelUpstreamSourceResponse,
+  ModelVendorDataResponse,
+  ModelVendorDeleteConflictDetails,
+  ModelVendorResponse,
+  ReorderModelsRequest,
+  SetModelProtocolsRequest,
+  SetModelsDisplayGroupRequest,
+  SyncUpstreamModelsResponse,
+  UpdateModelDisplayGroupRequest,
+  UpdateModelRequest,
+  UpdateModelUpstreamSourceRequest,
+  UpdateModelVendorRequest,
+  UpdateUpstreamRequest,
+  UpsertUpstreamModelRequest,
+  UpstreamAPIKeyResponse,
+  UpstreamDataResponse,
+  UpstreamModelDataResponse,
+  UpstreamModelResponse,
+  UpstreamRemoteModelResponse,
+  UpstreamRemoteModelsResponse,
+  UpstreamResponse,
+} from "@deeix/api-contract";
+import type {
+  ADMIN_LLM_ADAPTERS,
+  ADMIN_LLM_CB_LOGICS,
+  ADMIN_LLM_COMPATIBLES,
+  ADMIN_LLM_MODEL_ACCESS_SCOPES,
+  ADMIN_LLM_MODEL_CB_POLICY_MODES,
+  ADMIN_LLM_STATUSES,
+} from "@/features/admin/model/admin-unions";
+
+export type AdminLLMStatus = (typeof ADMIN_LLM_STATUSES)[number];
+export type AdminLLMModelAccessScope = (typeof ADMIN_LLM_MODEL_ACCESS_SCOPES)[number];
+export type AdminLLMAdapter = (typeof ADMIN_LLM_ADAPTERS)[number];
+export type AdminLLMModelVendor = string;
+export type AdminLLMCompatible = (typeof ADMIN_LLM_COMPATIBLES)[number];
+export type AdminLLMCbLogic = (typeof ADMIN_LLM_CB_LOGICS)[number];
+export type AdminLLMModelCbPolicyMode = (typeof ADMIN_LLM_MODEL_CB_POLICY_MODES)[number];
+
+// ---------------------------------------------------------------------------
+// Upstream views
+// ---------------------------------------------------------------------------
+
+export type AdminLLMUpstreamView = Omit<
+  UpstreamResponse,
+  "apiKeyItems" | "cbThresholdLogic" | "compatible" | "status"
+> & {
+  compatible: AdminLLMCompatible | "";
+  apiKeyItems?: AdminLLMUpstreamAPIKey[];
+  status: AdminLLMStatus;
+  cbThresholdLogic: AdminLLMCbLogic;
+};
+
+export type AdminLLMUpstreamAPIKey = UpstreamAPIKeyResponse;
+
+export type AdminLLMModelDTO = Omit<
+  ModelResponse,
+  "accessScope" | "cbPolicyMode" | "status" | "vendor"
+> & {
+  vendor: AdminLLMModelVendor;
+  accessScope: AdminLLMModelAccessScope;
+  status: AdminLLMStatus;
+  cbPolicyMode: AdminLLMModelCbPolicyMode;
+};
+
+export type AdminLLMUpstreamModelDTO = Omit<
+  UpstreamModelResponse,
+  "modelVendor" | "protocol" | "routeStatus" | "suggestedProtocol" | "upstreamModelStatus" | "upstreamModelVendor"
+> & {
+  modelVendor: AdminLLMModelVendor;
+  upstreamModelVendor: AdminLLMModelVendor;
+  suggestedProtocol: AdminLLMAdapter | "";
+  protocol: AdminLLMAdapter | "";
+  upstreamModelStatus: AdminLLMStatus;
+  routeStatus: AdminLLMStatus | "";
+};
+
+export type AdminLLMModelUpstreamSourceDTO = Omit<
+  ModelUpstreamSourceResponse,
+  | "circuitScope"
+  | "protocol"
+  | "status"
+  | "suggestedProtocol"
+  | "upstreamModelStatus"
+  | "upstreamModelVendor"
+  | "upstreamStatus"
+> & {
+  upstreamStatus: AdminLLMStatus;
+  upstreamModelVendor: AdminLLMModelVendor;
+  suggestedProtocol: AdminLLMAdapter | "";
+  upstreamModelStatus: AdminLLMStatus;
+  protocol: AdminLLMAdapter | "";
+  status: AdminLLMStatus;
+  circuitScope: "upstream" | "source" | "";
+};
+
+export type AdminLLMUpstreamHealthView = {
+  upstreamID: number;
+  upstreamName: string;
+  status: string;
+  failureCount: number;
+  circuitOpen: boolean;
+  circuitUntil: string;
+  lastError: string;
+  lastFailureAt: string;
+  lastSuccessAt: string;
+};
+
+export type AdminLLMModelProbeDebug = Omit<ModelProbeDebugResponse, "request" | "response"> & {
+  request: ModelProbeDebugRequestResponse;
+  response: ModelProbeDebugResponseResponse;
+};
+
+export type AdminLLMModelProbeResult = Omit<ModelProbeResponse, "debug" | "protocol" | "status"> & {
+  status: "success" | "failed" | "unsupported";
+  protocol: AdminLLMAdapter | "";
+  upstreamID: number;
+  upstreamName: string;
+  upstreamModelID: number;
+  upstreamModelName: string;
+  upstreamStatusCode?: number;
+  debug?: AdminLLMModelProbeDebug;
+};
+
+export type AdminLLMModelProbeBatchResult = Omit<ModelProbeBatchResponse, "results"> & {
+  results: AdminLLMModelProbeResult[];
+};
+
+export type AdminLLMRemoteModelItem = Omit<
+  UpstreamRemoteModelResponse,
+  "suggestedProtocol" | "suggestedProtocols" | "upstreamModelStatus"
+> & {
+  suggestedProtocol: AdminLLMAdapter | "";
+  suggestedProtocols: AdminLLMAdapter[];
+  upstreamModelStatus: AdminLLMStatus | "";
+};
+
+export type AdminLLMSetting = {
+  id: number;
+  key: string;
+  value: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminLLMModelVendorDTO = ModelVendorResponse;
+export type AdminLLMModelVendorDeleteConflictDetails = ModelVendorDeleteConflictDetails;
+export type AdminLLMModelDisplayGroupDTO = ModelDisplayGroupResponse;
+export type AdminLLMModelIconAsset = ModelIconAssetResponse;
+export type AdminLLMModelIconAssetListItem = ModelIconAssetListItemResponse;
+
+// ---------------------------------------------------------------------------
+// Request types
+// ---------------------------------------------------------------------------
+
+export type CreateAdminLLMUpstreamRequest = Omit<
+  CreateUpstreamRequest,
+  "cbThresholdLogic" | "compatible" | "status"
+> & {
+  compatible?: AdminLLMCompatible | "";
+  status?: AdminLLMStatus;
+  cbThresholdLogic?: AdminLLMCbLogic;
+};
+
+export type UpdateAdminLLMUpstreamRequest = Omit<
+  UpdateUpstreamRequest,
+  "cbThresholdLogic" | "compatible" | "status"
+> & {
+  compatible?: AdminLLMCompatible | "";
+  status?: AdminLLMStatus;
+  cbThresholdLogic?: AdminLLMCbLogic;
+};
+
+export type CreateAdminLLMModelRequest = Omit<
+  CreateModelRequest,
+  "accessScope" | "cbPolicyMode" | "status" | "vendor"
+> & {
+  vendor?: AdminLLMModelVendor;
+  accessScope?: AdminLLMModelAccessScope;
+  status?: AdminLLMStatus;
+  cbPolicyMode?: AdminLLMModelCbPolicyMode;
+};
+
+export type UpdateAdminLLMModelRequest = Omit<
+  UpdateModelRequest,
+  "accessScope" | "cbPolicyMode" | "status" | "vendor"
+> & {
+  vendor?: AdminLLMModelVendor;
+  accessScope?: AdminLLMModelAccessScope;
+  status?: AdminLLMStatus;
+  cbPolicyMode?: AdminLLMModelCbPolicyMode;
+};
+
+export type ReorderAdminLLMModelsRequest = ReorderModelsRequest;
+export type CreateAdminLLMModelVendorRequest = CreateModelVendorRequest;
+export type UpdateAdminLLMModelVendorRequest = UpdateModelVendorRequest;
+export type CreateAdminLLMModelDisplayGroupRequest = CreateModelDisplayGroupRequest;
+export type UpdateAdminLLMModelDisplayGroupRequest = UpdateModelDisplayGroupRequest;
+export type SetAdminLLMModelsDisplayGroupRequest = SetModelsDisplayGroupRequest;
+export type SetAdminLLMModelProtocolsRequest = Omit<SetModelProtocolsRequest, "protocols"> & {
+  protocols: AdminLLMAdapter[];
+};
+
+export type UpsertAdminLLMUpstreamModelRequest = Omit<UpsertUpstreamModelRequest, "protocols" | "status"> & {
+  protocols: AdminLLMAdapter[];
+  status?: AdminLLMStatus;
+};
+
+export type UpdateAdminLLMModelUpstreamSourceRequest = Omit<
+  UpdateModelUpstreamSourceRequest,
+  "protocol" | "status"
+> & {
+  protocol?: AdminLLMAdapter;
+  status?: AdminLLMStatus;
+};
+
+export type BindAdminLLMModelUpstreamSourceRequest = Omit<
+  BindModelUpstreamSourceRequest,
+  "protocol" | "status"
+> & {
+  protocol?: AdminLLMAdapter;
+  status?: AdminLLMStatus;
+};
+
+export type ImportAdminLLMUpstreamModelsRequest = Omit<ImportUpstreamModelsRequest, "items"> & {
+  items: Array<
+    Omit<ImportUpstreamModelsRequest["items"][number], "protocol" | "protocols" | "status"> & {
+      protocol?: AdminLLMAdapter;
+      protocols?: AdminLLMAdapter[];
+      status?: AdminLLMStatus;
+    }
+  >;
+};
+
+export type AdminBatchDeleteStatus = "deleted" | "not_found" | "failed";
+
+export type AdminBatchDeleteRequest = BatchDeleteRequest;
+
+// ---------------------------------------------------------------------------
+// Response data wrappers
+// ---------------------------------------------------------------------------
+
+export type AdminLLMUpstreamData = Omit<UpstreamDataResponse, "upstream"> & {
+  upstream: AdminLLMUpstreamView;
+};
+
+export type AdminLLMModelData = Omit<ModelDataResponse, "model"> & {
+  model: AdminLLMModelDTO;
+};
+
+export type AdminLLMModelVendorData = ModelVendorDataResponse;
+export type AdminLLMModelDisplayGroupData = ModelDisplayGroupDataResponse;
+
+export type AdminLLMUpstreamModelData = Omit<UpstreamModelDataResponse, "binding"> & {
+  binding: AdminLLMUpstreamModelDTO;
+};
+
+export type AdminLLMModelUpstreamSourceData = Omit<ModelUpstreamSourceDataResponse, "source"> & {
+  source: AdminLLMModelUpstreamSourceDTO;
+};
+
+export type AdminLLMModelProbeData = AdminLLMModelProbeResult;
+export type AdminLLMModelProbeBatchData = AdminLLMModelProbeBatchResult;
+
+export type ResetAdminLLMCircuitData = CircuitResetResponse;
+
+export type ListAdminLLMRemoteModelsData = Omit<UpstreamRemoteModelsResponse, "items"> & {
+  items: AdminLLMRemoteModelItem[];
+};
+
+export type SyncAdminLLMUpstreamModelsData = SyncUpstreamModelsResponse;
+
+export type ImportAdminLLMUpstreamModelsData = Omit<ImportUpstreamModelsResponse, "results"> & {
+  results: Array<
+    Omit<ImportUpstreamModelsResponse["results"][number], "error" | "protocols" | "status"> & {
+      status: "created" | "existing" | "failed";
+      protocols: AdminLLMAdapter[];
+      error?: string;
+    }
+  >;
+};
+
+export type AdminBatchDeleteResult = Omit<BatchDeleteResultResponse, "error" | "status"> & {
+  status: AdminBatchDeleteStatus;
+  error?: string;
+};
+
+export type AdminBatchDeleteData = Omit<BatchDeleteResponse, "results"> & {
+  results: AdminBatchDeleteResult[];
+};

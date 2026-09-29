@@ -31,53 +31,44 @@
     "rules": {
       "preset": "recommended",
       "a11y": {
-        "noLabelWithoutControl": "off",
+        "noLabelWithoutControl": {
+          "level": "error",
+          "options": {
+            "inputComponents": ["Input", "Checkbox", "Switch", "SelectTrigger"]
+          }
+        },
         "noStaticElementInteractions": "off",
-        "noSvgWithoutTitle": "off",
-        "useAriaPropsSupportedByRole": "off",
         "useSemanticElements": "off"
       },
       "correctness": {
-        "noUnusedFunctionParameters": "off",
         "useExhaustiveDependencies": {
           "level": "warn",
           "options": {
             "reportUnnecessaryDependencies": false
           }
-        },
-        "useImageSize": "off"
+        }
       },
       "nursery": {
         "noComponentHookFactories": "error",
         "noReactStringRefs": "error"
       },
       "performance": {
-        "noBarrelFile": "off",
-        "noImgElement": "off",
-        "noNamespaceImport": "off",
-        "useTopLevelRegex": "off"
+        "noImgElement": "off"
       },
       "suspicious": {
-        "noAlert": "off",
-        "noArrayIndexKey": "off",
-        "noDocumentCookie": "off",
-        "noEmptyBlockStatements": "off",
-        "noShadowRestrictedNames": "off",
-        "useAwait": "off"
+        "noAlert": "error",
+        "noArrayIndexKey": "off"
       },
       "complexity": {
-        "noExcessiveCognitiveComplexity": "off",
-        "noUselessFragments": "off",
-        "noUselessSwitchCase": "off",
-        "useOptionalChain": "off"
+        "noUselessSwitchCase": "off"
       },
       "style": {
-        "noNestedTernary": "off",
-        "noNonNullAssertion": "off",
-        "useBlockStatements": "off",
-        "useConsistentTypeDefinitions": "off",
-        "useConst": "off",
-        "useImportType": "off"
+        "useConsistentTypeDefinitions": {
+          "level": "error",
+          "options": {
+            "style": "type"
+          }
+        }
       }
     }
   },
@@ -104,20 +95,9 @@
       }
     },
     {
-      "includes": ["shared/components/file-preview/preview-docx.tsx"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noUnknownAttribute": "off"
-          }
-        }
-      }
-    },
-    {
       "includes": [
         "components/ui/live-waveform.tsx",
-        "components/ui/virtual-table.tsx",
-        "shared/components/file-preview/preview-document.tsx"
+        "components/ui/virtual-table.tsx"
       ],
       "linter": {
         "rules": {
@@ -143,7 +123,7 @@
     {
       "includes": [
         "features/chat/components/sections/chat-input.tsx",
-        "features/layouts/components/navigation/sidebar-conversation-item.tsx",
+        "features/shell/components/navigation/sidebar-conversation-item.tsx",
         "features/settings/components/sections/chat/settings-chat.tsx"
       ],
       "linter": {
@@ -155,7 +135,7 @@
       }
     },
     {
-      "includes": ["shared/components/file-preview/preview-media.tsx"],
+      "includes": ["entities/file/components/file-preview/preview-media.tsx"],
       "linter": {
         "rules": {
           "a11y": {

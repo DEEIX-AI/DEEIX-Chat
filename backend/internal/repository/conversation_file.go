@@ -35,13 +35,13 @@ type FileLookupRepository interface {
 // ModerationFileRepository 封装内容审核清理所需的文件操作能力。
 // 与 FileLookupRepository 隔离，避免上传模块及其测试 mock 依赖审核专用方法。
 type ModerationFileRepository interface {
-	// RevokeGeneratedFileForModeration marks a generated file inaccessible and unlinks user ownership.
+	// RevokeGeneratedFileForModeration 将生成文件标记为不可访问，并解除用户归属。
 	RevokeGeneratedFileForModeration(ctx context.Context, fileID string) error
-	// DeleteGeneratedFileArtifactsForModeration marks attachments deleted (keeps storage_path for retry).
+	// DeleteGeneratedFileArtifactsForModeration 将附件标记为已删除（保留 storage_path 以便重试）。
 	DeleteGeneratedFileArtifactsForModeration(ctx context.Context, fileID string) error
-	// ClearGeneratedFileStoragePath clears storage_path after a successful physical delete.
+	// ClearGeneratedFileStoragePath 在物理删除成功后清空 storage_path。
 	ClearGeneratedFileStoragePath(ctx context.Context, fileID string) error
-	// GetFileObjectByFileIDAnyStatus loads a file regardless of status (for moderation cleanup).
+	// GetFileObjectByFileIDAnyStatus 加载文件，不限状态（用于审核清理）。
 	GetFileObjectByFileIDAnyStatus(ctx context.Context, fileID string) (*domainconversation.FileObject, error)
 }
 

@@ -2,7 +2,7 @@ import type {
   ConversationShareFilter,
   ConversationStarredFilter,
   ConversationStatusFilter,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 
 export const RECENT_PAGE_SIZE = 50;
 

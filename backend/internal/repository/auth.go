@@ -7,7 +7,7 @@ import (
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 )
 
-// AuthEventInput describes an authentication event persisted for audit and security history.
+// AuthEventInput 描述为审计与安全历史而持久化的认证事件。
 type AuthEventInput struct {
 	UserID     uint
 	RequestID  string

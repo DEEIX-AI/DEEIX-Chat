@@ -7,10 +7,10 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-export interface FolderArchiveIconHandle {
+export type FolderArchiveIconHandle = {
   startAnimation: () => void;
   stopAnimation: () => void;
-}
+};
 
 interface FolderArchiveIconProps extends HTMLAttributes<HTMLDivElement> {
   size?: number;
@@ -70,6 +70,7 @@ const FolderArchiveIcon = forwardRef<
       {...props}
     >
       <svg
+        aria-hidden="true"
         fill="none"
         height={size}
         stroke="currentColor"

@@ -46,14 +46,14 @@ type routeRateLimitKey struct {
 	routeID    uint
 }
 
-// CheckUpstreamCircuitState returns the current circuit state for an upstream.
+// CheckUpstreamCircuitState 返回上游当前的熔断状态。
 func (c *Cache) CheckUpstreamCircuitState(ctx context.Context, upstreamID uint) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.checkCircuitStateLocked(c.upstreamCB[upstreamID]), nil
 }
 
-// CheckModelCircuitState returns the current circuit state for an upstream model.
+// CheckModelCircuitState 返回上游模型当前的熔断状态。
 func (c *Cache) CheckModelCircuitState(ctx context.Context, upstreamID uint, modelKey string) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -93,7 +93,7 @@ func (c *Cache) checkCircuitStateLocked(state *circuitState) string {
 	return "closed"
 }
 
-// RecordCircuitFailure records a failed request and updates related circuit state.
+// RecordCircuitFailure 记录一次失败请求并更新相关熔断状态。
 func (c *Cache) RecordCircuitFailure(ctx context.Context, input repository.CircuitFailureInput) error {
 	if input.UpstreamID == 0 || strings.TrimSpace(input.ModelKey) == "" {
 		return nil
@@ -132,7 +132,7 @@ func (c *Cache) RecordCircuitFailure(ctx context.Context, input repository.Circu
 	return nil
 }
 
-// RecordFailureMetadata stores the latest failure details for an upstream.
+// RecordFailureMetadata 保存上游最近一次失败的详情。
 func (c *Cache) RecordFailureMetadata(ctx context.Context, upstreamID uint, lastError string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -141,7 +141,7 @@ func (c *Cache) RecordFailureMetadata(ctx context.Context, upstreamID uint, last
 	c.maybeSweepLocked(now)
 }
 
-// RecordSuccessMetadata stores the latest successful request time for an upstream.
+// RecordSuccessMetadata 保存上游最近一次成功请求的时间。
 func (c *Cache) RecordSuccessMetadata(ctx context.Context, upstreamID uint) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -152,7 +152,7 @@ func (c *Cache) RecordSuccessMetadata(ctx context.Context, upstreamID uint) {
 	c.maybeSweepLocked(now)
 }
 
-// ClearUpstreamCircuitKeys removes an upstream circuit state without changing metadata.
+// ClearUpstreamCircuitKeys 移除上游熔断状态，不改动元数据。
 func (c *Cache) ClearUpstreamCircuitKeys(ctx context.Context, upstreamID uint) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -160,7 +160,7 @@ func (c *Cache) ClearUpstreamCircuitKeys(ctx context.Context, upstreamID uint) e
 	return nil
 }
 
-// ClearModelCircuitKeys removes a model circuit state without changing other state.
+// ClearModelCircuitKeys 移除模型熔断状态，不改动其他状态。
 func (c *Cache) ClearModelCircuitKeys(ctx context.Context, upstreamID uint, modelKey string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -177,7 +177,7 @@ func (c *Cache) ResetAllCircuitStates(context.Context) error {
 	return nil
 }
 
-// ReleaseRouteProbes releases a pending half-open probe for an upstream or model.
+// ReleaseRouteProbes 释放上游或模型挂起的半开探测。
 func (c *Cache) ReleaseRouteProbes(ctx context.Context, upstreamID uint, modelKey string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -193,7 +193,7 @@ func (c *Cache) ReleaseRouteProbes(ctx context.Context, upstreamID uint, modelKe
 	return nil
 }
 
-// OpenUpstreamCircuit manually opens an upstream circuit for the manual-open duration.
+// OpenUpstreamCircuit 按手动熔断时长手动打开上游熔断。
 func (c *Cache) OpenUpstreamCircuit(ctx context.Context, upstreamID uint) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -205,7 +205,7 @@ func (c *Cache) OpenUpstreamCircuit(ctx context.Context, upstreamID uint) error 
 	return nil
 }
 
-// ResetUpstreamCircuit clears an upstream circuit and its failure metadata.
+// ResetUpstreamCircuit 清除上游熔断及其失败元数据。
 func (c *Cache) ResetUpstreamCircuit(ctx context.Context, upstreamID uint) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -214,7 +214,7 @@ func (c *Cache) ResetUpstreamCircuit(ctx context.Context, upstreamID uint) error
 	return nil
 }
 
-// OpenModelCircuit manually opens a model circuit for the manual-open duration.
+// OpenModelCircuit 按手动熔断时长手动打开模型熔断。
 func (c *Cache) OpenModelCircuit(ctx context.Context, upstreamID uint, modelKey string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -226,7 +226,7 @@ func (c *Cache) OpenModelCircuit(ctx context.Context, upstreamID uint, modelKey 
 	return nil
 }
 
-// ResetModelCircuit clears the circuit state for one upstream model.
+// ResetModelCircuit 清除单个上游模型的熔断状态。
 func (c *Cache) ResetModelCircuit(ctx context.Context, upstreamID uint, modelKey string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -234,21 +234,21 @@ func (c *Cache) ResetModelCircuit(ctx context.Context, upstreamID uint, modelKey
 	return nil
 }
 
-// QueryUpstreamCircuitStatus reports whether an upstream circuit is open and why.
+// QueryUpstreamCircuitStatus 报告上游熔断是否打开及其原因。
 func (c *Cache) QueryUpstreamCircuitStatus(ctx context.Context, upstreamID uint) (bool, string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return queryCircuitStatus(c.upstreamCB[upstreamID])
 }
 
-// QueryModelCircuitStatus reports whether a model circuit is open and why.
+// QueryModelCircuitStatus 报告模型熔断是否打开及其原因。
 func (c *Cache) QueryModelCircuitStatus(ctx context.Context, upstreamID uint, modelKey string) (bool, string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return queryCircuitStatus(c.modelCB[modelCircuitKey(upstreamID, modelKey)])
 }
 
-// GetRateLimitBackoff returns the remaining route-specific rate-limit backoff.
+// GetRateLimitBackoff 返回路由维度限流退避的剩余时间。
 func (c *Cache) GetRateLimitBackoff(ctx context.Context, upstreamID uint, routeID uint) (time.Duration, error) {
 	if upstreamID == 0 || routeID == 0 {
 		return 0, nil
@@ -262,7 +262,7 @@ func (c *Cache) GetRateLimitBackoff(ctx context.Context, upstreamID uint, routeI
 	return remaining, nil
 }
 
-// RecordRateLimitBackoff records a rate-limit event and calculates the next retry time.
+// RecordRateLimitBackoff 记录一次限流事件并计算下次重试时间。
 func (c *Cache) RecordRateLimitBackoff(ctx context.Context, params repository.RateLimitBackoffParams) error {
 	if params.UpstreamID == 0 || params.RouteID == 0 {
 		return nil
@@ -283,7 +283,7 @@ func (c *Cache) RecordRateLimitBackoff(ctx context.Context, params repository.Ra
 	return nil
 }
 
-// ClearRateLimitBackoff removes a route-specific rate-limit backoff.
+// ClearRateLimitBackoff 移除路由维度的限流退避。
 func (c *Cache) ClearRateLimitBackoff(ctx context.Context, upstreamID uint, routeID uint) error {
 	if upstreamID == 0 || routeID == 0 {
 		return nil
@@ -294,7 +294,7 @@ func (c *Cache) ClearRateLimitBackoff(ctx context.Context, upstreamID uint, rout
 	return nil
 }
 
-// IncrAPIKeyCounter returns and advances the next API key counter for an upstream.
+// IncrAPIKeyCounter 返回并推进上游的下一个 API key 计数器。
 func (c *Cache) IncrAPIKeyCounter(ctx context.Context, upstreamID uint) (int64, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -1,5 +1,5 @@
-// Package vectorutil defines the physical vector representation shared by
-// PostgreSQL and SQLite persistence implementations.
+// Package vectorutil 定义 PostgreSQL 与 SQLite 持久化实现
+// 共享的物理向量表示。
 package vectorutil
 
 import (
@@ -8,17 +8,17 @@ import (
 	"strings"
 )
 
-// MaxDimensions is the largest embedding width supported by persistence.
-// PostgreSQL keeps the model's native width and pads only inside index/search
-// expressions. SQLite requires a fixed-width vec0 table and pads on write.
+// MaxDimensions 是持久化层支持的最大 embedding 宽度。
+// PostgreSQL 保留模型原生宽度，仅在索引/检索表达式中填充；
+// SQLite 需要定宽的 vec0 表，在写入时填充。
 const (
 	MaxDimensions = 4096
-	// IndexDimensions fits pgvector's halfvec HNSW limit while retaining all but
-	// the final 96 components of a maximum-width vector for candidate recall.
+	// IndexDimensions 满足 pgvector halfvec HNSW 的上限，同时保留最大宽度向量
+	// 除最后 96 个分量外的全部分量，用于候选召回。
 	IndexDimensions = 4000
 )
 
-// CandidateLimit returns a bounded ANN candidate set for exact full-vector reranking.
+// CandidateLimit 返回有界的 ANN 候选集，用于全向量精确重排。
 func CandidateLimit(topK int) int {
 	const (
 		minimum    = 100
@@ -38,7 +38,7 @@ func CandidateLimit(topK int) int {
 	return limit
 }
 
-// AlignForStorage returns the fixed-width representation required by SQLite.
+// AlignForStorage 返回 SQLite 所需的定宽表示。
 func AlignForStorage(input []float32) ([]float32, error) {
 	if len(input) == 0 || len(input) == MaxDimensions {
 		return input, nil
@@ -51,7 +51,7 @@ func AlignForStorage(input []float32) ([]float32, error) {
 	return result, nil
 }
 
-// PostgresLiteral serializes a native-width vector for PostgreSQL storage.
+// PostgresLiteral 将原生宽度向量序列化以供 PostgreSQL 存储。
 func PostgresLiteral(input []float32) (string, error) {
 	if len(input) > MaxDimensions {
 		return "", fmt.Errorf("embedding dimensions %d exceed supported maximum %d", len(input), MaxDimensions)
@@ -59,9 +59,9 @@ func PostgresLiteral(input []float32) (string, error) {
 	return postgresLiteral(input), nil
 }
 
-// PostgresPaddedLiteral serializes a maximum-width query vector. PostgreSQL
-// search expressions pad stored native-width vectors to the same width before
-// exact reranking, preserving cosine similarity without expanding every row.
+// PostgresPaddedLiteral 序列化最大宽度的查询向量。PostgreSQL
+// 检索表达式会在精确重排前将存储的原生宽度向量填充至相同宽度，
+// 从而在不扩展每一行的情况下保持余弦相似度。
 func PostgresPaddedLiteral(input []float32) (string, error) {
 	aligned, err := AlignForStorage(input)
 	if err != nil {

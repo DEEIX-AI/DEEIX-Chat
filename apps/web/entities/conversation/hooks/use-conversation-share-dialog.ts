@@ -10,7 +10,7 @@ import {
   regenerateConversationShare,
   revokeConversationShare,
 } from "@/shared/api/conversation";
-import type { ConversationShareDTO } from "@/shared/api/conversation.types";
+import type { ConversationShareDTO } from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 

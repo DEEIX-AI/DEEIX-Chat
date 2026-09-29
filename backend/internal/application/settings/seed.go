@@ -17,5 +17,7 @@ func obsoleteSettings() []domainsettings.SystemSetting {
 		{Namespace: "mcp", Key: "mcp_tool_timeout_ms"},
 		{Namespace: "chat", Key: "context_max_input_tokens"},
 		{Namespace: "chat", Key: "context_compact_trigger_tokens"},
+		{Namespace: "chat", Key: "process_trace_visible_to_user"},
+		{Namespace: "chat", Key: "process_trace_store_upstream_think"},
 	}
 }

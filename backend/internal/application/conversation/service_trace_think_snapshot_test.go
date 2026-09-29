@@ -36,10 +36,8 @@ func newSnapshotRecorder(persistInflight bool) (*messageTraceRecorder, *traceRec
 	stub := &traceRecordRepoStub{}
 	return &messageTraceRecorder{
 		cfg: config.Config{
-			ProcessTraceEnabled:            true,
-			ProcessTraceVisibleToUser:      true,
-			ProcessTraceStoreUpstreamThink: true,
-			ProcessTracePersistInflight:    persistInflight,
+			ProcessTraceEnabled:         true,
+			ProcessTracePersistInflight: persistInflight,
 		},
 		ctx:       context.Background(),
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_snapshot"},
@@ -146,7 +144,7 @@ func TestStreamingToolUpdatesKeepLatestSnapshotAndThrottleSideEffects(t *testing
 		t.Fatalf("expected memory snapshot to retain latest tool input, got %#v", events)
 	}
 
-	// Terminal state bypasses both throttles so clients and durable storage see completion immediately.
+	// 终态会绕过两种节流，使客户端与持久存储立即看到完成状态。
 	recorder.service = nil
 	streamTool(`{"query":"second"}`, "success")
 	if emitted != 2 {

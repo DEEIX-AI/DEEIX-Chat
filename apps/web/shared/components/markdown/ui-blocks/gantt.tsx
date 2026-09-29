@@ -153,7 +153,7 @@ function resolveTasks(tasks: GanttTask[]): { items: Resolved[]; groups: { name: 
       progress: Math.min(100, Math.max(0, task.progress ?? 0)),
       milestone: Boolean(task.milestone),
       depends: task.depends ?? [],
-      color: PALETTE[(groupIndex.get(task.group) ?? 0) % PALETTE.length] as string,
+      color: PALETTE[(groupIndex.get(task.group) ?? 0) % PALETTE.length],
       row,
     });
     row += 1;

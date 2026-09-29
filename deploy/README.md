@@ -11,8 +11,12 @@ deploy/
 ├── config.example.yaml           Template for the default profile (also used for local development)
 ├── config.sqlite.example.yaml    Template for the lightweight profile
 ├── config.full.example.yaml      Template for the full profile
-└── services/                     Optional document extraction / OCR services
+├── services/                     Optional document extraction / OCR services
+└── windows/                      Desktop client rollout on managed Windows (MSI, portable, Group Policy)
 ```
+
+Rolling out the desktop client to managed Windows machines is covered separately in
+[`windows/README.md`](windows/README.md).
 
 ## Run
 

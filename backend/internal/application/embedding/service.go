@@ -13,23 +13,14 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/filetype"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/imageutil"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	portembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
-)
-
-var (
-	ErrEmbeddingServiceNotConfigured = apperr.NewMasked("embedding.service_not_configured", "embedding service is not configured", "embedding service not configured")
-	ErrEmbeddingServiceUnavailable   = errors.New("embedding service unavailable")
-	ErrEmbeddingQueueUnavailable     = errors.New("embedding queue unavailable")
-	ErrTooManyTargetedFiles          = errors.New("too many files for targeted embedding")
-	errNoExtractableText             = errors.New("no extractable text in file")
-	errEmptyChunks                   = errors.New("embedding produced no chunks")
-	errEmbeddingConfigurationChanged = errors.New("embedding configuration changed")
 )
 
 const (
@@ -42,10 +33,13 @@ const (
 	embeddingNoTextMessage        = "无法读取文件提取文本。"
 	embeddingEmptyChunksMessage   = "文件没有可用于向量化的内容。"
 	embeddingConfigurationChanged = "向量化配置已变更，请重新提交任务。"
+	embeddingImageTooLargeMessage = "图片过大，缩放后仍超过向量化上限。"
+	embeddingImageFormatMessage   = "图片格式不受当前向量化服务支持。"
+	embeddingModalityMessage      = "当前向量化协议不支持该输入类型。"
 )
 
-// ErrorSummary returns a bounded, user-visible description without exposing
-// provider responses, URLs, credentials, or internal storage details.
+// ErrorSummary 返回长度有限、用户可见的描述，不暴露
+// 提供方响应、URL、凭据或内部存储细节。
 func ErrorSummary(err error) string {
 	if err == nil {
 		return ""
@@ -70,6 +64,15 @@ func ErrorSummary(err error) string {
 	}
 	if errors.Is(err, errEmbeddingConfigurationChanged) {
 		return embeddingConfigurationChanged
+	}
+	if errors.Is(err, errImageTooLarge) {
+		return embeddingImageTooLargeMessage
+	}
+	if errors.Is(err, errImageFormatUnsupported) {
+		return embeddingImageFormatMessage
+	}
+	if errors.Is(err, portembedding.ErrModalityUnsupported) {
+		return embeddingModalityMessage
 	}
 	return embeddingFailureMessage
 }
@@ -493,42 +496,13 @@ func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.Fi
 }
 
 func (s *Service) processClaimedFile(ctx context.Context, fileObj domainconversation.FileObject, cfg config.Config, embeddingSignature string) error {
-	text, err := s.loadSourceText(ctx, fileObj)
+	fileChunks, embeddings, err := s.buildFileChunks(ctx, fileObj, cfg, embeddingSignature)
 	if err != nil {
 		if errors.Is(err, errNoExtractableText) || extraction.IsEmptyContent(err) {
 			return s.markFileEmpty(ctx, fileObj, embeddingSignature)
 		}
 		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", err)
 		return err
-	}
-	if strings.TrimSpace(text) == "" {
-		return s.markFileEmpty(ctx, fileObj, embeddingSignature)
-	}
-
-	chunks := embeddingutil.ChunkText(text, cfg.EmbedChunkSizeTokens, cfg.EmbedChunkOverlapTokens)
-	if len(chunks) == 0 {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", errEmptyChunks)
-		return errEmptyChunks
-	}
-
-	embeddings, err := s.embedTextsWithConfig(ctx, chunks, cfg)
-	if err != nil {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", err)
-		return err
-	}
-
-	now := time.Now()
-	fileChunks := make([]domainconversation.FileChunk, 0, len(chunks))
-	for i, chunk := range chunks {
-		fileChunks = append(fileChunks, domainconversation.FileChunk{
-			FileObjID:          fileObj.ID,
-			UserID:             fileObj.UserID,
-			ChunkIndex:         i,
-			Content:            chunk,
-			TokenCount:         int(tokenestimate.Estimate(chunk)),
-			EmbeddingSignature: embeddingSignature,
-			CreatedAt:          now,
-		})
 	}
 	published, err := s.repo.ReplaceFileChunks(ctx, fileObj.ID, embeddingSignature, fileChunks, embeddings)
 	if err != nil {
@@ -545,6 +519,118 @@ func (s *Service) processClaimedFile(ctx context.Context, fileObj domainconversa
 		return nil
 	}
 	return s.completeFileEmbedding(ctx, fileObj, embeddingSignature, cfg.EmbeddingHost)
+}
+
+// maxImageEmbeddingBytes 是一张图片送入嵌入服务前的字节上限；超过时先缩放再发送。
+const (
+	maxImageEmbeddingBytes    = 4 << 20
+	maxImageEmbeddingReadSize = 32 << 20
+)
+
+var imageEmbeddingResizeEdges = []int{1536, 1024, 768}
+
+// buildFileChunks 把文件变成分片与对应向量。
+// 图片在协议支持时以原图算向量（单分片，OCR 文本作为 Content 保留给全文检索），否则回到提取文本路径。
+func (s *Service) buildFileChunks(
+	ctx context.Context,
+	fileObj domainconversation.FileObject,
+	cfg config.Config,
+	embeddingSignature string,
+) ([]domainconversation.FileChunk, [][]float32, error) {
+	now := time.Now()
+	if canEmbedImagePixels(cfg, fileObj) {
+		data, mimeType, err := s.loadImageForEmbedding(ctx, fileObj)
+		if err != nil {
+			return nil, nil, err
+		}
+		embeddings, err := s.embedInputsWithConfig(ctx, []portembedding.Input{{Kind: portembedding.InputImage, MimeType: mimeType, Data: data}}, portembedding.PurposeDocument, cfg)
+		if err != nil {
+			return nil, nil, err
+		}
+		// OCR 文本可能不存在，不影响图片入库。
+		text, _ := s.loadSourceText(ctx, fileObj)
+		chunk := domainconversation.FileChunk{
+			FileObjID:          fileObj.ID,
+			UserID:             fileObj.UserID,
+			ChunkIndex:         0,
+			Modality:           domainconversation.FileChunkModalityImage,
+			Content:            strings.TrimSpace(text),
+			TokenCount:         int(tokenestimate.Estimate(text)),
+			EmbeddingSignature: embeddingSignature,
+			CreatedAt:          now,
+		}
+		return []domainconversation.FileChunk{chunk}, embeddings, nil
+	}
+
+	text, err := s.loadSourceText(ctx, fileObj)
+	if err != nil {
+		return nil, nil, err
+	}
+	if strings.TrimSpace(text) == "" {
+		return nil, nil, errNoExtractableText
+	}
+	chunks := embeddingutil.ChunkText(text, cfg.EmbedChunkSizeTokens, cfg.EmbedChunkOverlapTokens)
+	if len(chunks) == 0 {
+		return nil, nil, errEmptyChunks
+	}
+	embeddings, err := s.embedTextsWithConfig(ctx, chunks, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	fileChunks := make([]domainconversation.FileChunk, 0, len(chunks))
+	for i, chunk := range chunks {
+		fileChunks = append(fileChunks, domainconversation.FileChunk{
+			FileObjID:          fileObj.ID,
+			UserID:             fileObj.UserID,
+			ChunkIndex:         i,
+			Modality:           domainconversation.FileChunkModalityText,
+			Content:            chunk,
+			TokenCount:         int(tokenestimate.Estimate(chunk)),
+			EmbeddingSignature: embeddingSignature,
+			CreatedAt:          now,
+		})
+	}
+	return fileChunks, embeddings, nil
+}
+
+// loadImageForEmbedding 读取图片原图，过大时缩放到 maxImageEmbeddingBytes 以内。
+func (s *Service) loadImageForEmbedding(ctx context.Context, fileObj domainconversation.FileObject) ([]byte, string, error) {
+	if s.extractSvc == nil {
+		return nil, "", fmt.Errorf("extract service not configured")
+	}
+	declaredMIME := textutil.FirstNonEmpty(fileObj.DetectedMIME, fileObj.MimeType)
+	if !imageutil.IsSupportedMimeType(declaredMIME) {
+		return nil, "", fmt.Errorf("%w: %s", errImageFormatUnsupported, declaredMIME)
+	}
+	data, err := s.extractSvc.ReadStoredFile(ctx, fileObj.StoragePath, maxImageEmbeddingReadSize)
+	if err != nil {
+		return nil, "", err
+	}
+	mimeType := imageutil.ResolveMimeType(declaredMIME)
+	// 逐级缩小长边直到体积达标；ResizeIfNeeded 只在尺寸超过长边时才重新编码。
+	for _, maxEdge := range imageEmbeddingResizeEdges {
+		if len(data) <= maxImageEmbeddingBytes {
+			break
+		}
+		data, mimeType = imageutil.ResizeIfNeeded(data, mimeType, maxEdge)
+	}
+	if len(data) > maxImageEmbeddingBytes {
+		return nil, "", errImageTooLarge
+	}
+	return data, mimeType, nil
+}
+
+// protocolSupportsImage 读取当前协议声明的图片能力。
+func protocolSupportsImage(cfg config.Config) bool {
+	return portembedding.ProtocolCapabilities(portembedding.Protocol(cfg.EmbeddingProtocol)).Image
+}
+
+// canEmbedImagePixels 判断文件能否直接以原图算向量：协议支持图片，且格式是多模态接口接受的格式。
+func canEmbedImagePixels(cfg config.Config, fileObj domainconversation.FileObject) bool {
+	if !strings.EqualFold(strings.TrimSpace(fileObj.FileCategory), "image") || !protocolSupportsImage(cfg) {
+		return false
+	}
+	return imageutil.IsSupportedMimeType(textutil.FirstNonEmpty(fileObj.DetectedMIME, fileObj.MimeType))
 }
 
 func (s *Service) acquireWorkSlot(ctx context.Context) (func(), error) {
@@ -569,9 +655,9 @@ func (s *Service) completeFileEmbedding(ctx context.Context, fileObj domainconve
 	if err != nil || !current {
 		return err
 	}
-	// The second check closes the window where configuration changes between
-	// the first check and publishing the ready state. A later change observes
-	// a ready file and is handled by the normal global invalidation path.
+	// 第二次检查用于封闭首次检查与发布就绪状态之间
+	// 配置发生变化的窗口。之后的变更会观察到
+	// 已就绪文件，并由常规的全局失效路径处理。
 	if !s.embeddingConfigurationCurrent(expectedSignature, expectedHost) {
 		_, err = s.repo.UpdateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, expectedSignature, "stale", configurationChanged)
 		return err
@@ -671,10 +757,19 @@ func (s *Service) EmbedTexts(ctx context.Context, texts []string) ([][]float32, 
 	return embeddings, err
 }
 
-// EmbedTextsWithSignature 使用同一份配置快照生成向量和签名，避免配置切换期间错标向量空间。
+// EmbedTextsWithSignature 为待入库文本生成向量和签名；同一份配置快照避免配置切换期间错标向量空间。
 func (s *Service) EmbedTextsWithSignature(ctx context.Context, texts []string) ([][]float32, string, error) {
+	return s.embedWithSignature(ctx, texts, portembedding.PurposeDocument)
+}
+
+// EmbedQueriesWithSignature 为检索查询生成向量；区分文档与查询的模型据此选择对应的任务类型。
+func (s *Service) EmbedQueriesWithSignature(ctx context.Context, texts []string) ([][]float32, string, error) {
+	return s.embedWithSignature(ctx, texts, portembedding.PurposeQuery)
+}
+
+func (s *Service) embedWithSignature(ctx context.Context, texts []string, purpose portembedding.Purpose) ([][]float32, string, error) {
 	cfg := s.snapshot()
-	embeddings, err := s.embedTextsWithConfig(ctx, texts, cfg)
+	embeddings, err := s.embedInputsWithConfig(ctx, portembedding.TextInputs(texts), purpose, cfg)
 	if err != nil {
 		return nil, "", err
 	}
@@ -682,7 +777,12 @@ func (s *Service) EmbedTextsWithSignature(ctx context.Context, texts []string) (
 }
 
 func (s *Service) embedTextsWithConfig(ctx context.Context, texts []string, cfg config.Config) ([][]float32, error) {
-	if len(texts) == 0 {
+	return s.embedInputsWithConfig(ctx, portembedding.TextInputs(texts), portembedding.PurposeDocument, cfg)
+}
+
+// embedInputsWithConfig 按 EmbedBatchSize 分批调用嵌入服务；图片按字节体积计入批次上限，避免单次请求过大。
+func (s *Service) embedInputsWithConfig(ctx context.Context, inputs []portembedding.Input, purpose portembedding.Purpose, cfg config.Config) ([][]float32, error) {
+	if len(inputs) == 0 {
 		return nil, nil
 	}
 	model := strings.TrimSpace(cfg.RAGModel)
@@ -705,16 +805,14 @@ func (s *Service) embedTextsWithConfig(ctx context.Context, texts []string, cfg 
 	}
 
 	var allEmbeddings [][]float32
-	for start := 0; start < len(texts); start += batchSize {
-		end := start + batchSize
-		if end > len(texts) {
-			end = len(texts)
-		}
+	for _, batch := range splitEmbeddingBatches(inputs, batchSize) {
 		batchEmbeddings, batchErr := s.embedClient.CallAPI(ctx, portembedding.Request{
+			Protocol:       portembedding.Protocol(cfg.EmbeddingProtocol),
 			APIBase:        apiBase,
 			APIKey:         apiKey,
 			Model:          model,
-			Texts:          texts[start:end],
+			Inputs:         batch,
+			Purpose:        purpose,
 			Dimensions:     cfg.EmbeddingOutputDimensions,
 			OmitDimensions: cfg.EmbeddingDimensionsPolicy == config.EmbeddingDimensionsPolicyOmit,
 			TimeoutSeconds: cfg.EmbeddingTimeoutSeconds,
@@ -722,8 +820,8 @@ func (s *Service) embedTextsWithConfig(ctx context.Context, texts []string, cfg 
 		if batchErr != nil {
 			return nil, batchErr
 		}
-		if len(batchEmbeddings) != end-start {
-			return nil, fmt.Errorf("embedding batch returned %d vectors for %d texts", len(batchEmbeddings), end-start)
+		if len(batchEmbeddings) != len(batch) {
+			return nil, fmt.Errorf("embedding batch returned %d vectors for %d inputs", len(batchEmbeddings), len(batch))
 		}
 		allEmbeddings = append(allEmbeddings, batchEmbeddings...)
 	}
@@ -734,6 +832,33 @@ func (s *Service) embedTextsWithConfig(ctx context.Context, texts []string, cfg 
 		allEmbeddings[index] = l2Normalize(allEmbeddings[index])
 	}
 	return allEmbeddings, nil
+}
+
+// maxImageBatchBytes 限制一个批次里图片字节总量；Gemini 单请求上限 20MB，留出 base64 膨胀余量。
+const maxImageBatchBytes = 12 << 20
+
+// splitEmbeddingBatches 按条数切批，并保证图片批次的字节总量不超过 maxImageBatchBytes。
+func splitEmbeddingBatches(inputs []portembedding.Input, batchSize int) [][]portembedding.Input {
+	var batches [][]portembedding.Input
+	var current []portembedding.Input
+	currentBytes := 0
+	flush := func() {
+		if len(current) > 0 {
+			batches = append(batches, current)
+			current = nil
+			currentBytes = 0
+		}
+	}
+	for _, item := range inputs {
+		size := len(item.Data)
+		if len(current) >= batchSize || (size > 0 && currentBytes+size > maxImageBatchBytes && len(current) > 0) {
+			flush()
+		}
+		current = append(current, item)
+		currentBytes += size
+	}
+	flush()
+	return batches
 }
 
 func (s *Service) snapshot() config.Config {
@@ -760,8 +885,8 @@ func ComputeModelSignature(model string, outputDimensions int) string {
 	return embeddingutil.ModelSignature(model, outputDimensions)
 }
 
-// ComputeSpaceSignature derives a new opaque vector-space identifier when an
-// administrator changes the model, output dimensions, or provider endpoint.
+// ComputeSpaceSignature 在管理员修改模型、输出维度或提供方端点时，
+// 派生新的不透明向量空间标识。
 func ComputeSpaceSignature(model string, outputDimensions int, endpoint string) string {
 	return embeddingutil.SpaceSignature(model, outputDimensions, endpoint)
 }
@@ -960,7 +1085,7 @@ func supportsEmbeddingSource(fileObj domainconversation.FileObject, cfg config.C
 	case "video":
 		return false
 	case "image":
-		return cfg.ExtractImageOCREnabled
+		return cfg.ExtractImageOCREnabled || canEmbedImagePixels(cfg, fileObj)
 	}
 	mime := strings.ToLower(strings.TrimSpace(fileObj.MimeType))
 	name := strings.TrimSpace(fileObj.FileName)

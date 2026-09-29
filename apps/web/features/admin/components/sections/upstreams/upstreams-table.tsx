@@ -27,8 +27,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import type { AdminLLMUpstreamView } from "@/features/admin/api/llm.types";
+import type { AdminLLMUpstreamView } from "@/features/admin/api/llm-types";
 import { resolveCompatibleLabel, resolveProtocolLabel } from "@/features/admin/utils/llm-display";
+import { isRecord } from "@/shared/lib/type-guards";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -83,11 +84,11 @@ function formatCircuitUntil(until: string, locale: string, unknown: string): str
 function parseProtocolDefaults(raw: string): Array<{ kind: string; protocol: string }> {
   if (!raw.trim()) return [];
   try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) {
       return [];
     }
-    return protocolDefaultEntries(parsed as Record<string, unknown>)
+    return protocolDefaultEntries(parsed)
       .map(([kind, protocol]) => ({ kind, protocol: String(protocol) }));
   } catch {
     return [];
@@ -96,11 +97,13 @@ function parseProtocolDefaults(raw: string): Array<{ kind: string; protocol: str
 
 function protocolDefaultEntries(parsed: Record<string, unknown>): Array<[string, string]> {
   return Object.entries(parsed)
-    .filter(([kind, value]) => PROTOCOL_DEFAULT_KINDS.has(kind) && typeof value === "string" && value.trim())
+    .flatMap(([kind, value]): Array<[string, string]> => (
+      PROTOCOL_DEFAULT_KINDS.has(kind) && typeof value === "string" && value.trim() ? [[kind, value]] : []
+    ))
     .sort(
       ([left], [right]) =>
         PROTOCOL_DEFAULT_KIND_ORDER.indexOf(left) - PROTOCOL_DEFAULT_KIND_ORDER.indexOf(right),
-    ) as Array<[string, string]>;
+    );
 }
 
 // ---------------------------------------------------------------------------

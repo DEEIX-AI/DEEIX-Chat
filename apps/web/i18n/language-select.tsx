@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { APP_LOCALE_LABELS, APP_LOCALES, type AppLocale } from "@/i18n/config";
+import { APP_LOCALE_LABELS, APP_LOCALES, isAppLocale } from "@/i18n/config";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +22,9 @@ export function LanguageSelect({
       <Select
         value={locale}
         onValueChange={(value) => {
-          void setLocale(value as AppLocale);
+          if (isAppLocale(value)) {
+            void setLocale(value);
+          }
         }}
       >
         <SelectTrigger aria-label={t("label")} className={cn("h-8 w-[8.25rem]", triggerClassName)}>

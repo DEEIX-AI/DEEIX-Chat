@@ -6,20 +6,20 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import {
   AnimatePresence,
   motion,
-  MotionProps,
-  Variants,
+  type MotionProps,
+  type Variants,
 } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-interface Tip {
+type Tip = {
   text: string
   image: string
   url?: string
 }
 
-interface LoadingCarouselProps {
+type LoadingCarouselProps = {
   tips?: Tip[]
   className?: string
   autoplayInterval?: number
@@ -318,7 +318,7 @@ type TextScrambleProps = {
   duration?: number
   speed?: number
   characterSet?: string
-  as?: React.ElementType
+  as?: keyof JSX.IntrinsicElements
   className?: string
   trigger?: boolean
   onScrambleComplete?: () => void
@@ -338,9 +338,7 @@ function TextScramble({
   onScrambleComplete,
   ...props
 }: TextScrambleProps) {
-  const MotionComponent = motion.create(
-    Component as keyof JSX.IntrinsicElements
-  )
+  const MotionComponent = motion.create(Component)
   const [displayText, setDisplayText] = useState(children)
   const isAnimatingRef = React.useRef(false)
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)

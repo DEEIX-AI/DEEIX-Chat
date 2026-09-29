@@ -1,13 +1,9 @@
-import type {
-  ConversationRuns,
-  MessageProcessTraceResponse,
-  MessageTraceBlockResponse,
-  MessageTraceEventResponse,
-} from "@deeix/api-contract";
+import type { ConversationRuns } from "@deeix/api-contract";
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 import type {
   ActiveConversationRunEvent,
+  ActiveConversationRunSnapshot,
   ConversationRunStatusDTO,
   BatchSetConversationProjectRequest,
   BatchSetConversationProjectResult,
@@ -37,6 +33,9 @@ import type {
   MessageDTO,
   MessageFeedbackResult,
   MessageProcessTraceDTO,
+  PromptTraceBlockDTO,
+  PromptTraceDTO,
+  PromptTraceSourceDTO,
   PublicSharedConversationDTO,
   RenameConversationRequest,
   ReorderConversationProjectsRequest,
@@ -51,13 +50,21 @@ import type {
   StreamMessageEvent,
   TemporaryChatMessageRequest,
   TraceBlockDTO,
+  TraceEventDTO,
   UpdateConversationLabelsRequest,
   UpdateConversationProjectRequest,
   UpdateMessageRequest,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 import { ApiError, apiRequest, pathParam } from "@/shared/api/http-client";
-
-type RawTraceBlock = MessageTraceBlockResponse;
+import {
+  isOneOf,
+  isRecord,
+  parseJSON,
+  readBoolean,
+  readFiniteNumber,
+  readString,
+  type UnknownRecord,
+} from "@/shared/lib/type-guards";
 
 export const TEMPORARY_CHAT_MAX_ATTACHMENTS = 20;
 export const TEMPORARY_CHAT_MAX_IMAGE_ATTACHMENTS = 10;
@@ -68,88 +75,157 @@ export type TemporaryChatRequestAttachment = {
   kind: "file" | "image";
 };
 
-type RawProcessTrace = Omit<
-  MessageProcessTraceResponse,
-  "events" | "process" | "promptTrace" | "tools" | "upstreamThink"
-> & {
-  process?: RawTraceBlock;
-  tools?: RawTraceBlock;
-  upstreamThink?: RawTraceBlock;
-  promptTrace?: MessageProcessTraceDTO["promptTrace"];
-  events?: RawTraceEvent[];
-};
-
-type RawTraceEvent = MessageTraceEventResponse;
-
 function normalizeTraceBlock(block: unknown): TraceBlockDTO | undefined {
-  if (!block || typeof block !== "object") {
+  if (!isRecord(block)) {
     return undefined;
   }
-  const raw = block as RawTraceBlock;
   return {
-    title: raw.title ?? "",
-    summary: raw.summary ?? "",
-    contentMarkdown: raw.contentMarkdown ?? "",
-    status: raw.status ?? "",
-    stage: raw.stage,
-    roundID: raw.roundID,
-    parentEventID: raw.parentEventID,
-    startedAt: raw.startedAt,
-    updatedAt: raw.updatedAt ?? "",
-    payloadJSON: raw.payloadJSON,
+    title: readString(block, "title") ?? "",
+    summary: readString(block, "summary") ?? "",
+    contentMarkdown: readString(block, "contentMarkdown") ?? "",
+    status: readString(block, "status") ?? "",
+    stage: readString(block, "stage"),
+    roundID: readString(block, "roundID"),
+    parentEventID: readString(block, "parentEventID"),
+    startedAt: readString(block, "startedAt"),
+    updatedAt: readString(block, "updatedAt") ?? "",
+    payloadJSON: readString(block, "payloadJSON"),
   };
 }
 
-function normalizeTraceEvent(event: unknown) {
-  if (!event || typeof event !== "object") {
+function normalizeTraceEvent(event: unknown): TraceEventDTO | undefined {
+  if (!isRecord(event)) {
     return undefined;
   }
-  const raw = event as RawTraceEvent;
   return {
-    eventID: raw.eventID ?? "",
-    eventType: raw.eventType ?? "",
-    phase: raw.phase ?? "",
-    stage: raw.stage,
-    roundID: raw.roundID,
-    parentEventID: raw.parentEventID,
-    title: raw.title ?? "",
-    summary: raw.summary ?? "",
-    contentMarkdown: raw.contentMarkdown ?? "",
-    status: raw.status ?? "",
-    seq: raw.seq ?? 0,
-    startedAt: raw.startedAt ?? "",
-    endedAt: raw.endedAt,
-    updatedAt: raw.updatedAt ?? "",
-    payloadJSON: raw.payloadJSON,
+    eventID: readString(event, "eventID") ?? "",
+    eventType: readString(event, "eventType") ?? "",
+    phase: readString(event, "phase") ?? "",
+    stage: readString(event, "stage"),
+    roundID: readString(event, "roundID"),
+    parentEventID: readString(event, "parentEventID"),
+    title: readString(event, "title") ?? "",
+    summary: readString(event, "summary") ?? "",
+    contentMarkdown: readString(event, "contentMarkdown") ?? "",
+    status: readString(event, "status") ?? "",
+    seq: readFiniteNumber(event, "seq") ?? 0,
+    startedAt: readString(event, "startedAt") ?? "",
+    endedAt: readString(event, "endedAt"),
+    updatedAt: readString(event, "updatedAt") ?? "",
+    payloadJSON: readString(event, "payloadJSON"),
+  };
+}
+
+function normalizePromptTraceSource(source: UnknownRecord): PromptTraceSourceDTO {
+  return {
+    artifactID: readFiniteNumber(source, "artifactID"),
+    sourceID: readString(source, "sourceID") ?? "",
+    sourceType: readString(source, "sourceType") ?? "",
+    title: readString(source, "title") ?? "",
+  };
+}
+
+function normalizePromptTraceBlock(block: UnknownRecord): PromptTraceBlockDTO {
+  return {
+    cacheable: readBoolean(block, "cacheable") ?? false,
+    kind: readString(block, "kind") ?? "",
+    sourceCount: readFiniteNumber(block, "sourceCount") ?? 0,
+    sourceRefs: Array.isArray(block.sourceRefs)
+      ? block.sourceRefs.filter(isRecord).map(normalizePromptTraceSource)
+      : undefined,
+    title: readString(block, "title") ?? "",
+    tokenEstimate: readFiniteNumber(block, "tokenEstimate") ?? 0,
+  };
+}
+
+function normalizePromptTrace(trace: unknown): PromptTraceDTO | undefined {
+  if (!isRecord(trace)) {
+    return undefined;
+  }
+  return {
+    blocks: Array.isArray(trace.blocks) ? trace.blocks.filter(isRecord).map(normalizePromptTraceBlock) : [],
+    fullMessageCount: readFiniteNumber(trace, "fullMessageCount") ?? 0,
+    mode: readString(trace, "mode") ?? "",
+    promptFingerprint: readString(trace, "promptFingerprint") ?? "",
+    sentMessageCount: readFiniteNumber(trace, "sentMessageCount") ?? 0,
+    sentTokenEstimate: readFiniteNumber(trace, "sentTokenEstimate") ?? 0,
+    statefulDisabledReason: readString(trace, "statefulDisabledReason") ?? "",
+    statefulSavedMessages: readFiniteNumber(trace, "statefulSavedMessages") ?? 0,
+    statefulSavedTokens: readFiniteNumber(trace, "statefulSavedTokens") ?? 0,
+    statefulUsed: readBoolean(trace, "statefulUsed") ?? false,
+    totalTokenEstimate: readFiniteNumber(trace, "totalTokenEstimate") ?? 0,
   };
 }
 
 function normalizeProcessTrace(trace: unknown): MessageProcessTraceDTO | undefined {
-  if (!trace || typeof trace !== "object") {
+  if (!isRecord(trace)) {
     return undefined;
   }
-  const raw = trace as RawProcessTrace;
   return {
-    enabled: Boolean(raw.enabled),
-    status: raw.status ?? "",
-    process: normalizeTraceBlock(raw.process),
-    tools: normalizeTraceBlock(raw.tools),
-    upstreamThink: normalizeTraceBlock(raw.upstreamThink),
-    promptTrace: raw.promptTrace,
-    events: Array.isArray(raw.events) ? raw.events.map(normalizeTraceEvent).filter((event): event is NonNullable<ReturnType<typeof normalizeTraceEvent>> => Boolean(event)) : undefined,
+    enabled: Boolean(trace.enabled),
+    status: readString(trace, "status") ?? "",
+    process: normalizeTraceBlock(trace.process),
+    tools: normalizeTraceBlock(trace.tools),
+    upstreamThink: normalizeTraceBlock(trace.upstreamThink),
+    promptTrace: normalizePromptTrace(trace.promptTrace),
+    events: Array.isArray(trace.events) ? trace.events.map(normalizeTraceEvent).filter((event): event is TraceEventDTO => Boolean(event)) : undefined,
   };
 }
 
-function normalizeStreamEvent(rawEvent: unknown): StreamMessageEvent {
-  if (!rawEvent || typeof rawEvent !== "object") {
+const STREAM_MESSAGE_EVENT_TYPES = [
+  "file_proc",
+  "rag_search",
+  "process_update",
+  "upstream_think_delta",
+  "delta",
+  "usage",
+  "media_status",
+  "media_image_delta",
+  "completed",
+  "moderation_checking",
+  "moderation_blocked",
+  "compact_done",
+  "error",
+] as const satisfies readonly StreamMessageEvent["type"][];
+
+const isStreamMessageEventType = isOneOf(STREAM_MESSAGE_EVENT_TYPES);
+
+// Stream events are the server's typed contract (@deeix/api-contract); only the discriminant
+// is checked here. Trace payloads, which the UI walks deeply, are normalized field by field below.
+function isStreamMessageEvent(value: unknown): value is StreamMessageEvent {
+  return isRecord(value) && isStreamMessageEventType(value.type);
+}
+
+// An event type this client does not know. It ends the stream with an ApiError, exactly like the
+// `error` fallthrough in handleStreamEvent, but never reaches the typed per-event callbacks.
+type UnrecognizedStreamEvent = {
+  type: "unrecognized";
+  seq?: number;
+  message?: string;
+  status?: number;
+  errorCode?: string;
+  debug?: unknown;
+};
+
+type ParsedStreamEvent = StreamMessageEvent | UnrecognizedStreamEvent;
+
+function normalizeStreamEvent(rawEvent: unknown): ParsedStreamEvent {
+  if (!isRecord(rawEvent)) {
     throw new ApiError("stream event is invalid", 500);
   }
 
-  const event = rawEvent as StreamMessageEvent & {
-    block?: unknown;
-    trace?: unknown;
-  };
+  if (!isStreamMessageEvent(rawEvent)) {
+    return {
+      type: "unrecognized",
+      seq: readFiniteNumber(rawEvent, "seq"),
+      message: readString(rawEvent, "message"),
+      status: readFiniteNumber(rawEvent, "status"),
+      errorCode: readString(rawEvent, "errorCode"),
+      debug: rawEvent.debug,
+    };
+  }
 
+  const event = rawEvent;
   if (event.type === "process_update" || event.type === "upstream_think_delta") {
     return {
       ...event,
@@ -161,7 +237,7 @@ function normalizeStreamEvent(rawEvent: unknown): StreamMessageEvent {
   return event;
 }
 
-function streamEventSeq(event: StreamMessageEvent): number {
+function streamEventSeq(event: ParsedStreamEvent): number {
   return typeof event.seq === "number" && Number.isFinite(event.seq) && event.seq > 0 ? event.seq : 0;
 }
 
@@ -237,7 +313,7 @@ function extractJSONDocuments(source: string): { documents: string[]; remainder:
   };
 }
 
-function handleStreamEvent(event: StreamMessageEvent, options: ConversationStreamOptions, responseStatus: number): SendMessageResult | null {
+function handleStreamEvent(event: ParsedStreamEvent, options: ConversationStreamOptions, responseStatus: number): SendMessageResult | null {
   const seq = streamEventSeq(event);
   if (seq > 0) {
     options.onEventSeq?.(seq);
@@ -849,6 +925,34 @@ export async function getConversationRunStatuses(
   return (await Promise.all(requests)).flat();
 }
 
+function parseActiveConversationRunEvent(value: unknown): ActiveConversationRunEvent | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  // A snapshot is authoritative (it clears runs it does not list), so a partially
+  // readable one is dropped as a whole rather than applied with holes.
+  if (value.type === "snapshot") {
+    if (!Array.isArray(value.runs)) {
+      return null;
+    }
+    const runs: ActiveConversationRunSnapshot[] = [];
+    for (const run of value.runs) {
+      const runID = isRecord(run) ? readString(run, "runID") : undefined;
+      const conversationPublicID = isRecord(run) ? readString(run, "conversationPublicID") : undefined;
+      if (runID === undefined || conversationPublicID === undefined) {
+        return null;
+      }
+      runs.push({ runID, conversationPublicID });
+    }
+    return { type: "snapshot", runs };
+  }
+  const runID = readString(value, "runID");
+  if ((value.type === "started" || value.type === "finished") && runID !== undefined) {
+    return { type: value.type, runID, conversationPublicID: readString(value, "conversationPublicID") };
+  }
+  return null;
+}
+
 export async function streamActiveConversationRuns(
   accessToken: string,
   options: {
@@ -886,10 +990,10 @@ export async function streamActiveConversationRuns(
       if (!data) {
         continue;
       }
-      try {
-        options.onEvent(JSON.parse(data) as ActiveConversationRunEvent);
-      } catch {
-        // Ignore malformed events and keep the long-lived connection healthy.
+      // Malformed or unknown events are ignored to keep the long-lived connection healthy.
+      const event = parseActiveConversationRunEvent(parseJSON(data));
+      if (event) {
+        options.onEvent(event);
       }
     }
   };
@@ -1172,7 +1276,7 @@ async function readConversationStream(
   let completed: SendMessageResult | null = null;
   let moderationBlocked: Extract<StreamMessageEvent, { type: "moderation_blocked" }> | null = null;
 
-  const consumeEvent = (event: StreamMessageEvent) => {
+  const consumeEvent = (event: ParsedStreamEvent) => {
     if (event.type === "moderation_blocked") {
       moderationBlocked = event;
     }

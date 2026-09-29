@@ -3,8 +3,8 @@
 import * as React from "react";
 
 /**
- * 拖动分隔条调整制品面板宽度占比：捕获指针后跟随移动更新比例，
- * 在指针释放、窗口失焦或页面隐藏时结束拖动并还原全局光标与选择状态。
+ * Drag the divider to resize the artifact panel width ratio: capture the pointer and update the ratio as it moves;
+ * end the drag on pointer release, window blur or page hide, restoring the global cursor and selection state.
  */
 export function useChatArtifactResize(artifactWorkspace: {
   artifactRatio: number;

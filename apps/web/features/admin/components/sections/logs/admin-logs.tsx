@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -45,44 +44,41 @@ import type {
   AdminPaymentOrderDTO,
   AdminUsageLogDTO,
   AdminUserAuthEventDTO,
-} from "@/features/admin/api/admin.types";
-import { type AdminLogCleanupType } from "@/features/admin/api/audit";
-import { AdminDateRangeFilter } from "@/features/admin/components/admin-date-range-filter";
-import { AdminDateTimePicker } from "@/features/admin/components/admin-date-time-picker";
-import { LogDetailSheet } from "@/features/admin/components/sections/logs/admin-log-detail-sheet";
-import { ModerationEventTable } from "@/features/admin/components/sections/logs/admin-moderation-events";
-import { RedemptionRecordTable } from "@/features/admin/components/sections/logs/admin-redemption-records";
+} from "@/features/admin/api/admin-types";
+import type { AdminLogCleanupType } from "@/features/admin/api/audit";
+import { isAdminLogCleanupType } from "@/features/admin/model/admin-unions";
+import { AdminDateRangeFilter } from "@/features/admin/components/shared/date-range-filter";
+import { AdminDateTimePicker } from "@/features/admin/components/shared/date-time-picker";
+import { LogDetailSheet } from "@/features/admin/components/sections/logs/logs-detail-sheet";
+import { ModerationEventTable } from "@/features/admin/components/sections/logs/logs-moderation-events";
+import { RedemptionRecordTable } from "@/features/admin/components/sections/logs/logs-redemption-records";
 import {
   UsageLogCostCell,
   UsageLogModelCell,
   UsageLogModelFilter,
   UsageLogUsageCell,
   useUsageBillingLabels,
-} from "@/features/admin/components/sections/logs/admin-usage-log-cells";
+} from "@/features/admin/components/sections/logs/logs-usage-cells";
 import {
   AUDIT_LOG_SORT_OPTIONS,
-  type AuditLogSortValue,
   CONVERSATION_EVENT_SORT_OPTIONS,
-  type ConversationEventSortValue,
+  isAuditLogSortValue,
+  isConversationEventSortValue,
+  isPaymentOrderSortValue,
+  isSecurityLogSortValue,
+  isUsageLogSortValue,
   PAYMENT_ORDER_SORT_OPTIONS,
-  type PaymentOrderSortValue,
   SECURITY_LOG_SORT_OPTIONS,
-  type SecurityLogSortValue,
   USAGE_LOG_SORT_OPTIONS,
-  type UsageLogSortValue,
-  useAdminConversationEvents,
+  useAdminLogsConversationEvents,
   useAdminLogs,
-  useAdminPaymentOrders,
-  useAdminSecurityLogs,
-  useAdminUsageLogs,
+  useAdminLogsPaymentOrders,
+  useAdminLogsSecurity,
+  useAdminLogsUsage,
 } from "@/features/admin/hooks/use-admin-logs";
-import {
-  cleanupDateToISOString,
-  useAdminBillingDisplayOptions,
-  useAdminConversationRunsCleanup,
-  useAdminLogCleanupDialog,
-  useAdminLogDetail,
-} from "@/features/admin/hooks/use-admin-logs-actions";
+import { useAdminBillingDisplayOptions } from "@/features/admin/hooks/use-admin-billing-display-options";
+import { cleanupDateToISOString, useAdminLogsCleanupDialog } from "@/features/admin/hooks/use-admin-logs-cleanup-dialog";
+import { useAdminLogsDetail } from "@/features/admin/hooks/use-admin-logs-detail";
 import {
   formatCount,
   formatDateTime,
@@ -92,7 +88,9 @@ import {
 import { formatUsageBalance } from "@/features/admin/model/usage-log-billing";
 import { cn } from "@/lib/utils";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
-import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
+import type { BillingDisplayOptions } from "@/entities/billing";
+import type { Feature } from "@deeix/core";
+import { useCapabilities } from "@/shared/capabilities";
 
 
 function AuditLogTable({ onOpenDetail }: { onOpenDetail: (item: AdminAuditLogDTO) => void }) {
@@ -142,7 +140,9 @@ function AuditLogTable({ onOpenDetail }: { onOpenDetail: (item: AdminAuditLogDTO
         ]}
         sort={{
           value: logs.sortValue,
-          onValueChange: (value) => logs.setSortValue(value as AuditLogSortValue),
+          onValueChange: (value) => {
+            if (isAuditLogSortValue(value)) logs.setSortValue(value);
+          },
           options: AUDIT_LOG_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
         }}
         loading={logs.loading}
@@ -208,7 +208,7 @@ function AuditLogTable({ onOpenDetail }: { onOpenDetail: (item: AdminAuditLogDTO
 function AuthLogTable({ onOpenDetail }: { onOpenDetail: (item: AdminUserAuthEventDTO) => void }) {
   const locale = useLocale();
   const t = useTranslations("adminLogs");
-  const logs = useAdminSecurityLogs();
+  const logs = useAdminLogsSecurity();
   const virtualRows = useVirtualTableRows(logs.sortedEvents, {
     enabled: logs.sortedEvents.length > 100,
     estimateSize: 40,
@@ -251,7 +251,9 @@ function AuthLogTable({ onOpenDetail }: { onOpenDetail: (item: AdminUserAuthEven
         ]}
         sort={{
           value: logs.sortValue,
-          onValueChange: (value) => logs.setSortValue(value as SecurityLogSortValue),
+          onValueChange: (value) => {
+            if (isSecurityLogSortValue(value)) logs.setSortValue(value);
+          },
           options: SECURITY_LOG_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
         }}
         loading={logs.loading}
@@ -326,7 +328,7 @@ function UsageLogTable({
   const locale = useLocale();
   const t = useTranslations("adminLogs");
   const usageLabels = useUsageBillingLabels();
-  const logs = useAdminUsageLogs();
+  const logs = useAdminLogsUsage();
   const virtualRows = useVirtualTableRows(logs.logs, {
     enabled: logs.logs.length > 100,
     estimateSize: 40,
@@ -383,7 +385,9 @@ function UsageLogTable({
         ]}
         sort={{
           value: logs.sortValue,
-          onValueChange: (value) => logs.setSortValue(value as UsageLogSortValue),
+          onValueChange: (value) => {
+            if (isUsageLogSortValue(value)) logs.setSortValue(value);
+          },
           options: USAGE_LOG_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
         }}
         loading={logs.loading}
@@ -453,7 +457,7 @@ function UsageLogTable({
 function PaymentOrderTable({ onOpenDetail }: { onOpenDetail: (item: AdminPaymentOrderDTO) => void }) {
   const locale = useLocale();
   const t = useTranslations("adminLogs");
-  const logs = useAdminPaymentOrders();
+  const logs = useAdminLogsPaymentOrders();
   const virtualRows = useVirtualTableRows(logs.orders, {
     enabled: logs.orders.length > 100,
     estimateSize: 40,
@@ -542,7 +546,9 @@ function PaymentOrderTable({ onOpenDetail }: { onOpenDetail: (item: AdminPayment
         ]}
         sort={{
           value: logs.sortValue,
-          onValueChange: (value) => logs.setSortValue(value as PaymentOrderSortValue),
+          onValueChange: (value) => {
+            if (isPaymentOrderSortValue(value)) logs.setSortValue(value);
+          },
           options: PAYMENT_ORDER_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
         }}
         loading={logs.loading}
@@ -606,20 +612,8 @@ function PaymentOrderTable({ onOpenDetail }: { onOpenDetail: (item: AdminPayment
 function ConversationEventTable({ onOpenDetail }: { onOpenDetail: (item: AdminConversationEventDTO) => void }) {
   const locale = useLocale();
   const t = useTranslations("adminLogs");
-  const commonT = useTranslations("common.actions");
-  const logs = useAdminConversationEvents();
-  const {
-    selectedRunIDs,
-    visibleRunIDs,
-    allVisibleSelected,
-    someVisibleSelected,
-    cleanupOpen,
-    setCleanupOpen,
-    cleanupPending,
-    toggleRun,
-    toggleVisibleRuns,
-    cleanupSelectedRuns,
-  } = useAdminConversationRunsCleanup(logs);
+  const _commonT = useTranslations("common.actions");
+  const logs = useAdminLogsConversationEvents();
   const virtualRows = useVirtualTableRows(logs.events, {
     enabled: logs.events.length > 100,
     estimateSize: 40,
@@ -704,18 +698,11 @@ function ConversationEventTable({ onOpenDetail }: { onOpenDetail: (item: AdminCo
         ]}
         sort={{
           value: logs.sortValue,
-          onValueChange: (value) => logs.setSortValue(value as ConversationEventSortValue),
+          onValueChange: (value) => {
+            if (isConversationEventSortValue(value)) logs.setSortValue(value);
+          },
           options: CONVERSATION_EVENT_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
         }}
-        selectedCount={selectedRunIDs.size}
-        bulkActions={[
-          {
-            key: "delete-runs",
-            label: t("conversation.cleanup.action"),
-            icon: <Trash2 />,
-            onClick: () => setCleanupOpen(true),
-          },
-        ]}
         loading={logs.loading}
         onRefresh={() => void logs.loadConversationEvents(logs.page, logs.pageSize)}
       />
@@ -727,16 +714,6 @@ function ConversationEventTable({ onOpenDetail }: { onOpenDetail: (item: AdminCo
       >
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="w-[44px] py-1.5 text-center">
-              <div className="flex h-7 items-center justify-center">
-                <Checkbox
-                  checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
-                  disabled={visibleRunIDs.length === 0}
-                  onCheckedChange={(checked) => toggleVisibleRuns(checked === true)}
-                  aria-label={t("conversation.cleanup.selectAll")}
-                />
-              </div>
-            </TableHead>
             <TableHead className="w-[72px]">ID</TableHead>
             <TableHead>{t("columns.user")}</TableHead>
             <TableHead>{t("columns.scope")}</TableHead>
@@ -749,28 +726,12 @@ function ConversationEventTable({ onOpenDetail }: { onOpenDetail: (item: AdminCo
           </TableRow>
         </TableHeader>
         <TableBody>
-          {logs.loading && logs.events.length === 0 ? <TableLoadingRow colSpan={10} /> : null}
-          {logs.events.length > 0 ? <VirtualTablePaddingRow colSpan={10} height={virtualRows.paddingTop} /> : null}
+          {logs.loading && logs.events.length === 0 ? <TableLoadingRow colSpan={9} /> : null}
+          {logs.events.length > 0 ? <VirtualTablePaddingRow colSpan={9} height={virtualRows.paddingTop} /> : null}
           {logs.events.length > 0 ? virtualRows.rows.map(({ item }) => {
             const runID = item.runID.trim();
             return (
-              <TableRow
-                key={item.id}
-                className="cursor-pointer"
-                selected={selectedRunIDs.has(runID)}
-                onClick={() => onOpenDetail(item)}
-              >
-                <TableCell className="w-[44px] py-1.5 text-center">
-                  <div className="flex h-7 items-center justify-center">
-                    <Checkbox
-                      checked={selectedRunIDs.has(runID)}
-                      disabled={!runID}
-                      onClick={(event) => event.stopPropagation()}
-                      onCheckedChange={(checked) => toggleRun(runID, checked === true)}
-                      aria-label={t("conversation.cleanup.selectRun", { runID: runID || "-" })}
-                    />
-                  </div>
-                </TableCell>
+              <TableRow key={item.id} className="cursor-pointer" onClick={() => onOpenDetail(item)}>
                 <TableCell className="font-mono text-xs text-foreground">{item.id}</TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">
                   {resolveUserDisplayName(item.userLabel, item.username, item.userID)}
@@ -793,8 +754,8 @@ function ConversationEventTable({ onOpenDetail }: { onOpenDetail: (item: AdminCo
               </TableRow>
             );
           }) : null}
-          {logs.events.length > 0 ? <VirtualTablePaddingRow colSpan={10} height={virtualRows.paddingBottom} /> : null}
-          {!logs.loading && logs.events.length === 0 ? <TableEmptyRow colSpan={10}>{t("conversation.empty")}</TableEmptyRow> : null}
+          {logs.events.length > 0 ? <VirtualTablePaddingRow colSpan={9} height={virtualRows.paddingBottom} /> : null}
+          {!logs.loading && logs.events.length === 0 ? <TableEmptyRow colSpan={9}>{t("conversation.empty")}</TableEmptyRow> : null}
         </TableBody>
       </Table>
 
@@ -808,54 +769,56 @@ function ConversationEventTable({ onOpenDetail }: { onOpenDetail: (item: AdminCo
         onPageSizeChange={(nextPageSize) => void logs.loadConversationEvents(1, nextPageSize)}
       />
 
-      <AlertDialog open={cleanupOpen} onOpenChange={(open) => !cleanupPending && setCleanupOpen(open)}>
-        <AlertDialogContent className="sm:max-w-[440px]">
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("conversation.cleanup.title")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("conversation.cleanup.description", { count: selectedRunIDs.size })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={cleanupPending}>{commonT("cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={cleanupPending || selectedRunIDs.size === 0}
-              onClick={(event) => {
-                event.preventDefault();
-                void cleanupSelectedRuns();
-              }}
-            >
-              {cleanupPending ? <SpinnerLabel>{t("conversation.cleanup.deleting")}</SpinnerLabel> : t("conversation.cleanup.confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
 
-const LOG_CLEANUP_TYPES: AdminLogCleanupType[] = [
-  "audit",
-  "auth",
-  "usage",
-  "orders",
-  "conversation",
-  "system",
-];
+// One table drives the tab strip and the cleanup dialog, so the two never
+// disagree about which logs exist on this server. `cleanup` is the backend
+// cleanup type; tabs without one (redemptions) are financial records and are
+// never purged from the admin UI.
+const LOG_TABS = [
+  { id: "audit", cleanup: "audit" },
+  { id: "usage", cleanup: "usage" },
+  { id: "auth", cleanup: "auth", feature: "multiUser" },
+  { id: "orders", cleanup: "orders", feature: "billingGating" },
+  { id: "redemptions", feature: "billingGating" },
+  { id: "conversation", cleanup: "conversation" },
+  { id: "moderation", cleanup: "moderation", feature: "contentModeration", superAdminOnly: true },
+] as const satisfies readonly {
+  id: string;
+  cleanup?: AdminLogCleanupType;
+  feature?: Feature;
+  superAdminOnly?: boolean;
+}[];
+
+type LogTab = (typeof LOG_TABS)[number];
+type LogTabID = LogTab["id"];
+
+function useVisibleLogTabs(): readonly LogTab[] {
+  const { flags } = useCapabilities();
+  const { user } = useAuthSession();
+  const isSuperAdmin = user?.role === "superadmin";
+  return React.useMemo(
+    () => LOG_TABS.filter((tab) => (!("feature" in tab) || flags[tab.feature]) && (!("superAdminOnly" in tab) || isSuperAdmin)),
+    [flags, isSuperAdmin],
+  );
+}
 
 function LogCleanupDialog({
   open,
   onOpenChange,
   onSuccess,
+  types,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (type: AdminLogCleanupType) => void;
+  types: readonly AdminLogCleanupType[];
 }) {
   const t = useTranslations("adminLogs.cleanup");
   const commonT = useTranslations("common.actions");
-  const { logType, setLogType, date, setDate, pending, handleOpenChange, submit } = useAdminLogCleanupDialog({
+  const { logType, setLogType, date, setDate, pending, handleOpenChange, submit } = useAdminLogsCleanupDialog({
     onOpenChange,
     onSuccess,
   });
@@ -875,13 +838,15 @@ function LogCleanupDialog({
             <Select
               value={logType}
               disabled={pending}
-              onValueChange={(value) => setLogType(value as AdminLogCleanupType)}
+              onValueChange={(value) => {
+                if (isAdminLogCleanupType(value)) setLogType(value);
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {LOG_CLEANUP_TYPES.map((value) => (
+                {types.map((value) => (
                   <SelectItem key={value} value={value}>
                     {t(`types.${value}`)}
                   </SelectItem>
@@ -941,40 +906,31 @@ function LogCleanupDialog({
   );
 }
 
-const LOG_TAB_VALUES = new Set(["audit", "usage", "auth", "orders", "redemptions", "conversation"]);
-
 export function AdminLogsPage() {
   const t = useTranslations("adminLogs");
-  const { user } = useAuthSession();
-  const isSuperAdmin = user?.role === "superadmin";
   const searchParams = useSearchParams();
-  // 支持从其他管理页深链跳转（如兑换码管理的“查看兑换记录”）预选 tab 与兑换码筛选。
-  const [initialTab] = React.useState(() => {
+  const visibleTabs = useVisibleLogTabs();
+  const cleanupTypes = React.useMemo(
+    () => visibleTabs.flatMap((tab) => ("cleanup" in tab ? [tab.cleanup] : [])),
+    [visibleTabs],
+  );
+  const [initialTab] = React.useState<LogTabID>(() => {
     const tabParam = searchParams.get("tab") ?? "";
-    return LOG_TAB_VALUES.has(tabParam) ? tabParam : "audit";
+    return visibleTabs.find((tab) => tab.id === tabParam)?.id ?? "audit";
   });
   const [initialRedemptionCodeID] = React.useState(() => {
     const parsed = Number.parseInt(searchParams.get("code_id") ?? "", 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
   });
-  const { detail, setDetail, conversationDetailLoading, openConversationDetail, closeDetail } = useAdminLogDetail();
+  const { detail, setDetail, conversationDetailLoading, openConversationDetail, closeDetail } = useAdminLogsDetail();
   const [cleanupOpen, setCleanupOpen] = React.useState(false);
   const billingDisplay = useAdminBillingDisplayOptions();
-  const [cleanupRevisions, setCleanupRevisions] = React.useState<Record<AdminLogCleanupType, number>>({
-    audit: 0,
-    auth: 0,
-    usage: 0,
-    orders: 0,
-    conversation: 0,
-    system: 0,
-  });
-
+  // Bumping a type's revision remounts its table after a cleanup.
+  const [cleanupRevisions, setCleanupRevisions] = React.useState<Partial<Record<AdminLogCleanupType, number>>>({});
   const handleCleanupSuccess = React.useCallback((type: AdminLogCleanupType) => {
-    setCleanupRevisions((current) => ({
-      ...current,
-      [type]: current[type] + 1,
-    }));
+    setCleanupRevisions((current) => ({ ...current, [type]: (current[type] ?? 0) + 1 }));
   }, []);
+  const isVisible = (id: LogTabID) => visibleTabs.some((tab) => tab.id === id);
 
   return (
     <div className="space-y-5 pb-10">
@@ -996,19 +952,12 @@ export function AdminLogsPage() {
 
       <Tabs defaultValue={initialTab} className="space-y-3">
         <TabsList variant="line">
-          <TabsTrigger value="audit">{t("tabs.audit")}</TabsTrigger>
-          <TabsTrigger value="usage">{t("tabs.usage")}</TabsTrigger>
-          <TabsTrigger value="auth">{t("tabs.auth")}</TabsTrigger>
-          <TabsTrigger value="orders">{t("tabs.orders")}</TabsTrigger>
-          <TabsTrigger value="redemptions">{t("tabs.redemptions")}</TabsTrigger>
-          <TabsTrigger value="conversation">{t("tabs.conversation")}</TabsTrigger>
-          {isSuperAdmin ? <TabsTrigger value="moderation">{t("tabs.moderation")}</TabsTrigger> : null}
+          {visibleTabs.map((tab) => (
+            <TabsTrigger key={tab.id} value={tab.id}>{t(`tabs.${tab.id}`)}</TabsTrigger>
+          ))}
         </TabsList>
         <TabsContent value="audit">
           <AuditLogTable key={cleanupRevisions.audit} onOpenDetail={(item) => setDetail({ kind: "audit", item })} />
-        </TabsContent>
-        <TabsContent value="auth">
-          <AuthLogTable key={cleanupRevisions.auth} onOpenDetail={(item) => setDetail({ kind: "auth", item })} />
         </TabsContent>
         <TabsContent value="usage">
           <UsageLogTable
@@ -1017,22 +966,31 @@ export function AdminLogsPage() {
             onOpenDetail={(item) => setDetail({ kind: "usage", item })}
           />
         </TabsContent>
-        <TabsContent value="orders">
-          <PaymentOrderTable key={cleanupRevisions.orders} onOpenDetail={(item) => setDetail({ kind: "order", item })} />
-        </TabsContent>
-        <TabsContent value="redemptions">
-          <RedemptionRecordTable
-            billingDisplay={billingDisplay}
-            initialCodeID={initialRedemptionCodeID}
-            onOpenDetail={(item) => setDetail({ kind: "redemption", item })}
-          />
-        </TabsContent>
+        {isVisible("auth") ? (
+          <TabsContent value="auth">
+            <AuthLogTable key={cleanupRevisions.auth} onOpenDetail={(item) => setDetail({ kind: "auth", item })} />
+          </TabsContent>
+        ) : null}
+        {isVisible("orders") ? (
+          <TabsContent value="orders">
+            <PaymentOrderTable key={cleanupRevisions.orders} onOpenDetail={(item) => setDetail({ kind: "order", item })} />
+          </TabsContent>
+        ) : null}
+        {isVisible("redemptions") ? (
+          <TabsContent value="redemptions">
+            <RedemptionRecordTable
+              billingDisplay={billingDisplay}
+              initialCodeID={initialRedemptionCodeID}
+              onOpenDetail={(item) => setDetail({ kind: "redemption", item })}
+            />
+          </TabsContent>
+        ) : null}
         <TabsContent value="conversation">
           <ConversationEventTable key={cleanupRevisions.conversation} onOpenDetail={(item) => void openConversationDetail(item)} />
         </TabsContent>
-        {isSuperAdmin ? (
+        {isVisible("moderation") ? (
           <TabsContent value="moderation">
-            <ModerationEventTable />
+            <ModerationEventTable key={cleanupRevisions.moderation} />
           </TabsContent>
         ) : null}
       </Tabs>
@@ -1047,6 +1005,7 @@ export function AdminLogsPage() {
         open={cleanupOpen}
         onOpenChange={setCleanupOpen}
         onSuccess={handleCleanupSuccess}
+        types={cleanupTypes}
       />
     </div>
   );

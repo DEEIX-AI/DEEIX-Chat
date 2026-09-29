@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -16,30 +15,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { SpinnerLabel } from "@/components/ui/spinner";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import {
-  mergeBatchResultData,
-  runBulkActionInChunks,
-} from "@/shared/lib/bulk-action";
-import {
-  batchDeleteAdminLLMModels,
-  deleteAdminLLMModel,
-} from "@/features/admin/api";
 import type {
   AdminBatchDeleteData,
   AdminLLMModelDTO,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
+import { useAdminModelsDelete } from "@/features/admin/hooks/use-admin-models-delete";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-
-function summarizeBatchDeleteResult(result: AdminBatchDeleteData, t: (key: string, values?: Record<string, number>) => string): string {
-  return t("deleteDialog.batchSummary", {
-    success: result.successCount,
-    notFound: result.notFoundCount,
-    failed: result.failedCount,
-  });
-}
 
 type DeleteModelDialogProps = {
   target: AdminLLMModelDTO | null;
@@ -54,29 +35,13 @@ export function DeleteModelDialog({
 }: DeleteModelDialogProps) {
   const t = useTranslations("adminModels");
   const commonT = useTranslations("common");
-  const [pending, setPending] = React.useState(false);
+  const { pending, deleteModel } = useAdminModelsDelete();
   const stableTarget = useDialogSnapshot(target);
 
   const handleDelete = React.useCallback(async () => {
     if (!target) return;
-
-    const token = await resolveAccessToken();
-    if (!token) {
-      toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-      return;
-    }
-
-    setPending(true);
-    try {
-      await deleteAdminLLMModel(token, target.id);
-      toast.success(t("toast.modelDeleted"));
-      onDeleted();
-    } catch (error) {
-      toast.error(t("toast.modelDeleteFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setPending(false);
-    }
-  }, [onDeleted, t, target]);
+    await deleteModel(target, onDeleted);
+  }, [deleteModel, onDeleted, target]);
 
   return (
     <AlertDialog open={!!target} onOpenChange={(open) => !open && !pending && onClose()}>
@@ -123,43 +88,14 @@ export function BulkDeleteModelsDialog({
 }: BulkDeleteModelsDialogProps) {
   const t = useTranslations("adminModels");
   const commonT = useTranslations("common");
-  const [pending, setPending] = React.useState(false);
+  const { pending, bulkDeleteModels } = useAdminModelsDelete();
 
   const visibleTargets = React.useMemo(() => targets.slice(0, 6), [targets]);
 
   const handleDelete = React.useCallback(async () => {
     if (targets.length === 0) return;
-
-    const token = await resolveAccessToken();
-    if (!token) {
-      toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-      return;
-    }
-
-    setPending(true);
-    try {
-      const result = mergeBatchResultData(await runBulkActionInChunks({
-        items: targets.map((item) => item.id),
-        title: t("deleteDialog.deleting"),
-        runChunk: (ids) => batchDeleteAdminLLMModels(token, { ids }),
-      }));
-
-      onDeleted(result);
-      if (result.failedCount > 0) {
-        toast.error(t("toast.bulkDeletePartialFailed"), {
-          description: summarizeBatchDeleteResult(result, t),
-        });
-      } else {
-        toast.success(t("toast.bulkDeleteCompleted"), {
-          description: summarizeBatchDeleteResult(result, t),
-        });
-      }
-    } catch (error) {
-      toast.error(t("toast.bulkDeleteFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setPending(false);
-    }
-  }, [onDeleted, t, targets]);
+    await bulkDeleteModels(targets, onDeleted);
+  }, [bulkDeleteModels, onDeleted, targets]);
 
   return (
     <AlertDialog open={open} onOpenChange={(nextOpen) => !nextOpen && !pending && onClose()}>

@@ -19,7 +19,7 @@ import (
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstorage"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
@@ -81,12 +81,12 @@ func TestProcessImageAttachmentsRoutesOnlyTextToMainModelContext(t *testing.T) {
 	}))
 	defer server.Close()
 
-	store := objectstore.NewLocal(t.TempDir())
+	store := objectstorage.NewLocal(t.TempDir())
 	imageData := testPNG(t)
-	if _, err := store.Put(t.Context(), "images/current.png", bytes.NewReader(imageData), objectstore.PutOptions{ContentType: "image/png"}); err != nil {
+	if _, err := store.Put(t.Context(), "images/current.png", bytes.NewReader(imageData), objectstorage.PutOptions{ContentType: "image/png"}); err != nil {
 		t.Fatalf("put image: %v", err)
 	}
-	if _, err := store.Put(t.Context(), "images/second.png", bytes.NewReader(imageData), objectstore.PutOptions{ContentType: "image/png"}); err != nil {
+	if _, err := store.Put(t.Context(), "images/second.png", bytes.NewReader(imageData), objectstorage.PutOptions{ContentType: "image/png"}); err != nil {
 		t.Fatalf("put second image: %v", err)
 	}
 	service := &Service{

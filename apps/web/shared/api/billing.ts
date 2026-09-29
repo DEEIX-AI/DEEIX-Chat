@@ -1,5 +1,5 @@
 import { authedRequest } from "@/shared/api/authed-client";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 import type {
   BillingAccountData,
   BillingConfigData,
@@ -13,7 +13,7 @@ import type {
   RedeemBillingCodeData,
   RedeemBillingCodeRequest,
   SubscribeData,
-} from "@/shared/api/billing.types";
+} from "@/shared/api/billing-types";
 
 export async function getBillingConfig(accessToken: string): Promise<BillingConfigData> {
   return authedRequest<BillingConfigData>("/api/v1/billing/config", { accessToken }, true);

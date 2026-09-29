@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Group Policy template for DEEIX Chat (desktop).
+  Copy DEEIXChat.admx to %SystemRoot%\PolicyDefinitions (or the domain's
+  Central Store, \\<domain>\SYSVOL\<domain>\Policies\PolicyDefinitions) and the
+  en-US / zh-CN folders' .adml files into the matching language folders.
+
+  Values are written to SOFTWARE\Policies\DEEIX\Chat under HKLM (Computer
+  Configuration) or HKCU (User Configuration). The app reads them at start-up;
+  a value set under HKLM wins over the same value under HKCU.
+-->
+<policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   revision="1.0" schemaVersion="1.0"
+                   xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <policyNamespaces>
+    <target prefix="deeixchat" namespace="DEEIX.Policies.Chat" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <supportedOn>
+    <definitions>
+      <definition name="SUPPORTED_Windows10" displayName="$(string.SUPPORTED_Windows10)" />
+    </definitions>
+  </supportedOn>
+  <categories>
+    <category name="DEEIXChat" displayName="$(string.Category_DEEIXChat)" explainText="$(string.Category_DEEIXChat_Explain)" />
+  </categories>
+  <policies>
+    <policy name="DefaultServerUrl" class="Both"
+            displayName="$(string.DefaultServerUrl)"
+            explainText="$(string.DefaultServerUrl_Explain)"
+            presentation="$(presentation.DefaultServerUrl)"
+            key="SOFTWARE\Policies\DEEIX\Chat">
+      <parentCategory ref="DEEIXChat" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <elements>
+        <text id="DefaultServerUrl" valueName="DefaultServerUrl" required="true" maxLength="2048" />
+      </elements>
+    </policy>
+
+    <policy name="LockServerUrl" class="Both"
+            displayName="$(string.LockServerUrl)"
+            explainText="$(string.LockServerUrl_Explain)"
+            key="SOFTWARE\Policies\DEEIX\Chat"
+            valueName="LockServerUrl">
+      <parentCategory ref="DEEIXChat" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <enabledValue>
+        <decimal value="1" />
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0" />
+      </disabledValue>
+    </policy>
+
+    <policy name="DisableLocalMode" class="Both"
+            displayName="$(string.DisableLocalMode)"
+            explainText="$(string.DisableLocalMode_Explain)"
+            key="SOFTWARE\Policies\DEEIX\Chat"
+            valueName="DisableLocalMode">
+      <parentCategory ref="DEEIXChat" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <enabledValue>
+        <decimal value="1" />
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0" />
+      </disabledValue>
+    </policy>
+
+    <policy name="DisableAutoUpdate" class="Both"
+            displayName="$(string.DisableAutoUpdate)"
+            explainText="$(string.DisableAutoUpdate_Explain)"
+            key="SOFTWARE\Policies\DEEIX\Chat"
+            valueName="DisableAutoUpdate">
+      <parentCategory ref="DEEIXChat" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <enabledValue>
+        <decimal value="1" />
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0" />
+      </disabledValue>
+    </policy>
+  </policies>
+</policyDefinitions>

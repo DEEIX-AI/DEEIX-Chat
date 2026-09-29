@@ -150,7 +150,7 @@ function ChatResponseOutlineRailComponent({
   const contentScanTimerRef = React.useRef<number | null>(null);
   const navigationTargetRef = React.useRef<OutlineNavigationTarget | null>(null);
   const navigationSettleTimerRef = React.useRef<number | null>(null);
-  const railViewportRef = React.useRef<HTMLDivElement | null>(null);
+  const railViewportRef = React.useRef<HTMLElement | null>(null);
   const railContentRef = React.useRef<HTMLDivElement | null>(null);
   const railItemRefs = React.useRef(new Map<number, HTMLButtonElement>());
   const menuViewportRef = React.useRef<HTMLDivElement | null>(null);
@@ -583,10 +583,9 @@ function ChatResponseOutlineRailComponent({
       }}
     >
       <HoverCardTrigger asChild>
-        <div
+        <nav
           ref={railViewportRef}
           className="pointer-events-auto absolute bottom-3 right-2 top-3 z-30 hidden w-6 overflow-y-auto overscroll-contain text-muted-foreground/55 [scrollbar-width:none] lg:block [&::-webkit-scrollbar]:hidden"
-          role="navigation"
           aria-label={t("responseOutline")}
           data-screenshot-exclude="true"
         >
@@ -632,7 +631,7 @@ function ChatResponseOutlineRailComponent({
               );
             })}
           </div>
-        </div>
+        </nav>
       </HoverCardTrigger>
       <HoverCardContent
         side="left"
