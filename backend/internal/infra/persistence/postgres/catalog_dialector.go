@@ -1,4 +1,4 @@
-package db
+package postgres
 
 import (
 	"gorm.io/driver/postgres"
