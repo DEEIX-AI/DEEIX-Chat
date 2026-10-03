@@ -23,7 +23,7 @@ import (
 // @Router /admin/llm/model-catalog [get]
 func (h *Handler) GetModelCatalog(c *gin.Context) {
 	// 与 OpenRouter 官方定价一致按需同步：管理员查看状态时目录已过期，就在后台同步一次。
-	h.service.RefreshReasoningCatalogIfStale()
+	h.service.RefreshReasoningCatalogIfStale(c.Request.Context())
 	response.Success(c, toModelCatalogStatusResponse(h.service.ReasoningCatalogStatus()))
 }
 

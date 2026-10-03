@@ -191,7 +191,7 @@ func TestClaimReasoningCatalogRefresh(t *testing.T) {
 		if !service.ReasoningCatalogStatus().Refreshing {
 			t.Fatal("expected status to report the pending refresh")
 		}
-		service.runClaimedReasoningCatalogRefresh()
+		service.runClaimedReasoningCatalogRefresh(context.Background())
 		status := service.ReasoningCatalogStatus()
 		if status.Refreshing || status.Origin != ReasoningCatalogOriginRemote {
 			t.Fatalf("expected refreshed remote catalog, got %#v", status)
@@ -204,7 +204,7 @@ func TestClaimReasoningCatalogRefresh(t *testing.T) {
 		if !service.claimReasoningCatalogRefresh(now) {
 			t.Fatal("expected stale catalog to be claimed")
 		}
-		service.runClaimedReasoningCatalogRefresh()
+		service.runClaimedReasoningCatalogRefresh(context.Background())
 		if fetcher.calls != 1 || service.ReasoningCatalogStatus().LastError == "" {
 			t.Fatalf("expected one failed fetch with a recorded error, got %d calls", fetcher.calls)
 		}

@@ -151,11 +151,12 @@ func newReasoningCatalogState(snapshot domainchannel.ReasoningCatalogSnapshot) *
 
 // RefreshReasoningCatalogIfStale 在目录过期（或尚无目录）时于后台同步一次，返回是否发起了同步。
 // 同步进行中或距上次尝试不足重试间隔时不再发起；失败只记 debug 日志，原因经状态展示给管理员。
-func (s *Service) RefreshReasoningCatalogIfStale() bool {
+// ctx 通常是查看状态的请求上下文；同步与之解耦（WithoutCancel），请求结束不会中断拉取。
+func (s *Service) RefreshReasoningCatalogIfStale(ctx context.Context) bool {
 	if !s.claimReasoningCatalogRefresh(time.Now()) {
 		return false
 	}
-	go s.runClaimedReasoningCatalogRefresh()
+	go s.runClaimedReasoningCatalogRefresh(context.WithoutCancel(ctx))
 	return true
 }
 
@@ -178,13 +179,13 @@ func (s *Service) claimReasoningCatalogRefresh(now time.Time) bool {
 	return true
 }
 
-func (s *Service) runClaimedReasoningCatalogRefresh() {
+func (s *Service) runClaimedReasoningCatalogRefresh(ctx context.Context) {
 	defer func() {
 		s.reasoningCatalog.mu.Lock()
 		s.reasoningCatalog.backgroundPending = false
 		s.reasoningCatalog.mu.Unlock()
 	}()
-	if _, err := s.RefreshReasoningCatalog(context.Background()); err != nil {
+	if _, err := s.RefreshReasoningCatalog(ctx); err != nil {
 		s.debug("reasoning_catalog_refresh_failed", zap.Error(err))
 	}
 }
