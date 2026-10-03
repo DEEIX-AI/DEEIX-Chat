@@ -66,6 +66,14 @@ func buildChatCompletionsRequestBody(
 			"type": thinkingType,
 		}
 	}
+	// Qwen 等 OpenAI 兼容上游的思考开关与预算是顶层扁平字段；通用透传会把这两个名字当作其他协议的
+	// 归一化别名跳过，因此在 Chat Completions 上显式下发。
+	if enabled, ok := modelParamBoolValue(input.Options, "enable_thinking"); ok {
+		payload["enable_thinking"] = enabled
+	}
+	if budget, ok := modelParamIntValue(input.Options, "thinking_budget"); ok && budget >= 0 {
+		payload["thinking_budget"] = budget
+	}
 	if maxTokens := modelParamInt(input.Options, "max_completion_tokens"); maxTokens > 0 {
 		payload["max_completion_tokens"] = maxTokens
 	} else if maxTokens := modelParamInt(input.Options, "max_output_tokens"); maxTokens > 0 {

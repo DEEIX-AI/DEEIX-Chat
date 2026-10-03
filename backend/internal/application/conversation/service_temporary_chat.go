@@ -31,6 +31,8 @@ type TemporaryChatInput struct {
 	ClientRunID              string
 	Model                    string
 	Options                  map[string]any
+	Controls                 map[string]any
+	AllowRawOptions          bool
 	SelectedToolIDs          []uint
 	SkillIDs                 []uint
 	KnowledgeBaseIDs         []string
@@ -54,6 +56,7 @@ func (s *Service) StreamTemporaryChat(
 	if err := ValidateTemporaryChatInput(input); err != nil {
 		return nil, err
 	}
+	input.Options, input.Controls = restrictUserChatOptions(input.Options, input.Controls, input.AllowRawOptions)
 	if s.routeResolver == nil || s.llmClient == nil {
 		return nil, ErrModelRouteNotConfigured
 	}
@@ -144,11 +147,13 @@ func (s *Service) StreamTemporaryChat(
 	})
 	messages = stripTemporaryMessageCacheControls(promptPlan.Messages)
 	fullMessages := cloneLLMMessages(messages)
-	filteredOptions := filterModelOptions(input.Options, route.Protocol, modelOptionPolicyConfig{
+	filteredOptions, reasoningEffort := resolveChatModelOptions(input.Options, route.Protocol, modelOptionPolicyConfig{
 		Mode:                  cfg.ModelOptionPolicyMode,
 		AllowedPathsJSON:      cfg.ModelOptionAllowedPaths,
 		DeniedPathsJSON:       cfg.ModelOptionDeniedPaths,
 		ModelCapabilitiesJSON: route.ModelCapabilitiesJSON,
+		CatalogReasoning:      route.CatalogReasoning,
+		Controls:              input.Controls,
 	})
 	filteredOptions = stripTemporaryChatProviderStateOptions(filteredOptions)
 	var moderationCoord *appcm.RunCoordinator
@@ -262,6 +267,7 @@ func (s *Service) StreamTemporaryChat(
 	temporaryAssistant.Content = assistantText
 	temporaryAssistant.OutputTokens = outputTokens
 	temporaryAssistant.ReasoningTokens = usage.ReasoningTokens
+	temporaryAssistant.ReasoningEffort = optionalReasoningEffort(reasoningEffort)
 	temporaryAssistant.TokenUsage = outputTokens
 	temporaryAssistant.LatencyMS = firstTokenLatencyMS
 	temporaryAssistant.Status = "success"

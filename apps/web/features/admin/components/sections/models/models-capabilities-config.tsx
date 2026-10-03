@@ -28,10 +28,12 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ModelsReasoningSyncButton } from "@/features/admin/components/sections/models/models-reasoning-sync-button";
 import { cn } from "@/lib/utils";
 import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { ModelCapabilitiesPresetDialog } from "@/features/admin/components/sections/models/models-capabilities-presets";
 import {
+  MODEL_CONTROL_ICON_NAMES,
   MODEL_OPTION_POLICY_PROTOCOL_LABELS,
   MODEL_OPTION_POLICY_PROTOCOLS,
   type NativeToolDefinition,
@@ -1068,7 +1070,7 @@ function buildCapabilitiesJSON(
   return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
 }
 
-export function ModelCapabilitiesGuideButton({ t }: { t: (key: string) => string }) {
+export function ModelCapabilitiesGuideButton({ t }: { t: (key: string, values?: Record<string, string>) => string }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -1087,6 +1089,7 @@ export function ModelCapabilitiesGuideButton({ t }: { t: (key: string) => string
           <Tabs defaultValue="defaults" className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 py-2">
             <TabsList className="shrink-0">
               <TabsTrigger value="defaults">{t("sheet.capabilitiesGuide.defaultsTab")}</TabsTrigger>
+              <TabsTrigger value="userControls">{t("sheet.capabilitiesGuide.userControlsTab")}</TabsTrigger>
               <TabsTrigger value="controls">{t("sheet.capabilitiesGuide.controlsTab")}</TabsTrigger>
               <TabsTrigger value="tools">{t("sheet.capabilitiesGuide.toolsTab")}</TabsTrigger>
               <TabsTrigger value="policy">{t("sheet.capabilitiesGuide.policyTab")}</TabsTrigger>
@@ -1107,6 +1110,58 @@ export function ModelCapabilitiesGuideButton({ t }: { t: (key: string) => string
     }
   }`}
               </pre>
+            </TabsContent>
+
+            <TabsContent value="userControls" className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm text-muted-foreground">
+              <p className="text-xs">{t("sheet.capabilitiesGuide.userControlsDescription")}</p>
+              <pre className="max-h-80 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-foreground">
+  {`{
+    "defaultOptions": { "max_tokens": 32000 },
+    "controls": [
+      {
+        "kind": "reasoning",
+        "placement": "toolbar",
+        "label": "Thinking"
+      },
+      {
+        "id": "length",
+        "type": "select",
+        "label": "Reply length",
+        "icon": "ruler",
+        "placement": "toolbar",
+        "default": "normal",
+        "options": [
+          { "value": "short", "label": "Short", "patch": { "max_tokens": 2048 } },
+          { "value": "normal", "label": "Normal" },
+          {
+            "value": "long",
+            "label": "Long",
+            "patches": {
+              "anthropic_messages": { "max_tokens": 64000 },
+              "openai_responses": { "max_output_tokens": 64000 }
+            }
+          }
+        ]
+      },
+      {
+        "id": "priority",
+        "type": "toggle",
+        "label": "Priority tier",
+        "icon": "zap",
+        "on": { "patch": { "service_tier": "priority" } },
+        "off": { "patch": { "service_tier": null } }
+      },
+      {
+        "id": "temperature",
+        "type": "number",
+        "path": "temperature",
+        "min": 0, "max": 2, "step": 0.1, "default": 1
+      }
+    ]
+  }`}
+              </pre>
+              <p className="text-xs">{t("sheet.capabilitiesGuide.userControlsFields")}</p>
+              <p className="text-xs">{t("sheet.capabilitiesGuide.userControlsIcons", { icons: MODEL_CONTROL_ICON_NAMES.join(", ") })}</p>
             </TabsContent>
 
             <TabsContent value="controls" className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm text-muted-foreground">
@@ -1356,7 +1411,10 @@ export function ModelCapabilitiesQuickConfig({
     const nextNativeToolErrors = validateNativeToolRows(nativeToolRows, t);
     setParameterErrors(nextParameterErrors);
     setNativeToolErrors(nextNativeToolErrors);
-    if (hasCapabilityErrors(nextParameterErrors) || Object.keys(nextNativeToolErrors).length > 0) {
+    if (
+      hasCapabilityErrors(nextParameterErrors)
+      || Object.keys(nextNativeToolErrors).length > 0
+    ) {
       setActiveTab(hasCapabilityErrors(nextParameterErrors) ? "parameters" : "tools");
       toast.error(t("sheet.capabilitiesQuick.validationFailed"));
       return;
@@ -1420,16 +1478,19 @@ export function ModelCapabilitiesQuickConfig({
                 <DialogTitle>{t("sheet.capabilitiesQuick.title")}</DialogTitle>
                 <DialogDescription>{t("sheet.capabilitiesQuick.description")}</DialogDescription>
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="h-7 shrink-0 gap-1 px-2 text-xs font-normal shadow-none"
-                onClick={() => setPresetOpen(true)}
-              >
-                <CopyPlus className="size-3.5" />
-                {t("sheet.capabilitiesPreset.button")}
-              </Button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <ModelsReasoningSyncButton />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-7 shrink-0 gap-1 px-2 text-xs font-normal shadow-none"
+                  onClick={() => setPresetOpen(true)}
+                >
+                  <CopyPlus className="size-3.5" />
+                  {t("sheet.capabilitiesPreset.button")}
+                </Button>
+              </div>
             </div>
           </DialogHeader>
 

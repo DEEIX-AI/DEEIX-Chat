@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, CornerDownRight, Eye, EyeOff, Film, HatGlasses, Image, ImageOff, ImagePlus, LoaderCircle, PencilLine, Trash2 } from "lucide-react";
+import { Box, CornerDownRight, Eye, EyeOff, Film, HatGlasses, Image, ImageOff, ImagePlus, LoaderCircle, PencilLine, TextQuote, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
@@ -42,6 +42,16 @@ import { ChatMCP } from "@/features/chat/components/sections/chat-mcp";
 import { ChatUIComponents } from "@/features/chat/components/sections/chat-ui-components";
 import { ChatModelConfig } from "@/features/chat/components/sections/chat-model-config";
 import { ChatModelPicker } from "@/features/chat/components/sections/chat-model-picker";
+import { ChatModelControls } from "@/features/chat/components/sections/chat-model-controls";
+import { useChatModelControlPlacements } from "@/features/chat/hooks/use-chat-model-control-placements";
+import type { ChatModelControlSelections } from "@/features/chat/model/chat-model-controls";
+import {
+  hasProviderTool,
+  type NativeToolVisualOption,
+  nativeToolVisualOptionsFromConfigs,
+  setProviderToolEnabled,
+} from "@/features/chat/model/chat-native-tools";
+import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
 import { ChatMentionMenuPortal } from "@/features/chat/components/shared/chat-mention-menu";
 import { useChatMentionMenu } from "@/features/chat/hooks/use-chat-mention-menu";
 import {
@@ -79,7 +89,7 @@ import {
   resolveFileIcon,
   resolveFileProcessingBadge,
 } from "@/entities/file";
-import type { ModelOptionPolicy } from "@/entities/model";
+import type { ModelControlValue, ModelOptionPolicy } from "@/entities/model";
 import { isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
 
 const TEMPORARY_NOTICE_TRANSITION = {
@@ -143,10 +153,13 @@ type ChatInputProps = {
   onDefaultToolsChange: (toolIDs: number[]) => void | Promise<void>;
   onHTMLVisualPromptChange: (enabled: boolean) => void;
   onOptionsChange: React.Dispatch<React.SetStateAction<ConversationOptions>>;
+  // Model control selections of the selected model (remembered per model by the caller).
+  controlSelections: ChatModelControlSelections;
+  onControlChange: (controlID: string, value: ModelControlValue | null) => void;
   onOptionsReset: (defaults?: ConversationOptions) => void;
   onOptionsDefaultRestore: () => Promise<ConversationOptions | null>;
   onAttachExistingFile: (file: FileObjectDTO) => void | Promise<void>;
-  onUploadFiles: (files: File[]) => void | Promise<void>;
+  onUploadFiles: (files: File[]) => Promise<PendingAttachment[]>;
   onCaptureScreenshot: () => void | Promise<void>;
   onRemoveAttachment: (fileID: string) => void;
   onSendMessage: () => void | Promise<void>;
@@ -227,6 +240,9 @@ function resolveComposerModeIndicator(
   return null;
 }
 
+// Plain-text pastes at least this long (UTF-16 code units) become a .txt attachment instead of draft text.
+const PASTED_TEXT_TO_FILE_THRESHOLD = 2000;
+
 function clipboardFilesFromPaste(event: React.ClipboardEvent<HTMLTextAreaElement>): File[] {
   const itemFiles = Array.from(event.clipboardData.items ?? [])
     .filter((item) => item.kind === "file")
@@ -305,6 +321,8 @@ function ChatInputComponent({
   onDefaultToolsChange,
   onHTMLVisualPromptChange,
   onOptionsChange,
+  controlSelections,
+  onControlChange,
   onOptionsReset,
   onOptionsDefaultRestore,
   onAttachExistingFile,
@@ -355,6 +373,8 @@ function ChatInputComponent({
   const markdownPreviewRef = React.useRef<HTMLDivElement | null>(null);
   const attachmentScrollFadeRef = useScrollFadeFallbackRef<HTMLDivElement>();
   const composingRef = React.useRef(false);
+  // Original text of attachments created from a long paste, keyed by fileID, so it can be put back in the draft.
+  const [pastedTexts, setPastedTexts] = React.useState<ReadonlyMap<string, string>>(() => new Map());
   const [inputGroupHeight, setInputGroupHeight] = React.useState<number | null>(null);
   const hasDraftText = draft.trim().length > 0;
   const hasSubmitContent = hasDraftText || attachments.length > 0;
@@ -485,6 +505,32 @@ function ChatInputComponent({
     };
   }, [options, taskOptionConfig]);
   const modelOptionPolicyDisabled = modelOptionPolicy?.mode?.trim() === "disabled";
+  // Chat parameters: users pick values on the administrator's model controls; only administrators
+  // get the advanced JSON dialog. Media tasks keep their own option dialog.
+  const authSession = useOptionalAuthSession();
+  const viewerIsAdmin = authSession?.user?.role === "admin" || authSession?.user?.role === "superadmin";
+  const showAdvancedOptions = isMediaMode ? !modelOptionPolicyDisabled : viewerIsAdmin;
+  // Chat-mode parameter dialog, opened from the controls popover ("more parameters" → advanced).
+  const [advancedOptionsOpen, setAdvancedOptionsOpen] = React.useState(false);
+  const { placements: controlPlacements, setPlacements: setControlPlacements } = useChatModelControlPlacements();
+  const nativeToolOptions = React.useMemo(
+    () => (isMediaMode || !selectedModel
+      ? []
+      : nativeToolVisualOptionsFromConfigs(
+        selectedModel.nativeTools,
+        selectedModel.nativeToolKeys,
+        modelOptionPolicy?.nativeTools ?? [],
+        selectedProtocols,
+      )),
+    [isMediaMode, modelOptionPolicy?.nativeTools, selectedModel, selectedProtocols],
+  );
+  const isNativeToolEnabled = React.useCallback(
+    (tool: NativeToolVisualOption) => hasProviderTool(options, tool.variants),
+    [options],
+  );
+  const handleNativeToolChange = React.useCallback((tool: NativeToolVisualOption, enabled: boolean) => {
+    onOptionsChange((current) => setProviderToolEnabled(current, tool.variants, enabled));
+  }, [onOptionsChange]);
   const showMCPToolsButton = availableTools.length > 0 && !isMediaMode;
   const showHTMLVisualPromptButton = !isMediaMode;
   const hasComposerAttachments = attachments.length > 0 || uploadingAttachments.length > 0;
@@ -543,6 +589,61 @@ function ChatInputComponent({
       });
     },
   });
+  // Forget pasted texts whose attachment left the composer (removed, sent, or another conversation).
+  React.useEffect(() => {
+    setPastedTexts((current) => {
+      if (current.size === 0) {
+        return current;
+      }
+      const attachedIDs = new Set(attachments.map((item) => item.fileID));
+      const next = new Map([...current].filter(([fileID]) => attachedIDs.has(fileID)));
+      return next.size === current.size ? current : next;
+    });
+  }, [attachments]);
+
+  const insertDraftText = React.useCallback(
+    (text: string) => {
+      const textarea = textareaRef.current;
+      const currentValue = textarea?.value ?? "";
+      const start = textarea?.selectionStart ?? currentValue.length;
+      const end = textarea?.selectionEnd ?? currentValue.length;
+      handleMentionChange(`${currentValue.slice(0, start)}${text}${currentValue.slice(end)}`);
+      const caretIndex = start + text.length;
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(caretIndex, caretIndex);
+      });
+    },
+    [handleMentionChange],
+  );
+
+  const attachPastedText = React.useCallback(
+    async (text: string) => {
+      const pastedAt = Date.now();
+      const file = new File([text], `pasted-text-${pastedAt}.txt`, { type: "text/plain", lastModified: pastedAt });
+      const [attached] = await onUploadFiles([file]);
+      if (!attached) {
+        // Rejected or failed upload: fall back to a regular paste so the text is never lost.
+        insertDraftText(text);
+        return;
+      }
+      setPastedTexts((current) => new Map(current).set(attached.fileID, text));
+    },
+    [insertDraftText, onUploadFiles],
+  );
+
+  const restorePastedText = React.useCallback(
+    (fileID: string) => {
+      const text = pastedTexts.get(fileID);
+      if (text === undefined) {
+        return;
+      }
+      insertDraftText(text);
+      onRemoveAttachment(fileID);
+    },
+    [insertDraftText, onRemoveAttachment, pastedTexts],
+  );
+
   const onSelectUploadTool = React.useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -823,14 +924,38 @@ function ChatInputComponent({
                         aria-label={tComposer("previewAttachment", { name: item.fileName })}
                       />
                       <AttachmentActions>
-                        <AttachmentAction
-                          type="button"
-                          className="size-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground sm:size-7"
-                          onClick={() => onRemoveAttachment(item.fileID)}
-                          aria-label={tComposer("removeAttachment", { name: item.fileName })}
-                        >
-                          <XIcon size={15} strokeWidth={1.8} animateOnHover="default" />
-                        </AttachmentAction>
+                        {pastedTexts.has(item.fileID) ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <AttachmentAction
+                                type="button"
+                                className="size-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground sm:size-7"
+                                onClick={() => restorePastedText(item.fileID)}
+                                aria-label={tComposer("insertPastedText", { name: item.fileName })}
+                              >
+                                <TextQuote size={15} strokeWidth={1.8} />
+                              </AttachmentAction>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              {tComposer("insertPastedTextTooltip")}
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : null}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AttachmentAction
+                              type="button"
+                              className="size-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground sm:size-7"
+                              onClick={() => onRemoveAttachment(item.fileID)}
+                              aria-label={tComposer("removeAttachment", { name: item.fileName })}
+                            >
+                              <XIcon size={15} strokeWidth={1.8} animateOnHover="default" />
+                            </AttachmentAction>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            {tComposer("removeAttachmentTooltip")}
+                          </TooltipContent>
+                        </Tooltip>
                       </AttachmentActions>
                     </Attachment>
                   );
@@ -938,6 +1063,17 @@ function ChatInputComponent({
                 });
               }
 
+              // Media tasks only accept image attachments, and a busy uploader would drop the file:
+              // in both cases keep the native paste.
+              if (files.length === 0 && !markdownPaste && !isMediaMode && !uploading) {
+                const plainText = event.clipboardData.getData("text/plain");
+                if (plainText.length >= PASTED_TEXT_TO_FILE_THRESHOLD) {
+                  event.preventDefault();
+                  void attachPastedText(plainText);
+                  return;
+                }
+              }
+
               if (files.length > 0) {
                 if (!event.clipboardData.getData("text/plain")) {
                   event.preventDefault();
@@ -1034,23 +1170,6 @@ function ChatInputComponent({
                   </DropdownMenuContent>
               </DropdownMenu>
 
-              {!modelOptionPolicyDisabled ? (
-                <ChatModelConfig
-                  disabled={loading || uploading || modelLoading}
-                  options={modelConfigOptions}
-                  defaultOptions={taskOptionConfig?.defaultOptions ?? defaultOptions}
-                  optionControls={taskOptionConfig?.optionControls ?? selectedModel?.optionControls ?? []}
-                  lockedOptionPaths={taskOptionConfig ? [] : selectedModel?.lockedOptionPaths ?? []}
-                  nativeToolKeys={selectedModel?.nativeToolKeys ?? []}
-                  nativeTools={selectedModel?.nativeTools ?? []}
-                  modelOptionPolicy={modelOptionPolicy}
-                  selectedProtocols={selectedProtocols}
-                  selectedModelName={selectedModelName}
-                  onOptionsChange={onOptionsChange}
-                  onOptionsReset={onOptionsReset}
-                  onDefaultOptionsRestore={onOptionsDefaultRestore}
-                />
-              ) : null}
 
               {showMCPToolsButton ? (
                 <ChatMCP
@@ -1139,6 +1258,61 @@ function ChatInputComponent({
                     {composerModeIndicator.intro} {composerModeIndicator.description}
                   </TooltipContent>
                 </Tooltip>
+              ) : null}
+              {!isMediaMode && selectedModel ? (
+                <ChatModelControls
+                  controls={selectedModel.controls}
+                  selections={controlSelections}
+                  nativeTools={nativeToolOptions}
+                  isNativeToolEnabled={isNativeToolEnabled}
+                  placements={controlPlacements}
+                  disabled={loading || uploading || modelLoading}
+                  placementPreference={isConversationMode ? "top" : "bottom"}
+                  onControlChange={onControlChange}
+                  onNativeToolChange={handleNativeToolChange}
+                  onPlacementsChange={(next) => void setControlPlacements(next)}
+                  advancedOptions={viewerIsAdmin ? { label: tComposer("advancedOptions"), onOpen: () => setAdvancedOptionsOpen(true) } : undefined}
+                />
+              ) : null}
+              {/* Media tasks keep the task parameter dialog here; chat parameters live in the
+                  controls popover, so administrators open the same dialog from there. */}
+              {isMediaMode ? (
+                showAdvancedOptions ? (
+                  <ChatModelConfig
+                    disabled={loading || uploading || modelLoading}
+                    options={modelConfigOptions}
+                    defaultOptions={taskOptionConfig?.defaultOptions ?? defaultOptions}
+                    optionControls={taskOptionConfig?.optionControls ?? selectedModel?.optionControls ?? []}
+                    lockedOptionPaths={taskOptionConfig ? [] : selectedModel?.lockedOptionPaths ?? []}
+                    nativeToolKeys={selectedModel?.nativeToolKeys ?? []}
+                    nativeTools={selectedModel?.nativeTools ?? []}
+                    modelOptionPolicy={modelOptionPolicy}
+                    selectedProtocols={selectedProtocols}
+                    selectedModelName={selectedModelName}
+                    onOptionsChange={onOptionsChange}
+                    onOptionsReset={onOptionsReset}
+                    onDefaultOptionsRestore={onOptionsDefaultRestore}
+                  />
+                ) : null
+              ) : showAdvancedOptions ? (
+                <ChatModelConfig
+                  hideTrigger
+                  open={advancedOptionsOpen}
+                  onOpenChange={setAdvancedOptionsOpen}
+                  disabled={loading || uploading || modelLoading}
+                  options={modelConfigOptions}
+                  defaultOptions={defaultOptions}
+                  optionControls={selectedModel?.optionControls ?? []}
+                  lockedOptionPaths={selectedModel?.lockedOptionPaths ?? []}
+                  nativeToolKeys={selectedModel?.nativeToolKeys ?? []}
+                  nativeTools={selectedModel?.nativeTools ?? []}
+                  modelOptionPolicy={modelOptionPolicy}
+                  selectedProtocols={selectedProtocols}
+                  selectedModelName={selectedModelName}
+                  onOptionsChange={onOptionsChange}
+                  onOptionsReset={onOptionsReset}
+                  onDefaultOptionsRestore={onOptionsDefaultRestore}
+                />
               ) : null}
               <ChatModelPicker
                 modelOptions={modelOptions}

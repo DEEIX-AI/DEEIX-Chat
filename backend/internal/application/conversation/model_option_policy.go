@@ -5,6 +5,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 
+	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
 )
@@ -41,6 +42,10 @@ type modelOptionPolicyConfig struct {
 	AllowedPathsJSON      string
 	DeniedPathsJSON       string
 	ModelCapabilitiesJSON string
+	// CatalogReasoning 为 models.dev 目录在路由协议上推导出的推理能力，只在模型未显式声明且无法由旧配置推断时生效。
+	CatalogReasoning *domainchannel.ReasoningCapability
+	// Controls 为用户在模型控件上的选择，只用于聊天链路（resolveChatModelOptions）。
+	Controls map[string]any
 }
 
 func filterModelOptions(options map[string]any, protocol string, cfg modelOptionPolicyConfig) map[string]any {
@@ -536,50 +541,7 @@ func modelParamIntFromOption(value any) (int, bool) {
 }
 
 func modelOptionPolicyProtocolKey(protocol string) string {
-	switch llm.NormalizeAdapter(protocol) {
-	case "openai":
-		return "openai_responses"
-	case "openrouter":
-		return "openrouter_responses"
-	case "anthropic", "claude":
-		return "anthropic_messages"
-	case "xai", "grok":
-		return "xai_responses"
-	case "google", "gemini":
-		return "gemini_generate_content"
-	case llm.AdapterGoogleGenerateContent:
-		return "gemini_generate_content"
-	case llm.AdapterGoogleImageGeneration:
-		return "google_image_generation"
-	case llm.AdapterGeminiInteractions:
-		return "gemini_interactions"
-	case llm.AdapterOpenAIChatCompletions:
-		return "openai_chat_completions"
-	case llm.AdapterOpenRouterChat:
-		return "openrouter_chat_completions"
-	case llm.AdapterOpenRouterImages:
-		return "openrouter_images"
-	case llm.AdapterOpenRouterResponses:
-		return "openrouter_responses"
-	case llm.AdapterOpenAIImageGenerations:
-		return "openai_image_generations"
-	case llm.AdapterOpenAIImageEdits:
-		return "openai_image_edits"
-	case llm.AdapterAnthropicMessages:
-		return "anthropic_messages"
-	case llm.AdapterXAIImage:
-		return "xai_image"
-	case llm.AdapterXAIImageEdits:
-		return "xai_image_edits"
-	case llm.AdapterXAIVideo:
-		return "xai_video"
-	case llm.AdapterXAIVideoExtensions:
-		return "xai_video_extensions"
-	case llm.AdapterXAIResponses:
-		return "xai_responses"
-	default:
-		return "openai_responses"
-	}
+	return llm.OptionPolicyProtocolKey(protocol)
 }
 
 func modelOptionPathsForProtocol(raw string, protocol string) [][]string {

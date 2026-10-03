@@ -1,4 +1,5 @@
 import type { useTranslations } from "next-intl";
+import { normalizeMessageReasoningEffort } from "@/features/chat/model/chat-reasoning-effort";
 import { parseAttachments } from "@/features/chat/model/chat-thread";
 import {
   resolveAssistantInputSideUsageValue,
@@ -123,6 +124,7 @@ export function settleCompletedExchange(
       current.assistantCacheWriteTokens,
     ),
     assistantReasoningTokens: completed.assistantMessage.reasoningTokens,
+    assistantReasoningEffort: normalizeMessageReasoningEffort(completed.assistantMessage.reasoningEffort),
     assistantLatencyMS: completed.assistantMessage.latencyMS,
     assistantProcessTrace:
       assistantMessageStatus === "interrupted"

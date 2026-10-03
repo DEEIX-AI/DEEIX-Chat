@@ -148,3 +148,23 @@ func TestTraceAutoExpandSettingsAreAllowed(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateModelControlPlacements(t *testing.T) {
+	valid := []string{`{}`, `{"reasoning":"toolbar","temperature":"menu"}`,
+		`{"a":"toolbar","b":"toolbar","c":"toolbar","d":"toolbar","e":"toolbar","f":"toolbar","g":"menu"}`}
+	for _, value := range valid {
+		if err := validateValue(modelControlPlacementsKey, value); err != nil {
+			t.Fatalf("%s: unexpected error %v", value, err)
+		}
+	}
+	invalid := []string{`[]`, `{"a":"sidebar"}`, `{"":"menu"}`,
+		`{"a":"toolbar","b":"toolbar","c":"toolbar","d":"toolbar","e":"toolbar","f":"toolbar","g":"toolbar"}`}
+	for _, value := range invalid {
+		if err := validateValue(modelControlPlacementsKey, value); err == nil {
+			t.Fatalf("%s: expected validation error", value)
+		}
+	}
+	if _, ok := allowedKeys[modelControlPlacementsKey]; !ok {
+		t.Fatal("expected placements setting to be allowed")
+	}
+}

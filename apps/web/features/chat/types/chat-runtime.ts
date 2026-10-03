@@ -6,7 +6,7 @@ import type {
 } from "@/features/chat/types/messages";
 import type { ConversationOptions } from "@/shared/api/conversation-types";
 import type { PublicModelPricingDTO } from "@/shared/api/model-types";
-import type { ModelNativeToolConfig } from "@/entities/model";
+import type { ModelControl, ModelNativeToolConfig, ModelReasoningCapability, ReasoningEffortLevel } from "@/entities/model";
 
 export type ViewerProfile = {
   name: string;
@@ -31,6 +31,10 @@ export type ChatModelOption = {
   nativeTools: ModelNativeToolConfig[];
   pricing: PublicModelPricingDTO | null;
   videoExtension: ModelMediaTaskConfig | null;
+  // Normalized reasoning effort capability (explicit or inferred by the backend); null when unsupported.
+  reasoning: ModelReasoningCapability | null;
+  // User-facing controls declared by the administrator (the reasoning switcher is one of them).
+  controls: ModelControl[];
 };
 
 export type ModelMediaTaskConfig = {
@@ -121,6 +125,7 @@ export type PendingExchange = {
   assistantCacheReadTokens?: number;
   assistantCacheWriteTokens?: number;
   assistantReasoningTokens?: number;
+  assistantReasoningEffort?: ReasoningEffortLevel | null;
   assistantLatencyMS?: number;
   compactDone?: { method: string; freed_tokens: number; summary_preview: string };
 };

@@ -3,6 +3,7 @@ import {
   type ChatSubmitTask,
   resolveChatSubmitDecision,
 } from "@/features/chat/model/chat-task";
+import { mergeChatOptionsOverride } from "@/features/chat/model/chat-model-controls";
 import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
 import { resolvePersistedPublicID } from "@/features/chat/model/message-submit";
 import {
@@ -69,6 +70,8 @@ export function planChatSubmission(input: {
   sourceMessagePublicID?: string | null;
   branchReason?: ChatSubmissionBranchReason;
   queuedSubmission?: QueuedChatSubmission;
+  // Single-request option overrides merged over the composer options (e.g. "Regenerate with…").
+  optionsOverride?: ConversationOptions;
   attachmentFallbackContent: string;
   uploading: boolean;
   maxFilesPerMessage: number;
@@ -89,7 +92,8 @@ export function planChatSubmission(input: {
   const { content, currentAttachments, queuedSubmission, activeStreams, combinedMessages } = input;
   const payloadContent = content || input.attachmentFallbackContent;
   const platformModelName = (queuedSubmission?.platformModelName ?? input.selectedPlatformModelName).trim();
-  const requestOptions = queuedSubmission?.options ?? input.options;
+  const baseRequestOptions = queuedSubmission?.options ?? input.options;
+  const requestOptions = mergeChatOptionsOverride(baseRequestOptions, input.optionsOverride);
   const selectedToolIDs = queuedSubmission?.selectedToolIDs ?? input.selectedToolIDs;
   const selectedSkills = queuedSubmission?.selectedSkills ?? input.selectedSkills;
   const selectedKnowledgeBaseIDs = queuedSubmission?.selectedKnowledgeBaseIDs ?? input.selectedKnowledgeBaseIDs;

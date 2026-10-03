@@ -50,6 +50,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mediaartifact"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/modelcatalog/modelsdev"
 	openrouterpricing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/modelpricing/openrouter"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstorage"
 	platformlogger "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/logger"
@@ -352,6 +353,15 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	channelService.SetBillingModelPricingFilter(billingService)
 	channelService.SetPermissionGroupRepo(channelRepo)
 	channelService.SetSubscriptionGroupResolver(&subscriptionGroupAdapter{billing: billingService})
+	builtinReasoningCatalog, builtinReasoningErr := modelsdev.BuiltinReasoningSnapshot()
+	if builtinReasoningErr != nil {
+		log.Warn("builtin models.dev reasoning catalog is invalid", zap.Error(builtinReasoningErr))
+	}
+	channelService.SetReasoningCatalogSources(
+		modelsdev.New(cfg.StrictOutboundPolicy()),
+		filecache.NewReasoningCatalogCache(runtimeCfg.Snapshot().StorageRootDir),
+		&builtinReasoningCatalog,
+	)
 	billingService.SetGroupRateMultiplierResolver(channelRepo)
 	billingService.SetPermissionGroupLookup(channelRepo)
 	billingService.SetModelPricingInvalidator(channelService.InvalidateModelCatalog)
@@ -530,6 +540,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	conversationService.StartBackgroundWorkers(backgroundCtx)
 	contentModerationService.StartBackgroundWorkers(backgroundCtx)
 	channelService.StartModelIconAssetCleanup(backgroundCtx)
+	channelService.LoadReasoningCatalog(backgroundCtx)
 
 	app := &App{
 		stopCh:                 make(chan struct{}),

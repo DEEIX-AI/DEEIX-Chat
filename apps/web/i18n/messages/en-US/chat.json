@@ -521,6 +521,9 @@
     "closeHint": "Close hint",
     "previewAttachment": "Preview attachment {name}",
     "removeAttachment": "Remove attachment {name}",
+    "insertPastedText": "Put the text of {name} back into the input",
+    "insertPastedTextTooltip": "Put back into input",
+    "removeAttachmentTooltip": "Remove attachment",
     "uploading": "Uploading",
     "uploadingAttachment": "Uploading {name}",
     "ragDisabledTitle": "This file has RAG disabled and will be injected as full context. It may use more tokens.",
@@ -653,7 +656,8 @@
       "claude": "Claude native tools",
       "google": "Google native tools"
     },
-    "output": "Output"
+    "output": "Output",
+    "advancedOptions": "Advanced parameter settings"
   },
   "modelPicker": {
     "selectModel": "Select model",
@@ -1074,5 +1078,38 @@
     "advisor": "Advisor",
     "toolSearchRegex": "Tool search (Regex)",
     "toolSearchBm25": "Tool search (BM25)"
+  },
+  "reasoningEffort": {
+    "title": "Reasoning effort",
+    "triggerLabel": "Reasoning effort: {level}",
+    "lockedTooltip": "Reasoning effort is locked by the administrator: {level}",
+    "default": "Default",
+    "auto": "Auto",
+    "levelWithDefault": "{level} (default)",
+    "dialogDescription": "Unified reasoning level; the server maps it to this model's native parameter.",
+    "regenerate": "Regenerate",
+    "regenerateWith": "Regenerate with reasoning effort",
+    "usedByReply": "This reply"
+  },
+  "modelControls": {
+    "title": "Chat parameters",
+    "more": "More chat parameters",
+    "on": "On",
+    "off": "Off",
+    "unset": "Not set",
+    "default": "Default",
+    "resetAll": "Reset to defaults",
+    "valueTooltip": "{label}: {value}",
+    "lockedTooltip": "{label} is locked by the administrator: {value}",
+    "pin": "Pin to composer",
+    "unpin": "Unpin",
+    "pinLimit": "Pin up to {max}",
+    "pinSaveFailed": "Failed to save pinned controls. Try again later.",
+    "numberDefault": "Default {value}",
+    "numberRange": "Range {min} – {max}",
+    "numberInvalid": "Enter a valid number",
+    "numberInvalidRange": "Enter a valid number between {min} and {max}",
+    "increase": "Increase",
+    "decrease": "Decrease"
   }
 }

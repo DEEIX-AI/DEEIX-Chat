@@ -393,7 +393,7 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 		return nil, ErrInvalidJSONConfig
 	}
 	if err := domainchannel.ValidateModelCapsOverrides(input.CapabilitiesJSON); err != nil {
-		return nil, ErrInvalidModelCapsConfig
+		return nil, modelCapsValidationError(err)
 	}
 	systemPrompt := strings.TrimSpace(input.SystemPrompt)
 	if len([]rune(systemPrompt)) > maxSystemPromptChars {
@@ -513,7 +513,7 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 			return nil, ErrInvalidJSONConfig
 		}
 		if err := domainchannel.ValidateModelCapsOverrides(normalized); err != nil {
-			return nil, ErrInvalidModelCapsConfig
+			return nil, modelCapsValidationError(err)
 		}
 		update.CapabilitiesJSON = &normalized
 	}
@@ -950,4 +950,25 @@ func parseCircuitBreakerDefaults(value string) (domainchannel.BreakerDefaults, e
 		return domainchannel.BreakerDefaults{}, ErrInvalidJSONConfig
 	}
 	return defaults, nil
+}
+
+// modelCapsValidationError 将领域层能力校验错误映射为对外错误码；推理能力错误保留细分错误码，
+// 便于管理端提示具体字段。
+func modelCapsValidationError(err error) error {
+	switch {
+	case errors.Is(err, domainchannel.ErrInvalidReasoningFormat):
+		return ErrInvalidReasoningFormat
+	case errors.Is(err, domainchannel.ErrInvalidReasoningLevels):
+		return ErrInvalidReasoningLevels
+	case errors.Is(err, domainchannel.ErrInvalidReasoningDefault):
+		return ErrInvalidReasoningDefault
+	case errors.Is(err, domainchannel.ErrInvalidReasoningBudgets):
+		return ErrInvalidReasoningBudgets
+	case errors.Is(err, domainchannel.ErrModelControlForbiddenPath):
+		return ErrModelControlForbiddenPath
+	case errors.Is(err, domainchannel.ErrInvalidModelControls):
+		return ErrInvalidModelControls
+	default:
+		return ErrInvalidModelCapsConfig
+	}
 }

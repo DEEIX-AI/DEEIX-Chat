@@ -2948,6 +2948,62 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/llm/model-catalog": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "返回目录数据来源（远端同步或内置快照）、拉取时间、条目数、是否正在同步与最近一次同步错误；目录过期时在后台发起一次同步",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员查询 models.dev 推理目录状态",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ModelCatalogStatusResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/llm/model-catalog/refresh": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "拉取最新目录并替换当前目录；失败时保留当前目录并记录错误",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员立即同步 models.dev 推理目录",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ModelCatalogStatusResponseDoc"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/llm/model-display-groups": {
             "get": {
                 "security": [
@@ -24233,6 +24289,7 @@ const docTemplate = `{
                 "parentPublicID",
                 "platformModelName",
                 "publicID",
+                "reasoningEffort",
                 "reasoningTokens",
                 "role",
                 "runID",
@@ -24331,6 +24388,21 @@ const docTemplate = `{
                 },
                 "publicID": {
                     "type": "string"
+                },
+                "reasoningEffort": {
+                    "description": "ReasoningEffort 是生成该消息时生效的规范推理档位；模型无推理能力时为 null。",
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "minimal",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max"
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "reasoningTokens": {
                     "type": "integer"
@@ -24487,6 +24559,63 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "ModelCatalogStatusResponse": {
+            "type": "object",
+            "required": [
+                "fetchedAt",
+                "lastError",
+                "modelCount",
+                "origin",
+                "refreshing"
+            ],
+            "properties": {
+                "fetchedAt": {
+                    "description": "FetchedAt 为目录数据的拉取时间（RFC3339）；无目录时为 null。",
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "lastError": {
+                    "description": "LastError 为最近一次同步失败的原因；最近一次同步成功时为 null。",
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "modelCount": {
+                    "description": "ModelCount 为目录中带有推理选项的模型条目数。",
+                    "type": "integer"
+                },
+                "origin": {
+                    "description": "Origin 为当前目录数据来源：remote 为远端同步（含本地缓存恢复），builtin 为随版本发布的内置快照；无目录时为 null。",
+                    "type": "string",
+                    "enum": [
+                        "remote",
+                        "builtin"
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "refreshing": {
+                    "description": "Refreshing 表示目录正在同步（按需后台同步或手动同步）。",
+                    "type": "boolean"
+                }
+            }
+        },
+        "ModelCatalogStatusResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ModelCatalogStatusResponse"
+                },
+                "errorMsg": {
                     "type": "string"
                 }
             }
@@ -26947,6 +27076,124 @@ const docTemplate = `{
                 }
             }
         },
+        "PublicModelControlOptionResponse": {
+            "type": "object",
+            "required": [
+                "description",
+                "label",
+                "value"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "PublicModelControlResponse": {
+            "type": "object",
+            "required": [
+                "default",
+                "description",
+                "icon",
+                "id",
+                "integer",
+                "kind",
+                "label",
+                "locked",
+                "max",
+                "min",
+                "options",
+                "placement",
+                "protocols",
+                "step",
+                "type"
+            ],
+            "properties": {
+                "default": {
+                    "description": "Default 为默认取值：select 为选项值，toggle 为 on/off，number 为十进制数值；为 null 表示不修改参数。",
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "description": "Icon 为 lucide 图标名（kebab-case）；为空时由客户端按类型选择通用图标。",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "integer": {
+                    "type": "boolean"
+                },
+                "kind": {
+                    "description": "Kind 为 reasoning 时是统一思考强度控件，选项为规范档位（目录来源另有 auto）。",
+                    "type": "string",
+                    "enum": [
+                        "generic",
+                        "reasoning"
+                    ]
+                },
+                "label": {
+                    "type": "string"
+                },
+                "locked": {
+                    "description": "Locked 为 true 时固定使用默认值，客户端只展示不可修改。",
+                    "type": "boolean"
+                },
+                "max": {
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "min": {
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PublicModelControlOptionResponse"
+                    }
+                },
+                "placement": {
+                    "type": "string",
+                    "enum": [
+                        "toolbar",
+                        "menu"
+                    ]
+                },
+                "protocols": {
+                    "description": "Protocols 非空时控件只在这些协议键上生效。",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "step": {
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "select",
+                        "toggle",
+                        "number"
+                    ]
+                }
+            }
+        },
         "PublicModelListResponseDoc": {
             "type": "object",
             "required": [
@@ -27068,10 +27315,71 @@ const docTemplate = `{
                 }
             }
         },
+        "PublicModelReasoningResponse": {
+            "type": "object",
+            "required": [
+                "controlPath",
+                "default",
+                "levels",
+                "locked",
+                "source"
+            ],
+            "properties": {
+                "controlPath": {
+                    "description": "ControlPath 为推断来源的原生参数路径（高级参数面板需隐藏该控件）；显式声明时为 null。",
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "default": {
+                    "description": "Default 为未显式选择时使用的档位。",
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "minimal",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max"
+                    ]
+                },
+                "levels": {
+                    "description": "Levels 为可选规范档位，按由低到高排列。",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "none",
+                            "minimal",
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh",
+                            "max"
+                        ]
+                    }
+                },
+                "locked": {
+                    "description": "Locked 为 true 时档位被管理员锁定为 default，客户端传入的档位不生效。",
+                    "type": "boolean"
+                },
+                "source": {
+                    "description": "Source 为能力来源。catalog 表示由 models.dev 目录自动识别：未显式选择档位时不下发推理参数，由上游决定默认行为。",
+                    "type": "string",
+                    "enum": [
+                        "explicit",
+                        "inferred",
+                        "catalog"
+                    ]
+                }
+            }
+        },
         "PublicModelResponse": {
             "type": "object",
             "required": [
                 "capabilitiesJSON",
+                "controls",
                 "description",
                 "displayGroupID",
                 "displayGroupIcon",
@@ -27081,6 +27389,7 @@ const docTemplate = `{
                 "platformModelName",
                 "pricing",
                 "protocolsJSON",
+                "reasoning",
                 "sortOrder",
                 "vendor",
                 "vendorIcon",
@@ -27089,6 +27398,13 @@ const docTemplate = `{
             "properties": {
                 "capabilitiesJSON": {
                     "type": "string"
+                },
+                "controls": {
+                    "description": "Controls 是用户端可操作的模型控件（管理员隐藏的控件不下发），顺序即展示顺序。\n用户请求只提交 {控件 id: 取值}，参数片段只保存在服务端。",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PublicModelControlResponse"
+                    }
                 },
                 "description": {
                     "type": "string"
@@ -27124,6 +27440,16 @@ const docTemplate = `{
                 },
                 "protocolsJSON": {
                     "type": "string"
+                },
+                "reasoning": {
+                    "description": "Reasoning 是后端归一化的推理强度能力（显式声明或由旧版参数控件推断）；无能力时为 null。",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/PublicModelReasoningResponse"
+                        }
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "sortOrder": {
                     "type": "integer"
@@ -27253,6 +27579,7 @@ const docTemplate = `{
                 "parentPublicID",
                 "platformModelName",
                 "publicID",
+                "reasoningEffort",
                 "reasoningTokens",
                 "role",
                 "runID",
@@ -27321,6 +27648,21 @@ const docTemplate = `{
                 },
                 "publicID": {
                     "type": "string"
+                },
+                "reasoningEffort": {
+                    "description": "ReasoningEffort 是生成该消息时生效的规范推理档位；模型无推理能力时为 null。",
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "minimal",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max"
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "reasoningTokens": {
                     "type": "integer"
@@ -28050,6 +28392,7 @@ const docTemplate = `{
                 "platformModelName",
                 "provider",
                 "providerProtocol",
+                "reasoningEffort",
                 "reasoningTokens",
                 "requestID",
                 "requestedModelName",
@@ -28119,6 +28462,21 @@ const docTemplate = `{
                 },
                 "providerProtocol": {
                     "type": "string"
+                },
+                "reasoningEffort": {
+                    "description": "ReasoningEffort 是本次运行生效的规范推理档位；模型无推理能力时为 null。",
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "minimal",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max"
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "reasoningTokens": {
                     "type": "integer"
@@ -28213,6 +28571,11 @@ const docTemplate = `{
                         "mixed"
                     ]
                 },
+                "controls": {
+                    "description": "Controls 为模型控件选择 {控件 id: 取值}，取值为字符串、布尔或数值；未知控件与无效取值被忽略。",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
                 "fileIDs": {
                     "type": "array",
                     "maxItems": 20,
@@ -28235,6 +28598,7 @@ const docTemplate = `{
                     "maxLength": 128
                 },
                 "options": {
+                    "description": "Options 为高级参数 JSON：仅管理员生效；普通用户只保留原生工具选择（tools）。",
                     "type": "object",
                     "additionalProperties": {}
                 },
@@ -29182,6 +29546,10 @@ const docTemplate = `{
                 "clientRunID": {
                     "type": "string",
                     "maxLength": 64
+                },
+                "controls": {
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "htmlVisualPrompt": {
                     "type": "boolean"
@@ -32525,7 +32893,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.4.4-beta.3",
+	Version:          "0.4.4-beta.4",
 	Host:             "",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},

@@ -1266,6 +1266,9 @@ func (r *Repo) UpdateAssistantMessageCompletion(
 	if update.KnowledgeSources != nil {
 		updates["knowledge_sources_json"] = marshalMessageKnowledgeSources(update.KnowledgeSources)
 	}
+	if update.ReasoningEffort != nil {
+		updates["reasoning_effort"] = *update.ReasoningEffort
+	}
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&models.Message{}).
 		Where("id = ?", messageID).
@@ -1343,6 +1346,9 @@ func (r *Repo) CompleteAssistantMessageWithAttachments(
 		if assistantCompletion.KnowledgeSources != nil {
 			updates["knowledge_sources_json"] = marshalMessageKnowledgeSources(assistantCompletion.KnowledgeSources)
 		}
+		if assistantCompletion.ReasoningEffort != nil {
+			updates["reasoning_effort"] = *assistantCompletion.ReasoningEffort
+		}
 		return tx.Model(&models.Message{}).
 			Where("id = ?", assistantMessageID).
 			Updates(updates).Error
@@ -1399,6 +1405,9 @@ func (r *Repo) CompleteAssistantMessageWithGeneratedAttachments(
 		}
 		if assistantCompletion.KnowledgeSources != nil {
 			updates["knowledge_sources_json"] = marshalMessageKnowledgeSources(assistantCompletion.KnowledgeSources)
+		}
+		if assistantCompletion.ReasoningEffort != nil {
+			updates["reasoning_effort"] = *assistantCompletion.ReasoningEffort
 		}
 		return tx.Model(&models.Message{}).
 			Where("id = ?", assistantMessageID).
@@ -1783,6 +1792,7 @@ func (r *Repo) UpdateConversationRun(ctx context.Context, item *domainconversati
 			"cache_read_tokens",
 			"cache_write_tokens",
 			"reasoning_tokens",
+			"reasoning_effort",
 			"tool_calls_count",
 			"first_token_latency_ms",
 			"total_latency_ms",
@@ -3950,6 +3960,7 @@ func toMessageDomain(item models.Message) domainconversation.Message {
 		CacheReadTokens:          item.CacheReadTokens,
 		CacheWriteTokens:         item.CacheWriteTokens,
 		ReasoningTokens:          item.ReasoningTokens,
+		ReasoningEffort:          item.ReasoningEffort,
 		LatencyMS:                item.LatencyMS,
 		BilledCurrency:           item.BilledCurrency,
 		BilledNanousd:            item.BilledNanousd,
@@ -4002,6 +4013,7 @@ func toMessageModel(item *domainconversation.Message) models.Message {
 		CacheReadTokens:          item.CacheReadTokens,
 		CacheWriteTokens:         item.CacheWriteTokens,
 		ReasoningTokens:          item.ReasoningTokens,
+		ReasoningEffort:          item.ReasoningEffort,
 		LatencyMS:                item.LatencyMS,
 		BilledCurrency:           item.BilledCurrency,
 		BilledNanousd:            item.BilledNanousd,
@@ -4074,6 +4086,7 @@ func toConversationRunDomain(item models.ConversationRun) domainconversation.Run
 		CacheReadTokens:          item.CacheReadTokens,
 		CacheWriteTokens:         item.CacheWriteTokens,
 		ReasoningTokens:          item.ReasoningTokens,
+		ReasoningEffort:          item.ReasoningEffort,
 		ToolCallsCount:           item.ToolCallsCount,
 		FirstTokenLatencyMS:      item.FirstTokenLatencyMS,
 		TotalLatencyMS:           item.TotalLatencyMS,
@@ -4170,6 +4183,7 @@ func toConversationRunModel(item *domainconversation.Run) models.ConversationRun
 		CacheReadTokens:          item.CacheReadTokens,
 		CacheWriteTokens:         item.CacheWriteTokens,
 		ReasoningTokens:          item.ReasoningTokens,
+		ReasoningEffort:          item.ReasoningEffort,
 		ToolCallsCount:           item.ToolCallsCount,
 		FirstTokenLatencyMS:      item.FirstTokenLatencyMS,
 		TotalLatencyMS:           item.TotalLatencyMS,

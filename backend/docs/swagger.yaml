@@ -5021,6 +5021,19 @@ definitions:
         $ref: '#/definitions/MessageProcessTraceResponse'
       publicID:
         type: string
+      reasoningEffort:
+        description: ReasoningEffort 是生成该消息时生效的规范推理档位；模型无推理能力时为 null。
+        enum:
+        - none
+        - minimal
+        - low
+        - medium
+        - high
+        - xhigh
+        - max
+        type: string
+        x-nullable: true
+        x-omitempty: false
       reasoningTokens:
         type: integer
       role:
@@ -5070,6 +5083,7 @@ definitions:
     - parentPublicID
     - platformModelName
     - publicID
+    - reasoningEffort
     - reasoningTokens
     - role
     - runID
@@ -5165,6 +5179,50 @@ definitions:
     - summary
     - title
     - updatedAt
+    type: object
+  ModelCatalogStatusResponse:
+    properties:
+      fetchedAt:
+        description: FetchedAt 为目录数据的拉取时间（RFC3339）；无目录时为 null。
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      lastError:
+        description: LastError 为最近一次同步失败的原因；最近一次同步成功时为 null。
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      modelCount:
+        description: ModelCount 为目录中带有推理选项的模型条目数。
+        type: integer
+      origin:
+        description: Origin 为当前目录数据来源：remote 为远端同步（含本地缓存恢复），builtin 为随版本发布的内置快照；无目录时为
+          null。
+        enum:
+        - remote
+        - builtin
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      refreshing:
+        description: Refreshing 表示目录正在同步（按需后台同步或手动同步）。
+        type: boolean
+    required:
+    - fetchedAt
+    - lastError
+    - modelCount
+    - origin
+    - refreshing
+    type: object
+  ModelCatalogStatusResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ModelCatalogStatusResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
     type: object
   ModelDataResponse:
     properties:
@@ -6890,6 +6948,96 @@ definitions:
     - codeChallenge
     - redirectURI
     type: object
+  PublicModelControlOptionResponse:
+    properties:
+      description:
+        type: string
+      label:
+        type: string
+      value:
+        type: string
+    required:
+    - description
+    - label
+    - value
+    type: object
+  PublicModelControlResponse:
+    properties:
+      default:
+        description: Default 为默认取值：select 为选项值，toggle 为 on/off，number 为十进制数值；为 null
+          表示不修改参数。
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      description:
+        type: string
+      icon:
+        description: Icon 为 lucide 图标名（kebab-case）；为空时由客户端按类型选择通用图标。
+        type: string
+      id:
+        type: string
+      integer:
+        type: boolean
+      kind:
+        description: Kind 为 reasoning 时是统一思考强度控件，选项为规范档位（目录来源另有 auto）。
+        enum:
+        - generic
+        - reasoning
+        type: string
+      label:
+        type: string
+      locked:
+        description: Locked 为 true 时固定使用默认值，客户端只展示不可修改。
+        type: boolean
+      max:
+        type: number
+        x-nullable: true
+        x-omitempty: false
+      min:
+        type: number
+        x-nullable: true
+        x-omitempty: false
+      options:
+        items:
+          $ref: '#/definitions/PublicModelControlOptionResponse'
+        type: array
+      placement:
+        enum:
+        - toolbar
+        - menu
+        type: string
+      protocols:
+        description: Protocols 非空时控件只在这些协议键上生效。
+        items:
+          type: string
+        type: array
+      step:
+        type: number
+        x-nullable: true
+        x-omitempty: false
+      type:
+        enum:
+        - select
+        - toggle
+        - number
+        type: string
+    required:
+    - default
+    - description
+    - icon
+    - id
+    - integer
+    - kind
+    - label
+    - locked
+    - max
+    - min
+    - options
+    - placement
+    - protocols
+    - step
+    - type
+    type: object
   PublicModelListResponseDoc:
     properties:
       data:
@@ -6977,10 +7125,65 @@ definitions:
     - outputUSDPerMTokens
     - upToTokens
     type: object
+  PublicModelReasoningResponse:
+    properties:
+      controlPath:
+        description: ControlPath 为推断来源的原生参数路径（高级参数面板需隐藏该控件）；显式声明时为 null。
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      default:
+        description: Default 为未显式选择时使用的档位。
+        enum:
+        - none
+        - minimal
+        - low
+        - medium
+        - high
+        - xhigh
+        - max
+        type: string
+      levels:
+        description: Levels 为可选规范档位，按由低到高排列。
+        items:
+          enum:
+          - none
+          - minimal
+          - low
+          - medium
+          - high
+          - xhigh
+          - max
+          type: string
+        type: array
+      locked:
+        description: Locked 为 true 时档位被管理员锁定为 default，客户端传入的档位不生效。
+        type: boolean
+      source:
+        description: Source 为能力来源。catalog 表示由 models.dev 目录自动识别：未显式选择档位时不下发推理参数，由上游决定默认行为。
+        enum:
+        - explicit
+        - inferred
+        - catalog
+        type: string
+    required:
+    - controlPath
+    - default
+    - levels
+    - locked
+    - source
+    type: object
   PublicModelResponse:
     properties:
       capabilitiesJSON:
         type: string
+      controls:
+        description: |-
+          Controls 是用户端可操作的模型控件（管理员隐藏的控件不下发），顺序即展示顺序。
+          用户请求只提交 {控件 id: 取值}，参数片段只保存在服务端。
+        items:
+          $ref: '#/definitions/PublicModelControlResponse'
+        type: array
       description:
         type: string
       displayGroupID:
@@ -7004,6 +7207,12 @@ definitions:
         x-omitempty: false
       protocolsJSON:
         type: string
+      reasoning:
+        allOf:
+        - $ref: '#/definitions/PublicModelReasoningResponse'
+        description: Reasoning 是后端归一化的推理强度能力（显式声明或由旧版参数控件推断）；无能力时为 null。
+        x-nullable: true
+        x-omitempty: false
       sortOrder:
         type: integer
       vendor:
@@ -7014,6 +7223,7 @@ definitions:
         type: string
     required:
     - capabilitiesJSON
+    - controls
     - description
     - displayGroupID
     - displayGroupIcon
@@ -7023,6 +7233,7 @@ definitions:
     - platformModelName
     - pricing
     - protocolsJSON
+    - reasoning
     - sortOrder
     - vendor
     - vendorIcon
@@ -7136,6 +7347,19 @@ definitions:
         $ref: '#/definitions/MessageProcessTraceResponse'
       publicID:
         type: string
+      reasoningEffort:
+        description: ReasoningEffort 是生成该消息时生效的规范推理档位；模型无推理能力时为 null。
+        enum:
+        - none
+        - minimal
+        - low
+        - medium
+        - high
+        - xhigh
+        - max
+        type: string
+        x-nullable: true
+        x-omitempty: false
       reasoningTokens:
         type: integer
       role:
@@ -7171,6 +7395,7 @@ definitions:
     - parentPublicID
     - platformModelName
     - publicID
+    - reasoningEffort
     - reasoningTokens
     - role
     - runID
@@ -7690,6 +7915,19 @@ definitions:
         type: string
       providerProtocol:
         type: string
+      reasoningEffort:
+        description: ReasoningEffort 是本次运行生效的规范推理档位；模型无推理能力时为 null。
+        enum:
+        - none
+        - minimal
+        - low
+        - medium
+        - high
+        - xhigh
+        - max
+        type: string
+        x-nullable: true
+        x-omitempty: false
       reasoningTokens:
         type: integer
       requestID:
@@ -7738,6 +7976,7 @@ definitions:
     - platformModelName
     - provider
     - providerProtocol
+    - reasoningEffort
     - reasoningTokens
     - requestID
     - requestedModelName
@@ -7784,6 +8023,10 @@ definitions:
         - file
         - mixed
         type: string
+      controls:
+        additionalProperties: {}
+        description: 'Controls 为模型控件选择 {控件 id: 取值}，取值为字符串、布尔或数值；未知控件与无效取值被忽略。'
+        type: object
       fileIDs:
         items:
           type: string
@@ -7801,6 +8044,7 @@ definitions:
         type: string
       options:
         additionalProperties: {}
+        description: Options 为高级参数 JSON：仅管理员生效；普通用户只保留原生工具选择（tools）。
         type: object
       parentMessagePublicID:
         maxLength: 32
@@ -8458,6 +8702,9 @@ definitions:
       clientRunID:
         maxLength: 64
         type: string
+      controls:
+        additionalProperties: {}
+        type: object
       htmlVisualPrompt:
         type: boolean
       knowledgeBaseIDs:
@@ -10831,7 +11078,7 @@ info:
   contact: {}
   description: DEEIX Chat 后端 API 文档
   title: DEEIX Chat API
-  version: "0.4.4-beta.3"
+  version: "0.4.4-beta.4"
 paths:
   /admin/announcements:
     get:
@@ -12694,6 +12941,40 @@ paths:
       security:
       - BearerAuth: []
       summary: 管理员从图标库移除已上传图标
+      tags:
+      - llm
+  /admin/llm/model-catalog:
+    get:
+      description: 返回目录数据来源（远端同步或内置快照）、拉取时间、条目数、是否正在同步与最近一次同步错误；目录过期时在后台发起一次同步
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ModelCatalogStatusResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询 models.dev 推理目录状态
+      tags:
+      - llm
+  /admin/llm/model-catalog/refresh:
+    post:
+      description: 拉取最新目录并替换当前目录；失败时保留当前目录并记录错误
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ModelCatalogStatusResponseDoc'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员立即同步 models.dev 推理目录
       tags:
       - llm
   /admin/llm/model-display-groups:

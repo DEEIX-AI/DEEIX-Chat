@@ -521,6 +521,9 @@
     "closeHint": "关闭提示",
     "previewAttachment": "预览附件 {name}",
     "removeAttachment": "移除附件 {name}",
+    "insertPastedText": "将 {name} 的全文放回输入框",
+    "insertPastedTextTooltip": "放回输入框",
+    "removeAttachmentTooltip": "移除附件",
     "uploading": "上传中",
     "uploadingAttachment": "上传中 {name}",
     "ragDisabledTitle": "该文件已关闭 RAG，将以全文注入（消耗更多 Token）",
@@ -653,7 +656,8 @@
       "claude": "Claude 原生工具",
       "google": "Google 原生工具"
     },
-    "output": "输出形式"
+    "output": "输出形式",
+    "advancedOptions": "高级参数配置"
   },
   "modelPicker": {
     "selectModel": "选择模型",
@@ -1074,5 +1078,38 @@
     "advisor": "Advisor",
     "toolSearchRegex": "工具搜索（Regex）",
     "toolSearchBm25": "工具搜索（BM25）"
+  },
+  "reasoningEffort": {
+    "title": "思考强度",
+    "triggerLabel": "思考强度：{level}",
+    "lockedTooltip": "思考强度已由管理员锁定：{level}",
+    "default": "默认",
+    "auto": "自动",
+    "levelWithDefault": "{level}（默认）",
+    "dialogDescription": "统一的思考强度，服务器会映射为该模型的原生参数。",
+    "regenerate": "重新生成",
+    "regenerateWith": "以指定思考强度重新生成",
+    "usedByReply": "本次回复"
+  },
+  "modelControls": {
+    "title": "对话参数",
+    "more": "更多对话参数",
+    "on": "开启",
+    "off": "关闭",
+    "unset": "未设置",
+    "default": "默认",
+    "resetAll": "恢复默认",
+    "valueTooltip": "{label}：{value}",
+    "lockedTooltip": "{label} 已由管理员锁定：{value}",
+    "pin": "固定到输入框",
+    "unpin": "取消固定",
+    "pinLimit": "最多固定 {max} 个",
+    "pinSaveFailed": "保存固定项失败，请稍后重试",
+    "numberDefault": "默认 {value}",
+    "numberRange": "范围 {min} – {max}",
+    "numberInvalid": "请输入有效的数值",
+    "numberInvalidRange": "请输入 {min} – {max} 之间的有效数值",
+    "increase": "增加",
+    "decrease": "减少"
   }
 }

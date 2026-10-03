@@ -19,5 +19,7 @@ func obsoleteSettings() []domainsettings.SystemSetting {
 		{Namespace: "chat", Key: "context_compact_trigger_tokens"},
 		{Namespace: "chat", Key: "process_trace_visible_to_user"},
 		{Namespace: "chat", Key: "process_trace_store_upstream_think"},
+		{Namespace: "chat", Key: "models_dev_enabled"},
+		{Namespace: "chat", Key: "models_dev_url"},
 	}
 }

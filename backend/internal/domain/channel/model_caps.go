@@ -180,7 +180,8 @@ func ResolveModelCapsFromCapabilitiesWithFallback(modelName string, capabilities
 	return resolved
 }
 
-// ValidateModelCapsOverrides 校验显式能力覆盖，避免无效或异常大数值进入请求预算计算。
+// ValidateModelCapsOverrides 校验显式能力覆盖，避免无效或异常大数值进入请求预算计算，
+// 并校验显式声明的推理强度能力（错误为 ErrInvalidReasoning* 哨兵，便于应用层区分错误码）。
 // 未配置相关字段时不干涉其他能力配置。
 func ValidateModelCapsOverrides(capabilitiesJSON string) error {
 	payload, ok := parseCapabilities(capabilitiesJSON)
@@ -198,7 +199,10 @@ func ValidateModelCapsOverrides(capabilitiesJSON string) error {
 	if hasContext && hasOutput && maxOutput >= contextWindow {
 		return ErrInvalidModelCapsOverride
 	}
-	return nil
+	if err := validateReasoningCapabilityOverride(payload); err != nil {
+		return err
+	}
+	return validateModelControlsOverride(payload)
 }
 
 func firstPresentInt(payload map[string]any, keys ...string) (int, bool) {

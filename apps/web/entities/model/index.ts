@@ -23,6 +23,32 @@ export {
   uniqueModelOptionPaths,
 } from "@/entities/model/lib/model-option-policy";
 export { resolveModelPresentationGroup } from "@/entities/model/lib/model-presentation";
+export {
+  isReasoningEffortLevel,
+  type ModelReasoningCapability,
+  parseModelReasoningCapability,
+  type ReasoningEffortLevel,
+} from "@/entities/model/lib/model-reasoning";
+export {
+  MODEL_CONTROL_ICON_NAMES,
+  resolveModelControlIcon,
+  resolveNativeToolIcon,
+} from "@/entities/model/lib/model-control-icons";
+export {
+  MAX_PINNED_MODEL_CONTROLS,
+  MODEL_CONTROL_REASONING_AUTO,
+  MODEL_CONTROL_REASONING_ID,
+  MODEL_CONTROL_TOGGLE_OFF,
+  MODEL_CONTROL_TOGGLE_ON,
+  type ModelControl,
+  type ModelControlPlacement,
+  type ModelControlType,
+  type ModelControlValue,
+  modelControlDefaultValue,
+  modelControlNumberStep,
+  normalizeModelControlValue,
+  parseModelControls,
+} from "@/entities/model/lib/model-controls";
 export { parseProtocolsJSON } from "@/entities/model/lib/model-protocols";
 export { localizedNativeToolText } from "@/entities/model/lib/native-tool-i18n";
 export {

@@ -524,6 +524,7 @@ func (s *Service) cloneSharedMessage(
 		CacheReadTokens:  source.CacheReadTokens,
 		CacheWriteTokens: source.CacheWriteTokens,
 		ReasoningTokens:  source.ReasoningTokens,
+		ReasoningEffort:  source.ReasoningEffort,
 		LatencyMS:        source.LatencyMS,
 		BilledCurrency:   "USD",
 		BilledNanousd:    0,

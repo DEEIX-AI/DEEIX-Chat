@@ -31,6 +31,8 @@ type AssistantMessageCompletionUpdate struct {
 	ErrorCode        string
 	ErrorMessage     string
 	KnowledgeSources []domainconversation.MessageKnowledgeSource
+	// ReasoningEffort 为 nil 时保留原值，避免媒体等无推理能力的完成路径清空已记录的档位。
+	ReasoningEffort *string
 }
 
 // ForkConversationMessage 描述 fork 时待创建的消息及其源消息关系。

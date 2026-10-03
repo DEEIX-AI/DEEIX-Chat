@@ -32,6 +32,7 @@ import { useChatMessageFeedback } from "@/features/chat/hooks/use-chat-message-f
 import type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts";
 import { areChatAreaMessagesRenderEqual } from "@/features/chat/model/chat-message-render";
 import { MAX_SCREENSHOT_MESSAGES } from "@/features/chat/model/conversation-screenshot";
+import type { ChatRegenerateReasoningOptions } from "@/features/chat/model/chat-reasoning-effort";
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage, MessageAttachment, UserMessageEditMode } from "@/features/chat/types/messages";
 import { cn } from "@/lib/utils";
@@ -43,6 +44,7 @@ import { StreamdownRender } from "@/shared/components/markdown/streamdown-render
 import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
 import { useBranding } from "@/shared/config/branding-provider";
 import type { BillingDisplayCurrency } from "@/entities/billing";
+import type { ReasoningEffortLevel } from "@/entities/model";
 
 function LiveMessageFollower({ activeKey }: { activeKey: string }): null {
   const { scrollToEnd } = useMessageScroller();
@@ -94,12 +96,14 @@ type ChatAreaProps = {
   messageContentRef: React.RefObject<HTMLDivElement | null>;
   onScroll: (event: React.UIEvent<HTMLDivElement>) => void;
   onRetryUserMessage: (message: ChatAreaMessage) => Promise<void> | void;
-  onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
+  onRetryAssistantMessage: (message: ChatAreaMessage, reasoningEffort?: ReasoningEffortLevel) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onEditUserMessage: (message: ChatAreaMessage, content: string, mode: UserMessageEditMode) => Promise<boolean> | boolean;
   onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onDeleteMessage?: (message: ChatAreaMessage) => Promise<void> | void;
+  // Levels offered by "Regenerate with…" for the composer's model; null hides the submenu.
+  regenerateReasoning?: ChatRegenerateReasoningOptions | null;
   modelOptions: ChatModelOption[];
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
@@ -271,6 +275,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onEditUserMessage,
   onForkMessage,
   onDeleteMessage,
+  regenerateReasoning = null,
   modelOptions,
   selectedPlatformModelName,
   onModelChange,
@@ -302,12 +307,14 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   readOnly: boolean;
   reaction: AssistantReaction;
   onRetryUserMessage: (message: ChatAreaMessage) => Promise<void> | void;
-  onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
+  onRetryAssistantMessage: (message: ChatAreaMessage, reasoningEffort?: ReasoningEffortLevel) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onEditUserMessage: (message: ChatAreaMessage, content: string, mode: UserMessageEditMode) => Promise<boolean> | boolean;
   onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onDeleteMessage?: (message: ChatAreaMessage) => Promise<void> | void;
+  // Levels offered by "Regenerate with…" for the composer's model; null hides the submenu.
+  regenerateReasoning?: ChatRegenerateReasoningOptions | null;
   modelOptions: ChatModelOption[];
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
@@ -407,6 +414,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         busy={busy}
         reaction={reaction}
         onRetryAssistantMessage={onRetryAssistantMessage}
+        regenerateReasoning={regenerateReasoning}
         onContinueAssistantMessage={onContinueAssistantMessage}
         onEditAssistantMessage={onEditAssistantMessage}
         onForkMessage={onForkMessage}
@@ -472,6 +480,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.screenshotMetaModelName === next.screenshotMetaModelName &&
   previous.screenshotMetaTimestamp === next.screenshotMetaTimestamp &&
   previous.modelOptions === next.modelOptions &&
+  previous.regenerateReasoning === next.regenerateReasoning &&
   previous.selectedPlatformModelName === next.selectedPlatformModelName &&
   previous.onModelChange === next.onModelChange &&
   previous.onModelCatalogRefresh === next.onModelCatalogRefresh &&
@@ -499,6 +508,7 @@ export function ChatArea({
   onEditUserMessage,
   onForkMessage,
   onDeleteMessage,
+  regenerateReasoning = null,
   modelOptions,
   selectedPlatformModelName,
   onModelChange,
@@ -697,6 +707,7 @@ export function ChatArea({
                       onEditUserMessage={stableOnEditUserMessage}
                       onForkMessage={onForkMessage ? stableOnForkMessage : undefined}
                       onDeleteMessage={onDeleteMessage ? stableOnDeleteMessage : undefined}
+                      regenerateReasoning={regenerateReasoning}
                       modelOptions={modelOptions}
                       selectedPlatformModelName={selectedPlatformModelName}
                       onModelChange={stableOnModelChange}
