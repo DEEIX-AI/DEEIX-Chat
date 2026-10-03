@@ -121,7 +121,7 @@ apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagge
 
 以下约束在加入桌面/移动端时**不得放松**：
 
-1. **CORS 保持显式 allowlist。** 后端 `middleware/cors.go` 是 Origin 白名单 + `Access-Control-Allow-Credentials: true`。桌面 webview 的 origin（如 `tauri://localhost`、`http://tauri.localhost`）必须显式加入白名单，禁止改为 `*`。
+1. **CORS 保持显式 allowlist。** 后端 `middleware/cors.go` 是 Origin 白名单 + `Access-Control-Allow-Credentials: true`。桌面 webview 的 origin（`tauri://localhost`、`http://tauri.localhost`）由中间件内置放行，部署方无需配置；其余来源必须显式加入白名单，禁止改为 `*`。
 2. **Access token 只存内存。** 现有 Web 端以 `Authorization: Bearer` 携带内存中的 access token，这一模型保持不变，任何端都不得把 access token 写入持久存储。
 3. **Refresh token 的存放按端区分，读取路径互不回退。**
    - Web：HttpOnly cookie（现状），服务端管理生命周期。

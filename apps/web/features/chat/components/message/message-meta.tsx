@@ -650,30 +650,6 @@ function ModelBadge({ label }: { label: string }) {
   );
 }
 
-function ReasoningEffortBadge({ value }: { value: string | null | undefined }) {
-  const t = useTranslations("chat.reasoningEffort");
-  const tLevels = useTranslations("common.reasoningEffort.levels");
-  const level = normalizeMessageReasoningEffort(value);
-  if (!level) {
-    return null;
-  }
-  const levelLabel = tLevels(level);
-  const tooltip = t("metaTooltip", { level: levelLabel });
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="ml-0.5 inline-flex items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 text-[10px] leading-3.5 text-muted-foreground/70 select-none whitespace-nowrap">
-          <span className="sr-only">{tooltip}</span>
-          <Brain className="size-3 shrink-0" strokeWidth={1.4} aria-hidden="true" />
-          <span aria-hidden="true">{t("metaLabel", { level: levelLabel })}</span>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{tooltip}</TooltipContent>
-    </Tooltip>
-  );
-}
-
 function readBillingNumber(snapshot: BillingSnapshot, key: keyof BillingSnapshot): number {
   const value = snapshot[key];
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -1187,10 +1163,8 @@ export function AssistantMessageMeta({
       durationBetweenMS(item.createdAt, item.updatedAt) !== undefined
     ),
   );
-  const hasReasoningEffort = Boolean(normalizeMessageReasoningEffort(item.reasoningEffort));
   const hasDetailBadges = Boolean(
     (showModelInfo && item.platformModelName?.trim()) ||
-    (showModelInfo && hasReasoningEffort) ||
     (showTokenUsage && hasTokenUsage) ||
     hasLatencyBadge ||
     item.editedAt ||
@@ -1211,7 +1185,6 @@ export function AssistantMessageMeta({
         {hasDetailBadges ? (
           <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
             {showModelInfo ? <ModelBadge label={item.platformModelName?.trim() || ""} /> : null}
-            {showModelInfo ? <ReasoningEffortBadge value={item.reasoningEffort} /> : null}
             {showTokenUsage ? (
               <TokenBadge
                 inputTokens={item.inputTokens}
