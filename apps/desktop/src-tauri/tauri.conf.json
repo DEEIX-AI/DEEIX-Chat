@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DEEIX Chat",
-  "version": "0.4.4-beta.3",
+  "version": "0.4.4-beta.4",
   "identifier": "com.deeix.chat.desktop",
   "build": {
     "frontendDist": "../../web/out",
