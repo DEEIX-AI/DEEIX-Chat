@@ -82,3 +82,28 @@ func TestCORSRejectsUnknownOrigin(t *testing.T) {
 		t.Fatalf("must not echo allow-origin for a rejected origin")
 	}
 }
+
+// 运营方只配置了网页域名时，桌面端 webview 仍需能连接（预检与实际请求均放行）。
+func TestCORSAlwaysAllowsDesktopOrigins(t *testing.T) {
+	allowOrigin := "https://chat.example.com"
+	for _, origin := range []string{"tauri://localhost", "http://tauri.localhost"} {
+		preflight := runCORS(t, allowOrigin, http.MethodOptions, map[string]string{
+			"Origin":                        origin,
+			"Access-Control-Request-Method": http.MethodGet,
+		})
+		if preflight.Code != http.StatusNoContent {
+			t.Fatalf("origin %s: preflight status = %d, want %d", origin, preflight.Code, http.StatusNoContent)
+		}
+		recorder := runCORS(t, allowOrigin, http.MethodGet, map[string]string{"Origin": origin})
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("origin %s: status = %d, want %d", origin, recorder.Code, http.StatusOK)
+		}
+		if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != origin {
+			t.Fatalf("origin %s: allow-origin = %q", origin, got)
+		}
+	}
+	rejected := runCORS(t, allowOrigin, http.MethodGet, map[string]string{"Origin": "https://tauri.localhost.evil.com"})
+	if rejected.Code != http.StatusForbidden {
+		t.Fatalf("lookalike origin: status = %d, want %d", rejected.Code, http.StatusForbidden)
+	}
+}
