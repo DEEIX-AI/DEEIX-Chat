@@ -160,5 +160,16 @@
   "attribution": {
     "poweredBy": "Powered by",
     "githubLink": "DEEIX Chat on GitHub"
+  },
+  "reasoningEffort": {
+    "levels": {
+      "none": "Off",
+      "minimal": "Minimal",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "xhigh": "Extra high",
+      "max": "Max"
+    }
   }
 }

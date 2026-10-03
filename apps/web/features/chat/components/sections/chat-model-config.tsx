@@ -32,6 +32,13 @@ import {
   isReservedConversationOptionKey,
   sanitizeConversationOptions,
 } from "@/features/chat/model/conversation-options";
+import {
+  hasProviderTool,
+  ignoredProviderToolValues,
+  isPlainOptionObject,
+  nativeToolVisualOptionsFromConfigs,
+  setProviderToolEnabled,
+} from "@/features/chat/model/chat-native-tools";
 import type { ModelOptionControl } from "@/features/chat/types/chat-runtime";
 import { cn } from "@/lib/utils";
 import type { ConversationOptions } from "@/shared/api/conversation-types";
@@ -42,8 +49,6 @@ import {
   type ModelNativeToolConfig,
   type ModelOptionPolicy,
   type NativeToolDefinition,
-  nativeToolDefinitionVariantsFromConfig,
-  nativeToolPayloadSignature,
   resolveModelOptionPolicyProtocol,
 } from "@/entities/model";
 import { isOneOf, isRecord } from "@/shared/lib/type-guards";
@@ -78,11 +83,6 @@ type OptionValueEntry = {
   value: unknown;
 };
 
-type NativeToolVisualOption = {
-  primary: NativeToolDefinition;
-  variants: NativeToolDefinition[];
-  protocols: string[];
-};
 
 type ChatModelConfigProps = {
   disabled: boolean;
@@ -98,6 +98,11 @@ type ChatModelConfigProps = {
   onOptionsChange: React.Dispatch<React.SetStateAction<ConversationOptions>>;
   onOptionsReset: (defaults?: ConversationOptions) => void;
   onDefaultOptionsRestore: () => Promise<ConversationOptions | null>;
+  // Controlled dialog; the composer opens it from its "more parameters" popover.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  // Hide the trigger button when the caller opens the dialog itself.
+  hideTrigger?: boolean;
 };
 
 type OptionTranslationResolver = ((key: string) => string) & {
@@ -499,152 +504,6 @@ function isEditableOptionValue(value: unknown): value is EditableOptionValue {
   return value === null || ["string", "number", "boolean"].includes(typeof value);
 }
 
-function isPlainOptionObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function providerToolObjectsFromOptions(options: ConversationOptions): Record<string, unknown>[] {
-  const rawTools = options.tools;
-  if (!Array.isArray(rawTools)) {
-    return [];
-  }
-  return rawTools.filter(isPlainOptionObject);
-}
-
-function providerToolMatchesDefinition(tool: Record<string, unknown>, definition: NativeToolDefinition): boolean {
-  const toolType = typeof tool.type === "string" ? tool.type.trim() : "";
-  if (toolType) {
-    return toolType === definition.type;
-  }
-  return Object.keys(definition.payload ?? {}).some((key) => key !== "type" && Object.hasOwn(tool, key));
-}
-
-function nativeToolDefinitionsFromKeys(
-  toolKeys: string[],
-  catalog: NativeToolDefinition[],
-): NativeToolDefinition[] {
-  const allowedKeys = new Set(toolKeys.map((key) => key.trim()).filter(Boolean));
-  return catalog.filter((tool) => allowedKeys.has(tool.toolKey.trim()));
-}
-
-function nativeToolVisualOptionsFromConfigs(
-  configs: ModelNativeToolConfig[],
-  fallbackToolKeys: string[],
-  catalog: NativeToolDefinition[],
-  modelProtocols: string[],
-): NativeToolVisualOption[] {
-  const sourceConfigs = configs.length > 0
-    ? configs
-    : nativeToolDefinitionsFromKeys(fallbackToolKeys, catalog).map((tool): ModelNativeToolConfig => ({
-      id: `${tool.protocol}:${tool.toolKey}:${tool.type}`,
-      key: tool.toolKey,
-      protocol: tool.protocol,
-      protocols: [tool.protocol],
-      provider: tool.provider,
-      type: tool.type,
-      label: tool.label,
-      description: tool.description,
-      enabled: true,
-      defaultEnabled: false,
-      payload: tool.payload,
-    }));
-  const visualOptions = new Map<string, NativeToolVisualOption>();
-  sourceConfigs.forEach((config) => {
-    if (!config.enabled) {
-      return;
-    }
-    const definitions = nativeToolDefinitionVariantsFromConfig(config, catalog, modelProtocols);
-    if (definitions.length === 0) {
-      return;
-    }
-    definitions.forEach((definition) => {
-      const visualKey = definition.type.trim()
-        || definition.toolKey.trim()
-        || definition.provider.trim()
-        || `payload:${nativeToolPayloadSignature(definition.payload)}`;
-      const existing = visualOptions.get(visualKey);
-      if (!existing) {
-        visualOptions.set(visualKey, {
-          primary: definition,
-          variants: [definition],
-          protocols: [definition.protocol].filter(Boolean),
-        });
-        return;
-      }
-      const variantSignature = `${resolveModelOptionPolicyProtocol(definition.protocol)}:${nativeToolPayloadSignature(definition.payload)}`;
-      const hasVariant = existing.variants.some((candidate) =>
-        `${resolveModelOptionPolicyProtocol(candidate.protocol)}:${nativeToolPayloadSignature(candidate.payload)}` === variantSignature
-      );
-      if (!hasVariant) {
-        existing.variants.push(definition);
-      }
-      existing.protocols = Array.from(new Set([...existing.protocols, definition.protocol].filter(Boolean)));
-    });
-  });
-  return Array.from(visualOptions.values());
-}
-
-function providerToolMatchesAnyDefinition(
-  value: unknown,
-  definitions: NativeToolDefinition[],
-): boolean {
-  if (!isPlainOptionObject(value)) {
-    return false;
-  }
-  return definitions.some((definition) => providerToolMatchesDefinition(value, definition));
-}
-
-function ignoredProviderToolValues(
-  value: unknown,
-  definitions: NativeToolDefinition[],
-): unknown[] {
-  if (value === undefined) {
-    return [];
-  }
-  if (!Array.isArray(value)) {
-    return [value];
-  }
-  return value.filter((item) => !providerToolMatchesAnyDefinition(item, definitions));
-}
-
-function hasProviderTool(options: ConversationOptions, definitions: NativeToolDefinition[]): boolean {
-  return providerToolObjectsFromOptions(options).some((tool) =>
-    definitions.some((definition) => providerToolMatchesDefinition(tool, definition))
-  );
-}
-
-function setProviderToolEnabled(
-  options: ConversationOptions,
-  definitions: NativeToolDefinition[],
-  enabled: boolean,
-): ConversationOptions {
-  const tools = providerToolObjectsFromOptions(options);
-  const matchesTool = (tool: Record<string, unknown>) =>
-    definitions.some((definition) => providerToolMatchesDefinition(tool, definition));
-  const nextTools = tools.filter((tool) => !matchesTool(tool));
-  if (enabled) {
-    const seenPayloads = new Set<string>();
-    for (const definition of definitions) {
-      const payload = Object.keys(definition.payload).length > 0
-        ? definition.payload
-        : { type: definition.type };
-      const signature = nativeToolPayloadSignature(payload);
-      if (seenPayloads.has(signature)) {
-        continue;
-      }
-      seenPayloads.add(signature);
-      nextTools.push({ ...payload });
-    }
-  }
-
-  if (nextTools.length === 0) {
-    const { tools: _tools, ...rest } = options;
-    return rest;
-  }
-
-  return { ...options, tools: nextTools };
-}
-
 function optionPathKey(path: string[]): string {
   return path.join(".");
 }
@@ -849,14 +708,16 @@ function hasVisualConfigurationContent({
   options,
   policy,
   protocols,
+  hasReasoning,
 }: {
   nativeToolDefinitions: NativeToolDefinition[];
   optionControls: ModelOptionControl[];
   options: ConversationOptions;
   policy: ModelOptionPolicy | null;
   protocols: string[];
+  hasReasoning: boolean;
 }): boolean {
-  if (nativeToolDefinitions.length > 0) {
+  if (hasReasoning || nativeToolDefinitions.length > 0) {
     return true;
   }
   const configuredOptions = visualOptionsFromControls(optionControls, options);
@@ -1053,6 +914,9 @@ export function ChatModelConfig({
   onOptionsChange,
   onOptionsReset,
   onDefaultOptionsRestore,
+  open,
+  onOpenChange,
+  hideTrigger = false,
 }: ChatModelConfigProps) {
   const tCommon = useTranslations("common.actions");
   const tComposer = useTranslations("chat.composer");
@@ -1060,7 +924,14 @@ export function ChatModelConfig({
   const tOptionDescriptions = useTranslations("chat.optionDescriptions");
   const messages = useMessages();
   const [hovered, setHovered] = React.useState(false);
-  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [uncontrolledDialogOpen, setUncontrolledDialogOpen] = React.useState(false);
+  const dialogOpen = open ?? uncontrolledDialogOpen;
+  const setDialogOpen = React.useCallback((next: boolean) => {
+    if (open === undefined) {
+      setUncontrolledDialogOpen(next);
+    }
+    onOpenChange?.(next);
+  }, [onOpenChange, open]);
   const [optionsDraft, setOptionsDraft] = React.useState("");
   const [optionsObject, setOptionsObject] = React.useState<ConversationOptions>({});
   const [mobileView, setMobileView] = React.useState<OptionsViewMode>("visual");
@@ -1126,6 +997,7 @@ export function ChatModelConfig({
       options: sanitized,
       policy: modelOptionPolicy,
       protocols: selectedProtocols,
+      hasReasoning: false,
     });
     optionsObjectRef.current = sanitized;
     setOptionsObject(sanitized);
@@ -1133,7 +1005,38 @@ export function ChatModelConfig({
     setMobileView(hasVisualContent ? "visual" : "json");
     setRestoredDefaultOptions(null);
     setDialogOpen(true);
-  }, [effectiveDefaultOptions, lockedOptionPaths, modelOptionPolicy, nativeToolDefinitions, optionControls, options, selectedProtocols]);
+  }, [effectiveDefaultOptions, lockedOptionPaths, modelOptionPolicy, nativeToolDefinitions, optionControls, options, selectedProtocols, setDialogOpen]);
+
+  // The caller (composer popover) can open the dialog itself; load the draft when it does.
+  const dialogPreparedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!dialogOpen) {
+      dialogPreparedRef.current = false;
+      return;
+    }
+    if (dialogPreparedRef.current) {
+      return;
+    }
+    dialogPreparedRef.current = true;
+    const sanitized = applyLockedDefaultOptions(
+      sanitizeConversationOptions(options),
+      effectiveDefaultOptions,
+      lockedOptionPaths,
+    );
+    optionsObjectRef.current = sanitized;
+    setOptionsObject(sanitized);
+    setOptionsDraft(stringifyOptions(sanitized));
+    setMobileView(hasVisualConfigurationContent({
+      nativeToolDefinitions,
+      optionControls,
+      options: sanitized,
+      policy: modelOptionPolicy,
+      protocols: selectedProtocols,
+      hasReasoning: false,
+    }) ? "visual" : "json");
+    setRestoredDefaultOptions(null);
+    // Runs on the closed → open transition only; the ref makes prop changes while open a no-op.
+  }, [dialogOpen, effectiveDefaultOptions, lockedOptionPaths, modelOptionPolicy, nativeToolDefinitions, optionControls, options, selectedProtocols]);
 
   const replaceOptionsDraft = React.useCallback((next: ConversationOptions) => {
     const sanitized = applyLockedDefaultOptions(
@@ -1228,7 +1131,7 @@ export function ChatModelConfig({
     }
     onOptionsChange(nextOptions);
     setDialogOpen(false);
-  }, [effectiveDefaultOptions, lockedOptionPaths, onOptionsChange, onOptionsReset, optionsDraft, tComposer]);
+  }, [effectiveDefaultOptions, lockedOptionPaths, onOptionsChange, onOptionsReset, optionsDraft, setDialogOpen, tComposer]);
 
   const renderOptionsViewToggle = () => (
     <Tabs
@@ -1536,30 +1439,32 @@ export function ChatModelConfig({
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <InputGroupButton
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
-            disabled={disabled}
-            onClick={openOptionsDialog}
-            aria-label={tComposer("modelOptions")}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
-          >
-            <Cog
-              size={20}
-              strokeWidth={1.4}
-              animate={hovered ? "default" : false}
-            />
-          </InputGroupButton>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs">
-          {tComposer("modelOptions")}
-        </TooltipContent>
-      </Tooltip>
+      {hideTrigger ? null : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <InputGroupButton
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
+              disabled={disabled}
+              onClick={openOptionsDialog}
+              aria-label={tComposer("modelOptions")}
+              onMouseEnter={() => setHovered(true)}
+              onMouseLeave={() => setHovered(false)}
+            >
+              <Cog
+                size={20}
+                strokeWidth={1.4}
+                animate={hovered ? "default" : false}
+              />
+            </InputGroupButton>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            {tComposer("modelOptions")}
+          </TooltipContent>
+        </Tooltip>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent

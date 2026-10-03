@@ -259,7 +259,12 @@
     "upstreamModelConflict": "This model already has a conflicting upstream source.",
     "upstreamSourceUnavailable": "The upstream model source is unavailable.",
     "routeConflict": "This upstream model already has a binding for the same platform model and protocol. Remove the duplicate binding before saving.",
-    "routesUnavailable": "All model routes are unavailable."
+    "routesUnavailable": "All model routes are unavailable.",
+    "reasoningInvalidFormat": "Invalid reasoning format, or the format does not match this model's protocol.",
+    "reasoningInvalidLevels": "Invalid reasoning levels. Choose at least one level supported by the selected format, without duplicates.",
+    "reasoningInvalidDefault": "The default reasoning level must be one of the selected levels.",
+    "reasoningInvalidBudgets": "Invalid reasoning token budgets. Every enabled level needs a non-negative integer budget (at least 1024 for Anthropic budgets).",
+    "modelCatalogFetchFailed": "Failed to sync reasoning capabilities. The last synced data is kept."
   },
   "mcp": {
     "clientUnavailable": "MCP client is unavailable.",

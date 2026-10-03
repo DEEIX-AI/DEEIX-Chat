@@ -53,7 +53,13 @@ const OPENAI_WEB_SEARCH_NATIVE_TOOL = {
   description: "OpenAI hosted web search.",
 };
 
-const OPENAI_REASONING_EFFORT_OPTIONS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+// Presets declare the unified `reasoning` capability instead of native effort controls; the backend
+// maps the selected level to each protocol's native parameter.
+const OPENAI_REASONING = {
+  format: "openai",
+  levels: ["none", "minimal", "low", "medium", "high", "xhigh"],
+  default: "high",
+};
 
 const XAI_IMAGE_ASPECT_RATIOS = [
   "auto",
@@ -175,17 +181,11 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
       promptCache: {
         enabled: true,
       },
+      reasoning: OPENAI_REASONING,
       defaultOptions: {
-        reasoning_effort: "high",
         verbosity: "medium",
       },
       optionControls: [
-        {
-          path: "reasoning_effort",
-          type: "select",
-          label: "Reasoning Effort",
-          options: OPENAI_REASONING_EFFORT_OPTIONS,
-        },
         {
           path: "verbosity",
           type: "select",
@@ -203,9 +203,9 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
       promptCache: {
         enabled: true,
       },
+      reasoning: OPENAI_REASONING,
       defaultOptions: {
         reasoning: {
-          effort: "high",
           summary: "auto",
         },
         text: {
@@ -214,12 +214,6 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
         store: false,
       },
       optionControls: [
-        {
-          path: "reasoning.effort",
-          type: "select",
-          label: "Reasoning Effort",
-          options: OPENAI_REASONING_EFFORT_OPTIONS,
-        },
         {
           path: "reasoning.summary",
           type: "select",
@@ -263,14 +257,15 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
     id: "anthropic_messages",
     protocol: "anthropic_messages",
     payload: {
+      reasoning: {
+        format: "anthropic_effort",
+        levels: ["low", "medium", "high", "xhigh", "max"],
+        default: "high",
+      },
       defaultOptions: {
         max_tokens: 64000,
         thinking: {
-          type: "adaptive",
           display: "summarized",
-        },
-        output_config: {
-          effort: "high",
         },
         cache_control: {
           type: "ephemeral",
@@ -284,22 +279,10 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
           label: "Max Tokens",
         },
         {
-          path: "thinking.type",
-          type: "select",
-          label: "Thinking Type",
-          options: ["adaptive"],
-        },
-        {
           path: "thinking.display",
           type: "select",
           label: "Thinking Display",
           options: ["summarized", "omitted"],
-        },
-        {
-          path: "output_config.effort",
-          type: "select",
-          label: "Output Config Effort",
-          options: ["low", "medium", "high", "xhigh", "max"],
         },
         {
           path: "cache_control.type",
@@ -352,11 +335,15 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
     id: "google_generate_content",
     protocol: "google_generate_content",
     payload: {
+      reasoning: {
+        format: "gemini_level",
+        levels: ["low", "medium", "high"],
+        default: "high",
+      },
       defaultOptions: {
         generationConfig: {
           thinkingConfig: {
             includeThoughts: true,
-            thinkingLevel: "high",
           },
         },
       },
@@ -364,12 +351,6 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
         {
           path: "generationConfig.thinkingConfig.includeThoughts",
           type: "boolean",
-        },
-        {
-          path: "generationConfig.thinkingConfig.thinkingLevel",
-          type: "select",
-          label: "Thinking Level",
-          options: ["low", "medium", "high"],
         },
       ],
       nativeTools: [
@@ -419,20 +400,17 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
     id: "gemini_interactions",
     protocol: "gemini_interactions",
     payload: {
+      reasoning: {
+        format: "gemini_level",
+        levels: ["minimal", "low", "medium", "high"],
+        default: "medium",
+      },
       defaultOptions: {
         generation_config: {
-          thinking_level: "medium",
           thinking_summaries: "auto",
         },
       },
       optionControls: [
-        {
-          path: "generation_config.thinking_level",
-          type: "select",
-          label: "Thinking Level",
-          description: "Controls the depth of the model's internal reasoning.",
-          options: ["minimal", "low", "medium", "high"],
-        },
         {
           path: "generation_config.thinking_summaries",
           type: "select",
@@ -494,23 +472,18 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
     id: "xai_responses",
     protocol: "xai_responses",
     payload: {
+      reasoning: {
+        format: "openai",
+        levels: ["none", "low", "medium", "high"],
+        default: "low",
+      },
       defaultOptions: {
-        reasoning: {
-          effort: "low",
-        },
         parallel_tool_calls: true,
         store: true,
         temperature: 1,
         top_p: 1,
       },
       optionControls: [
-        {
-          path: "reasoning.effort",
-          type: "select",
-          label: "Reasoning Effort",
-          description: "Constrains reasoning effort for supported Grok models.",
-          options: ["none", "low", "medium", "high"],
-        },
         {
           path: "temperature",
           type: "number",

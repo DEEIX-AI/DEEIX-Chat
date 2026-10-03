@@ -359,6 +359,17 @@
     "vendorInUseMore": "，以及另外 {count} 个模型",
     "deleting": "删除中"
   },
+  "reasoningSync": {
+    "button": "同步思考能力",
+    "syncing": "同步中…",
+    "description": "为未配置思考参数的模型自动识别可用的思考强度档位，只在运行时生效，不会写入模型配置。数据超过 24 小时后，打开模型能力配置时会在后台自动更新。",
+    "lastSynced": "上次同步：{time} · {count} 个模型",
+    "lastError": "上次同步失败：{error}",
+    "toast": {
+      "synced": "思考能力已同步（{count} 个模型）",
+      "failed": "同步思考能力失败"
+    }
+  },
   "sheet": {
     "createTitle": "新建模型",
     "editTitle": "编辑模型",
@@ -441,7 +452,7 @@
       "promptCacheTTL": "缓存时长",
       "toolsIntro": "配置该模型允许使用的官方原生工具；只有管理员在这里开启的官方工具才会进入会话配置。",
       "defaultsHelp": "默认参数会写入 defaultOptions。value 按 JSON 值解析，例如 0.7、true、null、\"high\" 或对象。",
-      "controlsHelp": "参数控件会写入 optionControls。path 对应真实请求参数路径，最终是否透传仍由参数过滤规则决定。",
+      "controlsHelp": "参数控件会写入 optionControls。select、boolean、number 控件会作为用户控件显示在对话输入框中；text 控件只在管理员的高级参数弹窗中出现。",
       "toolsHelp": "官方原生工具会写入 nativeTools。设为默认开启的工具会加入模型默认请求参数；用户 JSON 中的 tools 仅在匹配已启用的官方工具时保留。",
       "addParameter": "新增",
       "addNativeTool": "新增",
@@ -508,15 +519,19 @@
       "title": "模型能力 JSON 指南",
       "description": "该 JSON 保存模型默认参数、可视化参数控件和官方原生工具能力；保存时会按当前路由协议规范化。",
       "defaultsTab": "默认参数",
+      "userControlsTab": "用户控件",
       "controlsTab": "参数控件",
       "toolsTab": "官方工具",
       "policyTab": "过滤规则",
-      "defaultsDescription": "defaultOptions 会作为该模型的默认请求参数。用户未保存过本地参数时，聊天页会使用这里的值；最终发送前仍会经过后端参数策略。",
-      "controlsDescription": "optionControls 只定义聊天参数 Dialog 如何展示控件，不会单独发送给模型。path 对应真实 options 路径。",
+      "defaultsDescription": "defaultOptions 是该模型每次请求的基础参数，用户控件的选择会在此基础上合并。",
+      "controlsDescription": "optionControls 是旧版参数控件：select、boolean、number 会自动转换为用户控件（按 path 写入所选值）；text 控件只在管理员的高级参数弹窗中出现。新配置建议使用「用户控件」中的 controls。",
       "toolsDescription": "nativeTools 定义当前模型允许使用的厂商官方原生工具，protocols 指定适用协议；请求时系统只会使用与当前协议匹配的工具定义。",
       "toolsAutoDescription": "用户侧手写 options.tools 时，只会保留管理员允许的官方工具；已允许工具的子参数会透传，未知工具和 MCP/function tool 不会通过 JSON 注入。",
+      "userControlsDescription": "controls 定义用户在对话输入框里能操作的按钮。管理员为每个选项写好参数片段（patch），用户只选择选项，不能提交任意参数，因此不再需要参数过滤规则。patch 按对象深度合并进 defaultOptions，值为 null 表示删除该参数；patches 可按协议分别写（anthropic_messages、openai_responses 等），路由切换协议时自动选用对应片段。",
+      "userControlsFields": "字段：id（唯一，用户的选择与固定位置按 id 记忆）；type 为 select / toggle / number；kind 为 reasoning 时表示思考强度控件，不写 options 则只调整展示、档位由推理能力提供；placement 为 toolbar（默认显示在输入框）或 menu（收在「…」菜单），用户可自行固定，最多 6 个；default、locked（固定为默认值）、hidden（不展示但默认值生效）、protocols（只在指定协议生效）。number 需要 path，可设 min / max / step / integer。patch 不能写入 model、messages、stream、api_key、headers、tools 等系统字段，保存时会被拒绝。旧的 optionControls 中 select、boolean、number 控件会自动转换为用户控件。",
+      "userControlsIcons": "icon 可选：{icons}。未填写或名称无效时按类型显示通用图标。",
       "controlTypes": "type 支持 text、select、number、boolean；select 需要提供 options。",
-      "policyDescription": "控件展示不等于一定透传。对应 path 仍需要在参数过滤规则中允许，后端发送前会统一过滤。"
+      "policyDescription": "普通用户只能通过用户控件与官方工具开关调整参数，不再能提交任意 JSON，参数过滤规则不再作用于对话请求。管理员可在对话输入框的高级参数弹窗中提交任意 JSON 调试（系统字段除外）。图片、视频生成请求仍按参数过滤规则处理。"
     },
     "bindInitialSource": "绑定来源",
     "upstreamSources": "上游来源（{count}）",

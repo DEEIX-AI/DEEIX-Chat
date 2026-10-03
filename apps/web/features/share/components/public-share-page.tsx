@@ -91,6 +91,7 @@ function toReadOnlyMessageDTO(item: PublicSharedMessageDTO): MessageDTO {
     cacheReadTokens: item.cacheReadTokens ?? 0,
     cacheWriteTokens: item.cacheWriteTokens ?? 0,
     reasoningTokens: item.reasoningTokens ?? 0,
+    reasoningEffort: item.reasoningEffort ?? null,
     latencyMS: item.latencyMS ?? 0,
     status: item.status || "success",
     errorCode: item.errorCode || "",

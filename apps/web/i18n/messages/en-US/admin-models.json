@@ -359,6 +359,17 @@
     "vendorInUseMore": ", plus {count} more",
     "deleting": "Deleting"
   },
+  "reasoningSync": {
+    "button": "Sync reasoning",
+    "syncing": "Syncing…",
+    "description": "Detects available reasoning levels for models without their own reasoning parameters. Applied at runtime only and never written into model configs. Data older than 24 hours is updated in the background when the model capabilities dialog opens.",
+    "lastSynced": "Last synced {time} · {count} models",
+    "lastError": "Last sync failed: {error}",
+    "toast": {
+      "synced": "Reasoning capabilities synced ({count} models)",
+      "failed": "Failed to sync reasoning capabilities"
+    }
+  },
   "sheet": {
     "createTitle": "Create model",
     "editTitle": "Edit model",
@@ -441,7 +452,7 @@
       "promptCacheTTL": "Cache TTL",
       "toolsIntro": "Configure official native tools allowed for this model. Only tools enabled here can enter conversation settings.",
       "defaultsHelp": "Default parameters are written to defaultOptions. value is parsed as a JSON value, for example 0.7, true, null, \"high\", or an object.",
-      "controlsHelp": "Parameter controls are written to optionControls. path maps to the real request option path, and final passthrough is still controlled by the option policy.",
+      "controlsHelp": "Parameter controls are saved to optionControls. select, boolean and number controls appear as user controls in the chat composer; text controls only appear in the administrator's advanced parameters dialog.",
       "toolsHelp": "Official native tools are written to nativeTools. Tools marked as default-enabled are added to the model's default request options; tools in user JSON are preserved only when they match an enabled official tool.",
       "addParameter": "Add",
       "addNativeTool": "Add",
@@ -508,15 +519,19 @@
       "title": "Model capabilities JSON guide",
       "description": "This JSON stores model defaults, visual option controls, and official native tool capabilities. It is normalized against the current route protocol on save.",
       "defaultsTab": "Defaults",
+      "userControlsTab": "User controls",
       "controlsTab": "Controls",
       "toolsTab": "Official tools",
       "policyTab": "Policy",
-      "defaultsDescription": "defaultOptions becomes this model's default request parameters. The chat page uses it when the user has no saved local parameters for the model; backend option policy still applies before sending.",
-      "controlsDescription": "optionControls only defines how the chat parameters dialog renders controls. It is not sent to the model by itself. path maps to the real options path.",
+      "defaultsDescription": "defaultOptions is the base request parameters for this model; user control selections are merged on top.",
+      "controlsDescription": "optionControls is the legacy control format: select, boolean and number controls are converted to user controls automatically (writing the chosen value to path); text controls only appear in the administrator's advanced parameters dialog. Prefer controls (see User controls) for new configurations.",
       "toolsDescription": "nativeTools defines the provider-hosted official tools allowed for this model, and protocols specifies where each definition applies. Requests use only tool definitions that match the active protocol.",
       "toolsAutoDescription": "When users hand-write options.tools, only admin-allowed official tools are preserved. Parameters on allowed tools pass through; unknown tools and MCP/function tools cannot be injected through JSON.",
+      "userControlsDescription": "controls defines the buttons users can operate in the chat composer. The administrator writes a parameter patch for each option; users only pick options and cannot submit arbitrary parameters, so the option policy is no longer needed. Patches deep-merge into defaultOptions and null removes a parameter; patches can be written per protocol (anthropic_messages, openai_responses, …) and the matching one is used when routing switches protocols.",
+      "userControlsFields": "Fields: id (unique; the user's choice and pin position are remembered by id); type is select / toggle / number; kind reasoning marks the reasoning effort control — without options it only adjusts presentation and the levels come from the reasoning capability; placement is toolbar (shown on the composer by default) or menu (inside the \"…\" menu), and users can pin up to 6 controls themselves; default, locked (pinned to the default), hidden (not shown, default still applies), protocols (only active on those protocols). number requires path and accepts min / max / step / integer. Patches cannot write system fields such as model, messages, stream, api_key, headers or tools; saving is rejected. select, boolean and number controls in the legacy optionControls are converted to user controls automatically.",
+      "userControlsIcons": "Available icons: {icons}. Missing or unknown names fall back to a generic icon for the control type.",
       "controlTypes": "type supports text, select, number, and boolean. select controls should provide options.",
-      "policyDescription": "Rendering a control does not guarantee passthrough. The same path still needs to be allowed by the option policy; the backend filters options before sending."
+      "policyDescription": "Regular users adjust parameters only through user controls and official tool toggles and can no longer submit arbitrary JSON, so the option policy no longer applies to chat requests. Administrators can submit any JSON (except system fields) from the advanced parameters dialog in the composer for debugging. Image and video generation requests still follow the option policy."
     },
     "bindInitialSource": "Bind source",
     "upstreamSources": "Upstream sources ({count})",

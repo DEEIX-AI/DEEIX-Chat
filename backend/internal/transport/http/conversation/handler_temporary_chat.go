@@ -40,6 +40,7 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 	}
 	defer closeAttachments()
 	req.Options = sanitizeMessageOptions(req.Options)
+	req.Controls = sanitizeMessageControls(req.Controls)
 	input := appconversation.TemporaryChatInput{
 		UserID:                   middleware.MustUserID(c),
 		RequestID:                middleware.MustRequestID(c),
@@ -47,6 +48,8 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 		ClientRunID:              strings.TrimSpace(req.ClientRunID),
 		Model:                    strings.TrimSpace(req.Model),
 		Options:                  req.Options,
+		Controls:                 req.Controls,
+		AllowRawOptions:          requestAllowsRawOptions(c),
 		SelectedToolIDs:          append([]uint(nil), req.SelectedToolIDs...),
 		SkillIDs:                 append([]uint(nil), req.SkillIDs...),
 		KnowledgeBaseIDs:         append([]string(nil), req.KnowledgeBaseIDs...),

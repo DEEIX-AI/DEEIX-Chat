@@ -939,6 +939,90 @@ func TestUpdateAssistantMessageCompletionPersistsReasoningAndKnowledgeSources(t 
 	}
 }
 
+func TestReasoningEffortPersistsOnAssistantMessageAndRun(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+
+	conversation := models.Conversation{
+		UserID:     1,
+		PublicID:   "conv_reasoning_effort",
+		Title:      "reasoning effort",
+		LabelsJSON: "[]",
+		SessionKey: "session_reasoning_effort",
+		Status:     "active",
+	}
+	if err := db.Create(&conversation).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+	message := &domainconversation.Message{
+		ConversationID: conversation.ID,
+		UserID:         1,
+		PublicID:       "msg_reasoning_effort",
+		Role:           "assistant",
+		ContentType:    "text",
+		BranchReason:   "default",
+		Status:         "pending",
+	}
+	if err := repo.CreateMessage(ctx, message); err != nil {
+		t.Fatalf("CreateMessage() error = %v", err)
+	}
+	got, err := repo.GetMessageByID(ctx, conversation.ID, message.ID)
+	if err != nil {
+		t.Fatalf("GetMessageByID() error = %v", err)
+	}
+	if got.ReasoningEffort != nil {
+		t.Fatalf("expected null reasoning effort by default, got %q", *got.ReasoningEffort)
+	}
+
+	effort := "xhigh"
+	if err := repo.UpdateAssistantMessageCompletion(ctx, message.ID, repository.AssistantMessageCompletionUpdate{
+		Content:         "answer",
+		Status:          "success",
+		ReasoningEffort: &effort,
+	}); err != nil {
+		t.Fatalf("UpdateAssistantMessageCompletion() error = %v", err)
+	}
+	// 未携带档位的后续完成态写入不能清空已记录的档位。
+	if err := repo.UpdateAssistantMessageCompletion(ctx, message.ID, repository.AssistantMessageCompletionUpdate{
+		Content: "answer 2",
+		Status:  "success",
+	}); err != nil {
+		t.Fatalf("UpdateAssistantMessageCompletion() error = %v", err)
+	}
+	got, err = repo.GetMessageByID(ctx, conversation.ID, message.ID)
+	if err != nil {
+		t.Fatalf("GetMessageByID() error = %v", err)
+	}
+	if got.ReasoningEffort == nil || *got.ReasoningEffort != "xhigh" {
+		t.Fatalf("expected persisted reasoning effort, got %#v", got.ReasoningEffort)
+	}
+
+	run := &domainconversation.Run{
+		RunID:          "run_reasoning_effort",
+		UserID:         1,
+		ConversationID: conversation.ID,
+		Status:         "running",
+		StartedAt:      time.Now(),
+	}
+	if err := repo.CreateConversationRun(ctx, run); err != nil {
+		t.Fatalf("CreateConversationRun() error = %v", err)
+	}
+	runEffort := "low"
+	run.ReasoningEffort = &runEffort
+	run.Status = "success"
+	if err := repo.UpdateConversationRun(ctx, run); err != nil {
+		t.Fatalf("UpdateConversationRun() error = %v", err)
+	}
+	var stored models.ConversationRun
+	if err := db.Where("run_id = ?", run.RunID).First(&stored).Error; err != nil {
+		t.Fatalf("load run: %v", err)
+	}
+	if stored.ReasoningEffort == nil || *stored.ReasoningEffort != "low" {
+		t.Fatalf("expected run reasoning effort persisted, got %#v", stored.ReasoningEffort)
+	}
+}
+
 func TestUpdateConversationMetadataSQLiteUsesPortableTrim(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)

@@ -54,6 +54,8 @@ type routeGenerationPlan struct {
 	promptPlan               PromptPlan
 	reasoningContentPassback bool
 	filteredOptions          map[string]any
+	// reasoningEffort 是本路由生效的规范推理档位；模型在该协议上没有推理能力时为空。
+	reasoningEffort string
 	// llmMessages 是预算裁剪后的完整上下文，工具回灌在其上追加；fullLLMMessages 是它在剥离
 	// Responses instructions 与有状态续传裁剪之前的副本，用于续传指纹与账单输入估算。
 	llmMessages               []llm.Message
@@ -89,11 +91,13 @@ func (s *Service) prepareRouteGeneration(ctx context.Context, input routeGenerat
 	}
 
 	llmMessages := promptPlan.Messages
-	filteredOptions := filterModelOptions(messageInput.Options, route.Protocol, modelOptionPolicyConfig{
+	filteredOptions, reasoningEffort := resolveChatModelOptions(messageInput.Options, route.Protocol, modelOptionPolicyConfig{
 		Mode:                  cfg.ModelOptionPolicyMode,
 		AllowedPathsJSON:      cfg.ModelOptionAllowedPaths,
 		DeniedPathsJSON:       cfg.ModelOptionDeniedPaths,
 		ModelCapabilitiesJSON: route.ModelCapabilitiesJSON,
+		CatalogReasoning:      route.CatalogReasoning,
+		Controls:              messageInput.Controls,
 	})
 	filteredOptions = withMessageRouteReasoningPassbackOptions(
 		filteredOptions,
@@ -187,6 +191,7 @@ func (s *Service) prepareRouteGeneration(ctx context.Context, input routeGenerat
 	}
 
 	plan.filteredOptions = filteredOptions
+	plan.reasoningEffort = reasoningEffort
 	plan.llmMessages = llmMessages
 	plan.fullLLMMessages = fullLLMMessages
 	plan.generateInput = generateInput

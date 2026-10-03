@@ -259,7 +259,12 @@
     "upstreamModelConflict": "该模型存在冲突的上游来源。",
     "upstreamSourceUnavailable": "上游模型来源暂不可用。",
     "routeConflict": "该上游模型已存在相同平台模型和协议的绑定，请删除重复绑定后再保存。",
-    "routesUnavailable": "所有模型路由都不可用。"
+    "routesUnavailable": "所有模型路由都不可用。",
+    "reasoningInvalidFormat": "思考格式无效，或与该模型的协议不匹配。",
+    "reasoningInvalidLevels": "思考档位无效。请至少选择一个所选格式支持的档位，且不能重复。",
+    "reasoningInvalidDefault": "默认思考档位必须是已选档位之一。",
+    "reasoningInvalidBudgets": "思考 Token 预算无效。每个启用的档位都需要非负整数预算（Anthropic 预算至少 1024）。",
+    "modelCatalogFetchFailed": "同步思考能力失败，已保留上次同步的数据。"
   },
   "mcp": {
     "clientUnavailable": "MCP 客户端不可用。",

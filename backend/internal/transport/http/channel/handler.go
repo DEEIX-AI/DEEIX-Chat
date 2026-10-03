@@ -59,9 +59,10 @@ func (h *Handler) ListPublicModels(c *gin.Context) {
 		return
 	}
 
+	resolver := h.service.ModelReasoningResolver()
 	views := make([]PublicModelResponse, 0, len(items))
 	for _, item := range items {
-		views = append(views, toPublicModelResponse(item))
+		views = append(views, toPublicModelResponse(item, resolver))
 	}
 	response.Success(c, views)
 }
@@ -998,7 +999,13 @@ func (h *Handler) CreateModel(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusConflict, errPlatformModelNameAlreadyExists)
 		case errors.Is(err, appchannel.ErrInvalidJSONConfig):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
-		case errors.Is(err, appchannel.ErrInvalidModelCapsConfig):
+		case errors.Is(err, appchannel.ErrInvalidModelCapsConfig),
+			errors.Is(err, appchannel.ErrInvalidReasoningFormat),
+			errors.Is(err, appchannel.ErrInvalidReasoningLevels),
+			errors.Is(err, appchannel.ErrInvalidReasoningDefault),
+			errors.Is(err, appchannel.ErrInvalidReasoningBudgets),
+			errors.Is(err, appchannel.ErrInvalidModelControls),
+			errors.Is(err, appchannel.ErrModelControlForbiddenPath):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 		case errors.Is(err, appchannel.ErrInvalidKinds):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -1074,7 +1081,13 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, errModelNotFound)
 		case errors.Is(err, appchannel.ErrInvalidJSONConfig):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
-		case errors.Is(err, appchannel.ErrInvalidModelCapsConfig):
+		case errors.Is(err, appchannel.ErrInvalidModelCapsConfig),
+			errors.Is(err, appchannel.ErrInvalidReasoningFormat),
+			errors.Is(err, appchannel.ErrInvalidReasoningLevels),
+			errors.Is(err, appchannel.ErrInvalidReasoningDefault),
+			errors.Is(err, appchannel.ErrInvalidReasoningBudgets),
+			errors.Is(err, appchannel.ErrInvalidModelControls),
+			errors.Is(err, appchannel.ErrModelControlForbiddenPath):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 		case errors.Is(err, appchannel.ErrInvalidKinds):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
