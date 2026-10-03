@@ -146,7 +146,7 @@ type ChatInputProps = {
   onOptionsReset: (defaults?: ConversationOptions) => void;
   onOptionsDefaultRestore: () => Promise<ConversationOptions | null>;
   onAttachExistingFile: (file: FileObjectDTO) => void | Promise<void>;
-  onUploadFiles: (files: File[]) => void | Promise<void>;
+  onUploadFiles: (files: File[]) => Promise<PendingAttachment[]>;
   onCaptureScreenshot: () => void | Promise<void>;
   onRemoveAttachment: (fileID: string) => void;
   onSendMessage: () => void | Promise<void>;
@@ -227,6 +227,7 @@ function resolveComposerModeIndicator(
   return null;
 }
 
+// Plain-text pastes at least this long (UTF-16 code units) become a .txt attachment instead of draft text.
 const PASTED_TEXT_TO_FILE_THRESHOLD = 2000;
 
 function clipboardFilesFromPaste(event: React.ClipboardEvent<HTMLTextAreaElement>): File[] {
@@ -357,7 +358,8 @@ function ChatInputComponent({
   const markdownPreviewRef = React.useRef<HTMLDivElement | null>(null);
   const attachmentScrollFadeRef = useScrollFadeFallbackRef<HTMLDivElement>();
   const composingRef = React.useRef(false);
-  const pastedTextContentRef = React.useRef(new Map<string, string>());
+  // Original text of attachments created from a long paste, keyed by fileID, so it can be put back in the draft.
+  const [pastedTexts, setPastedTexts] = React.useState<ReadonlyMap<string, string>>(() => new Map());
   const [inputGroupHeight, setInputGroupHeight] = React.useState<number | null>(null);
   const hasDraftText = draft.trim().length > 0;
   const hasSubmitContent = hasDraftText || attachments.length > 0;
@@ -546,20 +548,20 @@ function ChatInputComponent({
       });
     },
   });
-  const removeAttachmentAndForgetPastedText = React.useCallback(
-    (fileID: string, fileName: string) => {
-      pastedTextContentRef.current.delete(fileName);
-      onRemoveAttachment(fileID);
-    },
-    [onRemoveAttachment],
-  );
-
-  const insertPastedTextContent = React.useCallback(
-    (item: PendingAttachment) => {
-      const text = pastedTextContentRef.current.get(item.fileName);
-      if (!text) {
-        return;
+  // Forget pasted texts whose attachment left the composer (removed, sent, or another conversation).
+  React.useEffect(() => {
+    setPastedTexts((current) => {
+      if (current.size === 0) {
+        return current;
       }
+      const attachedIDs = new Set(attachments.map((item) => item.fileID));
+      const next = new Map([...current].filter(([fileID]) => attachedIDs.has(fileID)));
+      return next.size === current.size ? current : next;
+    });
+  }, [attachments]);
+
+  const insertDraftText = React.useCallback(
+    (text: string) => {
       const textarea = textareaRef.current;
       const currentValue = textarea?.value ?? "";
       const start = textarea?.selectionStart ?? currentValue.length;
@@ -570,10 +572,35 @@ function ChatInputComponent({
         textareaRef.current?.focus();
         textareaRef.current?.setSelectionRange(caretIndex, caretIndex);
       });
-      pastedTextContentRef.current.delete(item.fileName);
-      onRemoveAttachment(item.fileID);
     },
-    [handleMentionChange, onRemoveAttachment],
+    [handleMentionChange],
+  );
+
+  const attachPastedText = React.useCallback(
+    async (text: string) => {
+      const pastedAt = Date.now();
+      const file = new File([text], `pasted-text-${pastedAt}.txt`, { type: "text/plain", lastModified: pastedAt });
+      const [attached] = await onUploadFiles([file]);
+      if (!attached) {
+        // Rejected or failed upload: fall back to a regular paste so the text is never lost.
+        insertDraftText(text);
+        return;
+      }
+      setPastedTexts((current) => new Map(current).set(attached.fileID, text));
+    },
+    [insertDraftText, onUploadFiles],
+  );
+
+  const restorePastedText = React.useCallback(
+    (fileID: string) => {
+      const text = pastedTexts.get(fileID);
+      if (text === undefined) {
+        return;
+      }
+      insertDraftText(text);
+      onRemoveAttachment(fileID);
+    },
+    [insertDraftText, onRemoveAttachment, pastedTexts],
   );
 
   const onSelectUploadTool = React.useCallback(() => {
@@ -856,24 +883,38 @@ function ChatInputComponent({
                         aria-label={tComposer("previewAttachment", { name: item.fileName })}
                       />
                       <AttachmentActions>
-                        {pastedTextContentRef.current.has(item.fileName) ? (
-                          <AttachmentAction
-                            type="button"
-                            className="size-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground sm:size-7"
-                            onClick={() => insertPastedTextContent(item)}
-                            aria-label={tComposer("insertPastedText", { name: item.fileName })}
-                          >
-                            <TextQuote size={15} strokeWidth={1.8} />
-                          </AttachmentAction>
+                        {pastedTexts.has(item.fileID) ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <AttachmentAction
+                                type="button"
+                                className="size-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground sm:size-7"
+                                onClick={() => restorePastedText(item.fileID)}
+                                aria-label={tComposer("insertPastedText", { name: item.fileName })}
+                              >
+                                <TextQuote size={15} strokeWidth={1.8} />
+                              </AttachmentAction>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              {tComposer("insertPastedTextTooltip")}
+                            </TooltipContent>
+                          </Tooltip>
                         ) : null}
-                        <AttachmentAction
-                          type="button"
-                          className="size-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground sm:size-7"
-                          onClick={() => removeAttachmentAndForgetPastedText(item.fileID, item.fileName)}
-                          aria-label={tComposer("removeAttachment", { name: item.fileName })}
-                        >
-                          <XIcon size={15} strokeWidth={1.8} animateOnHover="default" />
-                        </AttachmentAction>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AttachmentAction
+                              type="button"
+                              className="size-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground sm:size-7"
+                              onClick={() => onRemoveAttachment(item.fileID)}
+                              aria-label={tComposer("removeAttachment", { name: item.fileName })}
+                            >
+                              <XIcon size={15} strokeWidth={1.8} animateOnHover="default" />
+                            </AttachmentAction>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            {tComposer("removeAttachmentTooltip")}
+                          </TooltipContent>
+                        </Tooltip>
                       </AttachmentActions>
                     </Attachment>
                   );
@@ -981,16 +1022,13 @@ function ChatInputComponent({
                 });
               }
 
-              if (files.length === 0 && !markdownPaste) {
+              // Media tasks only accept image attachments, and a busy uploader would drop the file:
+              // in both cases keep the native paste.
+              if (files.length === 0 && !markdownPaste && !isMediaMode && !uploading) {
                 const plainText = event.clipboardData.getData("text/plain");
                 if (plainText.length >= PASTED_TEXT_TO_FILE_THRESHOLD) {
                   event.preventDefault();
-                  const pastedAt = Date.now();
-                  const fileName = `pasted-text-${pastedAt}.txt`;
-                  pastedTextContentRef.current.set(fileName, plainText);
-                  void onUploadFiles([
-                    new File([plainText], fileName, { type: "text/plain", lastModified: pastedAt }),
-                  ]);
+                  void attachPastedText(plainText);
                   return;
                 }
               }
