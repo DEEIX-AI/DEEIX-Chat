@@ -352,6 +352,32 @@ func splitRetrievalFallbackAttachments(items []AttachmentInput, cfg config.Confi
 	return fallbacks, skipped
 }
 
+// attachmentsWithoutContent 保留本轮既没有全文/图片，也没有检索片段的附件元数据。
+// 输入沿用已授权的活跃分支附件，不扩大到用户文件库或知识库。
+func attachmentsWithoutContent(attachments, provided []AttachmentInput, chunks []model.RAGChunk) []AttachmentInput {
+	seen := make(map[string]struct{}, len(provided)+len(chunks))
+	for _, att := range provided {
+		if isStableTextAttachment(att) || att.ContextMode == fileContextModeDirectImage {
+			seen[stableAttachmentSourceID(att)] = struct{}{}
+		}
+	}
+	for _, chunk := range chunks {
+		if strings.TrimSpace(chunk.Content) != "" || chunk.Modality == model.FileChunkModalityImage {
+			seen[strings.TrimSpace(chunk.FileID)] = struct{}{}
+		}
+	}
+	var result []AttachmentInput
+	for _, att := range attachments {
+		id := stableAttachmentSourceID(att)
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, att)
+	}
+	return result
+}
+
 func appendRAGFallbackSkippedTrace(traceRecorder *messageTraceRecorder, skipped []AttachmentInput, reason string) {
 	if traceRecorder == nil || len(skipped) == 0 {
 		return

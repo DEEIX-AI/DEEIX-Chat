@@ -298,6 +298,9 @@ func dynamicContextSourceRefs(input userContextInput) []PromptSourceRef {
 	for _, att := range input.Attachments {
 		refs = appendPromptSourceRef(refs, "image", stableAttachmentSourceID(att), att.FileName)
 	}
+	for _, att := range input.UnavailableFiles {
+		refs = appendPromptSourceRef(refs, "file_metadata", stableAttachmentSourceID(att), att.FileName)
+	}
 	return refs
 }
 
