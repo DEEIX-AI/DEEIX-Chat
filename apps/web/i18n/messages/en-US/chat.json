@@ -1084,8 +1084,6 @@
     "auto": "Auto",
     "levelWithDefault": "{level} (default)",
     "dialogDescription": "Unified reasoning level; the server maps it to this model's native parameter.",
-    "metaLabel": "Reasoning · {level}",
-    "metaTooltip": "Reasoning effort used for this reply: {level}",
     "regenerate": "Regenerate",
     "regenerateWith": "Regenerate with reasoning effort",
     "usedByReply": "This reply"

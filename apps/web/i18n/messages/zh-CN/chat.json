@@ -1084,8 +1084,6 @@
     "auto": "自动",
     "levelWithDefault": "{level}（默认）",
     "dialogDescription": "统一的思考强度，服务器会映射为该模型的原生参数。",
-    "metaLabel": "思考 · {level}",
-    "metaTooltip": "本次回复使用的思考强度：{level}",
     "regenerate": "重新生成",
     "regenerateWith": "以指定思考强度重新生成",
     "usedByReply": "本次回复"
