@@ -127,6 +127,7 @@ type Message struct {
 	CacheReadTokens          int64      `gorm:"not null;default:0;comment:缓存读取Token"`
 	CacheWriteTokens         int64      `gorm:"not null;default:0;comment:缓存写入Token"`
 	ReasoningTokens          int64      `gorm:"not null;default:0;comment:推理Token"`
+	ReasoningEffort          *string    `gorm:"size:16;comment:生效的规范推理档位(模型无推理能力时为空)"`
 	LatencyMS                int64      `gorm:"not null;default:0;comment:消息处理时长毫秒"`
 	BilledCurrency           string     `gorm:"size:16;not null;default:'USD';comment:消息计费币种"`
 	BilledNanousd            int64      `gorm:"not null;default:0;comment:消息计费金额(纳美元)"`
@@ -298,6 +299,7 @@ type ConversationRun struct {
 	CacheReadTokens          int64      `gorm:"not null;default:0;comment:缓存读取Token"`
 	CacheWriteTokens         int64      `gorm:"not null;default:0;comment:缓存写入Token"`
 	ReasoningTokens          int64      `gorm:"not null;default:0;comment:推理Token"`
+	ReasoningEffort          *string    `gorm:"size:16;comment:生效的规范推理档位(模型无推理能力时为空)"`
 	ToolCallsCount           int        `gorm:"not null;default:0;comment:工具调用次数"`
 	FirstTokenLatencyMS      int64      `gorm:"not null;default:0;comment:首Token时延毫秒"`
 	TotalLatencyMS           int64      `gorm:"not null;default:0;comment:总时长毫秒"`

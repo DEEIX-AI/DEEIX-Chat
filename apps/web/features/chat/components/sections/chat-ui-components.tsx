@@ -97,19 +97,9 @@ export function ChatUIComponents({
         onMouseDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
       >
-        {htmlVisual ? (
-          <label className="flex h-7 shrink-0 cursor-pointer items-center justify-between gap-3 rounded-md px-1.5 text-xs text-foreground/80 transition-colors hover:bg-accent hover:text-accent-foreground">
-            <span className="flex items-center gap-1.5">
-              <WandSparkles className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
-              <span className="font-medium">{t("htmlVisualPrompt")}</span>
-            </span>
-            <Switch size="sm" checked={htmlVisual.enabled} onCheckedChange={htmlVisual.onChange} />
-          </label>
-        ) : null}
-
         {hasCatalog ? (
           <>
-            <div className={cn("flex h-7 shrink-0 items-center justify-between gap-3 px-2 text-[11px] font-medium text-foreground/70", htmlVisual && "mt-1.5 border-t-[0.5px] border-border pt-1.5")}>
+            <div className="flex h-7 shrink-0 items-center justify-between gap-3 px-2 text-[11px] font-medium text-foreground/70">
               <span>{t("uiComponents")}</span>
               {!isDefault ? (
                 <button
@@ -159,6 +149,20 @@ export function ChatUIComponents({
               )}
             </div>
           </>
+        ) : null}
+
+        {/* Outside the scroll area so the switch stays at the bottom however long the list is. */}
+        {htmlVisual ? (
+          <div className="shrink-0 px-0.5">
+            {hasCatalog ? <div className="my-1.5 border-t-[0.5px] border-border" /> : null}
+            <label className="flex h-7 cursor-pointer items-center justify-between gap-3 rounded-md px-1.5 text-xs text-foreground/80 transition-colors hover:bg-accent hover:text-accent-foreground">
+              <span className="flex items-center gap-1.5">
+                <WandSparkles className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+                <span className="font-medium">{t("htmlVisualPrompt")}</span>
+              </span>
+              <Switch size="sm" checked={htmlVisual.enabled} onCheckedChange={htmlVisual.onChange} />
+            </label>
+          </div>
         ) : null}
       </PopoverContent>
     </Popover>

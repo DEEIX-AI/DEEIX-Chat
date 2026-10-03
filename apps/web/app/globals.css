@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "shadcn/tailwind.css";
+@import "../styles/shadcn-tailwind.css";
 @import "../styles/shadcn-compat.css";
 @import "tw-animate-css";
 @import "../styles/data-table.css" layer(components);

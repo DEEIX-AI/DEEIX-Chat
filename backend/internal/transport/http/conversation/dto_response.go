@@ -309,20 +309,22 @@ type RevokeConversationSharesResponse struct {
 
 // PublicSharedMessageResponse 公开分享消息响应 DTO。
 type PublicSharedMessageResponse struct {
-	PublicID          string                       `json:"publicID"`
-	ParentPublicID    string                       `json:"parentPublicID"`
-	SourcePublicID    string                       `json:"sourcePublicID"`
-	RunID             string                       `json:"runID"`
-	Role              string                       `json:"role"`
-	ContentType       string                       `json:"contentType"`
-	Content           string                       `json:"content"`
-	BranchReason      string                       `json:"branchReason"`
-	TokenUsage        int64                        `json:"tokenUsage"`
-	InputTokens       int64                        `json:"inputTokens"`
-	OutputTokens      int64                        `json:"outputTokens"`
-	CacheReadTokens   int64                        `json:"cacheReadTokens"`
-	CacheWriteTokens  int64                        `json:"cacheWriteTokens"`
-	ReasoningTokens   int64                        `json:"reasoningTokens"`
+	PublicID         string `json:"publicID"`
+	ParentPublicID   string `json:"parentPublicID"`
+	SourcePublicID   string `json:"sourcePublicID"`
+	RunID            string `json:"runID"`
+	Role             string `json:"role"`
+	ContentType      string `json:"contentType"`
+	Content          string `json:"content"`
+	BranchReason     string `json:"branchReason"`
+	TokenUsage       int64  `json:"tokenUsage"`
+	InputTokens      int64  `json:"inputTokens"`
+	OutputTokens     int64  `json:"outputTokens"`
+	CacheReadTokens  int64  `json:"cacheReadTokens"`
+	CacheWriteTokens int64  `json:"cacheWriteTokens"`
+	ReasoningTokens  int64  `json:"reasoningTokens"`
+	// ReasoningEffort 是生成该消息时生效的规范推理档位；模型无推理能力时为 null。
+	ReasoningEffort   *string                      `json:"reasoningEffort" enums:"none,minimal,low,medium,high,xhigh,max" extensions:"x-nullable,!x-omitempty"`
 	LatencyMS         int64                        `json:"latencyMS"`
 	Status            string                       `json:"status"`
 	ErrorCode         string                       `json:"errorCode"`
@@ -362,6 +364,7 @@ func toPublicSharedMessageResponse(
 		CacheReadTokens:   item.CacheReadTokens,
 		CacheWriteTokens:  item.CacheWriteTokens,
 		ReasoningTokens:   item.ReasoningTokens,
+		ReasoningEffort:   item.ReasoningEffort,
 		LatencyMS:         item.LatencyMS,
 		Status:            item.Status,
 		ErrorCode:         item.ErrorCode,
@@ -839,23 +842,25 @@ type MessageKnowledgeSourceResponse struct {
 
 // MessageResponse 消息响应 DTO。
 type MessageResponse struct {
-	ID                uint                             `json:"id"`
-	ConversationID    uint                             `json:"conversationID"`
-	UserID            uint                             `json:"userID"`
-	PublicID          string                           `json:"publicID"`
-	ParentMessageID   *uint                            `json:"parentMessageID" extensions:"x-nullable,!x-omitempty"`
-	RunID             string                           `json:"runID"`
-	Role              string                           `json:"role"`
-	ContentType       string                           `json:"contentType"`
-	Content           string                           `json:"content"`
-	BranchReason      string                           `json:"branchReason"`
-	SourceMessageID   *uint                            `json:"sourceMessageID" extensions:"x-nullable,!x-omitempty"`
-	TokenUsage        int64                            `json:"tokenUsage"`
-	InputTokens       int64                            `json:"inputTokens"`
-	OutputTokens      int64                            `json:"outputTokens"`
-	CacheReadTokens   int64                            `json:"cacheReadTokens"`
-	CacheWriteTokens  int64                            `json:"cacheWriteTokens"`
-	ReasoningTokens   int64                            `json:"reasoningTokens"`
+	ID               uint   `json:"id"`
+	ConversationID   uint   `json:"conversationID"`
+	UserID           uint   `json:"userID"`
+	PublicID         string `json:"publicID"`
+	ParentMessageID  *uint  `json:"parentMessageID" extensions:"x-nullable,!x-omitempty"`
+	RunID            string `json:"runID"`
+	Role             string `json:"role"`
+	ContentType      string `json:"contentType"`
+	Content          string `json:"content"`
+	BranchReason     string `json:"branchReason"`
+	SourceMessageID  *uint  `json:"sourceMessageID" extensions:"x-nullable,!x-omitempty"`
+	TokenUsage       int64  `json:"tokenUsage"`
+	InputTokens      int64  `json:"inputTokens"`
+	OutputTokens     int64  `json:"outputTokens"`
+	CacheReadTokens  int64  `json:"cacheReadTokens"`
+	CacheWriteTokens int64  `json:"cacheWriteTokens"`
+	ReasoningTokens  int64  `json:"reasoningTokens"`
+	// ReasoningEffort 是生成该消息时生效的规范推理档位；模型无推理能力时为 null。
+	ReasoningEffort   *string                          `json:"reasoningEffort" enums:"none,minimal,low,medium,high,xhigh,max" extensions:"x-nullable,!x-omitempty"`
 	LatencyMS         int64                            `json:"latencyMS"`
 	Status            string                           `json:"status"`
 	ErrorCode         string                           `json:"errorCode"`
@@ -1109,6 +1114,7 @@ func toMessageResponseWithRunAndFallback(m model.Message, run model.Run, fallbac
 		CacheReadTokens:   m.CacheReadTokens,
 		CacheWriteTokens:  m.CacheWriteTokens,
 		ReasoningTokens:   m.ReasoningTokens,
+		ReasoningEffort:   m.ReasoningEffort,
 		LatencyMS:         m.LatencyMS,
 		Status:            m.Status,
 		ErrorCode:         m.ErrorCode,
@@ -1287,28 +1293,30 @@ func toMessageFeedbackResponse(r *appconversation.MessageFeedbackResult) Message
 
 // RunResponse 对话运行日志响应 DTO。
 type RunResponse struct {
-	ID                  uint       `json:"id"`
-	RunID               string     `json:"runID"`
-	RequestID           string     `json:"requestID"`
-	UserID              uint       `json:"userID"`
-	ConversationID      uint       `json:"conversationID"`
-	TaskType            string     `json:"taskType"`
-	Endpoint            string     `json:"endpoint"`
-	Provider            string     `json:"provider"`
-	ProviderProtocol    string     `json:"providerProtocol"`
-	UpstreamID          uint       `json:"upstreamID"`
-	UpstreamModelID     uint       `json:"upstreamModelID"`
-	RequestedModelName  string     `json:"requestedModelName"`
-	PlatformModelName   string     `json:"platformModelName"`
-	RoutedBindingCode   string     `json:"routedBindingCode"`
-	ModelVendor         string     `json:"modelVendor"`
-	ModelIcon           string     `json:"modelIcon"`
-	UpstreamModelName   string     `json:"upstreamModelName"`
-	InputTokens         int64      `json:"inputTokens"`
-	OutputTokens        int64      `json:"outputTokens"`
-	CacheReadTokens     int64      `json:"cacheReadTokens"`
-	CacheWriteTokens    int64      `json:"cacheWriteTokens"`
-	ReasoningTokens     int64      `json:"reasoningTokens"`
+	ID                 uint   `json:"id"`
+	RunID              string `json:"runID"`
+	RequestID          string `json:"requestID"`
+	UserID             uint   `json:"userID"`
+	ConversationID     uint   `json:"conversationID"`
+	TaskType           string `json:"taskType"`
+	Endpoint           string `json:"endpoint"`
+	Provider           string `json:"provider"`
+	ProviderProtocol   string `json:"providerProtocol"`
+	UpstreamID         uint   `json:"upstreamID"`
+	UpstreamModelID    uint   `json:"upstreamModelID"`
+	RequestedModelName string `json:"requestedModelName"`
+	PlatformModelName  string `json:"platformModelName"`
+	RoutedBindingCode  string `json:"routedBindingCode"`
+	ModelVendor        string `json:"modelVendor"`
+	ModelIcon          string `json:"modelIcon"`
+	UpstreamModelName  string `json:"upstreamModelName"`
+	InputTokens        int64  `json:"inputTokens"`
+	OutputTokens       int64  `json:"outputTokens"`
+	CacheReadTokens    int64  `json:"cacheReadTokens"`
+	CacheWriteTokens   int64  `json:"cacheWriteTokens"`
+	ReasoningTokens    int64  `json:"reasoningTokens"`
+	// ReasoningEffort 是本次运行生效的规范推理档位；模型无推理能力时为 null。
+	ReasoningEffort     *string    `json:"reasoningEffort" enums:"none,minimal,low,medium,high,xhigh,max" extensions:"x-nullable,!x-omitempty"`
 	ToolCallsCount      int        `json:"toolCallsCount"`
 	FirstTokenLatencyMS int64      `json:"firstTokenLatencyMS"`
 	TotalLatencyMS      int64      `json:"totalLatencyMS"`
@@ -1345,6 +1353,7 @@ func toRunResponse(r model.Run) RunResponse {
 		CacheReadTokens:     r.CacheReadTokens,
 		CacheWriteTokens:    r.CacheWriteTokens,
 		ReasoningTokens:     r.ReasoningTokens,
+		ReasoningEffort:     r.ReasoningEffort,
 		ToolCallsCount:      r.ToolCallsCount,
 		FirstTokenLatencyMS: r.FirstTokenLatencyMS,
 		TotalLatencyMS:      r.TotalLatencyMS,

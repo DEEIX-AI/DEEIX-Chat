@@ -42,6 +42,16 @@ import { ChatMCP } from "@/features/chat/components/sections/chat-mcp";
 import { ChatUIComponents } from "@/features/chat/components/sections/chat-ui-components";
 import { ChatModelConfig } from "@/features/chat/components/sections/chat-model-config";
 import { ChatModelPicker } from "@/features/chat/components/sections/chat-model-picker";
+import { ChatModelControls } from "@/features/chat/components/sections/chat-model-controls";
+import { useChatModelControlPlacements } from "@/features/chat/hooks/use-chat-model-control-placements";
+import type { ChatModelControlSelections } from "@/features/chat/model/chat-model-controls";
+import {
+  hasProviderTool,
+  type NativeToolVisualOption,
+  nativeToolVisualOptionsFromConfigs,
+  setProviderToolEnabled,
+} from "@/features/chat/model/chat-native-tools";
+import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
 import { ChatMentionMenuPortal } from "@/features/chat/components/shared/chat-mention-menu";
 import { useChatMentionMenu } from "@/features/chat/hooks/use-chat-mention-menu";
 import {
@@ -79,7 +89,7 @@ import {
   resolveFileIcon,
   resolveFileProcessingBadge,
 } from "@/entities/file";
-import type { ModelOptionPolicy } from "@/entities/model";
+import type { ModelControlValue, ModelOptionPolicy } from "@/entities/model";
 import { isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
 
 const TEMPORARY_NOTICE_TRANSITION = {
@@ -143,6 +153,9 @@ type ChatInputProps = {
   onDefaultToolsChange: (toolIDs: number[]) => void | Promise<void>;
   onHTMLVisualPromptChange: (enabled: boolean) => void;
   onOptionsChange: React.Dispatch<React.SetStateAction<ConversationOptions>>;
+  // Model control selections of the selected model (remembered per model by the caller).
+  controlSelections: ChatModelControlSelections;
+  onControlChange: (controlID: string, value: ModelControlValue | null) => void;
   onOptionsReset: (defaults?: ConversationOptions) => void;
   onOptionsDefaultRestore: () => Promise<ConversationOptions | null>;
   onAttachExistingFile: (file: FileObjectDTO) => void | Promise<void>;
@@ -308,6 +321,8 @@ function ChatInputComponent({
   onDefaultToolsChange,
   onHTMLVisualPromptChange,
   onOptionsChange,
+  controlSelections,
+  onControlChange,
   onOptionsReset,
   onOptionsDefaultRestore,
   onAttachExistingFile,
@@ -490,6 +505,32 @@ function ChatInputComponent({
     };
   }, [options, taskOptionConfig]);
   const modelOptionPolicyDisabled = modelOptionPolicy?.mode?.trim() === "disabled";
+  // Chat parameters: users pick values on the administrator's model controls; only administrators
+  // get the advanced JSON dialog. Media tasks keep their own option dialog.
+  const authSession = useOptionalAuthSession();
+  const viewerIsAdmin = authSession?.user?.role === "admin" || authSession?.user?.role === "superadmin";
+  const showAdvancedOptions = isMediaMode ? !modelOptionPolicyDisabled : viewerIsAdmin;
+  // Chat-mode parameter dialog, opened from the controls popover ("more parameters" → advanced).
+  const [advancedOptionsOpen, setAdvancedOptionsOpen] = React.useState(false);
+  const { placements: controlPlacements, setPlacements: setControlPlacements } = useChatModelControlPlacements();
+  const nativeToolOptions = React.useMemo(
+    () => (isMediaMode || !selectedModel
+      ? []
+      : nativeToolVisualOptionsFromConfigs(
+        selectedModel.nativeTools,
+        selectedModel.nativeToolKeys,
+        modelOptionPolicy?.nativeTools ?? [],
+        selectedProtocols,
+      )),
+    [isMediaMode, modelOptionPolicy?.nativeTools, selectedModel, selectedProtocols],
+  );
+  const isNativeToolEnabled = React.useCallback(
+    (tool: NativeToolVisualOption) => hasProviderTool(options, tool.variants),
+    [options],
+  );
+  const handleNativeToolChange = React.useCallback((tool: NativeToolVisualOption, enabled: boolean) => {
+    onOptionsChange((current) => setProviderToolEnabled(current, tool.variants, enabled));
+  }, [onOptionsChange]);
   const showMCPToolsButton = availableTools.length > 0 && !isMediaMode;
   const showHTMLVisualPromptButton = !isMediaMode;
   const hasComposerAttachments = attachments.length > 0 || uploadingAttachments.length > 0;
@@ -1129,23 +1170,6 @@ function ChatInputComponent({
                   </DropdownMenuContent>
               </DropdownMenu>
 
-              {!modelOptionPolicyDisabled ? (
-                <ChatModelConfig
-                  disabled={loading || uploading || modelLoading}
-                  options={modelConfigOptions}
-                  defaultOptions={taskOptionConfig?.defaultOptions ?? defaultOptions}
-                  optionControls={taskOptionConfig?.optionControls ?? selectedModel?.optionControls ?? []}
-                  lockedOptionPaths={taskOptionConfig ? [] : selectedModel?.lockedOptionPaths ?? []}
-                  nativeToolKeys={selectedModel?.nativeToolKeys ?? []}
-                  nativeTools={selectedModel?.nativeTools ?? []}
-                  modelOptionPolicy={modelOptionPolicy}
-                  selectedProtocols={selectedProtocols}
-                  selectedModelName={selectedModelName}
-                  onOptionsChange={onOptionsChange}
-                  onOptionsReset={onOptionsReset}
-                  onDefaultOptionsRestore={onOptionsDefaultRestore}
-                />
-              ) : null}
 
               {showMCPToolsButton ? (
                 <ChatMCP
@@ -1234,6 +1258,61 @@ function ChatInputComponent({
                     {composerModeIndicator.intro} {composerModeIndicator.description}
                   </TooltipContent>
                 </Tooltip>
+              ) : null}
+              {!isMediaMode && selectedModel ? (
+                <ChatModelControls
+                  controls={selectedModel.controls}
+                  selections={controlSelections}
+                  nativeTools={nativeToolOptions}
+                  isNativeToolEnabled={isNativeToolEnabled}
+                  placements={controlPlacements}
+                  disabled={loading || uploading || modelLoading}
+                  placementPreference={isConversationMode ? "top" : "bottom"}
+                  onControlChange={onControlChange}
+                  onNativeToolChange={handleNativeToolChange}
+                  onPlacementsChange={(next) => void setControlPlacements(next)}
+                  advancedOptions={viewerIsAdmin ? { label: tComposer("advancedOptions"), onOpen: () => setAdvancedOptionsOpen(true) } : undefined}
+                />
+              ) : null}
+              {/* Media tasks keep the task parameter dialog here; chat parameters live in the
+                  controls popover, so administrators open the same dialog from there. */}
+              {isMediaMode ? (
+                showAdvancedOptions ? (
+                  <ChatModelConfig
+                    disabled={loading || uploading || modelLoading}
+                    options={modelConfigOptions}
+                    defaultOptions={taskOptionConfig?.defaultOptions ?? defaultOptions}
+                    optionControls={taskOptionConfig?.optionControls ?? selectedModel?.optionControls ?? []}
+                    lockedOptionPaths={taskOptionConfig ? [] : selectedModel?.lockedOptionPaths ?? []}
+                    nativeToolKeys={selectedModel?.nativeToolKeys ?? []}
+                    nativeTools={selectedModel?.nativeTools ?? []}
+                    modelOptionPolicy={modelOptionPolicy}
+                    selectedProtocols={selectedProtocols}
+                    selectedModelName={selectedModelName}
+                    onOptionsChange={onOptionsChange}
+                    onOptionsReset={onOptionsReset}
+                    onDefaultOptionsRestore={onOptionsDefaultRestore}
+                  />
+                ) : null
+              ) : showAdvancedOptions ? (
+                <ChatModelConfig
+                  hideTrigger
+                  open={advancedOptionsOpen}
+                  onOpenChange={setAdvancedOptionsOpen}
+                  disabled={loading || uploading || modelLoading}
+                  options={modelConfigOptions}
+                  defaultOptions={defaultOptions}
+                  optionControls={selectedModel?.optionControls ?? []}
+                  lockedOptionPaths={selectedModel?.lockedOptionPaths ?? []}
+                  nativeToolKeys={selectedModel?.nativeToolKeys ?? []}
+                  nativeTools={selectedModel?.nativeTools ?? []}
+                  modelOptionPolicy={modelOptionPolicy}
+                  selectedProtocols={selectedProtocols}
+                  selectedModelName={selectedModelName}
+                  onOptionsChange={onOptionsChange}
+                  onOptionsReset={onOptionsReset}
+                  onDefaultOptionsRestore={onOptionsDefaultRestore}
+                />
               ) : null}
               <ChatModelPicker
                 modelOptions={modelOptions}

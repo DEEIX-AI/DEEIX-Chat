@@ -122,6 +122,8 @@ type Service struct {
 	modelCatalogGeneration uint64
 	modelCatalogRequests   singleflight.Group
 
+	reasoningCatalog reasoningCatalogStore
+
 	breakerDefaultsMu         sync.RWMutex
 	breakerDefaults           domainchannel.BreakerDefaults
 	breakerDefaultsLoaded     bool
@@ -169,6 +171,9 @@ type ResolvedRoute struct {
 	UpstreamModel                   string
 	ReasoningContentPassback        bool
 	ReasoningPassbackRequestOptions map[string]any
+	// CatalogReasoning 为 models.dev 目录在该路由协议上推导出的推理能力，仅在模型未显式声明时填充；
+	// 与显式声明、旧配置推断的优先级由请求链路统一裁决。
+	CatalogReasoning                *domainchannel.ReasoningCapability
 	UpstreamCbFailureThreshold      int
 	UpstreamCbModelThreshold        int
 	UpstreamCbThresholdLogic        string
@@ -250,6 +255,13 @@ func (s *Service) SetSubscriptionGroupResolver(resolver subscriptionGroupResolve
 // SetLogger 注入结构化日志记录器。
 func (s *Service) SetLogger(logger *zap.Logger) {
 	s.logger = logger
+}
+
+func (s *Service) debug(message string, fields ...zap.Field) {
+	if s.logger == nil {
+		return
+	}
+	s.logger.Debug(message, fields...)
 }
 
 func (s *Service) warn(message string, fields ...zap.Field) {

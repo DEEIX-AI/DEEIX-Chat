@@ -56,6 +56,24 @@ func (r *messageSendRunState) applyRoute(route *channel.ResolvedRoute) {
 	r.run.UpstreamModelName = route.UpstreamModel
 }
 
+// applyReasoningEffort 记录当前路由生效的推理档位；故障转移后以新路由的档位覆盖。
+// assistant 消息只在内存中标注，随完成态一并持久化。
+func (r *messageSendRunState) applyReasoningEffort(level string) {
+	effort := optionalReasoningEffort(level)
+	r.run.ReasoningEffort = effort
+	if assistantMessage := r.currentAssistantMessage(); assistantMessage != nil {
+		assistantMessage.ReasoningEffort = effort
+	}
+}
+
+// optionalReasoningEffort 把空档位（模型无推理能力）表示为 nil，对外序列化为 null。
+func optionalReasoningEffort(level string) *string {
+	if level == "" {
+		return nil
+	}
+	return &level
+}
+
 func newMessageSendRunState(
 	service *Service,
 	input SendMessageInput,

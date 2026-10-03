@@ -31,6 +31,7 @@ const (
 
 // SendMessage 发送消息并调用上游渠道对话接口，支持多模态附件。
 func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (result *SendMessageResult, retErr error) {
+	input.Options, input.Controls = restrictUserChatOptions(input.Options, input.Controls, input.AllowRawOptions)
 	return s.sendMessageInternal(ctx, input, nil, false)
 }
 
@@ -42,6 +43,7 @@ func (s *Service) StreamMessage(
 	onDelta func(string) error,
 ) (result *SendMessageResult, retErr error) {
 	input.Cancelable = true
+	input.Options, input.Controls = restrictUserChatOptions(input.Options, input.Controls, input.AllowRawOptions)
 	return s.sendMessageInternal(ctx, input, onDelta, true)
 }
 
@@ -712,6 +714,7 @@ func (s *Service) sendMessageInternal(
 		Mode:                     routeGenerationInitial,
 		TraceRecorder:            traceRecorder,
 	})
+	runState.applyReasoningEffort(plan.reasoningEffort)
 	runner.routeConfig = plan.routeConfig
 	if plan.generateInput.ResponsesBackground {
 		sendSpan.SetAttributes(attribute.Bool("conversation.responses_background", true))
@@ -780,6 +783,7 @@ func (s *Service) sendMessageInternal(
 			Mode:                     routeGenerationFailover,
 			TraceRecorder:            traceRecorder,
 		})
+		runState.applyReasoningEffort(plan.reasoningEffort)
 		runner.beginRouteFailover(plan.routeConfig)
 		sendSpan.SetAttributes(
 			attribute.Bool("conversation.route_failover", true),

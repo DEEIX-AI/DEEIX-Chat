@@ -181,24 +181,26 @@ type MessageKnowledgeSource struct {
 
 // Message 表示会话消息。
 type Message struct {
-	ID                       uint
-	ConversationID           uint
-	UserID                   uint
-	PublicID                 string
-	ParentMessageID          *uint
-	RunID                    string
-	Role                     string
-	ContentType              string
-	Content                  string
-	ReasoningContent         string
-	BranchReason             string
-	SourceMessageID          *uint
-	TokenUsage               int64
-	InputTokens              int64
-	OutputTokens             int64
-	CacheReadTokens          int64
-	CacheWriteTokens         int64
-	ReasoningTokens          int64
+	ID               uint
+	ConversationID   uint
+	UserID           uint
+	PublicID         string
+	ParentMessageID  *uint
+	RunID            string
+	Role             string
+	ContentType      string
+	Content          string
+	ReasoningContent string
+	BranchReason     string
+	SourceMessageID  *uint
+	TokenUsage       int64
+	InputTokens      int64
+	OutputTokens     int64
+	CacheReadTokens  int64
+	CacheWriteTokens int64
+	ReasoningTokens  int64
+	// ReasoningEffort 是生成该 assistant 消息时生效的规范推理档位；模型无推理能力时为 nil。
+	ReasoningEffort          *string
 	LatencyMS                int64
 	BilledCurrency           string
 	BilledNanousd            int64
@@ -397,29 +399,31 @@ type StorageQuota struct {
 
 // Run 表示对话运行日志。
 type Run struct {
-	ID                       uint
-	RunID                    string
-	RequestID                string
-	UserID                   uint
-	ConversationID           uint
-	TaskType                 string
-	Endpoint                 string
-	Provider                 string
-	ProviderProtocol         string
-	UpstreamID               uint
-	UpstreamModelID          uint
-	UpstreamName             string
-	RequestedModelName       string
-	PlatformModelName        string
-	RoutedBindingCode        string
-	ModelVendor              string
-	ModelIcon                string
-	UpstreamModelName        string
-	InputTokens              int64
-	OutputTokens             int64
-	CacheReadTokens          int64
-	CacheWriteTokens         int64
-	ReasoningTokens          int64
+	ID                 uint
+	RunID              string
+	RequestID          string
+	UserID             uint
+	ConversationID     uint
+	TaskType           string
+	Endpoint           string
+	Provider           string
+	ProviderProtocol   string
+	UpstreamID         uint
+	UpstreamModelID    uint
+	UpstreamName       string
+	RequestedModelName string
+	PlatformModelName  string
+	RoutedBindingCode  string
+	ModelVendor        string
+	ModelIcon          string
+	UpstreamModelName  string
+	InputTokens        int64
+	OutputTokens       int64
+	CacheReadTokens    int64
+	CacheWriteTokens   int64
+	ReasoningTokens    int64
+	// ReasoningEffort 是本次运行最终路由上生效的规范推理档位；模型无推理能力时为 nil。
+	ReasoningEffort          *string
 	ToolCallsCount           int
 	FirstTokenLatencyMS      int64
 	TotalLatencyMS           int64

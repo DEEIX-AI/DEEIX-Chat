@@ -150,6 +150,7 @@ func (s *Service) ResolveRoute(ctx context.Context, input ResolveRouteInput) (*R
 			}
 
 			resolved := buildResolvedRoute(selected.row, selected.apiKey)
+			resolved.CatalogReasoning = s.catalogReasoningForRoute(resolved)
 			resolved.UpstreamProbeGranted = upstreamState == "half_open_granted"
 			resolved.ModelProbeGranted = modelState == "half_open_granted"
 			return resolved, nil

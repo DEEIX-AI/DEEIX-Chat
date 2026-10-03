@@ -110,10 +110,13 @@ type GetConversationRunStatusesRequest struct {
 
 // SendMessageRequest 发送消息请求。
 type SendMessageRequest struct {
-	ContentType             string         `json:"contentType" binding:"required,oneof=text markdown image file mixed"`
-	Content                 string         `json:"content" binding:"required"`
-	Model                   string         `json:"model,omitempty" binding:"omitempty,max=128"`
-	Options                 map[string]any `json:"options,omitempty"`
+	ContentType string `json:"contentType" binding:"required,oneof=text markdown image file mixed"`
+	Content     string `json:"content" binding:"required"`
+	Model       string `json:"model,omitempty" binding:"omitempty,max=128"`
+	// Options 为高级参数 JSON：仅管理员生效；普通用户只保留原生工具选择（tools）。
+	Options map[string]any `json:"options,omitempty"`
+	// Controls 为模型控件选择 {控件 id: 取值}，取值为字符串、布尔或数值；未知控件与无效取值被忽略。
+	Controls                map[string]any `json:"controls,omitempty"`
 	ClientRunID             string         `json:"clientRunID,omitempty" binding:"omitempty,max=64"`
 	FileIDs                 []string       `json:"fileIDs,omitempty" binding:"max=20"`
 	SelectedToolIDs         []uint         `json:"selectedToolIDs,omitempty" binding:"max=128"`
@@ -135,6 +138,7 @@ type TemporaryChatMessageRequest struct {
 	ClientRunID      string                        `json:"clientRunID" binding:"required,max=64"`
 	Model            string                        `json:"model" binding:"required,max=128"`
 	Options          map[string]any                `json:"options,omitempty"`
+	Controls         map[string]any                `json:"controls,omitempty"`
 	SelectedToolIDs  []uint                        `json:"selectedToolIDs,omitempty" binding:"max=128"`
 	SkillIDs         []uint                        `json:"skillIDs,omitempty" binding:"max=128"`
 	KnowledgeBaseIDs []string                      `json:"knowledgeBaseIDs,omitempty" binding:"omitempty,max=8,dive,max=32"`

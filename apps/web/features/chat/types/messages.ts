@@ -1,4 +1,5 @@
 import type { UpstreamDebugInfo } from "@/shared/api/conversation-types";
+import type { ReasoningEffortLevel } from "@/entities/model";
 
 export type MessageAttachment = {
   fileID: string;
@@ -167,6 +168,8 @@ export type ChatAreaMessage = {
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   reasoningTokens?: number;
+  // Effective reasoning effort level recorded by the backend; null when the model has no reasoning capability.
+  reasoningEffort?: ReasoningEffortLevel | null;
   latencyMS?: number;
   billingCost?: ChatBillingCost;
   knowledgeSources?: RAGCitation[];

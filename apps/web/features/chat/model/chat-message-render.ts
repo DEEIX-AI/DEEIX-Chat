@@ -179,6 +179,7 @@ export function areChatAreaMessagesRenderEqual(
     previous.cacheReadTokens === next.cacheReadTokens &&
     previous.cacheWriteTokens === next.cacheWriteTokens &&
     previous.reasoningTokens === next.reasoningTokens &&
+    previous.reasoningEffort === next.reasoningEffort &&
     previous.latencyMS === next.latencyMS &&
     areBillingCostsEqual(previous.billingCost, next.billingCost) &&
     areBranchNavigatorsEqual(previous.branchNavigator, next.branchNavigator) &&

@@ -5,6 +5,7 @@ import type {
   AdminBatchDeleteData,
   AdminBatchDeleteRequest,
   AdminLLMSetting,
+  AdminLLMModelCatalogStatus,
   AdminLLMModelData,
   AdminLLMModelDTO,
   AdminLLMModelDisplayGroupData,
@@ -668,6 +669,30 @@ export async function testAdminLLMUpstreamModelRoute(
 ): Promise<AdminLLMModelProbeData> {
   return authedRequest<AdminLLMModelProbeData>(
     `/api/v1/admin/llm/upstreams/${upstreamID}/models/${routeID}/test`,
+    { method: "POST", accessToken, body: {} },
+    true,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Reasoning capability catalog
+// ---------------------------------------------------------------------------
+
+export async function getAdminLLMModelCatalog(
+  accessToken: string,
+): Promise<AdminLLMModelCatalogStatus> {
+  return authedRequest<AdminLLMModelCatalogStatus>(
+    "/api/v1/admin/llm/model-catalog",
+    { accessToken },
+    true,
+  );
+}
+
+export async function refreshAdminLLMModelCatalog(
+  accessToken: string,
+): Promise<AdminLLMModelCatalogStatus> {
+  return authedRequest<AdminLLMModelCatalogStatus>(
+    "/api/v1/admin/llm/model-catalog/refresh",
     { method: "POST", accessToken, body: {} },
     true,
   );

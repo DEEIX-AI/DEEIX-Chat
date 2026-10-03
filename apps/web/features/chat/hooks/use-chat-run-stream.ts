@@ -1,5 +1,6 @@
 "use client";
 
+import { splitControlSelections } from "@/features/chat/model/chat-model-controls";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -233,7 +234,10 @@ export function useChatRunStream({
         },
       };
 
-      const effectiveOptions = submitTask === "video_extension" ? resolveVideoExtensionOptions(options) : options;
+      // Control selections only apply to chat; media requests keep their raw task options.
+      const { options: rawOptions, controls } = splitControlSelections(options);
+      const baseOptions = rawOptions ?? {};
+      const effectiveOptions = submitTask === "video_extension" ? resolveVideoExtensionOptions(baseOptions) : baseOptions;
       const commonStreamPayload = {
         model: platformModelName,
         options: Object.keys(effectiveOptions).length > 0 ? effectiveOptions : undefined,
@@ -249,6 +253,7 @@ export function useChatRunStream({
           ...commonStreamPayload,
           contentType: effectiveAttachments.length > 0 ? "mixed" : "text",
           content,
+          controls,
           selectedToolIDs: selectedToolIDs.length > 0 ? selectedToolIDs : undefined,
           skillIDs: selectedSkills.length > 0 ? selectedSkills.map((skill) => skill.id) : undefined,
           knowledgeBaseIDs: selectedKnowledgeBaseIDs,

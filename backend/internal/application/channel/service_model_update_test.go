@@ -108,6 +108,39 @@ func TestUpdateModelRejectsInvalidModelCapsWithDedicatedError(t *testing.T) {
 	}
 }
 
+func TestUpdateModelRejectsInvalidReasoningCapabilityWithDedicatedErrors(t *testing.T) {
+	tests := []struct {
+		name         string
+		capabilities string
+		want         error
+	}{
+		{name: "format", capabilities: `{"reasoning":{"format":"bogus","levels":["low"],"default":"low"}}`, want: ErrInvalidReasoningFormat},
+		{name: "levels", capabilities: `{"reasoning":{"format":"gemini_level","levels":["none"],"default":"none"}}`, want: ErrInvalidReasoningLevels},
+		{name: "default", capabilities: `{"reasoning":{"format":"openai","levels":["low"],"default":"high"}}`, want: ErrInvalidReasoningDefault},
+		{name: "budgets", capabilities: `{"reasoning":{"format":"anthropic_budget","levels":["low"],"default":"low","budgets":{"low":10}}}`, want: ErrInvalidReasoningBudgets},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &modelUpdateRepo{
+				model: domainchannel.PlatformModel{
+					ID:                1,
+					PlatformModelName: "custom-model",
+					Vendor:            "openai",
+					KindsJSON:         `["chat"]`,
+					AccessScope:       "public",
+					Status:            "active",
+				},
+			}
+			service := newTestService(config.Config{}, repo, repo, nil, nil)
+			capabilities := tt.capabilities
+			_, err := service.UpdateModel(context.Background(), 1, UpdateModelInput{CapabilitiesJSON: &capabilities})
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("UpdateModel() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestUpdateModelClearsAutomaticContextWindowWhenIdentityChanges(t *testing.T) {
 	repo := &modelUpdateRepo{
 		model: domainchannel.PlatformModel{

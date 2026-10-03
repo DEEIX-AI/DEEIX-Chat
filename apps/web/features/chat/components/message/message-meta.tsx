@@ -30,6 +30,14 @@ import { ThumbsUp } from "@/components/animate-ui/icons/thumbs-up";
 import { Trash2 } from "@/components/animate-ui/icons/trash-2";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -41,6 +49,10 @@ import {
 import { useChatElapsedDurationMS } from "@/features/chat/hooks/use-chat-elapsed-duration";
 import { useChatMemoryPin } from "@/features/chat/hooks/use-chat-memory-pin";
 import { type BillingSnapshot, parseBillingSnapshot } from "@/features/chat/model/billing-snapshot";
+import {
+  type ChatRegenerateReasoningOptions,
+  normalizeMessageReasoningEffort,
+} from "@/features/chat/model/chat-reasoning-effort";
 import { resolvePersistedPublicID } from "@/features/chat/model/message-submit";
 import type { ChatBillingCost, ChatMessageBranchNavigator } from "@/features/chat/types/messages";
 import { cn } from "@/lib/utils";
@@ -57,6 +69,7 @@ import {
   formatBillingDisplayPreciseAmountFromUSD,
   formatBillingDisplayUnitPriceFromUSD,
 } from "@/entities/billing";
+import type { ReasoningEffortLevel } from "@/entities/model";
 
 const META_ACTION_BUTTON_CLASSNAME =
   "text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
@@ -78,6 +91,7 @@ export type ChatMetaMessage = {
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   reasoningTokens?: number;
+  reasoningEffort?: string | null;
   latencyMS?: number;
   billingCost?: ChatBillingCost;
 };
@@ -267,6 +281,66 @@ function MetaIconButton({
       </TooltipTrigger>
       <TooltipContent side="top">{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+function RegenerateMenuButton({
+  label,
+  usedLevel,
+  options,
+  onRetry,
+  onRetryWithReasoning,
+}: {
+  label: string;
+  usedLevel: string | null | undefined;
+  options: ChatRegenerateReasoningOptions;
+  onRetry: () => void;
+  onRetryWithReasoning: (level: ReasoningEffortLevel) => void;
+}) {
+  const t = useTranslations("chat.reasoningEffort");
+  const tLevels = useTranslations("common.reasoningEffort.levels");
+  const recordedLevel = normalizeMessageReasoningEffort(usedLevel);
+
+  return (
+    <DropdownMenu modal={false}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              data-screenshot-exclude="true"
+              className={META_ACTION_BUTTON_CLASSNAME}
+              aria-label={label}
+            >
+              <RotateCcw strokeWidth={1.8} animateOnHover="default" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top">{label}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent side="top" align="start" className="w-48">
+        <DropdownMenuItem onSelect={onRetry}>
+          <RotateCcw strokeWidth={1.8} />
+          {t("regenerate")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
+          {t("regenerateWith")}
+        </DropdownMenuLabel>
+        {options.levels.map((level) => (
+          <DropdownMenuItem key={level} onSelect={() => onRetryWithReasoning(level)}>
+            <span className="min-w-0 flex-1 truncate">{tLevels(level)}</span>
+            {level === recordedLevel ? (
+              <span className="shrink-0 text-[10px] leading-none text-muted-foreground">{t("usedByReply")}</span>
+            ) : level === options.defaultLevel ? (
+              <span className="shrink-0 text-[10px] leading-none text-muted-foreground">{t("default")}</span>
+            ) : null}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -1014,6 +1088,8 @@ export function AssistantMessageMeta({
   reaction,
   onCycleBranch,
   onRetry,
+  regenerateReasoning = null,
+  onRetryWithReasoning,
   onContinue,
   onEdit,
   onCopy,
@@ -1036,6 +1112,9 @@ export function AssistantMessageMeta({
   reaction: AssistantReaction;
   onCycleBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onRetry: () => void;
+  // When set, the retry button opens a menu offering a single-request reasoning effort override.
+  regenerateReasoning?: ChatRegenerateReasoningOptions | null;
+  onRetryWithReasoning?: (level: ReasoningEffortLevel) => void;
   onContinue?: () => void;
   onEdit?: () => void;
   onCopy: () => void;
@@ -1159,7 +1238,15 @@ export function AssistantMessageMeta({
                 >
                   <ThumbsDown strokeWidth={1.8} animateOnHover="default" />
                 </MetaIconButton>
-                {canRetry ? (
+                {canRetry && regenerateReasoning && onRetryWithReasoning ? (
+                  <RegenerateMenuButton
+                    label={t("retryReply")}
+                    usedLevel={item.reasoningEffort}
+                    options={regenerateReasoning}
+                    onRetry={onRetry}
+                    onRetryWithReasoning={onRetryWithReasoning}
+                  />
+                ) : canRetry ? (
                   <MetaIconButton
                     label={t("retryReply")}
                     onClick={onRetry}
