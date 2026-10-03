@@ -141,6 +141,7 @@ func (s *Service) persistSuccessfulMessageGeneration(ctx context.Context, input 
 			ReasoningTokens:  input.ReasoningTokens,
 			LatencyMS:        input.AssistantLatency,
 			Status:           "success",
+			ReasoningEffort:  input.AssistantMessage.ReasoningEffort,
 		},
 	); err != nil {
 		return err
@@ -232,6 +233,7 @@ func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, inp
 				ReasoningTokens:  input.ReasoningTokens,
 				LatencyMS:        input.AssistantLatency,
 				Status:           "success",
+				ReasoningEffort:  input.AssistantMessage.ReasoningEffort,
 			},
 			normalized.AttachmentRows,
 		); err != nil {
@@ -256,6 +258,7 @@ func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, inp
 				ReasoningTokens:  input.ReasoningTokens,
 				LatencyMS:        input.AssistantLatency,
 				Status:           "success",
+				ReasoningEffort:  input.AssistantMessage.ReasoningEffort,
 			},
 			normalized.AttachmentRows,
 		); err != nil {
@@ -373,6 +376,7 @@ func (s *Service) persistInterruptedMessageGeneration(ctx context.Context, input
 			CacheWriteTokens: interruptedCompletionCacheWriteTokens(input, metrics),
 			ReasoningTokens:  metrics.ReasoningTokens,
 			LatencyMS:        metrics.LatencyMS,
+			ReasoningEffort:  input.AssistantMessage.ReasoningEffort,
 			Status:           retainedGenerationStatus(input.Error),
 			ErrorCode:        metrics.ErrorCode,
 			ErrorMessage:     metrics.ErrorMessage,

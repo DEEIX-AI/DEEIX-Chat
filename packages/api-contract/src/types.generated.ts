@@ -2241,6 +2241,16 @@ export interface MessageResponse {
   platformModelName: string;
   processTrace?: MessageProcessTraceResponse;
   publicID: string;
+  /** ReasoningEffort 是生成该消息时生效的规范推理档位；模型无推理能力时为 null。 */
+  reasoningEffort:
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | null;
   reasoningTokens: number;
   role: string;
   runID: string;
@@ -2289,6 +2299,24 @@ export interface MessageTraceEventResponse {
   summary: string;
   title: string;
   updatedAt: string;
+}
+
+export interface ModelCatalogStatusResponse {
+  /** FetchedAt 为目录数据的拉取时间（RFC3339）；无目录时为 null。 */
+  fetchedAt: string | null;
+  /** LastError 为最近一次同步失败的原因；最近一次同步成功时为 null。 */
+  lastError: string | null;
+  /** ModelCount 为目录中带有推理选项的模型条目数。 */
+  modelCount: number;
+  /** Origin 为当前目录数据来源：remote 为远端同步（含本地缓存恢复），builtin 为随版本发布的内置快照；无目录时为 null。 */
+  origin: "remote" | "builtin" | null;
+  /** Refreshing 表示目录正在同步（按需后台同步或手动同步）。 */
+  refreshing: boolean;
+}
+
+export interface ModelCatalogStatusResponseDoc {
+  data: ModelCatalogStatusResponse;
+  errorMsg: string;
 }
 
 export interface ModelDataResponse {
@@ -3095,6 +3123,35 @@ export interface ProviderBindBridgeStartRequest {
   redirectURI: string;
 }
 
+export interface PublicModelControlOptionResponse {
+  description: string;
+  label: string;
+  value: string;
+}
+
+export interface PublicModelControlResponse {
+  /** Default 为默认取值：select 为选项值，toggle 为 on/off，number 为十进制数值；为 null 表示不修改参数。 */
+  default: string | null;
+  description: string;
+  /** Icon 为 lucide 图标名（kebab-case）；为空时由客户端按类型选择通用图标。 */
+  icon: string;
+  id: string;
+  integer: boolean;
+  /** Kind 为 reasoning 时是统一思考强度控件，选项为规范档位（目录来源另有 auto）。 */
+  kind: "generic" | "reasoning";
+  label: string;
+  /** Locked 为 true 时固定使用默认值，客户端只展示不可修改。 */
+  locked: boolean;
+  max: number | null;
+  min: number | null;
+  options: PublicModelControlOptionResponse[];
+  placement: "toolbar" | "menu";
+  /** Protocols 非空时控件只在这些协议键上生效。 */
+  protocols: string[];
+  step: number | null;
+  type: "select" | "toggle" | "number";
+}
+
 export interface PublicModelListResponseDoc {
   data: PublicModelResponse[];
   errorMsg: string;
@@ -3127,8 +3184,26 @@ export interface PublicModelPricingTierResponse {
   upToTokens: number | null;
 }
 
+export interface PublicModelReasoningResponse {
+  /** ControlPath 为推断来源的原生参数路径（高级参数面板需隐藏该控件）；显式声明时为 null。 */
+  controlPath: string | null;
+  /** Default 为未显式选择时使用的档位。 */
+  default: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  /** Levels 为可选规范档位，按由低到高排列。 */
+  levels: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
+  /** Locked 为 true 时档位被管理员锁定为 default，客户端传入的档位不生效。 */
+  locked: boolean;
+  /** Source 为能力来源。catalog 表示由 models.dev 目录自动识别：未显式选择档位时不下发推理参数，由上游决定默认行为。 */
+  source: "explicit" | "inferred" | "catalog";
+}
+
 export interface PublicModelResponse {
   capabilitiesJSON: string;
+  /**
+   * Controls 是用户端可操作的模型控件（管理员隐藏的控件不下发），顺序即展示顺序。
+   * 用户请求只提交 {控件 id: 取值}，参数片段只保存在服务端。
+   */
+  controls: PublicModelControlResponse[];
   description: string;
   displayGroupID: number | null;
   displayGroupIcon: string;
@@ -3138,6 +3213,8 @@ export interface PublicModelResponse {
   platformModelName: string;
   pricing: PublicModelPricingResponse | null;
   protocolsJSON: string;
+  /** Reasoning 是后端归一化的推理强度能力（显式声明或由旧版参数控件推断）；无能力时为 null。 */
+  reasoning: PublicModelReasoningResponse | null;
   sortOrder: number;
   vendor: string;
   vendorIcon: string;
@@ -3189,6 +3266,16 @@ export interface PublicSharedMessageResponse {
   platformModelName: string;
   processTrace?: MessageProcessTraceResponse;
   publicID: string;
+  /** ReasoningEffort 是生成该消息时生效的规范推理档位；模型无推理能力时为 null。 */
+  reasoningEffort:
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | null;
   reasoningTokens: number;
   role: string;
   runID: string;
@@ -3432,6 +3519,16 @@ export interface RunResponse {
   platformModelName: string;
   provider: string;
   providerProtocol: string;
+  /** ReasoningEffort 是本次运行生效的规范推理档位；模型无推理能力时为 null。 */
+  reasoningEffort:
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | null;
   reasoningTokens: number;
   requestID: string;
   requestedModelName: string;
@@ -3459,6 +3556,8 @@ export interface SendMessageRequest {
   clientRunID?: string;
   content: string;
   contentType: "text" | "markdown" | "image" | "file" | "mixed";
+  /** Controls 为模型控件选择 {控件 id: 取值}，取值为字符串、布尔或数值；未知控件与无效取值被忽略。 */
+  controls?: Record<string, any>;
   /** @maxItems 20 */
   fileIDs?: string[];
   htmlVisualPrompt?: boolean;
@@ -3466,6 +3565,7 @@ export interface SendMessageRequest {
   knowledgeBaseIDs: string[];
   /** @maxLength 128 */
   model?: string;
+  /** Options 为高级参数 JSON：仅管理员生效；普通用户只保留原生工具选择（tools）。 */
   options?: Record<string, any>;
   /** @maxLength 32 */
   parentMessagePublicID?: string;
@@ -3781,6 +3881,7 @@ export interface TemporaryChatHistoryMessage {
 export interface TemporaryChatMessageRequest {
   /** @maxLength 64 */
   clientRunID: string;
+  controls?: Record<string, any>;
   htmlVisualPrompt?: boolean;
   /** @maxItems 8 */
   knowledgeBaseIDs?: string[];
@@ -5995,6 +6096,38 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = SuccessDoc;
+  }
+
+  /**
+   * @description 返回目录数据来源（远端同步或内置快照）、拉取时间、条目数、是否正在同步与最近一次同步错误；目录过期时在后台发起一次同步
+   * @tags llm
+   * @name LlmModelCatalogList
+   * @summary 管理员查询 models.dev 推理目录状态
+   * @request GET:/admin/llm/model-catalog
+   * @secure
+   */
+  export namespace LlmModelCatalogList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ModelCatalogStatusResponseDoc;
+  }
+
+  /**
+   * @description 拉取最新目录并替换当前目录；失败时保留当前目录并记录错误
+   * @tags llm
+   * @name LlmModelCatalogRefreshCreate
+   * @summary 管理员立即同步 models.dev 推理目录
+   * @request POST:/admin/llm/model-catalog/refresh
+   * @secure
+   */
+  export namespace LlmModelCatalogRefreshCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ModelCatalogStatusResponseDoc;
   }
 
   /**

@@ -160,5 +160,16 @@
   "attribution": {
     "poweredBy": "技术支持",
     "githubLink": "GitHub 上的 DEEIX Chat"
+  },
+  "reasoningEffort": {
+    "levels": {
+      "none": "关闭",
+      "minimal": "极低",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "xhigh": "超高",
+      "max": "极限"
+    }
   }
 }

@@ -24,6 +24,8 @@ import {
   nativeToolDefinitionVariantsFromConfig,
   nativeToolPayloadSignature,
   parseKindsJSON,
+  parseModelControls,
+  parseModelReasoningCapability,
   parseProtocolsJSON,
 } from "@/entities/model";
 import { type ChatContentWidth, parseChatContentWidth, useUserSettings } from "@/entities/user-settings";
@@ -34,6 +36,11 @@ type ModelCatalogRefreshResult = {
   models: PublicModelDTO[];
   modelOptionPolicy: ModelOptionPolicy | null;
 };
+
+// API payloads are plain JSON with a stable key order, so serialized comparison is exact.
+function sameJSON(left: unknown, right: unknown): boolean {
+  return left === right || JSON.stringify(left) === JSON.stringify(right);
+}
 
 function parseJSONObject(raw: string): Record<string, unknown> | null {
   const normalized = raw.trim();
@@ -361,6 +368,9 @@ function toChatModelOption(
     nativeTools,
     pricing: item.pricing,
     videoExtension: resolveVideoExtensionConfig(item.capabilitiesJSON, protocols),
+    // Re-validated at runtime so an older server (field absent) or unknown levels degrade to null.
+    reasoning: parseModelReasoningCapability(item.reasoning),
+    controls: parseModelControls(item.controls),
   };
 }
 
@@ -391,6 +401,8 @@ export function useChatModelOptions({
   const [mcpMaxSelectedTools, setMCPMaxSelectedTools] = React.useState(32);
   const activeConversationRef = React.useRef<string | null>(null);
   const userSelectedModelRef = React.useRef(false);
+  // Inputs of the last default-model resolution other than the catalog itself (see below).
+  const defaultModelResolutionKeyRef = React.useRef("");
   const previousResetTokenRef = React.useRef(resetToken);
   const runModelRequestRef = React.useRef(0);
   const modelCatalogRequestRef = React.useRef<Promise<ModelCatalogRefreshResult> | null>(null);
@@ -442,9 +454,12 @@ export function useChatModelOptions({
     return request;
   }, []);
 
+  // The catalog is refetched every time the model picker opens. Keep the previous objects when the
+  // response is unchanged: a new identity re-derives the selected model, its controls and the
+  // regenerate options, which re-renders every message row while the picker is animating open.
   const applyModelCatalog = React.useCallback((catalog: ModelCatalogRefreshResult) => {
-    setAvailableModels(catalog.models);
-    setModelOptionPolicy(catalog.modelOptionPolicy);
+    setAvailableModels((current) => (sameJSON(current, catalog.models) ? current : catalog.models));
+    setModelOptionPolicy((current) => (sameJSON(current, catalog.modelOptionPolicy) ? current : catalog.modelOptionPolicy));
   }, []);
 
   const refreshModelCatalog = React.useCallback(async (): Promise<ModelCatalogRefreshResult> => {
@@ -568,7 +583,10 @@ export function useChatModelOptions({
       setDefaultModelResolving(false);
       return;
     }
-    if (conversationPublicID?.trim()) {
+    // The picker refreshes the catalog on open, so this effect re-runs while the user is choosing a
+    // model. A manual choice is never overridden; skip the resolving state so the trigger does not
+    // flash its skeleton for a frame after the selection.
+    if (conversationPublicID?.trim() || userSelectedModelRef.current) {
       setDefaultModelResolving(false);
       return;
     }
@@ -577,8 +595,14 @@ export function useChatModelOptions({
       return;
     }
 
+    // A new chat, project or default setting shows the skeleton until the default is known, so the
+    // previous conversation's model never flashes first. When only the catalog changed (the picker
+    // refreshes it on open), the default is re-resolved in the background instead.
+    const resolutionKey = JSON.stringify([resetToken, newConversationDefaultModel ?? "", userDefaultModel]);
+    const catalogOnlyChange = defaultModelResolutionKeyRef.current === resolutionKey;
+    defaultModelResolutionKeyRef.current = resolutionKey;
     let cancelled = false;
-    setDefaultModelResolving(true);
+    setDefaultModelResolving(!catalogOnlyChange);
     async function applyDefaultModel() {
       const token = await resolveAccessToken();
       if (!token || cancelled || userSelectedModelRef.current) {

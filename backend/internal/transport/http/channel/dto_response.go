@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"strings"
 	"time"
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
@@ -148,6 +149,14 @@ func toModelResponse(v appchannel.ModelView) ModelResponse {
 		CreatedAt:          v.CreatedAt,
 		UpdatedAt:          v.UpdatedAt,
 	}
+}
+
+func optionalTrimmedString(value string) *string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 // UpstreamModelResponse 上游模型路由绑定响应 DTO。
@@ -649,6 +658,87 @@ type PublicModelResponse struct {
 	Description       string                      `json:"description"`
 	SortOrder         int                         `json:"sortOrder"`
 	Pricing           *PublicModelPricingResponse `json:"pricing" extensions:"x-nullable,!x-omitempty"`
+	// Reasoning 是后端归一化的推理强度能力（显式声明或由旧版参数控件推断）；无能力时为 null。
+	Reasoning *PublicModelReasoningResponse `json:"reasoning" extensions:"x-nullable,!x-omitempty"`
+	// Controls 是用户端可操作的模型控件（管理员隐藏的控件不下发），顺序即展示顺序。
+	// 用户请求只提交 {控件 id: 取值}，参数片段只保存在服务端。
+	Controls []PublicModelControlResponse `json:"controls"`
+}
+
+// PublicModelControlResponse 是一个用户端模型控件。
+type PublicModelControlResponse struct {
+	ID string `json:"id"`
+	// Kind 为 reasoning 时是统一思考强度控件，选项为规范档位（目录来源另有 auto）。
+	Kind        string `json:"kind" enums:"generic,reasoning"`
+	Type        string `json:"type" enums:"select,toggle,number"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	// Icon 为 lucide 图标名（kebab-case）；为空时由客户端按类型选择通用图标。
+	Icon      string `json:"icon"`
+	Placement string `json:"placement" enums:"toolbar,menu"`
+	// Default 为默认取值：select 为选项值，toggle 为 on/off，number 为十进制数值；为 null 表示不修改参数。
+	Default *string `json:"default" extensions:"x-nullable,!x-omitempty"`
+	// Locked 为 true 时固定使用默认值，客户端只展示不可修改。
+	Locked  bool                               `json:"locked"`
+	Options []PublicModelControlOptionResponse `json:"options"`
+	Min     *float64                           `json:"min" extensions:"x-nullable,!x-omitempty"`
+	Max     *float64                           `json:"max" extensions:"x-nullable,!x-omitempty"`
+	Step    *float64                           `json:"step" extensions:"x-nullable,!x-omitempty"`
+	Integer bool                               `json:"integer"`
+	// Protocols 非空时控件只在这些协议键上生效。
+	Protocols []string `json:"protocols"`
+}
+
+// PublicModelControlOptionResponse 是 select / toggle 控件的一个选项。
+type PublicModelControlOptionResponse struct {
+	Value       string `json:"value"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+}
+
+func toPublicModelControlResponses(controls []domainchannel.ModelControl) []PublicModelControlResponse {
+	result := make([]PublicModelControlResponse, 0, len(controls))
+	for _, control := range controls {
+		if control.Hidden {
+			continue
+		}
+		options := make([]PublicModelControlOptionResponse, 0, len(control.Options))
+		for _, option := range control.Options {
+			options = append(options, PublicModelControlOptionResponse{Value: option.Value, Label: option.Label, Description: option.Description})
+		}
+		result = append(result, PublicModelControlResponse{
+			ID:          control.ID,
+			Kind:        control.Kind,
+			Type:        control.Type,
+			Label:       control.Label,
+			Description: control.Description,
+			Icon:        control.Icon,
+			Placement:   control.Placement,
+			Default:     optionalTrimmedString(control.Default),
+			Locked:      control.Locked,
+			Options:     options,
+			Min:         control.Min,
+			Max:         control.Max,
+			Step:        control.Step,
+			Integer:     control.Integer,
+			Protocols:   append([]string{}, control.Protocols...),
+		})
+	}
+	return result
+}
+
+// PublicModelReasoningResponse 面向聊天模型选择器的推理强度能力 DTO。
+type PublicModelReasoningResponse struct {
+	// Levels 为可选规范档位，按由低到高排列。
+	Levels []string `json:"levels" enums:"none,minimal,low,medium,high,xhigh,max"`
+	// Default 为未显式选择时使用的档位。
+	Default string `json:"default" enums:"none,minimal,low,medium,high,xhigh,max"`
+	// ControlPath 为推断来源的原生参数路径（高级参数面板需隐藏该控件）；显式声明时为 null。
+	ControlPath *string `json:"controlPath" extensions:"x-nullable,!x-omitempty"`
+	// Source 为能力来源。catalog 表示由 models.dev 目录自动识别：未显式选择档位时不下发推理参数，由上游决定默认行为。
+	Source string `json:"source" enums:"explicit,inferred,catalog"`
+	// Locked 为 true 时档位被管理员锁定为 default，客户端传入的档位不生效。
+	Locked bool `json:"locked"`
 }
 
 // PublicModelPricingResponse 面向前端的模型价格 DTO。
@@ -689,7 +779,42 @@ type PublicModelPricingTierResponse struct {
 	OutputUSDPerMTokens     float64 `json:"outputUSDPerMTokens"`
 }
 
+// ModelCatalogStatusResponse 是 models.dev 推理目录状态 DTO。
+type ModelCatalogStatusResponse struct {
+	// Origin 为当前目录数据来源：remote 为远端同步（含本地缓存恢复），builtin 为随版本发布的内置快照；无目录时为 null。
+	Origin *string `json:"origin" enums:"remote,builtin" extensions:"x-nullable,!x-omitempty"`
+	// FetchedAt 为目录数据的拉取时间（RFC3339）；无目录时为 null。
+	FetchedAt *string `json:"fetchedAt" extensions:"x-nullable,!x-omitempty"`
+	// ModelCount 为目录中带有推理选项的模型条目数。
+	ModelCount int `json:"modelCount"`
+	// LastError 为最近一次同步失败的原因；最近一次同步成功时为 null。
+	LastError *string `json:"lastError" extensions:"x-nullable,!x-omitempty"`
+	// Refreshing 表示目录正在同步（按需后台同步或手动同步）。
+	Refreshing bool `json:"refreshing"`
+}
+
+func toModelCatalogStatusResponse(v appchannel.ReasoningCatalogStatus) ModelCatalogStatusResponse {
+	var fetchedAt *string
+	if v.FetchedAt != nil {
+		formatted := v.FetchedAt.UTC().Format(time.RFC3339)
+		fetchedAt = &formatted
+	}
+	return ModelCatalogStatusResponse{
+		Origin:     optionalTrimmedString(v.Origin),
+		FetchedAt:  fetchedAt,
+		ModelCount: v.ModelCount,
+		LastError:  optionalTrimmedString(v.LastError),
+		Refreshing: v.Refreshing,
+	}
+}
+
 // ---------- Swagger 文档类型 ----------
+
+// ModelCatalogStatusResponseDoc models.dev 推理目录状态响应文档。
+type ModelCatalogStatusResponseDoc struct {
+	ErrorMsg string                     `json:"errorMsg"`
+	Data     ModelCatalogStatusResponse `json:"data"`
+}
 
 // UpstreamListResponseDoc 上游分页响应文档。
 type UpstreamListResponseDoc struct {
@@ -839,7 +964,8 @@ func toLLMSettingResponse(v domainchannel.LLMSetting) LLMSettingResponse {
 }
 
 // toPublicModelResponse 将模型视图转为面向前端的响应 DTO。
-func toPublicModelResponse(v appchannel.ModelView) PublicModelResponse {
+func toPublicModelResponse(v appchannel.ModelView, resolver appchannel.ModelReasoningResolver) PublicModelResponse {
+	reasoning := resolver.Resolve(v)
 	return PublicModelResponse{
 		PlatformModelName: v.PlatformModelName,
 		Vendor:            v.Vendor,
@@ -855,6 +981,25 @@ func toPublicModelResponse(v appchannel.ModelView) PublicModelResponse {
 		Description:       v.Description,
 		SortOrder:         v.SortOrder,
 		Pricing:           toPublicModelPricingResponse(v.Pricing),
+		Reasoning:         toPublicModelReasoningResponse(reasoning.View),
+		Controls:          toPublicModelControlResponses(reasoning.Controls),
+	}
+}
+
+func toPublicModelReasoningResponse(v *appchannel.ModelReasoningView) *PublicModelReasoningResponse {
+	if v == nil {
+		return nil
+	}
+	var controlPath *string
+	if path := strings.TrimSpace(v.ControlPath); path != "" {
+		controlPath = &path
+	}
+	return &PublicModelReasoningResponse{
+		Levels:      append([]string{}, v.Levels...),
+		Default:     v.Default,
+		ControlPath: controlPath,
+		Source:      v.Source,
+		Locked:      v.Locked,
 	}
 }
 

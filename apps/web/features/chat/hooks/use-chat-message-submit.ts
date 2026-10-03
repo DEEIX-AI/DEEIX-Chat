@@ -286,6 +286,7 @@ export function useChatMessageSubmit({
       sourceMessagePublicID,
       branchReason,
       queuedSubmission,
+      optionsOverride,
     }: {
       content: string;
       currentAttachments: PendingAttachment[];
@@ -294,6 +295,7 @@ export function useChatMessageSubmit({
       sourceMessagePublicID?: string | null;
       branchReason?: "default" | "retry" | "edit";
       queuedSubmission?: QueuedChatSubmission;
+      optionsOverride?: ConversationOptions;
     }) => {
       const planResult = planChatSubmission({
         content,
@@ -302,6 +304,7 @@ export function useChatMessageSubmit({
         sourceMessagePublicID,
         branchReason,
         queuedSubmission,
+        optionsOverride,
         attachmentFallbackContent: t("attachmentOnlyContent"),
         uploading,
         maxFilesPerMessage,

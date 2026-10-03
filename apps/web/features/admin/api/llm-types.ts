@@ -10,6 +10,7 @@ import type {
   CreateUpstreamRequest,
   ImportUpstreamModelsRequest,
   ImportUpstreamModelsResponse,
+  ModelCatalogStatusResponse,
   ModelDataResponse,
   ModelDisplayGroupDataResponse,
   ModelDisplayGroupResponse,
@@ -167,6 +168,9 @@ export type AdminLLMSetting = {
   createdAt: string;
   updatedAt: string;
 };
+
+// Reasoning capability catalog.
+export type AdminLLMModelCatalogStatus = ModelCatalogStatusResponse;
 
 export type AdminLLMModelVendorDTO = ModelVendorResponse;
 export type AdminLLMModelVendorDeleteConflictDetails = ModelVendorDeleteConflictDetails;

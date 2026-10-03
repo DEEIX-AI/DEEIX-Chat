@@ -1,6 +1,7 @@
 import { MODERATION_BLOCKED_BILLED_REASON, parseBillingSnapshot } from "@/features/chat/model/billing-snapshot";
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation-types";
+import { normalizeMessageReasoningEffort } from "@/features/chat/model/chat-reasoning-effort";
 import { isRecord, parseJSON } from "@/shared/lib/type-guards";
 
 function parseAttachmentDurationSeconds(value: unknown): number | undefined {
@@ -232,6 +233,7 @@ export function mapServerMessage(
     msg.cacheReadTokens = item.cacheReadTokens ?? 0;
     msg.cacheWriteTokens = item.cacheWriteTokens ?? 0;
     msg.reasoningTokens = item.reasoningTokens ?? 0;
+    msg.reasoningEffort = normalizeMessageReasoningEffort(item.reasoningEffort);
     msg.latencyMS = item.latencyMS ?? 0;
     msg.billingCost = item.billingCost;
     msg.knowledgeSources = item.knowledgeSources?.map((source) => ({

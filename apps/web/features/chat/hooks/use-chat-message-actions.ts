@@ -9,12 +9,14 @@ import {
   toPendingAttachments,
 } from "@/features/chat/model/message-submit";
 import type { QueuedChatSubmission } from "@/features/chat/model/message-submit-branching";
+import { withChatReasoningEffortOverride } from "@/features/chat/model/chat-reasoning-effort";
 import type { PendingAttachment } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage, UserMessageEditMode } from "@/features/chat/types/messages";
 import { resolveErrorMessage } from "@/features/chat/utils/chat-runtime";
 import { deleteConversationMessage, forkConversationFromMessage, updateMessage } from "@/shared/api/conversation";
-import type { ConversationDTO, MessageDTO } from "@/shared/api/conversation-types";
+import type { ConversationDTO, ConversationOptions, MessageDTO } from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import type { ReasoningEffortLevel } from "@/entities/model";
 
 export type SubmitChatMessageInput = {
   content: string;
@@ -24,6 +26,7 @@ export type SubmitChatMessageInput = {
   sourceMessagePublicID?: string | null;
   branchReason?: "default" | "retry" | "edit";
   queuedSubmission?: QueuedChatSubmission;
+  optionsOverride?: ConversationOptions;
 };
 
 function buildContinueGenerationPrompt(t: ReturnType<typeof useTranslations>): string {
@@ -73,7 +76,8 @@ export function useChatMessageActions({
   );
 
   const onRetryAssistantMessage = React.useCallback(
-    async (message: ChatAreaMessage) => {
+    // reasoningEffort overrides the level for this single regeneration; the composer selection is unchanged.
+    async (message: ChatAreaMessage, reasoningEffort?: ReasoningEffortLevel) => {
       const parentUser = combinedMessages.find(
         (item) => item.publicID === message.parentPublicID && item.role === "user",
       );
@@ -94,6 +98,7 @@ export function useChatMessageActions({
         parentMessagePublicID: parentUserPublicID,
         sourceMessagePublicID: assistantSourceMessagePublicID,
         branchReason: "retry",
+        optionsOverride: reasoningEffort ? withChatReasoningEffortOverride({}, reasoningEffort) : undefined,
       });
     },
     [combinedMessages, submitMessage, t],

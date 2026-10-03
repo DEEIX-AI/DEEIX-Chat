@@ -28,6 +28,20 @@ var (
 	ErrInvalidJSONConfig = apperr.New("config.invalid_json", "invalid json config")
 	// ErrInvalidModelCapsConfig 模型上下文窗口或输出 Token 上限无效。
 	ErrInvalidModelCapsConfig = apperr.New("llm.invalid_model_capabilities", "invalid model capability limits")
+	// ErrInvalidReasoningFormat 模型推理强度能力的 format 未知。
+	ErrInvalidReasoningFormat = apperr.New("llm.reasoning_invalid_format", "invalid reasoning capability format")
+	// ErrInvalidReasoningLevels 模型推理强度档位为空、重复或不被该 format 支持。
+	ErrInvalidReasoningLevels = apperr.New("llm.reasoning_invalid_levels", "invalid reasoning capability levels")
+	// ErrInvalidReasoningDefault 模型推理强度默认档位不在声明档位内。
+	ErrInvalidReasoningDefault = apperr.New("llm.reasoning_invalid_default", "invalid reasoning capability default")
+	// ErrInvalidReasoningBudgets 模型推理预算缺失、为负或低于协议下限。
+	ErrInvalidReasoningBudgets = apperr.New("llm.reasoning_invalid_budgets", "invalid reasoning capability budgets")
+	// ErrInvalidModelControls 模型控件声明无效（id、类型、选项、默认值或取值范围）。
+	ErrInvalidModelControls = apperr.New("llm.model_controls_invalid", "invalid model controls")
+	// ErrModelControlForbiddenPath 模型控件试图写入由系统管理的参数。
+	ErrModelControlForbiddenPath = apperr.New("llm.model_control_forbidden_path", "model control writes a forbidden path")
+	// ErrReasoningCatalogFetchFailed 表示拉取或解析 models.dev 目录失败，已保留当前目录。
+	ErrReasoningCatalogFetchFailed = apperr.NewMasked("llm.model_catalog_fetch_failed", "failed to sync reasoning catalog", "reasoning catalog sync failed")
 	// ErrInvalidHeadersConfig 请求头 JSON 配置无效。
 	ErrInvalidHeadersConfig = apperr.NewMasked("llm.invalid_headers_config", "invalid headers json config", "invalid headers config")
 	// ErrInvalidAPIKeysConfig 上游 API Key 配置无效。
