@@ -29,9 +29,9 @@ const (
 	turnDocumentRetrieval turnDocumentAccess = "retrieval"
 	// turnDocumentUnavailable 没有可用的提取文本，或超出全文上限且无法检索。
 	turnDocumentUnavailable turnDocumentAccess = "unavailable"
-	// turnDocumentNative 原始文件以原生内容块随该轮发送（见 native_input.go）。
+	// turnDocumentNative 原始文件（PDF、音频、视频）以原生内容块随该轮发送（见 native_input.go）。
 	turnDocumentNative turnDocumentAccess = "native"
-	// turnDocumentUnsupported 当前模型不支持该类型的输入（如纯文本模型收到图片）。
+	// turnDocumentUnsupported 当前模型或路由不支持该类型的输入（如纯文本模型收到图片或音频）。
 	turnDocumentUnsupported turnDocumentAccess = "unsupported"
 )
 
@@ -44,11 +44,11 @@ const (
 
 // turnDocumentOptions 是与路由相关的放置选项：同一组文件在不同路由上可能以不同方式提供。
 type turnDocumentOptions struct {
-	// NativeDocuments 为原生发送的文档内容块（按 fileID）。命中的文件以内容块随所属轮次发送，
-	// 并在 <documents> 中留一句说明，便于不携带文件名的协议（如 Gemini inlineData）也能对应文件。
-	NativeDocuments map[string]llm.ContentPart
-	// ImageUnsupported 为 true 时模型不支持图片输入：用户提交的图片在所属轮次留说明，不发送图片内容块。
-	ImageUnsupported bool
+	// Native 为该路由的原生输入结果。命中的文件以内容块随所属轮次发送，并在 <documents> 中留一句说明，
+	// 便于不携带文件名的协议（如 Gemini inlineData）也能对应文件；无法提供的图片与音视频留「不支持」说明。
+	Native nativeInputs
+	// SkipImages 为 true 时本次请求不发送图片（如媒体任务），图片不留说明。
+	SkipImages bool
 }
 
 type turnDocument struct {
@@ -65,7 +65,7 @@ type turnDocumentPlacement struct {
 	Messages []llm.Message
 	// FullAttachments 是以全文（提取文本）形式进入对话的附件，用于上下文规划 trace。
 	FullAttachments []AttachmentInput
-	// NativeAttachments 是以原生文档内容块进入对话的附件。
+	// NativeAttachments 是以原生内容块（PDF、音频、视频）进入对话的附件。
 	NativeAttachments []AttachmentInput
 	TokenEstimate     int64
 }
@@ -199,15 +199,19 @@ func newTurnDocument(att AttachmentInput, fromAssistant bool, options turnDocume
 	mode := strings.TrimSpace(att.ContextMode)
 	document := turnDocument{Attachment: att, FromAssistant: fromAssistant}
 	if strings.EqualFold(mode, fileContextModeDirectImage) {
-		if !options.ImageUnsupported || fromAssistant {
+		if options.SkipImages || fromAssistant || !options.Native.unsupported(att) {
 			return turnDocument{}, false
 		}
 		document.Access = turnDocumentUnsupported
 		return document, true
 	}
-	if native, ok := options.NativeDocuments[fileID]; ok && !fromAssistant {
+	if native, ok := options.Native.Parts[fileID]; ok && !fromAssistant {
 		document.Access = turnDocumentNative
 		document.Native = native
+		return document, true
+	}
+	if !fromAssistant && options.Native.unsupported(att) {
+		document.Access = turnDocumentUnsupported
 		return document, true
 	}
 	switch {
@@ -272,7 +276,7 @@ func turnDocumentsPart(documents []turnDocument) llm.ContentPart {
 	return llm.ContentPart{Kind: llm.ContentPartFile, Text: renderTurnDocuments(documents)}
 }
 
-// userTurnPartRank 规定用户消息内容块的固定顺序：文件说明 → 原生文档/图片/视频 → 本轮动态上下文 → 用户原文。
+// userTurnPartRank 规定用户消息内容块的固定顺序：文件说明 → 原生文件/图片 → 本轮动态上下文 → 用户原文。
 func userTurnPartRank(part llm.ContentPart) int {
 	switch {
 	case part.Kind == llm.ContentPartFile:
@@ -385,7 +389,7 @@ func contentPartHasContent(part llm.ContentPart) bool {
 
 func isBinaryContentPart(part llm.ContentPart) bool {
 	switch part.Kind {
-	case llm.ContentPartImage, llm.ContentPartVideo, llm.ContentPartDocument:
+	case llm.ContentPartImage, llm.ContentPartAudio, llm.ContentPartVideo, llm.ContentPartDocument:
 		return true
 	default:
 		return false

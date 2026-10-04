@@ -34,7 +34,7 @@ func TestResolveNativeInputPolicy(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			route := test.route
 			got := resolveNativeInputPolicy(&route)
-			if got.Image != test.wantImage || got.PDF != test.wantPDF {
+			if got.ImageUnsupported == test.wantImage || got.PDF != test.wantPDF {
 				t.Fatalf("policy = %+v, want image=%v pdf=%v", got, test.wantImage, test.wantPDF)
 			}
 		})
@@ -62,12 +62,12 @@ func TestSelectNativeDocumentsPrefersNewestWithinBudget(t *testing.T) {
 	attachments := []AttachmentInput{
 		nativePDF("oldest", 4*1024*1024, 10, false),
 		retrieval, assistant, scanned, tooLong,
-		nativePDF("huge", maxNativeDocumentBytes+1, 1, false),
+		nativePDF("huge", maxNativePDFTotalBytes+1, 1, false),
 		nativePDF("recent", 3*1024*1024, 40, false),
 		nativePDF("current", 2*1024*1024, 50, true),
 	}
 
-	selected := selectNativeDocuments(attachments, nativeInputPolicy{PDF: true})
+	selected := selectNativeInputs(attachments, nativeInputPolicy{PDF: true})
 
 	ids := make([]string, 0, len(selected))
 	for _, att := range selected {
@@ -77,7 +77,7 @@ func TestSelectNativeDocumentsPrefersNewestWithinBudget(t *testing.T) {
 	if got := strings.Join(ids, ","); got != "current,recent,scanned" {
 		t.Fatalf("selected = %q", got)
 	}
-	if selectNativeDocuments(attachments, nativeInputPolicy{}) != nil {
+	if len(selectNativeInputs(attachments, nativeInputPolicy{})) != 0 {
 		t.Fatal("no native documents without PDF support")
 	}
 }
@@ -171,7 +171,7 @@ func TestAttachmentRouteTraceShowsNativeAndUnsupportedFiles(t *testing.T) {
 	missing := nativePDF("missing", 1024, 1, true)
 	photo := AttachmentInput{FileID: "photo", FileName: "photo.png", Kind: "image", MimeType: "image/png", ContextMode: fileContextModeDirectImage, Current: true, MessageRole: "user"}
 	files := []AttachmentInput{report, missing, photo}
-	cache := newNativeDocumentCache()
+	cache := newNativeInputCache()
 
 	pdfRoute := &channel.ResolvedRoute{Protocol: llm.AdapterAnthropicMessages, CatalogInputModalities: []string{"text", "pdf"}}
 	trace := attachmentRouteTrace{fileMode: "auto", items: files}
@@ -211,12 +211,12 @@ func TestReplaceProcessSectionUpdatesFileContextAfterFailover(t *testing.T) {
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_1"},
 	}
 	files := []AttachmentInput{nativePDF("report", 1024, 1, true)}
-	first := routeAttachmentTraceItems(files, nativeInputPolicy{Image: true, PDF: true}, map[string]llm.ContentPart{"report": {}}, false)
+	first := routeAttachmentTraceItems(files, nativeInputs{Policy: nativeInputPolicy{PDF: true}, Parts: map[string]llm.ContentPart{"report": {}}}, false)
 	summary, markdown, payload := buildAttachmentProcessTrace("auto", first)
 	recorder.appendProcessSection(summary, markdown, payload, messageTraceStatusStreaming)
 	recorder.appendProcessSection("检索完成", "**内容检索**：完成。", nil, messageTraceStatusStreaming)
 
-	nextSummary, nextMarkdown, nextPayload := buildAttachmentProcessTrace("auto", routeAttachmentTraceItems(files, nativeInputPolicy{Image: true}, nil, false))
+	nextSummary, nextMarkdown, nextPayload := buildAttachmentProcessTrace("auto", routeAttachmentTraceItems(files, nativeInputs{Policy: nativeInputPolicy{}}, false))
 	recorder.replaceProcessSection(summary, markdown, nextSummary, nextMarkdown, nextPayload)
 
 	if refs := recorder.process.payload.FileGroupRefs; len(refs.Native) != 0 || len(refs.Adaptive) != 1 {
@@ -236,5 +236,120 @@ func TestReplaceProcessSectionUpdatesFileContextAfterFailover(t *testing.T) {
 	}
 	if fileStages != 1 {
 		t.Fatalf("expected a single file context stage, got %#v", recorder.process.payload.Stages)
+	}
+}
+
+func nativeMedia(fileID string, mime string, size int64) AttachmentInput {
+	category := fileCategoryAudio
+	if strings.HasPrefix(mime, "video/") {
+		category = fileCategoryVideo
+	}
+	return AttachmentInput{
+		FileID: fileID, FileName: fileID, FileCategory: category, MimeType: mime, DetectedMIME: mime,
+		StoragePath: "files/" + fileID, FileSize: size, ContextMode: fileContextModeSkipped, Current: true, MessageRole: "user",
+	}
+}
+
+// 音视频按协议与格式判断：Gemini 内联音视频；OpenAI Chat 只收 wav / mp3 且不收视频；OpenRouter 收视频；
+// 中转站需显式声明；模型不支持的模态不发送。
+func TestResolveNativeInputPolicyForAudioAndVideo(t *testing.T) {
+	all := []string{"text", "image", "pdf", "audio", "video"}
+	mp3 := nativeMedia("voice.mp3", "audio/mpeg", 1024)
+	m4a := nativeMedia("voice.m4a", "audio/mp4", 1024)
+	mov := nativeMedia("clip.mov", "video/quicktime", 1024)
+	for _, test := range []struct {
+		name  string
+		route channel.ResolvedRoute
+		want  map[string]bool
+	}{
+		{name: "gemini", route: channel.ResolvedRoute{Protocol: llm.AdapterGoogleGenerateContent, BaseURL: "https://relay.example.com", CatalogInputModalities: all},
+			want: map[string]bool{"voice.mp3": true, "voice.m4a": false, "clip.mov": true}},
+		{name: "official openai chat", route: channel.ResolvedRoute{Protocol: llm.AdapterOpenAIChatCompletions, BaseURL: "https://api.openai.com/v1", CatalogInputModalities: all},
+			want: map[string]bool{"voice.mp3": true, "voice.m4a": false, "clip.mov": false}},
+		{name: "openai responses has no audio input", route: channel.ResolvedRoute{Protocol: llm.AdapterOpenAIResponses, BaseURL: "https://api.openai.com/v1", CatalogInputModalities: all},
+			want: map[string]bool{"voice.mp3": false, "voice.m4a": false, "clip.mov": false}},
+		{name: "official openrouter chat", route: channel.ResolvedRoute{Protocol: llm.AdapterOpenRouterChat, BaseURL: "https://openrouter.ai/api/v1", CatalogInputModalities: all},
+			want: map[string]bool{"voice.mp3": true, "voice.m4a": true, "clip.mov": true}},
+		{name: "relay without declaration", route: channel.ResolvedRoute{Protocol: llm.AdapterOpenRouterChat, BaseURL: "https://relay.example.com/v1", CatalogInputModalities: all},
+			want: map[string]bool{"voice.mp3": false, "voice.m4a": false, "clip.mov": false}},
+		{name: "relay with declaration", route: channel.ResolvedRoute{Protocol: llm.AdapterOpenAIChatCompletions, BaseURL: "https://relay.example.com/v1", ModelCapabilitiesJSON: `{"inputModalities":["audio"]}`},
+			want: map[string]bool{"voice.mp3": true, "voice.m4a": false, "clip.mov": false}},
+		{name: "model without audio", route: channel.ResolvedRoute{Protocol: llm.AdapterGoogleGenerateContent, CatalogInputModalities: []string{"text", "video"}},
+			want: map[string]bool{"voice.mp3": false, "voice.m4a": false, "clip.mov": true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			route := test.route
+			policy := resolveNativeInputPolicy(&route)
+			for _, att := range []AttachmentInput{mp3, m4a, mov} {
+				if got := policy.accepts(att); got != test.want[att.FileID] {
+					t.Fatalf("%s accepted = %v, want %v", att.FileID, got, test.want[att.FileID])
+				}
+			}
+		})
+	}
+}
+
+// 音视频与 PDF 共用总预算；助手生成的视频不回传。
+func TestSelectNativeInputsSharesBudgetWithMedia(t *testing.T) {
+	policy := nativeInputPolicy{PDF: true, AudioMIMEs: geminiNativeAudioMIMEs, VideoMIMEs: geminiNativeVideoMIMEs}
+	generated := nativeMedia("generated.mp4", "video/mp4", 1024)
+	generated.Current, generated.MessageRole = false, "assistant"
+	attachments := []AttachmentInput{
+		nativeMedia("old.mp4", "video/mp4", 6*1024*1024),
+		generated,
+		nativePDF("report", 4*1024*1024, 10, false),
+		nativeMedia("voice.mp3", "audio/mpeg", 5*1024*1024),
+	}
+	ids := make([]string, 0)
+	for _, att := range selectNativeInputs(attachments, policy) {
+		ids = append(ids, att.FileID)
+	}
+	// voice(5MB)+report(4MB) 后只剩 5MB，old.mp4(6MB) 超出总预算。
+	if got := strings.Join(ids, ","); got != "voice.mp3,report" {
+		t.Fatalf("selected = %q", got)
+	}
+}
+
+// 端到端：Gemini 路由原生发送音频；不支持音频的路由在所属轮次留「不支持」说明，不发送内容块。
+func TestBuildMessageRoutePromptSendsNativeAudioPerRoute(t *testing.T) {
+	store := objectstorage.NewLocal(t.TempDir())
+	if _, err := store.Put(t.Context(), "files/voice.mp3", bytes.NewReader([]byte("ID3 audio")), objectstorage.PutOptions{ContentType: "audio/mpeg"}); err != nil {
+		t.Fatalf("put audio: %v", err)
+	}
+	service := &Service{storeProvider: &conversationTestStoreProvider{store: store}}
+	voice := nativeMedia("voice.mp3", "audio/mpeg", int64(len("ID3 audio")))
+	input := messageRoutePromptInput{
+		DomainMessages:    []model.Message{{Role: "user", Content: "转写这段录音"}},
+		ConversationFiles: []AttachmentInput{voice},
+	}
+
+	native, err := service.buildMessageRoutePrompt(t.Context(), &channel.ResolvedRoute{
+		Protocol: llm.AdapterGoogleGenerateContent, CatalogInputModalities: []string{"text", "audio"},
+	}, input)
+	if err != nil {
+		t.Fatalf("build native prompt: %v", err)
+	}
+	parts := native.Messages[len(native.Messages)-1].Parts
+	if len(parts) != 3 || parts[1].Kind != llm.ContentPartAudio || parts[1].MimeType != "audio/mp3" || string(parts[1].Data) != "ID3 audio" {
+		t.Fatalf("expected file note, native audio, then question, got %#v", parts)
+	}
+	if !strings.Contains(parts[0].Text, `<document source="voice.mp3" access="native">`) {
+		t.Fatalf("expected a native note, got %q", parts[0].Text)
+	}
+
+	textOnly, err := service.buildMessageRoutePrompt(t.Context(), &channel.ResolvedRoute{
+		Protocol: llm.AdapterAnthropicMessages, CatalogInputModalities: []string{"text", "audio"},
+	}, input)
+	if err != nil {
+		t.Fatalf("build fallback prompt: %v", err)
+	}
+	latest := textOnly.Messages[len(textOnly.Messages)-1]
+	for _, part := range latest.Parts {
+		if part.Kind == llm.ContentPartAudio {
+			t.Fatalf("routes without audio input must not receive audio, got %#v", part)
+		}
+	}
+	if documents, _ := turnParts(t, latest); !strings.Contains(documents, `<document source="voice.mp3" access="unsupported">`) {
+		t.Fatalf("expected an unsupported note, got %q", documents)
 	}
 }

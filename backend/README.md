@@ -377,11 +377,21 @@ PDF 原生发送需同时满足：
 1. 输入模态包含 `pdf`；
 2. 路由协议支持文档内容块：Anthropic Messages（`document`）、Gemini generateContent（`inlineData`）、OpenAI Responses（`input_file`）、OpenAI Chat Completions（`file`）、OpenRouter；
 3. 上游可信：Anthropic 与 Gemini 原生协议按原样透传，任意地址均可；OpenAI 兼容协议只在官方地址（`api.openai.com`、`openrouter.ai`）或能力 JSON 显式声明 `inputModalities` 时启用，第三方中转站可能不认识文件内容块；
-4. 文件是本系统本来会全文提供的 PDF，或没有可用提取文本的 PDF（如扫描件）；走检索的大文件保持检索。单文件与单次请求合计不超过 8MB、合计不超过 100 页、最多 5 个，越新的文件越优先，超出的旧文件退回提取文本。
+4. 文件是本系统本来会全文提供的 PDF，或没有可用提取文本的 PDF（如扫描件）；走检索的大文件保持检索。PDF 合计不超过 8MB、100 页，越新的文件越优先，超出的旧文件退回提取文本。
 
-文件一律以 base64 内嵌在请求体中，不使用各家 Files API。原生 PDF 随提交它的那一轮发送，所属轮次的 `<documents>` 中保留文件名说明；路由故障转移时按新路由重新判断。上下文预算按每页 2000 token 偏高估算。
+音频与视频（用户上传；助手生成的视频不回传）在模型输入模态包含 `audio` / `video` 时原生发送：
 
-每条回复的「处理完成 → 文件上下文」按实际发出请求的路由展示每个文件的处理方式：直读（图片内容块）、原生（原生 PDF）、预算 / 全文（提取文本）、检索（RAG 片段）、不支持（模型不支持该类型输入）、未纳入。路由故障转移后，展示会更新为新路由的决定。上下文规划中原生文件的来源类型为 `file_native`，提取文本为 `file_full`。
+| 协议 | 音频 | 视频 |
+|---|---|---|
+| Gemini generateContent（`inlineData`，任意地址） | wav、mp3、aiff、aac、ogg、flac | mp4、mpeg、mov、avi、flv、mpg、webm、wmv、3gpp |
+| OpenAI Chat Completions（`input_audio`，官方地址或显式声明） | wav、mp3 | 中转站显式声明时按 OpenRouter 方式发送 `video_url` |
+| OpenRouter Chat Completions（`input_audio`、`video_url`，官方地址或显式声明） | wav、mp3、aiff、aac、ogg、flac、m4a | mp4、mpeg、mov、webm |
+
+其余协议（Anthropic、OpenAI / OpenRouter Responses 等）没有可用的音视频输入。音视频没有文本可回退：路由无法原生发送时，所属轮次留「当前模型不支持该类型的输入」说明。上传端支持 `audio/*`（无需提取，只受全局上传大小限制），默认白名单新增常见音频格式与 `video/quicktime`、`video/mpeg`；临时对话不支持音视频。上下文预算按 Gemini 口径估算（音频 32 token/秒、视频约 300 token/秒，时长未知时由文件大小推算）。
+
+所有原生文件（PDF、音频、视频）单次请求最多 5 个、合计不超过 14MB（base64 后仍在 Gemini 内联 20MB 上限内）。文件一律以 base64 内嵌在请求体中，不使用各家 Files API。原生文件随提交它的那一轮发送，所属轮次的 `<documents>` 中保留文件名说明；路由故障转移时按新路由重新判断。PDF 上下文预算按每页 2000 token 偏高估算。
+
+每条回复的「处理完成 → 文件上下文」按实际发出请求的路由展示每个文件的处理方式：直读（图片内容块）、原生（原生 PDF、音频、视频）、预算 / 全文（提取文本）、检索（RAG 片段）、不支持（模型或路由不支持该类型输入）、未纳入。路由故障转移后，展示会更新为新路由的决定。上下文规划中原生文件的来源类型为 `file_native`，提取文本为 `file_full`。
 
 普通会话中，每个附件都随提交它的那一轮发送给模型：能全文注入的放全文，按问题检索的大文件和无法读取的文件只留一句说明，模型由此始终知道附件存在。按问题检索的文件如果本轮没有拿到任何片段、也无法回退全文，会在本轮的补充上下文中以 `<attachment_status>` 列出完整文件名、本轮/历史标记和检索结果（如 `rag_error`、`rag_timeout`、`rag_empty`、`rag_low_score`、`rag_no_match`），并提示模型不得仅凭文件名声称已读取内容。检索失败或超时时列出全部未取到内容的用户附件；未命中或部分命中时只列出本轮上传的附件，避免长对话中每轮重复。助手生成的文件不在此列。该状态只随本轮发送，不进入可缓存的提示词前缀，也不扩大文件访问范围。
 

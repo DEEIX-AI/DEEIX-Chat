@@ -1,4 +1,4 @@
-import { isRecord, parseJSON } from "@/shared/lib/type-guards";
+import { parseCapabilitiesObject, stringifyCapabilitiesObject } from "@/features/admin/model/capabilities-json";
 
 // Keep in sync with the backend (domain/channel/model_input_modalities.go).
 export const MODEL_MODALITIES = ["text", "image", "pdf", "audio", "video"] as const;
@@ -15,15 +15,6 @@ export function normalizeModalities(values: readonly unknown[] | null | undefine
     return [];
   }
   return MODEL_MODALITIES.filter((modality) => values.includes(modality));
-}
-
-function parseCapabilitiesObject(value: string | null | undefined): Record<string, unknown> | null {
-  const normalized = value?.trim() ?? "";
-  if (!normalized) {
-    return {};
-  }
-  const parsed = parseJSON(normalized);
-  return isRecord(parsed) ? parsed : null;
 }
 
 /** Explicit `inputModalities` declared in the capabilities JSON, or null when following the catalog. */
@@ -54,5 +45,5 @@ export function setModelInputModalitiesInCapabilities(
   } else {
     payload[INPUT_MODALITIES_KEY] = normalizeModalities([...modalities, "text"]);
   }
-  return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
+  return stringifyCapabilitiesObject(payload);
 }

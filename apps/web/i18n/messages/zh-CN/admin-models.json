@@ -391,8 +391,6 @@
     "capabilitiesJSON": "模型能力 JSON",
     "capabilitiesDescription": "定义当前模型的上下文上限、默认请求参数与原生工具。",
     "contextWindow": "上下文窗口",
-    "contextWindowAuto": "自动识别",
-    "contextWindowCustom": "自定义",
     "contextWindowPresets": "选择常用上下文窗口",
     "contextWindowInvalid": "请输入 4,096 至 16,000,000 之间的整数。",
     "contextWindowDescription": "模型单次请求可处理的最大 Token 数。",
@@ -414,8 +412,6 @@
       "label": "可用推理强度",
       "description": "模型控件中可选的推理强度档位。",
       "edit": "设置可用推理强度",
-      "auto": "自动识别",
-      "custom": "自定义",
       "customTitle": "自定义可用档位",
       "default": "默认档位",
       "unknown": "未识别",
@@ -425,12 +421,14 @@
       "levelWithValue": "{name}（{value}）",
       "budgetTokens": "{value} Token"
     },
+    "capabilityMode": {
+      "auto": "自动识别",
+      "custom": "自定义"
+    },
     "modalities": {
       "label": "模型多模态",
       "description": "模型支持的输入与输出类型。",
       "edit": "设置模型多模态",
-      "auto": "自动识别",
-      "custom": "自定义",
       "customTitle": "自定义输入模态",
       "unknown": "未识别",
       "names": {

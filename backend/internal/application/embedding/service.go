@@ -1082,7 +1082,7 @@ scan:
 
 func supportsEmbeddingSource(fileObj domainconversation.FileObject, cfg config.Config) bool {
 	switch strings.ToLower(strings.TrimSpace(fileObj.FileCategory)) {
-	case "video":
+	case "video", "audio":
 		return false
 	case "image":
 		return cfg.ExtractImageOCREnabled || canEmbedImagePixels(cfg, fileObj)

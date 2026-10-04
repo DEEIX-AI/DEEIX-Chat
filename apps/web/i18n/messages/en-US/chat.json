@@ -338,7 +338,7 @@
     "dropTitle": "Drop files to attach",
     "duplicateReused": "Duplicate file detected and reused",
     "partialUploadFailed": "Some files failed to upload",
-    "temporaryVideoUnsupported": "Temporary chats currently support image and document attachments, but not video attachments.",
+    "temporaryVideoUnsupported": "Temporary chats currently support image and document attachments, but not audio or video attachments.",
     "retryFailedFiles": "Please retry the failed files.",
     "retryLater": "Please try again later.",
     "screenshotUnsupported": "This browser does not support screenshots",

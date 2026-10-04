@@ -150,10 +150,15 @@ func (s *Service) migrateDefaultAllowedMIMETypes(ctx context.Context) error {
 			continue
 		}
 		value := strings.TrimSpace(item.Value)
-		if value == "" || !sameCSVSet(value, legacyDefaultAllowedMIMETypes) {
+		if value == "" {
 			return nil
 		}
-		return s.resetToRegistryDefault(ctx, "file", "allowed_mime_types")
+		for _, legacy := range legacyDefaultAllowedMIMETypes {
+			if sameCSVSet(value, legacy) {
+				return s.resetToRegistryDefault(ctx, "file", "allowed_mime_types")
+			}
+		}
+		return nil
 	}
 	return nil
 }

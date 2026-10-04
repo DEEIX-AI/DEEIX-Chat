@@ -126,12 +126,12 @@ export function ModelReasoningField({ override, resolution, disabled = false, on
       label={t("sheet.reasoning.label")}
       description={t("sheet.reasoning.description")}
       editLabel={t("sheet.reasoning.edit")}
-      mode={custom ? t("sheet.reasoning.custom") : t("sheet.reasoning.auto")}
+      custom={custom}
       disabled={disabled}
       menu={
         <>
           <ModelCapabilityMenuItem role="menuitemradio" checked={!custom} onSelect={() => onChange(null)}>
-            <span>{t("sheet.reasoning.auto")}</span>
+            <span>{t("sheet.capabilityMode.auto")}</span>
           </ModelCapabilityMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">

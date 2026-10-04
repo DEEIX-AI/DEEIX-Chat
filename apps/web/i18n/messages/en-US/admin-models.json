@@ -391,8 +391,6 @@
     "capabilitiesJSON": "Model capabilities JSON",
     "capabilitiesDescription": "Define this model's context limit, default request parameters, and native tools.",
     "contextWindow": "Context window",
-    "contextWindowAuto": "Auto detect",
-    "contextWindowCustom": "Custom",
     "contextWindowPresets": "Choose a common context window",
     "contextWindowInvalid": "Enter an integer between 4,096 and 16,000,000.",
     "contextWindowDescription": "The maximum number of tokens the model can process in one request.",
@@ -414,8 +412,6 @@
       "label": "Reasoning levels",
       "description": "Reasoning levels offered in the model control.",
       "edit": "Configure reasoning levels",
-      "auto": "Auto",
-      "custom": "Custom",
       "customTitle": "Custom levels",
       "default": "Default level",
       "unknown": "Not detected",
@@ -425,12 +421,14 @@
       "levelWithValue": "{name} ({value})",
       "budgetTokens": "{value} tokens"
     },
+    "capabilityMode": {
+      "auto": "Auto",
+      "custom": "Custom"
+    },
     "modalities": {
       "label": "Multimodal input",
       "description": "Input and output types the model supports.",
       "edit": "Configure modalities",
-      "auto": "Auto",
-      "custom": "Custom",
       "customTitle": "Custom input modalities",
       "unknown": "Not detected",
       "names": {

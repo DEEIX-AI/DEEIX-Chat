@@ -75,3 +75,39 @@ func TestChatCompletionsEncodesNativeDocumentAsFilePart(t *testing.T) {
 		t.Fatalf("unexpected chat completions file part: %#v", parts[1])
 	}
 }
+
+func nativeMediaTestMessage() portllm.Message {
+	return portllm.Message{Role: "user", Parts: []portllm.ContentPart{
+		{Kind: portllm.ContentPartAudio, MimeType: "audio/mp3", Data: []byte("ID3"), FileName: "voice.mp3"},
+		{Kind: portllm.ContentPartVideo, MimeType: "video/mp4", Data: []byte("ftyp"), FileName: "clip.mp4"},
+		{Kind: portllm.ContentPartText, Text: "描述这些内容"},
+	}}
+}
+
+func TestGeminiPartsEncodeNativeMediaInline(t *testing.T) {
+	parts := buildGeminiParts(nativeMediaTestMessage())
+	if len(parts) != 3 {
+		t.Fatalf("expected three gemini parts, got %#v", parts)
+	}
+	audio, _ := parts[0]["inlineData"].(map[string]any)
+	video, _ := parts[1]["inlineData"].(map[string]any)
+	if audio["mimeType"] != "audio/mp3" || audio["data"] != base64.StdEncoding.EncodeToString([]byte("ID3")) ||
+		video["mimeType"] != "video/mp4" || video["data"] != base64.StdEncoding.EncodeToString([]byte("ftyp")) {
+		t.Fatalf("unexpected gemini inline media: %#v", parts)
+	}
+}
+
+func TestChatCompletionsEncodesNativeMedia(t *testing.T) {
+	parts, ok := buildChatCompletionsContent(nativeMediaTestMessage(), nil).([]map[string]any)
+	if !ok || len(parts) != 3 {
+		t.Fatalf("media must keep the content array form, got %#v", parts)
+	}
+	audio, _ := parts[0]["input_audio"].(map[string]any)
+	if parts[0]["type"] != "input_audio" || audio["format"] != "mp3" || audio["data"] != base64.StdEncoding.EncodeToString([]byte("ID3")) {
+		t.Fatalf("unexpected input_audio part: %#v", parts[0])
+	}
+	video, _ := parts[1]["video_url"].(map[string]any)
+	if parts[1]["type"] != "video_url" || video["url"] != "data:video/mp4;base64,"+base64.StdEncoding.EncodeToString([]byte("ftyp")) {
+		t.Fatalf("unexpected video_url part: %#v", parts[1])
+	}
+}

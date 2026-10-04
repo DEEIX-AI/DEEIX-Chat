@@ -59,8 +59,29 @@ const nativeDocumentTokensPerPage = 2000
 // nativeDocumentBytesPerPage 用于页数未知时按文件大小估算页数。
 const nativeDocumentBytesPerPage = 100 * 1024
 
+// 原生音视频按 Gemini 的计费口径估算（音频 32 token/秒，视频按 1 帧/秒约 300 token/秒，含音轨），
+// 时长未知时按偏低码率（音频 128kbps、视频 2Mbps）由文件大小推算时长，结果偏高，宁可提前裁剪历史。
+const (
+	nativeAudioTokensPerSecond = 32
+	nativeVideoTokensPerSecond = 300
+	nativeAudioBytesPerSecond  = 16 * 1024
+	nativeVideoBytesPerSecond  = 256 * 1024
+)
+
+func estimateNativeMediaTokens(part llm.ContentPart, tokensPerSecond int64, bytesPerSecond int64) int64 {
+	seconds := part.DurationSeconds
+	if seconds <= 0 {
+		seconds = max(int64(len(part.Data))/bytesPerSecond, 1)
+	}
+	return seconds * tokensPerSecond
+}
+
 func estimateContentPartTokens(part llm.ContentPart) int64 {
 	switch part.Kind {
+	case llm.ContentPartAudio:
+		return estimateNativeMediaTokens(part, nativeAudioTokensPerSecond, nativeAudioBytesPerSecond)
+	case llm.ContentPartVideo:
+		return estimateNativeMediaTokens(part, nativeVideoTokensPerSecond, nativeVideoBytesPerSecond)
 	case llm.ContentPartDocument:
 		pages := int64(part.PageCount)
 		if pages <= 0 {

@@ -608,7 +608,7 @@ func buildGeminiParts(msg portllm.Message) []map[string]any {
 					"data":     base64.StdEncoding.EncodeToString(part.Data),
 				},
 			})
-		case portllm.ContentPartDocument:
+		case portllm.ContentPartDocument, portllm.ContentPartAudio, portllm.ContentPartVideo:
 			if len(part.Data) == 0 {
 				continue
 			}

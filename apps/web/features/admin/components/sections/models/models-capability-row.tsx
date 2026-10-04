@@ -2,6 +2,7 @@
 
 import type * as React from "react";
 import { Check, ChevronDownIcon, CircleHelp } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import {
   DropdownMenu,
@@ -17,8 +18,8 @@ type ModelCapabilityRowProps = {
   description: string;
   /** Accessible name of the dropdown trigger. */
   editLabel: string;
-  /** Short mode text before the chevron, e.g. 自动识别 / 自定义. */
-  mode: string;
+  /** Whether the value is a custom override (自定义) rather than automatic detection (自动识别). */
+  custom: boolean;
   disabled?: boolean;
   /** Right-aligned value; clipped at the row end when it does not fit. */
   children: React.ReactNode;
@@ -40,7 +41,7 @@ export function ModelCapabilityRow({
   label,
   description,
   editLabel,
-  mode,
+  custom,
   disabled = false,
   children,
   interactiveValue = false,
@@ -50,13 +51,18 @@ export function ModelCapabilityRow({
 }: ModelCapabilityRowProps) {
   // ml-auto right-aligns the value; when it no longer fits, the auto margin collapses and the row clips at its end.
   const value = (
-    <span className="flex h-full min-w-0 flex-1 overflow-hidden">
+    <span className="flex h-full min-w-0 flex-1 overflow-hidden pr-2">
       <span className={cn("ml-auto flex min-w-0 items-center gap-1", interactiveValue && "flex-1")}>{children}</span>
     </span>
   );
+  const t = useTranslations("adminModels.sheet.capabilityMode");
+  // Both labels share one grid cell so the column is as wide as the longer one and the dividers line up across rows.
   const modeAndChevron = (
     <>
-      <span className="shrink-0 text-xs text-muted-foreground">{mode}</span>
+      <span className="grid h-full shrink-0 items-center border-l border-border/50 px-2 text-xs text-muted-foreground">
+        <span className={cn("col-start-1 row-start-1", custom && "invisible")} aria-hidden={custom}>{t("auto")}</span>
+        <span className={cn("col-start-1 row-start-1", !custom && "invisible")} aria-hidden={!custom}>{t("custom")}</span>
+      </span>
       <span className="inline-flex h-full w-8 shrink-0 items-center justify-center border-l border-border/50 text-muted-foreground">
         <ChevronDownIcon className="size-3.5" aria-hidden="true" />
       </span>
@@ -79,7 +85,7 @@ export function ModelCapabilityRow({
           <TooltipContent className="max-w-72">{description}</TooltipContent>
         </Tooltip>
       </div>
-      <div className="flex h-full min-w-0 flex-1 items-center gap-2 pl-2 transition-colors hover:bg-background/30 focus-within:bg-background/50">
+      <div className="flex h-full min-w-0 flex-1 items-center pl-2 transition-colors hover:bg-background/30 focus-within:bg-background/50">
         {interactiveValue ? value : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -87,7 +93,7 @@ export function ModelCapabilityRow({
               type="button"
               disabled={disabled}
               className={cn(
-                "flex h-full items-center gap-2 text-left focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+                "flex h-full items-center text-left focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
                 interactiveValue ? "shrink-0" : "min-w-0 flex-1",
               )}
               aria-label={editLabel}

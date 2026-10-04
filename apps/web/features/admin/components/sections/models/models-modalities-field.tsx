@@ -70,12 +70,12 @@ export function ModelModalitiesField({ override, resolution, disabled = false, o
       label={t("sheet.modalities.label")}
       description={t("sheet.modalities.description")}
       editLabel={t("sheet.modalities.edit")}
-      mode={override ? t("sheet.modalities.custom") : t("sheet.modalities.auto")}
+      custom={override !== null}
       disabled={disabled}
       menu={
         <>
           <ModelCapabilityMenuItem role="menuitemradio" checked={override === null} onSelect={() => onChange(null)}>
-            <span>{t("sheet.modalities.auto")}</span>
+            <span>{t("sheet.capabilityMode.auto")}</span>
           </ModelCapabilityMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">

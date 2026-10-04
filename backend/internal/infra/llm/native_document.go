@@ -7,9 +7,11 @@ import (
 	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
-// 原生文档内容块（portllm.ContentPartDocument）在各协议中的公共字段。
-// 只有会话层原生输入策略允许的协议会收到文档内容块：Anthropic document、Gemini inlineData、
-// OpenAI Responses input_file 与 Chat Completions file，内容一律 base64 内嵌在请求体中。
+// 原生文件内容块（portllm.ContentPartDocument / Audio / Video）在各协议中的公共字段。
+// 只有会话层原生输入策略允许的协议会收到它们，内容一律 base64 内嵌在请求体中：
+//   - PDF：Anthropic document、Gemini inlineData、OpenAI Responses input_file、Chat Completions file；
+//   - 音频：Gemini inlineData、Chat Completions input_audio（OpenAI、OpenRouter）；
+//   - 视频：Gemini inlineData、OpenRouter Chat Completions video_url。
 
 const defaultNativeDocumentMIME = "application/pdf"
 
@@ -30,4 +32,13 @@ func nativeDocumentFileName(part portllm.ContentPart) string {
 
 func nativeDocumentDataURL(part portllm.ContentPart) string {
 	return "data:" + nativeDocumentMIME(part) + ";base64," + base64.StdEncoding.EncodeToString(part.Data)
+}
+
+// nativeAudioFormat 返回 input_audio 的格式名（MIME 子类型，如 audio/mp3 → mp3），缺失时按 wav 处理。
+func nativeAudioFormat(part portllm.ContentPart) string {
+	mime := strings.ToLower(strings.TrimSpace(part.MimeType))
+	if format := strings.TrimPrefix(mime, "audio/"); format != "" && format != mime {
+		return format
+	}
+	return "wav"
 }

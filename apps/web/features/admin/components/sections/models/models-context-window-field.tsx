@@ -72,7 +72,7 @@ export function ModelContextWindowField({
       label={t("sheet.contextWindow")}
       description={t("sheet.contextWindowDescription")}
       editLabel={t("sheet.contextWindowPresets")}
-      mode={value === null ? t("sheet.contextWindowAuto") : t("sheet.contextWindowCustom")}
+      custom={value !== null}
       disabled={disabled}
       interactiveValue
       menuClassName="w-40"
@@ -88,7 +88,7 @@ export function ModelContextWindowField({
       menu={
         <>
           <ModelCapabilityMenuItem role="menuitemradio" checked={value === null} onSelect={() => selectPreset(null)}>
-            <span>{t("sheet.contextWindowAuto")}</span>
+            <span>{t("sheet.capabilityMode.auto")}</span>
           </ModelCapabilityMenuItem>
           <DropdownMenuSeparator />
           {MODEL_CONTEXT_WINDOW_PRESETS.map((preset) => (
@@ -108,7 +108,7 @@ export function ModelContextWindowField({
               focusInputAfterMenuCloseRef.current = true;
             }}
           >
-            <span>{t("sheet.contextWindowCustom")}</span>
+            <span>{t("sheet.capabilityMode.custom")}</span>
           </ModelCapabilityMenuItem>
         </>
       }

@@ -338,7 +338,7 @@
     "dropTitle": "松开以添加附件",
     "duplicateReused": "检测到文件重复，已复用",
     "partialUploadFailed": "部分文件上传失败",
-    "temporaryVideoUnsupported": "临时对话当前支持图片和文档附件，不支持视频附件",
+    "temporaryVideoUnsupported": "临时对话当前支持图片和文档附件，不支持音频和视频附件",
     "retryFailedFiles": "请重试失败的文件。",
     "retryLater": "请稍后重试。",
     "screenshotUnsupported": "当前浏览器不支持屏幕截图",
