@@ -338,6 +338,8 @@ geoip:
 - 文本类文件：小文件可全文注入；超出阈值时按配置走 RAG 或回退策略。
 - PDF/Office 等文档：通过内置提取、Tika、Docling、MinerU 或 OCR 引擎提取文本；PDF OCR 回退可单独控制。
 
+普通会话中，每个附件都随提交它的那一轮发送给模型：能全文注入的放全文，按问题检索的大文件和无法读取的文件只留一句说明，模型由此始终知道附件存在。按问题检索的文件如果本轮没有拿到任何片段、也无法回退全文，会在本轮的补充上下文中以 `<attachment_status>` 列出完整文件名、本轮/历史标记和检索结果（如 `rag_error`、`rag_timeout`、`rag_empty`、`rag_low_score`、`rag_no_match`），并提示模型不得仅凭文件名声称已读取内容。检索失败或超时时列出全部未取到内容的用户附件；未命中或部分命中时只列出本轮上传的附件，避免长对话中每轮重复。助手生成的文件不在此列。该状态只随本轮发送，不进入可缓存的提示词前缀，也不扩大文件访问范围。
+
 MinerU 可在设置中选择处理的文件类型；云端 MinerU 支持 `.doc/.docx/.ppt/.pptx/.xls/.xlsx`，自部署 MinerU 支持 `.docx/.pptx/.xlsx`。
 
 OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract OCR、Paddle OCR、腾讯云 OCR、阿里云 OCR、Mistral OCR 与 LLM OCR。服务地址、鉴权密钥和超时时间按具体引擎配置。

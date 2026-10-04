@@ -627,6 +627,7 @@ func (s *Service) sendMessageInternal(
 	turnImageAttachments := append(append([]AttachmentInput{}, fileContextPlan.FullAttachments...), rag.imageEvidence...)
 	userCtx.Attachments = imageAttachmentsForCurrentUser(turnImageAttachments)
 	userCtx.RAGChunks = ragContextChunks
+	userCtx.UnretrievedFiles = rag.unretrieved
 	assistantMessage.KnowledgeSources = messageKnowledgeSourcesFromRAGChunks(ragContextChunks)
 	// 语义召回注入：收集异步结果（与 RAG 解耦，独立运行）。
 	// recallCh 为 nil 时（未启用语义召回或当前分支没有历史消息）直接跳过。

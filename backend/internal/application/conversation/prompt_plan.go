@@ -281,7 +281,7 @@ func stableAttachmentSourceRefs(attachments []AttachmentInput, currentArtifacts 
 
 // dynamicContextSourceRefs 提取本轮动态上下文的来源引用。
 func dynamicContextSourceRefs(input userContextInput) []PromptSourceRef {
-	refs := make([]PromptSourceRef, 0, len(input.RAGChunks)+len(input.RecallChunks)+len(input.Memory)+len(input.Attachments)+len(input.Files)+1)
+	refs := make([]PromptSourceRef, 0, len(input.RAGChunks)+len(input.RecallChunks)+len(input.Memory)+len(input.Attachments)+len(input.Files)+len(input.UnretrievedFiles)+1)
 	ragArtifacts := contextArtifactsByKindAndSourceID(input.CurrentArtifacts, domainconversation.ContextArtifactFileRAGChunk)
 	recallArtifacts := contextArtifactsByKindAndSourceID(input.CurrentArtifacts, domainconversation.ContextArtifactSemanticRecall)
 	memoryArtifacts := contextArtifactsByKindAndSourceID(input.CurrentArtifacts, domainconversation.ContextArtifactUserMemory)
@@ -307,6 +307,9 @@ func dynamicContextSourceRefs(input userContextInput) []PromptSourceRef {
 	}
 	// 检索回退的全文随本轮发送，来源与已落库的回退证据对应。
 	refs = append(refs, stableAttachmentSourceRefs(input.Files, input.CurrentArtifacts)...)
+	for _, item := range input.UnretrievedFiles {
+		refs = appendPromptSourceRef(refs, "file_metadata", stableAttachmentSourceID(item.Attachment), item.Attachment.FileName)
+	}
 	return refs
 }
 
