@@ -251,7 +251,27 @@ func buildChatCompletionsContent(msg portllm.Message, promptCache *openAIPromptC
 			}
 		}
 	}
+	if text, ok := chatCompletionsPlainText(parts); ok {
+		return text
+	}
 	return parts
+}
+
+// chatCompletionsPlainText 把纯文本且未携带缓存断点的分段合并为字符串。
+// 本轮 user 会拆成「原文」与「动态上下文」两段；不少 OpenAI 兼容上游只接受字符串 content，
+// 不需要断点时保持字符串结构，与只有单段文本时的请求形态一致。
+func chatCompletionsPlainText(parts []map[string]any) (string, bool) {
+	texts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if getString(part["type"]) != "text" {
+			return "", false
+		}
+		if _, marked := part["prompt_cache_breakpoint"]; marked {
+			return "", false
+		}
+		texts = append(texts, getString(part["text"]))
+	}
+	return strings.Join(texts, "\n\n"), true
 }
 
 func applyChatStreamEvent(

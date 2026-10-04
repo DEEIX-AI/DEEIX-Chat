@@ -62,24 +62,31 @@ type PromptPlan struct {
 func (p *PromptPlan) applyMessages(messages []llm.Message) {
 	p.Messages = cloneLLMMessages(messages)
 	p.Trace.TotalTokenEstimate = estimatePromptTokens(messages)
+	documentTokens := int64(0)
+	for _, block := range p.Trace.Blocks {
+		if block.Kind == PromptBlockStableContext {
+			documentTokens += block.TokenEstimate
+		}
+	}
 	for index := range p.Trace.Blocks {
 		if p.Trace.Blocks[index].Kind != PromptBlockTranscript {
 			continue
 		}
-		p.Trace.Blocks[index].TokenEstimate = estimateTranscriptTokens(messages)
+		p.Trace.Blocks[index].TokenEstimate = max(estimateTranscriptTokens(messages)-documentTokens, 0)
 		p.Trace.Blocks[index].SourceCount = countMessagesByRole(messages, "user") + countMessagesByRole(messages, "assistant")
 		break
 	}
 }
 
 type promptPlanInput struct {
-	BaseMessages      []llm.Message
-	StableAttachments []AttachmentInput
-	DynamicContext    userContextInput
-	SkillPrompts      *skillPrompts
-	ToolRuntime       selectedToolRuntime
-	Config            config.Config
-	StoreProvider     appstorage.Provider
+	BaseMessages []llm.Message
+	// TurnDocuments 记录已写入各用户轮次的文件，仅用于 trace；内容已在 BaseMessages 中。
+	TurnDocuments  turnDocumentPlacement
+	DynamicContext userContextInput
+	SkillPrompts   *skillPrompts
+	ToolRuntime    selectedToolRuntime
+	Config         config.Config
+	StoreProvider  appstorage.Provider
 }
 
 // buildPromptPlan 按稳定上下文、动态上下文、工具规则的固定顺序生成最终上游消息。
@@ -87,14 +94,12 @@ func buildPromptPlan(ctx context.Context, input promptPlanInput) PromptPlan {
 	messages := cloneLLMMessages(input.BaseMessages)
 	trace := PromptTrace{}
 
-	before := len(messages)
-	messages = prependStableFileContext(messages, input.StableAttachments)
-	if len(messages) > before {
-		sourceRefs := stableAttachmentSourceRefs(input.StableAttachments, input.DynamicContext.CurrentArtifacts)
+	if len(input.TurnDocuments.FullAttachments) > 0 {
+		sourceRefs := stableAttachmentSourceRefs(input.TurnDocuments.FullAttachments, input.DynamicContext.CurrentArtifacts)
 		trace.addBlock(PromptBlockTrace{
 			Kind:          PromptBlockStableContext,
-			Title:         "稳定文件上下文",
-			TokenEstimate: estimateMessageTokens(messages[0]),
+			Title:         "对话文件",
+			TokenEstimate: input.TurnDocuments.TokenEstimate,
 			Cacheable:     true,
 			SourceCount:   len(sourceRefs),
 			SourceRefs:    sourceRefs,
@@ -111,9 +116,10 @@ func buildPromptPlan(ctx context.Context, input promptPlanInput) PromptPlan {
 		})
 	}
 	trace.addBlock(PromptBlockTrace{
-		Kind:          PromptBlockTranscript,
-		Title:         "历史对话",
-		TokenEstimate: estimateTranscriptTokens(input.BaseMessages),
+		Kind:  PromptBlockTranscript,
+		Title: "历史对话",
+		// 文件内容已随轮次计入「对话文件」块，这里只统计对话本身，避免重复计数。
+		TokenEstimate: max(estimateTranscriptTokens(input.BaseMessages)-input.TurnDocuments.TokenEstimate, 0),
 		Cacheable:     false,
 		SourceCount:   countMessagesByRole(input.BaseMessages, "user") + countMessagesByRole(input.BaseMessages, "assistant"),
 	})
@@ -147,7 +153,7 @@ func buildPromptPlan(ctx context.Context, input promptPlanInput) PromptPlan {
 		}
 	}
 
-	before = len(messages)
+	before := len(messages)
 	messages = injectSkillPrompts(messages, input.SkillPrompts)
 	if len(messages) > before && input.SkillPrompts != nil {
 		inserted := findSkillPromptMessage(messages)
@@ -183,6 +189,7 @@ func buildPromptPlan(ctx context.Context, input promptPlanInput) PromptPlan {
 		})
 	}
 	messages = markLeadingSystemMessagesCacheable(messages)
+	messages = markConversationCacheBoundary(messages)
 
 	trace.TotalTokenEstimate = estimatePromptTokens(messages)
 	return PromptPlan{Messages: messages, Trace: trace}
@@ -254,7 +261,7 @@ func countStableTextAttachments(attachments []AttachmentInput) int {
 	return count
 }
 
-// stableAttachmentSourceRefs 提取稳定全文文件的来源引用。
+// stableAttachmentSourceRefs 提取以全文形式提供的文件来源引用；检索回退的文件关联已落库的回退证据。
 func stableAttachmentSourceRefs(attachments []AttachmentInput, currentArtifacts []domainconversation.ContextArtifact) []PromptSourceRef {
 	refs := make([]PromptSourceRef, 0, countStableTextAttachments(attachments))
 	fallbackArtifacts := contextArtifactsByKindAndSourceID(currentArtifacts, domainconversation.ContextArtifactFileRAGFallback)
@@ -274,7 +281,7 @@ func stableAttachmentSourceRefs(attachments []AttachmentInput, currentArtifacts 
 
 // dynamicContextSourceRefs 提取本轮动态上下文的来源引用。
 func dynamicContextSourceRefs(input userContextInput) []PromptSourceRef {
-	refs := make([]PromptSourceRef, 0, len(input.RAGChunks)+len(input.RecallChunks)+len(input.Memory)+len(input.Attachments)+1)
+	refs := make([]PromptSourceRef, 0, len(input.RAGChunks)+len(input.RecallChunks)+len(input.Memory)+len(input.Attachments)+len(input.Files)+1)
 	ragArtifacts := contextArtifactsByKindAndSourceID(input.CurrentArtifacts, domainconversation.ContextArtifactFileRAGChunk)
 	recallArtifacts := contextArtifactsByKindAndSourceID(input.CurrentArtifacts, domainconversation.ContextArtifactSemanticRecall)
 	memoryArtifacts := contextArtifactsByKindAndSourceID(input.CurrentArtifacts, domainconversation.ContextArtifactUserMemory)
@@ -298,6 +305,8 @@ func dynamicContextSourceRefs(input userContextInput) []PromptSourceRef {
 	for _, att := range input.Attachments {
 		refs = appendPromptSourceRef(refs, "image", stableAttachmentSourceID(att), att.FileName)
 	}
+	// 检索回退的全文随本轮发送，来源与已落库的回退证据对应。
+	refs = append(refs, stableAttachmentSourceRefs(input.Files, input.CurrentArtifacts)...)
 	return refs
 }
 
@@ -434,6 +443,10 @@ func findToolGuidanceMessage(messages []llm.Message) int {
 	return -1
 }
 
+// maxSystemCacheBreakpoints 为 system 前缀保留的缓存断点数。Anthropic 单次请求最多 4 个断点，
+// 预留 1 个给对话边界（markConversationCacheBoundary）。
+const maxSystemCacheBreakpoints = 3
+
 // markLeadingSystemMessagesCacheable 给稳定 system 前缀加块级缓存提示。
 func markLeadingSystemMessagesCacheable(messages []llm.Message) []llm.Message {
 	if len(messages) == 0 {
@@ -450,8 +463,8 @@ func markLeadingSystemMessagesCacheable(messages []llm.Message) []llm.Message {
 		}
 		cacheableIndices = append(cacheableIndices, index)
 	}
-	if len(cacheableIndices) > 4 {
-		cacheableIndices = cacheableIndices[len(cacheableIndices)-4:]
+	if len(cacheableIndices) > maxSystemCacheBreakpoints {
+		cacheableIndices = cacheableIndices[len(cacheableIndices)-maxSystemCacheBreakpoints:]
 	}
 	for _, index := range cacheableIndices {
 		result[index].CacheControl = &llm.CacheControl{Type: "ephemeral"}

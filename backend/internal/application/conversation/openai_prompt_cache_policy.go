@@ -48,7 +48,7 @@ func configureOpenAIPromptCacheRequestForRoute(
 }
 
 // applyOpenAIPromptCacheMessagePolicy 为显式 OpenAI 缓存保留累积历史断点。
-// 当前 user 及其动态上下文始终不标记，避免每轮变化的内容成为缓存边界。
+// 当前 user 只在稳定段（文件 + 原文 + 图片）末尾标记，动态上下文始终不进入缓存边界。
 func applyOpenAIPromptCacheMessagePolicy(
 	route *channel.ResolvedRoute,
 	options map[string]any,
@@ -62,6 +62,14 @@ func applyOpenAIPromptCacheMessagePolicy(
 	result := cloneLLMMessages(messages)
 	for index := range result {
 		result[index].CacheControl = nil
+		if len(result[index].Parts) == 0 {
+			continue
+		}
+		parts := append([]llm.ContentPart(nil), result[index].Parts...)
+		for partIndex := range parts {
+			parts[partIndex].CacheControl = nil
+		}
+		result[index].Parts = parts
 	}
 	if !config.MessageBreakpoints {
 		return result
@@ -98,6 +106,8 @@ func applyOpenAIPromptCacheMessagePolicy(
 		}
 		result[index].CacheControl = &llm.CacheControl{Type: "ephemeral"}
 	}
+	// 历史 user 已全部标记，本轮只在可重现部分末尾补一个断点，不回退到助手消息。
+	result, _ = markCurrentTurnCacheBoundary(result)
 	return result
 }
 

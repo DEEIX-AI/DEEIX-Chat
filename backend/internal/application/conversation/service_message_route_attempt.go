@@ -17,13 +17,15 @@ type messageRoutePromptInput struct {
 	UIComponents             []domainuicomponent.Component
 	ReasoningContentPassback bool
 	DomainMessages           []model.Message
-	StableAttachments        []AttachmentInput
-	DynamicContext           userContextInput
-	PreferencePrompt         string
-	SkillPrompts             *skillPrompts
-	ToolRuntime              selectedToolRuntime
-	SkipImageAttachments     bool
-	Config                   config.Config
+	// ConversationFiles 是本轮文件规划结果（含历史轮次与本轮，已带 ContextMode）。
+	// 文本文件随所属用户轮次渲染，图片作为图片内容块随所属轮次发送。
+	ConversationFiles    []AttachmentInput
+	DynamicContext       userContextInput
+	PreferencePrompt     string
+	SkillPrompts         *skillPrompts
+	ToolRuntime          selectedToolRuntime
+	SkipImageAttachments bool
+	Config               config.Config
 }
 
 func withMessageRouteReasoningPassbackOptions(
@@ -69,9 +71,12 @@ func (s *Service) buildMessageRoutePrompt(ctx context.Context, route *channel.Re
 	historyMessages := historyMessagesFromDomain(routeMessages, historyMessageOptions{
 		ReasoningContentPassback: input.ReasoningContentPassback,
 	})
+	// 文件按所属轮次就位必须早于图片注入与同角色合并：二者都依赖未合并的历史下标。
+	documents := placeTurnDocuments(historyMessages, routeMessages, input.ConversationFiles)
+	historyMessages = documents.Messages
 	if !input.SkipImageAttachments {
 		var err error
-		historyMessages, err = s.injectConversationImageContext(ctx, historyMessages, routeMessages, input.StableAttachments, input.Config)
+		historyMessages, err = s.injectConversationImageContext(ctx, historyMessages, routeMessages, input.ConversationFiles, input.Config)
 		if err != nil {
 			return PromptPlan{}, err
 		}
@@ -98,12 +103,12 @@ func (s *Service) buildMessageRoutePrompt(ctx context.Context, route *channel.Re
 	}
 	baseMessages, _ := assembler.Assemble(historyMessages)
 	return buildPromptPlan(ctx, promptPlanInput{
-		BaseMessages:      baseMessages,
-		StableAttachments: input.StableAttachments,
-		DynamicContext:    input.DynamicContext,
-		SkillPrompts:      input.SkillPrompts,
-		ToolRuntime:       input.ToolRuntime,
-		Config:            input.Config,
-		StoreProvider:     s.storeProvider,
+		BaseMessages:   baseMessages,
+		TurnDocuments:  documents,
+		DynamicContext: input.DynamicContext,
+		SkillPrompts:   input.SkillPrompts,
+		ToolRuntime:    input.ToolRuntime,
+		Config:         input.Config,
+		StoreProvider:  s.storeProvider,
 	}), nil
 }

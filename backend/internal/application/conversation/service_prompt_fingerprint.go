@@ -82,9 +82,9 @@ func buildPromptStateFingerprint(input promptStateFingerprintInput) string {
 }
 
 // buildPromptContextStateSignature 显式记录稳定上下文来源版本，补足纯文本指纹无法表达的状态边界。
-func buildPromptContextStateSignature(stableAttachments []AttachmentInput, preferenceMemories []domainmemory.UserMemory) string {
+// 文件内容已随所属轮次写入消息正文，由消息指纹覆盖，这里只需记录偏好记忆。
+func buildPromptContextStateSignature(preferenceMemories []domainmemory.UserMemory) string {
 	payload := map[string]any{
-		"files":    promptContextFileState(stableAttachments),
 		"memories": promptContextMemoryState(preferenceMemories),
 	}
 	raw, err := json.Marshal(payload)
@@ -93,38 +93,6 @@ func buildPromptContextStateSignature(stableAttachments []AttachmentInput, prefe
 	}
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
-}
-
-func promptContextFileState(attachments []AttachmentInput) []map[string]any {
-	if len(attachments) == 0 {
-		return nil
-	}
-	items := make([]AttachmentInput, 0, len(attachments))
-	for _, item := range attachments {
-		if normalizeAttachmentKind(item.Kind, item.MimeType) == "image" {
-			continue
-		}
-		if strings.TrimSpace(item.ExtractedText) == "" {
-			continue
-		}
-		items = append(items, item)
-	}
-	sort.SliceStable(items, func(i, j int) bool {
-		return stableAttachmentSortKey(items[i]) < stableAttachmentSortKey(items[j])
-	})
-	result := make([]map[string]any, 0, len(items))
-	for _, item := range items {
-		result = append(result, map[string]any{
-			"file_id":        strings.TrimSpace(item.FileID),
-			"sha256":         strings.TrimSpace(item.SHA256),
-			"extract_status": strings.TrimSpace(item.ExtractStatus),
-			"embed_status":   strings.TrimSpace(item.EmbedStatus),
-			"chunk_count":    item.ChunkCount,
-			"context_mode":   strings.TrimSpace(item.ContextMode),
-			"text_hash":      promptTextHash(item.ExtractedText),
-		})
-	}
-	return result
 }
 
 func promptContextMemoryState(memories []domainmemory.UserMemory) []map[string]any {
@@ -217,9 +185,9 @@ func appendAssistantStateMessage(messages []llm.Message, assistantText string, r
 }
 
 // buildNextStatefulPrefixMessages 生成下一轮本地可重建的状态前缀。
-// 当前轮真实发送给上游的 user 可能包含文件、RAG、图片等动态 XML；数据库历史只保存用户原文。
-// 因此保存 previous_response_id 指纹时使用“稳定前缀 + 用户原文 + 助手回复”，避免下一轮因历史 XML 不可重建而误判失效。
-func buildNextStatefulPrefixMessages(messages []llm.Message, currentUserContent string, assistantText string, reasoningContent string) []llm.Message {
+// 本轮 user 的稳定段（文件 + 用户原文 + 图片）在下一轮会作为历史原样重建，动态段（检索片段、
+// 记忆等）则不会；因此保存 previous_response_id 指纹时只保留稳定段，并按历史渲染的形态归一。
+func buildNextStatefulPrefixMessages(messages []llm.Message, assistantText string, reasoningContent string) []llm.Message {
 	lastUserIndex := -1
 	for index := len(messages) - 1; index >= 0; index-- {
 		if messages[index].Role == "user" {
@@ -231,23 +199,27 @@ func buildNextStatefulPrefixMessages(messages []llm.Message, currentUserContent 
 		return appendAssistantStateMessage(messages, assistantText, reasoningContent)
 	}
 	result := cloneLLMMessages(messages[:lastUserIndex])
-	currentUser := llm.Message{Role: "user", Content: currentUserContent}
-	imageParts := make([]llm.ContentPart, 0)
-	for _, part := range messages[lastUserIndex].Parts {
-		if part.Kind == llm.ContentPartImage && len(part.Data) > 0 {
-			imageParts = append(imageParts, part)
-		}
-	}
-	if len(imageParts) > 0 {
-		currentUser.Content = ""
-		if strings.TrimSpace(currentUserContent) != "" {
-			currentUser.Parts = append(currentUser.Parts, llm.ContentPart{Kind: llm.ContentPartText, Text: currentUserContent})
-		}
-		currentUser.Parts = append(currentUser.Parts, imageParts...)
-	}
-	result = append(result, currentUser)
+	result = append(result, stableUserMessage(messages[lastUserIndex]))
 	result = append(result, llm.Message{Role: "assistant", Content: assistantText, ReasoningContent: reasoningContent})
 	return result
+}
+
+// stableUserMessage 去掉本轮动态段与缓存提示，得到该消息作为历史时的形态：
+// 只剩一段文本时与历史一样用 Content 表示。
+func stableUserMessage(message llm.Message) llm.Message {
+	stable := llm.Message{Role: message.Role, Content: message.Content}
+	for _, part := range message.Parts {
+		if part.Dynamic {
+			continue
+		}
+		part.CacheControl = nil
+		stable.Parts = append(stable.Parts, part)
+	}
+	if len(stable.Parts) == 1 && stable.Parts[0].Kind == llm.ContentPartText && strings.TrimSpace(stable.Content) == "" {
+		stable.Content = stable.Parts[0].Text
+		stable.Parts = nil
+	}
+	return stable
 }
 
 func writeFingerprintField(hasher interface{ Write([]byte) (int, error) }, key string, value string) {

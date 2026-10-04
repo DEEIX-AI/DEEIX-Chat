@@ -620,10 +620,11 @@ func (s *Service) sendMessageInternal(
 	ragFallbacks := rag.fallbacks
 	ragContextChunks := rag.chunks
 	userCtx.RAGNotice = rag.notice
-	stableFullContextAttachments := append([]AttachmentInput{}, fileContextPlan.FullAttachments...)
-	stableFullContextAttachments = append(stableFullContextAttachments, ragFallbackEvidenceAttachments(rag.retrievalFallbacks)...)
+	// 检索失败或未命中后的全文回退取决于本轮问题，只随本轮动态上下文发送；
+	// 确定性的全文文件已由 placeTurnDocuments 写入所属轮次。
+	userCtx.Files = ragFallbackEvidenceAttachments(rag.retrievalFallbacks)
 	// 检索命中的图片随本轮消息发送，但不进入稳定上下文：它随查询变化，不能参与前缀缓存指纹。
-	turnImageAttachments := append(append([]AttachmentInput{}, stableFullContextAttachments...), rag.imageEvidence...)
+	turnImageAttachments := append(append([]AttachmentInput{}, fileContextPlan.FullAttachments...), rag.imageEvidence...)
 	userCtx.Attachments = imageAttachmentsForCurrentUser(turnImageAttachments)
 	userCtx.RAGChunks = ragContextChunks
 	assistantMessage.KnowledgeSources = messageKnowledgeSourcesFromRAGChunks(ragContextChunks)
@@ -675,7 +676,7 @@ func (s *Service) sendMessageInternal(
 		HTMLVisualPromptEnabled: input.HTMLVisualPromptEnabled,
 		UIComponents:            uiComponents,
 		DomainMessages:          promptScope.activeMessages(),
-		StableAttachments:       stableFullContextAttachments,
+		ConversationFiles:       fileContextPlan.Attachments,
 		DynamicContext:          userCtx,
 		PreferencePrompt:        preferencePrompt,
 		SkillPrompts:            skillPrompts,
@@ -701,7 +702,7 @@ func (s *Service) sendMessageInternal(
 		tools:                  toolRuntime.definitions,
 		promptCacheSessionKey:  promptCacheSessionKey,
 		statefulContextConfig:  buildPromptContextConfigSignature(cfg),
-		statefulContextState:   buildPromptContextStateSignature(stableFullContextAttachments, prefixMemories),
+		statefulContextState:   buildPromptContextStateSignature(prefixMemories),
 		normalizedBranchReason: normalizedBranchReason,
 		attributionReferer:     attributionReferer,
 		attributionTitle:       attributionTitle,
@@ -1045,7 +1046,7 @@ func (s *Service) sendMessageInternal(
 		PlatformModelName: conversation.Model,
 		ContextConfig:     gen.statefulContextConfig,
 		ContextState:      gen.statefulContextState,
-		Messages:          buildNextStatefulPrefixMessages(fullLLMMessages, input.Content, assistantText, assistantReasoningContent),
+		Messages:          buildNextStatefulPrefixMessages(fullLLMMessages, assistantText, assistantReasoningContent),
 		Tools:             toolRuntime.definitions,
 		Options:           filteredOptions,
 	})
