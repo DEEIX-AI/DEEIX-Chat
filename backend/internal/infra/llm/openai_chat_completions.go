@@ -228,6 +228,19 @@ func buildChatCompletionsContent(msg portllm.Message, promptCache *openAIPromptC
 			}
 			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
 			parts = append(parts, block)
+		case portllm.ContentPartDocument:
+			if len(part.Data) == 0 {
+				continue
+			}
+			block := map[string]any{
+				"type": "file",
+				"file": map[string]any{
+					"filename":  nativeDocumentFileName(part),
+					"file_data": nativeDocumentDataURL(part),
+				},
+			}
+			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
+			parts = append(parts, block)
 		default: // text、file——按纯文本处理
 			text := part.Text
 			if strings.TrimSpace(text) == "" {

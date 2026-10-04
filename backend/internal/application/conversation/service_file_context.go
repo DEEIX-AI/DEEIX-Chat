@@ -21,6 +21,9 @@ const (
 	fileContextModeRAG         = "rag"
 	fileContextModeRAGFallback = "rag_fallback_full_context"
 	fileContextModeSkipped     = "skipped"
+	// 以下两种只用于处理过程展示，表示与路由相关的最终决定，文件规划本身不会产生它们。
+	fileContextModeNativeDocument = "native_document"
+	fileContextModeUnsupported    = "unsupported"
 )
 
 type attachmentSnapshotRef struct {

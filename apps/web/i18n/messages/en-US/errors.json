@@ -264,7 +264,7 @@
     "reasoningInvalidLevels": "Invalid reasoning levels. Choose at least one level supported by the selected format, without duplicates.",
     "reasoningInvalidDefault": "The default reasoning level must be one of the selected levels.",
     "reasoningInvalidBudgets": "Invalid reasoning token budgets. Every enabled level needs a non-negative integer budget (at least 1024 for Anthropic budgets).",
-    "modelCatalogFetchFailed": "Failed to sync reasoning capabilities. The last synced data is kept."
+    "modelCatalogFetchFailed": "Failed to sync models.dev. The last synced data is kept."
   },
   "mcp": {
     "clientUnavailable": "MCP client is unavailable.",

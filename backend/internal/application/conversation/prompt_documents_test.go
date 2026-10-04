@@ -62,7 +62,7 @@ func TestPlaceTurnDocumentsPutsFilesInOwningTurns(t *testing.T) {
 		}(),
 	}
 
-	placement := placeTurnDocuments(history, domainMessages, attachments)
+	placement := placeTurnDocuments(history, domainMessages, attachments, turnDocumentOptions{})
 
 	documents, question := turnParts(t, placement.Messages[0])
 	if documents != "<documents>\n<document source=\"old.md\">\n旧文件全文\n</document>\n</documents>" || question != "整理这份" {
@@ -90,14 +90,14 @@ func TestPlaceTurnDocumentsRendersCurrentTurnLikeFutureHistory(t *testing.T) {
 	currentFile := file
 	currentFile.Current = true
 	currentDomain := []model.Message{{Role: "user", Content: "看看这个"}}
-	now := placeTurnDocuments(historyMessagesFromDomain(currentDomain, historyMessageOptions{}), currentDomain, []AttachmentInput{currentFile})
+	now := placeTurnDocuments(historyMessagesFromDomain(currentDomain, historyMessageOptions{}), currentDomain, []AttachmentInput{currentFile}, turnDocumentOptions{})
 
 	nextDomain := []model.Message{
 		{Role: "user", Content: "看看这个", Attachments: `[{"file_id":"file_new","file_name":"notes.md"}]`},
 		{Role: "assistant", Content: "好的"},
 		{Role: "user", Content: "下一问"},
 	}
-	next := placeTurnDocuments(historyMessagesFromDomain(nextDomain, historyMessageOptions{}), nextDomain, []AttachmentInput{file})
+	next := placeTurnDocuments(historyMessagesFromDomain(nextDomain, historyMessageOptions{}), nextDomain, []AttachmentInput{file}, turnDocumentOptions{})
 
 	nowDocuments, nowQuestion := turnParts(t, now.Messages[0])
 	nextDocuments, nextQuestion := turnParts(t, next.Messages[0])
@@ -116,7 +116,7 @@ func TestPlaceTurnDocumentsRendersRetrievalAndUnavailableStubs(t *testing.T) {
 	broken := turnDocumentTestFile("file_broken", "broken.docx", "", fileContextModeSkipped)
 	broken.Current = true
 
-	placement := placeTurnDocuments(historyMessagesFromDomain(domainMessages, historyMessageOptions{}), domainMessages, []AttachmentInput{big, broken})
+	placement := placeTurnDocuments(historyMessagesFromDomain(domainMessages, historyMessageOptions{}), domainMessages, []AttachmentInput{big, broken}, turnDocumentOptions{})
 
 	content, _ := turnParts(t, placement.Messages[0])
 	for _, want := range []string{
@@ -151,7 +151,7 @@ func TestPlaceTurnDocumentsMovesAssistantFilesToFollowingUserTurn(t *testing.T) 
 		ContextMode:   fileContextModeFull,
 	}
 
-	placement := placeTurnDocuments(historyMessagesFromDomain(domainMessages, historyMessageOptions{}), domainMessages, []AttachmentInput{ocr})
+	placement := placeTurnDocuments(historyMessagesFromDomain(domainMessages, historyMessageOptions{}), domainMessages, []AttachmentInput{ocr}, turnDocumentOptions{})
 
 	if placement.Messages[1].Content != "已生成" {
 		t.Fatalf("assistant message must stay untouched, got %q", placement.Messages[1].Content)
@@ -167,7 +167,7 @@ func TestPlaceTurnDocumentsSkipsDirectImagesAndEscapesXML(t *testing.T) {
 	doc := turnDocumentTestFile("doc", `A&B "notes".md`, "Use <tag> & keep > value.\n\nNext line.", fileContextModeFull)
 	doc.Current = true
 
-	placement := placeTurnDocuments(historyMessagesFromDomain(domainMessages, historyMessageOptions{}), domainMessages, []AttachmentInput{image, doc})
+	placement := placeTurnDocuments(historyMessagesFromDomain(domainMessages, historyMessageOptions{}), domainMessages, []AttachmentInput{image, doc}, turnDocumentOptions{})
 
 	content, _ := turnParts(t, placement.Messages[0])
 	if strings.Contains(content, "photo.png") {
@@ -186,7 +186,7 @@ func TestPlaceTurnDocumentsRefusesMisalignedHistory(t *testing.T) {
 	file := turnDocumentTestFile("f", "f.md", "text", fileContextModeFull)
 	file.Current = true
 
-	placement := placeTurnDocuments(history, domainMessages, []AttachmentInput{file})
+	placement := placeTurnDocuments(history, domainMessages, []AttachmentInput{file}, turnDocumentOptions{})
 
 	if placement.Messages[0].Content != "a" || len(placement.FullAttachments) != 0 {
 		t.Fatalf("misaligned history must be left untouched, got %#v", placement)

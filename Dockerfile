@@ -56,6 +56,14 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY backend ./
 
+ARG REFRESH_CATALOG_SNAPSHOTS=true
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    if [ "${REFRESH_CATALOG_SNAPSHOTS}" = "true" ]; then \
+      echo "refreshing catalog snapshots for ${GIT_COMMIT}" \
+      && go run ./cmd/catalog-snapshot -keep-on-error; \
+    fi
+
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     VERSION="$(cat /src/VERSION)" \

@@ -5,7 +5,9 @@ import * as React from "react";
 import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
 import {
   type ChatModelOption,
+  MODEL_INPUT_MODALITIES,
   MODEL_OPTION_CONTROL_TYPES,
+  type ModelInputModality,
   type ModelOptionControl,
   type ModelOptionControlType,
 } from "@/features/chat/types/chat-runtime";
@@ -371,7 +373,16 @@ function toChatModelOption(
     // Re-validated at runtime so an older server (field absent) or unknown levels degrade to null.
     reasoning: parseModelReasoningCapability(item.reasoning),
     controls: parseModelControls(item.controls),
+    inputModalities: parseInputModalities(item.inputModalities),
   };
+}
+
+// Older servers omit the field; unknown values are dropped so the UI never shows an unsupported badge.
+function parseInputModalities(value: unknown): ModelInputModality[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return MODEL_INPUT_MODALITIES.filter((modality) => value.includes(modality));
 }
 
 export function useChatModelOptions({

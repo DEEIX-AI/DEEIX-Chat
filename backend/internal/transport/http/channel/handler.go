@@ -59,7 +59,7 @@ func (h *Handler) ListPublicModels(c *gin.Context) {
 		return
 	}
 
-	resolver := h.service.ModelReasoningResolver()
+	resolver := h.service.ModelCapabilityResolver()
 	views := make([]PublicModelResponse, 0, len(items))
 	for _, item := range items {
 		views = append(views, toPublicModelResponse(item, resolver))

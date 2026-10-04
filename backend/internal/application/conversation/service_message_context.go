@@ -52,8 +52,21 @@ func isCJKRune(char rune) bool {
 		(char >= 0x20000 && char <= 0x2A6DF)
 }
 
+// nativeDocumentTokensPerPage 是原生 PDF 每页的保守估算：Anthropic 文档给出每页 1500–3000 文本 token
+// 外加页面图像，Gemini 每页 258 token。按偏高值估算，宁可提前裁剪历史，也不让请求超出上下文窗口。
+const nativeDocumentTokensPerPage = 2000
+
+// nativeDocumentBytesPerPage 用于页数未知时按文件大小估算页数。
+const nativeDocumentBytesPerPage = 100 * 1024
+
 func estimateContentPartTokens(part llm.ContentPart) int64 {
 	switch part.Kind {
+	case llm.ContentPartDocument:
+		pages := int64(part.PageCount)
+		if pages <= 0 {
+			pages = max(int64(len(part.Data))/nativeDocumentBytesPerPage, 1)
+		}
+		return pages * nativeDocumentTokensPerPage
 	case llm.ContentPartImage:
 		return 255
 	case llm.ContentPartFile:

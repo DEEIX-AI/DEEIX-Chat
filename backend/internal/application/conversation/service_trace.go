@@ -299,6 +299,34 @@ func (r *messageTraceRecorder) setCompactionProcessStage(summary string, markdow
 	r.emitProcessUpdate()
 }
 
+// replaceProcessSection 用新的段落替换之前记录的同一处理阶段：替换 markdown 段落与文件分组，
+// 按阶段类型覆盖状态。用于路由故障转移后，让文件上下文展示与实际发出请求的路由一致。
+func (r *messageTraceRecorder) replaceProcessSection(previousSummary string, previousMarkdown string, summary string, markdown string, payload *tracePayload) {
+	if !r.enabled() || r.process == nil {
+		return
+	}
+	draft := r.process
+	previous, next := strings.TrimSpace(previousMarkdown), strings.TrimSpace(markdown)
+	if previous != "" && next != "" {
+		draft.contentMarkdown = strings.Replace(draft.contentMarkdown, previous, next, 1)
+	}
+	// 后续阶段可能已改写标题；只有标题仍是本阶段写入的那句时才同步更新。
+	if strings.TrimSpace(draft.summary) == strings.TrimSpace(previousSummary) && strings.TrimSpace(summary) != "" {
+		draft.summary = strings.TrimSpace(summary)
+	}
+	if stage := firstTraceStage(payload); stage != nil {
+		upsertProcessTraceStagePayload(draft.payload, stage)
+	}
+	if payload != nil {
+		metadata := payload.clone()
+		metadata.TraceStage = nil
+		metadata.Stages = nil
+		mergeTracePayload(draft.payload, metadata)
+	}
+	r.persistDraft(draft, false)
+	r.emitProcessUpdate()
+}
+
 func (r *messageTraceRecorder) removeProcessStage(kind string) {
 	if !r.enabled() || r.process == nil {
 		return
@@ -1527,6 +1555,8 @@ func cloneTraceFileGroups(groups *attachmentTraceFileGroups) *attachmentTraceFil
 	clone.Retrieval = append([]string(nil), groups.Retrieval...)
 	clone.FullContext = append([]string(nil), groups.FullContext...)
 	clone.Skipped = append([]string(nil), groups.Skipped...)
+	clone.Native = append([]string(nil), groups.Native...)
+	clone.Unsupported = append([]string(nil), groups.Unsupported...)
 	return &clone
 }
 
@@ -1540,6 +1570,8 @@ func cloneTraceFileRefGroups(groups *attachmentTraceRefGroups) *attachmentTraceR
 	clone.Retrieval = append([]attachmentTraceFileRef(nil), groups.Retrieval...)
 	clone.FullContext = append([]attachmentTraceFileRef(nil), groups.FullContext...)
 	clone.Skipped = append([]attachmentTraceFileRef(nil), groups.Skipped...)
+	clone.Native = append([]attachmentTraceFileRef(nil), groups.Native...)
+	clone.Unsupported = append([]attachmentTraceFileRef(nil), groups.Unsupported...)
 	return &clone
 }
 
@@ -1864,6 +1896,9 @@ type attachmentTraceFileGroups struct {
 	Retrieval    []string `json:"retrieval"`
 	FullContext  []string `json:"full_context"`
 	Skipped      []string `json:"skipped"`
+	// Native 为以原生文档内容块发送的文件；Unsupported 为当前模型不支持该类型输入、未提供的文件。
+	Native      []string `json:"native,omitempty"`
+	Unsupported []string `json:"unsupported,omitempty"`
 }
 
 type attachmentTraceRefGroups struct {
@@ -1872,6 +1907,8 @@ type attachmentTraceRefGroups struct {
 	Retrieval    []attachmentTraceFileRef `json:"retrieval"`
 	FullContext  []attachmentTraceFileRef `json:"full_context"`
 	Skipped      []attachmentTraceFileRef `json:"skipped"`
+	Native       []attachmentTraceFileRef `json:"native,omitempty"`
+	Unsupported  []attachmentTraceFileRef `json:"unsupported,omitempty"`
 }
 
 type attachmentTracePayload struct {
@@ -1911,6 +1948,12 @@ func buildAttachmentProcessTrace(
 			continue
 		}
 		switch item.ContextMode {
+		case fileContextModeNativeDocument:
+			payload.FileGroups.Native = append(payload.FileGroups.Native, name)
+			payload.FileGroupRefs.Native = append(payload.FileGroupRefs.Native, ref)
+		case fileContextModeUnsupported:
+			payload.FileGroups.Unsupported = append(payload.FileGroups.Unsupported, name)
+			payload.FileGroupRefs.Unsupported = append(payload.FileGroupRefs.Unsupported, ref)
 		case fileContextModeRAG:
 			payload.FileGroups.Retrieval = append(payload.FileGroups.Retrieval, name)
 			payload.FileGroupRefs.Retrieval = append(payload.FileGroupRefs.Retrieval, ref)
@@ -1933,8 +1976,8 @@ func buildAttachmentProcessTrace(
 			payload.FileGroupRefs.FullContext = append(payload.FileGroupRefs.FullContext, ref)
 		}
 	}
-	includedCount := len(attachments) - len(payload.FileGroups.Skipped)
-	skippedCount := len(payload.FileGroups.Skipped)
+	skippedCount := len(payload.FileGroups.Skipped) + len(payload.FileGroups.Unsupported)
+	includedCount := len(attachments) - skippedCount
 	summary := formatAttachmentProcessCounts(includedCount, skippedCount, "已纳入")
 	detail := fmt.Sprintf("文件已就绪，%s。", formatAttachmentProcessCounts(includedCount, skippedCount, "纳入"))
 	return summary, formatTraceStep("文件上下文", detail), attachmentTracePayloadMap(payload)
@@ -1969,11 +2012,12 @@ func newAttachmentTraceFileRef(item AttachmentInput, fallbackName string) attach
 }
 
 func attachmentTracePayloadMap(payload attachmentTracePayload) *tracePayload {
-	includedCount := len(payload.FileRefs) - len(payload.FileGroupRefs.Skipped)
+	skippedCount := len(payload.FileGroupRefs.Skipped) + len(payload.FileGroupRefs.Unsupported)
+	includedCount := len(payload.FileRefs) - skippedCount
 	if includedCount < 0 {
 		includedCount = 0
 	}
-	stage := traceStage{Kind: processTraceKindFileContext, Status: processTraceStatusReady, IncludedCount: includedCount, SkippedCount: len(payload.FileGroupRefs.Skipped)}
+	stage := traceStage{Kind: processTraceKindFileContext, Status: processTraceStatusReady, IncludedCount: includedCount, SkippedCount: skippedCount}
 	return &tracePayload{
 		FileMode: payload.FileMode, FileNames: payload.FileNames, FileRefs: payload.FileRefs,
 		FileGroups: payload.FileGroups, FileGroupRefs: payload.FileGroupRefs,

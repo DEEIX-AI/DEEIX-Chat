@@ -330,6 +330,7 @@
     "pricingSaveFailed": "保存模型基础价格失败",
     "officialPricingApplied": "已填入价格",
     "officialPricingRemoteLoaded": "已获取 {count} 个 OpenRouter 模型价格",
+    "officialPricingBuiltinSnapshot": "暂时使用随版本发布的内置价格（{date}），价格可能已变化，请稍后重试同步",
     "officialPricingRemoteFailed": "获取 OpenRouter 价格失败",
     "officialPricingRemoteEmpty": "OpenRouter 模型列表为空",
     "exportEmpty": "暂无可导出的模型定价",

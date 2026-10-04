@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ModelsReasoningSyncButton } from "@/features/admin/components/sections/models/models-reasoning-sync-button";
 import { cn } from "@/lib/utils";
 import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { ModelCapabilitiesPresetDialog } from "@/features/admin/components/sections/models/models-capabilities-presets";
@@ -1479,7 +1478,6 @@ export function ModelCapabilitiesQuickConfig({
                 <DialogDescription>{t("sheet.capabilitiesQuick.description")}</DialogDescription>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
-                <ModelsReasoningSyncButton />
                 <Button
                   type="button"
                   variant="secondary"

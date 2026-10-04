@@ -663,6 +663,11 @@ type PublicModelResponse struct {
 	// Controls 是用户端可操作的模型控件（管理员隐藏的控件不下发），顺序即展示顺序。
 	// 用户请求只提交 {控件 id: 取值}，参数片段只保存在服务端。
 	Controls []PublicModelControlResponse `json:"controls"`
+	// InputModalities 是模型可接收的输入模态（text / image / pdf / audio / video），按规范顺序排列；
+	// 能力未知时为空数组。它描述模型本身的能力，实际是否原生发送还取决于接入协议与大小限制，由服务端决定。
+	InputModalities []string `json:"inputModalities"`
+	// InputModalitiesSource 为输入模态来源：explicit 为管理员在能力 JSON 中声明，catalog 为 models.dev 目录；未知时为 null。
+	InputModalitiesSource *string `json:"inputModalitiesSource" enums:"explicit,catalog" extensions:"x-nullable,!x-omitempty"`
 }
 
 // PublicModelControlResponse 是一个用户端模型控件。
@@ -779,13 +784,13 @@ type PublicModelPricingTierResponse struct {
 	OutputUSDPerMTokens     float64 `json:"outputUSDPerMTokens"`
 }
 
-// ModelCatalogStatusResponse 是 models.dev 推理目录状态 DTO。
+// ModelCatalogStatusResponse 是 models.dev 模型目录状态 DTO。
 type ModelCatalogStatusResponse struct {
 	// Origin 为当前目录数据来源：remote 为远端同步（含本地缓存恢复），builtin 为随版本发布的内置快照；无目录时为 null。
 	Origin *string `json:"origin" enums:"remote,builtin" extensions:"x-nullable,!x-omitempty"`
 	// FetchedAt 为目录数据的拉取时间（RFC3339）；无目录时为 null。
 	FetchedAt *string `json:"fetchedAt" extensions:"x-nullable,!x-omitempty"`
-	// ModelCount 为目录中带有推理选项的模型条目数。
+	// ModelCount 为目录中的模型条目总数（含推理能力、模态与上下文窗口信息）。
 	ModelCount int `json:"modelCount"`
 	// LastError 为最近一次同步失败的原因；最近一次同步成功时为 null。
 	LastError *string `json:"lastError" extensions:"x-nullable,!x-omitempty"`
@@ -793,7 +798,7 @@ type ModelCatalogStatusResponse struct {
 	Refreshing bool `json:"refreshing"`
 }
 
-func toModelCatalogStatusResponse(v appchannel.ReasoningCatalogStatus) ModelCatalogStatusResponse {
+func toModelCatalogStatusResponse(v appchannel.ModelCatalogStatus) ModelCatalogStatusResponse {
 	var fetchedAt *string
 	if v.FetchedAt != nil {
 		formatted := v.FetchedAt.UTC().Format(time.RFC3339)
@@ -808,9 +813,92 @@ func toModelCatalogStatusResponse(v appchannel.ReasoningCatalogStatus) ModelCata
 	}
 }
 
+// ModelCatalogResolveResponse 是模型编辑表单的自动识别结果。
+type ModelCatalogResolveResponse struct {
+	// Matched 表示 models.dev 目录中找到了对应条目；未找到时模态为空数组，请求链路按「未知」处理。
+	Matched bool `json:"matched"`
+	// Provider 与 ModelID 为命中的目录条目；未匹配时为 null。
+	Provider *string `json:"provider" extensions:"x-nullable,!x-omitempty"`
+	ModelID  *string `json:"modelId" extensions:"x-nullable,!x-omitempty"`
+	// InputModalities / OutputModalities 为目录声明的输入、输出模态（text / image / pdf / audio / video）。
+	InputModalities  []string `json:"inputModalities"`
+	OutputModalities []string `json:"outputModalities"`
+	// ContextWindow 为目录声明的上下文窗口（Token）；未知时为 null。
+	ContextWindow *int `json:"contextWindow" extensions:"x-nullable,!x-omitempty"`
+	// Reasoning 为不考虑显式 reasoning 声明时的推理能力（旧版思考参数推断或目录识别）；无能力时为 null。
+	Reasoning *ModelCatalogReasoningResponse `json:"reasoning" extensions:"x-nullable,!x-omitempty"`
+	// ReasoningTemplate 为自定义推理强度的编辑模板；尚未配置路由协议且无能力时为 null。
+	ReasoningTemplate *ModelReasoningTemplateResponse `json:"reasoningTemplate" extensions:"x-nullable,!x-omitempty"`
+}
+
+// ModelCatalogReasoningResponse 是自动识别的推理能力。
+type ModelCatalogReasoningResponse struct {
+	Format string `json:"format" enums:"openai,anthropic_effort,anthropic_budget,gemini_level,gemini_budget,qwen,toggle"`
+	// Levels 为可选规范档位，按由低到高排列。
+	Levels []string `json:"levels" enums:"none,minimal,low,medium,high,xhigh,max"`
+	// Default 为未显式选择时使用的档位。
+	Default string `json:"default" enums:"none,minimal,low,medium,high,xhigh,max"`
+	// Source 为 inferred（由旧版思考参数推断）或 catalog（models.dev 目录）。
+	Source string `json:"source" enums:"inferred,catalog"`
+}
+
+// ModelReasoningTemplateResponse 是自定义推理强度的编辑模板：在 Levels 中勾选档位并指定默认档，
+// 预算类格式按 Budgets 写入对应档位的预算。
+type ModelReasoningTemplateResponse struct {
+	Format string `json:"format" enums:"openai,anthropic_effort,anthropic_budget,gemini_level,gemini_budget,qwen,toggle"`
+	// Levels 为该格式可声明的规范档位，按由低到高排列。
+	Levels []string `json:"levels" enums:"none,minimal,low,medium,high,xhigh,max"`
+	// Budgets 为各档位的建议预算（Token），仅预算类格式非 null。
+	Budgets map[string]int `json:"budgets" extensions:"x-nullable,!x-omitempty"`
+}
+
+func toModelCatalogResolveResponse(v appchannel.ModelCatalogResolution) ModelCatalogResolveResponse {
+	result := ModelCatalogResolveResponse{
+		Matched:          v.Matched,
+		InputModalities:  append([]string{}, v.InputModalities...),
+		OutputModalities: append([]string{}, v.OutputModalities...),
+	}
+	if v.Matched {
+		result.Provider = optionalTrimmedString(v.Provider)
+		result.ModelID = optionalTrimmedString(v.ModelID)
+	}
+	if v.ContextWindow > 0 {
+		contextWindow := v.ContextWindow
+		result.ContextWindow = &contextWindow
+	}
+	if v.AutoReasoning != nil {
+		result.Reasoning = &ModelCatalogReasoningResponse{
+			Format:  v.AutoReasoning.Format,
+			Levels:  append([]string{}, v.AutoReasoning.Levels...),
+			Default: v.AutoReasoning.Default,
+			Source:  v.AutoReasoningSource,
+		}
+	}
+	if v.ReasoningTemplate != nil {
+		template := &ModelReasoningTemplateResponse{
+			Format: v.ReasoningTemplate.Format,
+			Levels: append([]string{}, v.ReasoningTemplate.Levels...),
+		}
+		if len(v.ReasoningTemplate.Budgets) > 0 {
+			template.Budgets = make(map[string]int, len(v.ReasoningTemplate.Budgets))
+			for level, budget := range v.ReasoningTemplate.Budgets {
+				template.Budgets[level] = budget
+			}
+		}
+		result.ReasoningTemplate = template
+	}
+	return result
+}
+
 // ---------- Swagger 文档类型 ----------
 
-// ModelCatalogStatusResponseDoc models.dev 推理目录状态响应文档。
+// ModelCatalogResolveResponseDoc 模型编辑表单自动识别响应文档。
+type ModelCatalogResolveResponseDoc struct {
+	ErrorMsg string                      `json:"errorMsg"`
+	Data     ModelCatalogResolveResponse `json:"data"`
+}
+
+// ModelCatalogStatusResponseDoc models.dev 模型目录状态响应文档。
 type ModelCatalogStatusResponseDoc struct {
 	ErrorMsg string                     `json:"errorMsg"`
 	Data     ModelCatalogStatusResponse `json:"data"`
@@ -964,25 +1052,27 @@ func toLLMSettingResponse(v domainchannel.LLMSetting) LLMSettingResponse {
 }
 
 // toPublicModelResponse 将模型视图转为面向前端的响应 DTO。
-func toPublicModelResponse(v appchannel.ModelView, resolver appchannel.ModelReasoningResolver) PublicModelResponse {
+func toPublicModelResponse(v appchannel.ModelView, resolver appchannel.ModelCapabilityResolver) PublicModelResponse {
 	reasoning := resolver.Resolve(v)
 	return PublicModelResponse{
-		PlatformModelName: v.PlatformModelName,
-		Vendor:            v.Vendor,
-		VendorName:        v.VendorName,
-		VendorIcon:        v.VendorIcon,
-		DisplayGroupID:    v.DisplayGroupID,
-		DisplayGroupName:  v.DisplayGroupName,
-		DisplayGroupIcon:  v.DisplayGroupIcon,
-		KindsJSON:         v.KindsJSON,
-		Icon:              v.Icon,
-		ProtocolsJSON:     v.ProtocolsJSON,
-		CapabilitiesJSON:  v.CapabilitiesJSON,
-		Description:       v.Description,
-		SortOrder:         v.SortOrder,
-		Pricing:           toPublicModelPricingResponse(v.Pricing),
-		Reasoning:         toPublicModelReasoningResponse(reasoning.View),
-		Controls:          toPublicModelControlResponses(reasoning.Controls),
+		PlatformModelName:     v.PlatformModelName,
+		Vendor:                v.Vendor,
+		VendorName:            v.VendorName,
+		VendorIcon:            v.VendorIcon,
+		DisplayGroupID:        v.DisplayGroupID,
+		DisplayGroupName:      v.DisplayGroupName,
+		DisplayGroupIcon:      v.DisplayGroupIcon,
+		KindsJSON:             v.KindsJSON,
+		Icon:                  v.Icon,
+		ProtocolsJSON:         v.ProtocolsJSON,
+		CapabilitiesJSON:      v.CapabilitiesJSON,
+		Description:           v.Description,
+		SortOrder:             v.SortOrder,
+		Pricing:               toPublicModelPricingResponse(v.Pricing),
+		Reasoning:             toPublicModelReasoningResponse(reasoning.View),
+		Controls:              toPublicModelControlResponses(reasoning.Controls),
+		InputModalities:       append([]string{}, reasoning.InputModalities.Values...),
+		InputModalitiesSource: optionalTrimmedString(reasoning.InputModalities.Source),
 	}
 }
 

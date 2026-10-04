@@ -35,7 +35,14 @@ export type ChatModelOption = {
   reasoning: ModelReasoningCapability | null;
   // User-facing controls declared by the administrator (the reasoning switcher is one of them).
   controls: ModelControl[];
+  // Input modalities the model accepts (explicit declaration, else models.dev); empty when unknown.
+  // Describes the model only: whether a file is sent natively also depends on the route, decided by the server.
+  inputModalities: ModelInputModality[];
 };
+
+export const MODEL_INPUT_MODALITIES = ["text", "image", "pdf", "audio", "video"] as const;
+
+export type ModelInputModality = (typeof MODEL_INPUT_MODALITIES)[number];
 
 export type ModelMediaTaskConfig = {
   enabled: boolean;

@@ -827,7 +827,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "从 storage 缓存读取 OpenRouter 模型标识、基础定价、输入 token 阶梯覆盖和上下文限制；无法映射到当前 token 计费模型的附加字段会在 unsupportedFields 中标记，快速配置会忽略这些字段并继续导入可识别的 token 价格。由原生工具计费负责的按次字段（例如 web_search）会被忽略。",
+                "description": "从 storage 缓存读取 OpenRouter 模型标识（缓存缺失或远端不可达时使用随版本发布的内置快照，origin 为 builtin）、基础定价、输入 token 阶梯覆盖和上下文限制；无法映射到当前 token 计费模型的附加字段会在 unsupportedFields 中标记，快速配置会忽略这些字段并继续导入可识别的 token 价格。由原生工具计费负责的按次字段（例如 web_search）会被忽略。",
                 "consumes": [
                     "application/json"
                 ],
@@ -2962,7 +2962,7 @@ const docTemplate = `{
                 "tags": [
                     "llm"
                 ],
-                "summary": "管理员查询 models.dev 推理目录状态",
+                "summary": "管理员查询 models.dev 模型目录状态",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2987,7 +2987,7 @@ const docTemplate = `{
                 "tags": [
                     "llm"
                 ],
-                "summary": "管理员立即同步 models.dev 推理目录",
+                "summary": "管理员立即同步 models.dev 模型目录",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2997,6 +2997,51 @@ const docTemplate = `{
                     },
                     "502": {
                         "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/llm/model-catalog/resolve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "按表单中的平台模型名、技术厂商、路由协议与能力 JSON，返回 models.dev 目录中的输入/输出模态与上下文窗口、自动识别的推理强度，以及自定义推理强度的编辑模板；目录过期时在后台发起一次同步",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员查询模型编辑表单的自动识别结果",
+                "parameters": [
+                    {
+                        "description": "表单当前值",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ResolveModelCatalogRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ModelCatalogResolveResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
@@ -24563,6 +24608,150 @@ const docTemplate = `{
                 }
             }
         },
+        "ModelCatalogReasoningResponse": {
+            "type": "object",
+            "required": [
+                "default",
+                "format",
+                "levels",
+                "source"
+            ],
+            "properties": {
+                "default": {
+                    "description": "Default 为未显式选择时使用的档位。",
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "minimal",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max"
+                    ]
+                },
+                "format": {
+                    "type": "string",
+                    "enum": [
+                        "openai",
+                        "anthropic_effort",
+                        "anthropic_budget",
+                        "gemini_level",
+                        "gemini_budget",
+                        "qwen",
+                        "toggle"
+                    ]
+                },
+                "levels": {
+                    "description": "Levels 为可选规范档位，按由低到高排列。",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "none",
+                            "minimal",
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh",
+                            "max"
+                        ]
+                    }
+                },
+                "source": {
+                    "description": "Source 为 inferred（由旧版思考参数推断）或 catalog（models.dev 目录）。",
+                    "type": "string",
+                    "enum": [
+                        "inferred",
+                        "catalog"
+                    ]
+                }
+            }
+        },
+        "ModelCatalogResolveResponse": {
+            "type": "object",
+            "required": [
+                "contextWindow",
+                "inputModalities",
+                "matched",
+                "modelId",
+                "outputModalities",
+                "provider",
+                "reasoning",
+                "reasoningTemplate"
+            ],
+            "properties": {
+                "contextWindow": {
+                    "description": "ContextWindow 为目录声明的上下文窗口（Token）；未知时为 null。",
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "inputModalities": {
+                    "description": "InputModalities / OutputModalities 为目录声明的输入、输出模态（text / image / pdf / audio / video）。",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "matched": {
+                    "description": "Matched 表示 models.dev 目录中找到了对应条目；未找到时模态为空数组，请求链路按「未知」处理。",
+                    "type": "boolean"
+                },
+                "modelId": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "outputModalities": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "provider": {
+                    "description": "Provider 与 ModelID 为命中的目录条目；未匹配时为 null。",
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "reasoning": {
+                    "description": "Reasoning 为不考虑显式 reasoning 声明时的推理能力（旧版思考参数推断或目录识别）；无能力时为 null。",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ModelCatalogReasoningResponse"
+                        }
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "reasoningTemplate": {
+                    "description": "ReasoningTemplate 为自定义推理强度的编辑模板；尚未配置路由协议且无能力时为 null。",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ModelReasoningTemplateResponse"
+                        }
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
+                }
+            }
+        },
+        "ModelCatalogResolveResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ModelCatalogResolveResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "ModelCatalogStatusResponse": {
             "type": "object",
             "required": [
@@ -24586,7 +24775,7 @@ const docTemplate = `{
                     "x-omitempty": false
                 },
                 "modelCount": {
-                    "description": "ModelCount 为目录中带有推理选项的模型条目数。",
+                    "description": "ModelCount 为目录中的模型条目总数（含推理能力、模态与上下文窗口信息）。",
                     "type": "integer"
                 },
                 "origin": {
@@ -25315,6 +25504,53 @@ const docTemplate = `{
                 }
             }
         },
+        "ModelReasoningTemplateResponse": {
+            "type": "object",
+            "required": [
+                "budgets",
+                "format",
+                "levels"
+            ],
+            "properties": {
+                "budgets": {
+                    "description": "Budgets 为各档位的建议预算（Token），仅预算类格式非 null。",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    },
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "format": {
+                    "type": "string",
+                    "enum": [
+                        "openai",
+                        "anthropic_effort",
+                        "anthropic_budget",
+                        "gemini_level",
+                        "gemini_budget",
+                        "qwen",
+                        "toggle"
+                    ]
+                },
+                "levels": {
+                    "description": "Levels 为该格式可声明的规范档位，按由低到高排列。",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "none",
+                            "minimal",
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh",
+                            "max"
+                        ]
+                    }
+                }
+            }
+        },
         "ModelResponse": {
             "type": "object",
             "required": [
@@ -25813,6 +26049,7 @@ const docTemplate = `{
                 "cached",
                 "fetchedAt",
                 "items",
+                "origin",
                 "stale"
             ],
             "properties": {
@@ -25827,6 +26064,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/OpenRouterOfficialPricingItemResponse"
                     }
+                },
+                "origin": {
+                    "description": "Origin 为 remote（远端同步）或 builtin（随版本发布的内置快照，价格可能落后于官方）。",
+                    "type": "string",
+                    "enum": [
+                        "remote",
+                        "builtin"
+                    ]
                 },
                 "stale": {
                     "type": "boolean"
@@ -27385,6 +27630,8 @@ const docTemplate = `{
                 "displayGroupIcon",
                 "displayGroupName",
                 "icon",
+                "inputModalities",
+                "inputModalitiesSource",
                 "kindsJSON",
                 "platformModelName",
                 "pricing",
@@ -27422,6 +27669,23 @@ const docTemplate = `{
                 },
                 "icon": {
                     "type": "string"
+                },
+                "inputModalities": {
+                    "description": "InputModalities 是模型可接收的输入模态（text / image / pdf / audio / video），按规范顺序排列；\n能力未知时为空数组。它描述模型本身的能力，实际是否原生发送还取决于接入协议与大小限制，由服务端决定。",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "inputModalitiesSource": {
+                    "description": "InputModalitiesSource 为输入模态来源：explicit 为管理员在能力 JSON 中声明，catalog 为 models.dev 目录；未知时为 null。",
+                    "type": "string",
+                    "enum": [
+                        "explicit",
+                        "catalog"
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "kindsJSON": {
                     "type": "string"
@@ -28305,6 +28569,36 @@ const docTemplate = `{
                 },
                 "errorMsg": {
                     "type": "string"
+                }
+            }
+        },
+        "ResolveModelCatalogRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "capabilitiesJSON": {
+                    "description": "CapabilitiesJSON 为表单中的能力 JSON；其中的旧版思考参数会参与推理能力推断，显式 reasoning 声明被忽略。",
+                    "type": "string",
+                    "maxLength": 10000
+                },
+                "name": {
+                    "description": "Name 为平台模型名，为空时返回未匹配。",
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "protocols": {
+                    "description": "Protocols 为模型已绑定或待绑定来源的路由协议，用于推导推理能力格式。",
+                    "type": "array",
+                    "maxItems": 32,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "vendor": {
+                    "type": "string",
+                    "maxLength": 128
                 }
             }
         },

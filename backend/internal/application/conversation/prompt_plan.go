@@ -94,8 +94,11 @@ func buildPromptPlan(ctx context.Context, input promptPlanInput) PromptPlan {
 	messages := cloneLLMMessages(input.BaseMessages)
 	trace := PromptTrace{}
 
-	if len(input.TurnDocuments.FullAttachments) > 0 {
+	if len(input.TurnDocuments.FullAttachments) > 0 || len(input.TurnDocuments.NativeAttachments) > 0 {
 		sourceRefs := stableAttachmentSourceRefs(input.TurnDocuments.FullAttachments, input.DynamicContext.CurrentArtifacts)
+		for _, att := range input.TurnDocuments.NativeAttachments {
+			sourceRefs = appendPromptSourceRef(sourceRefs, "file_native", stableAttachmentSourceID(att), att.FileName)
+		}
 		trace.addBlock(PromptBlockTrace{
 			Kind:          PromptBlockStableContext,
 			Title:         "对话文件",

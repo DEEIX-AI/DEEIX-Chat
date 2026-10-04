@@ -264,7 +264,7 @@
     "reasoningInvalidLevels": "思考档位无效。请至少选择一个所选格式支持的档位，且不能重复。",
     "reasoningInvalidDefault": "默认思考档位必须是已选档位之一。",
     "reasoningInvalidBudgets": "思考 Token 预算无效。每个启用的档位都需要非负整数预算（Anthropic 预算至少 1024）。",
-    "modelCatalogFetchFailed": "同步思考能力失败，已保留上次同步的数据。"
+    "modelCatalogFetchFailed": "同步 models.dev 失败，已保留上次同步的数据。"
   },
   "mcp": {
     "clientUnavailable": "MCP 客户端不可用。",

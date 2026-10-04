@@ -40,6 +40,11 @@ export function isValidModelContextWindow(value: number): boolean {
     && value <= MODEL_CONTEXT_WINDOW_MAX;
 }
 
+/** Context window declared by a catalog, or null when absent or outside the range the platform accepts. */
+export function normalizeCatalogContextWindow(value: number | null | undefined): number | null {
+  return typeof value === "number" && isValidModelContextWindow(value) ? value : null;
+}
+
 export function modelContextWindowOverride(value: string | null | undefined): number | null {
   const payload = parseCapabilitiesObject(value);
   if (!payload || payload._deeixContextWindowMode === "auto") {
