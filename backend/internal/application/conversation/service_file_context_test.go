@@ -190,11 +190,12 @@ func TestInjectConversationImageContextKeepsOwnershipAndUsesCache(t *testing.T) 
 	if err != nil {
 		t.Fatalf("inject historical images: %v", err)
 	}
-	if len(got[0].Parts) != 2 || string(got[0].Parts[1].Data) != "image-one" {
-		t.Fatalf("expected first image on first user message, got %#v", got[0])
+	// 图片排在所属轮次的原文之前，与本轮组装时的顺序一致。
+	if len(got[0].Parts) != 2 || string(got[0].Parts[0].Data) != "image-one" || got[0].Parts[1].Text != "描述第一张图片" {
+		t.Fatalf("expected first image before the first question, got %#v", got[0])
 	}
-	if len(got[2].Parts) != 2 || string(got[2].Parts[1].Data) != "image-two" {
-		t.Fatalf("expected second image on second user message, got %#v", got[2])
+	if len(got[2].Parts) != 2 || string(got[2].Parts[0].Data) != "image-two" || got[2].Parts[1].Text != "第二张和第一张有什么不同" {
+		t.Fatalf("expected second image before the second question, got %#v", got[2])
 	}
 	if _, err = service.injectConversationImageContext(t.Context(), history, domainMessages, attachments, config.Config{ImageMaxDimension: 1024}); err != nil {
 		t.Fatalf("inject cached historical images: %v", err)
@@ -269,14 +270,44 @@ func TestInjectUserContextUsesCompactXMLForRAG(t *testing.T) {
 	}}
 
 	got := injectUserContext(t.Context(), messages, userContextInput{RAGChunks: chunks}, config.Config{}, nil)
-	for _, want := range []string{"<ctx>", "<rag>", `<doc name="AGENTS.md" i="3">Run pnpm build.</doc>`, "</ctx>", "<q>怎么发布？</q>"} {
-		if !strings.Contains(got[0].Content, want) {
-			t.Fatalf("expected RAG XML to contain %q, got %q", want, got[0].Content)
+	stable, dynamic := splitUserContextParts(t, got[0])
+	if stable != "怎么发布？" {
+		t.Fatalf("expected the question to stay as the raw stable part, got %q", stable)
+	}
+	for _, want := range []string{"<ctx>", "<rag>", `<doc name="AGENTS.md" i="3">Run pnpm build.</doc>`, "</ctx>"} {
+		if !strings.Contains(dynamic, want) {
+			t.Fatalf("expected RAG XML to contain %q, got %q", want, dynamic)
 		}
 	}
-	if strings.Contains(got[0].Content, "<files>") {
-		t.Fatalf("did not expect files section for RAG-only context, got %q", got[0].Content)
+	if strings.Contains(dynamic, "<files>") {
+		t.Fatalf("did not expect files section for RAG-only context, got %q", dynamic)
 	}
+}
+
+func TestInjectUserContextSendsRetrievalFallbackFilesAsDynamicContext(t *testing.T) {
+	messages := []llm.Message{{Role: "user", Content: "总结第三章"}}
+	got := injectUserContext(t.Context(), messages, userContextInput{Files: []AttachmentInput{{
+		FileName: "big.pdf", ExtractedText: "回退全文",
+	}}}, config.Config{}, nil)
+
+	_, dynamic := splitUserContextParts(t, got[0])
+	if !strings.Contains(dynamic, "<files>\n<file name=\"big.pdf\">回退全文</file>\n</files>") {
+		t.Fatalf("expected query-dependent fallback text in dynamic context, got %q", dynamic)
+	}
+}
+
+// splitUserContextParts 返回本轮 user 的原文与动态上下文，并校验顺序：动态上下文紧邻原文之前，原文收尾。
+func splitUserContextParts(t *testing.T, message llm.Message) (string, string) {
+	t.Helper()
+	if len(message.Parts) < 2 {
+		t.Fatalf("expected dynamic context and question parts, got %#v", message)
+	}
+	question := message.Parts[len(message.Parts)-1]
+	dynamic := message.Parts[len(message.Parts)-2]
+	if question.Dynamic || question.Kind != llm.ContentPartText || !dynamic.Dynamic {
+		t.Fatalf("expected dynamic context followed by the question, got %#v", message.Parts)
+	}
+	return question.Text, dynamic.Text
 }
 
 func TestInjectUserContextIncludesKnowledgeBaseMissNotice(t *testing.T) {
@@ -284,11 +315,12 @@ func TestInjectUserContextIncludesKnowledgeBaseMissNotice(t *testing.T) {
 	notice := "The selected knowledge base returned no relevant evidence."
 
 	got := injectUserContext(t.Context(), messages, userContextInput{RAGNotice: notice}, config.Config{}, nil)
-	if len(got) != 1 || !strings.Contains(got[0].Content, "<rag_status>"+notice+"</rag_status>") {
+	stable, dynamic := splitUserContextParts(t, got[0])
+	if !strings.Contains(dynamic, "<rag_status>"+notice+"</rag_status>") {
 		t.Fatalf("expected knowledge-base miss notice, got %#v", got)
 	}
-	if !strings.Contains(got[0].Content, "<q>知识库里怎么规定？</q>") {
-		t.Fatalf("expected original request to remain present, got %q", got[0].Content)
+	if stable != "知识库里怎么规定？" {
+		t.Fatalf("expected original request to remain present, got %q", stable)
 	}
 }
 
@@ -301,14 +333,15 @@ func TestInjectUserContextPreservesExistingImageParts(t *testing.T) {
 		},
 	}}
 	got := injectUserContext(t.Context(), messages, userContextInput{RAGChunks: []model.RAGChunk{{FileName: "note.md", Content: "偏好简洁回答"}}}, config.Config{}, nil)
-	if len(got) != 1 || len(got[0].Parts) != 2 {
-		t.Fatalf("expected text and existing image parts, got %#v", got)
+	if len(got) != 1 || len(got[0].Parts) != 3 {
+		t.Fatalf("expected text, existing image and dynamic parts, got %#v", got)
 	}
-	if got[0].Parts[1].Kind != llm.ContentPartImage || string(got[0].Parts[1].Data) != "image" {
-		t.Fatalf("expected existing image part to be preserved, got %#v", got[0].Parts)
+	if got[0].Parts[0].Kind != llm.ContentPartImage || string(got[0].Parts[0].Data) != "image" {
+		t.Fatalf("expected existing image part to lead the turn, got %#v", got[0].Parts)
 	}
-	if !strings.Contains(got[0].Parts[0].Text, "继续分析") || !strings.Contains(got[0].Parts[0].Text, "偏好简洁回答") {
-		t.Fatalf("expected dynamic context and original text, got %q", got[0].Parts[0].Text)
+	question, dynamic := splitUserContextParts(t, got[0])
+	if question != "继续分析" || !strings.Contains(dynamic, "偏好简洁回答") {
+		t.Fatalf("expected image, dynamic context, then the question, got %#v", got[0].Parts)
 	}
 }
 
@@ -319,108 +352,6 @@ func TestInjectUserContextSilentlySkipsImagesWithoutObjectStoreProvider(t *testi
 	}}}, config.Config{}, nil)
 	if len(got) != 1 || len(got[0].Parts) != 0 || got[0].Content != messages[0].Content {
 		t.Fatalf("expected missing provider to leave the message unchanged, got %#v", got)
-	}
-}
-
-func TestPrependStableFileContextKeepsFilesAtPromptTop(t *testing.T) {
-	messages := []llm.Message{
-		{Role: "user", Content: "第一轮问题"},
-		{Role: "assistant", Content: "第一轮回答"},
-		{Role: "user", Content: "继续修改上一轮回答"},
-	}
-	attachments := []AttachmentInput{
-		{
-			FileID:        "b",
-			FileName:      "B.md",
-			FileCategory:  "document",
-			ExtractedText: "second file",
-		},
-		{
-			FileID:        "a",
-			FileName:      "A.md",
-			FileCategory:  "document",
-			ExtractedText: "first file",
-		},
-	}
-
-	got := prependStableFileContext(messages, attachments)
-	if len(got) != len(messages)+1 {
-		t.Fatalf("expected stable context to be prepended, got %d messages", len(got))
-	}
-	if got[0].Role != "system" {
-		t.Fatalf("expected top context role system, got %q", got[0].Role)
-	}
-	for _, want := range []string{"<ctx>", "<files>", `<file name="A.md">first file</file>`, `<file name="B.md">second file</file>`, "</ctx>"} {
-		if !strings.Contains(got[0].Content, want) {
-			t.Fatalf("expected top context to contain %q, got %q", want, got[0].Content)
-		}
-	}
-	if strings.Contains(got[len(got)-1].Content, "<files>") {
-		t.Fatalf("expected latest user message to stay focused on current turn, got %q", got[len(got)-1].Content)
-	}
-	if strings.Index(got[0].Content, `name="A.md"`) > strings.Index(got[0].Content, `name="B.md"`) {
-		t.Fatalf("expected stable file order by file id, got %q", got[0].Content)
-	}
-}
-
-func TestPrependStableFileContextIncludesHistoricalImageOCRText(t *testing.T) {
-	messages := []llm.Message{{Role: "user", Content: "继续看图"}}
-	attachments := []AttachmentInput{{
-		Kind:          "image",
-		MimeType:      "image/png",
-		FileName:      "photo.png",
-		ExtractedText: "图片 OCR 文字",
-		ContextMode:   fileContextModeFull,
-	}}
-
-	got := prependStableFileContext(messages, attachments)
-	if len(got) != len(messages)+1 {
-		t.Fatalf("expected historical image OCR text to be prepended, got %#v", got)
-	}
-	if !strings.Contains(got[0].Content, `<file name="photo.png">图片 OCR 文字</file>`) {
-		t.Fatalf("expected stable context to contain OCR text, got %q", got[0].Content)
-	}
-}
-
-func TestPrependStableFileContextSkipsCurrentDirectImageOCRText(t *testing.T) {
-	messages := []llm.Message{{Role: "user", Content: "看图"}}
-	attachments := []AttachmentInput{{
-		Kind:          "image",
-		MimeType:      "image/png",
-		FileName:      "photo.png",
-		ExtractedText: "本轮图片 OCR 不应重复注入",
-		ContextMode:   fileContextModeDirectImage,
-		Current:       true,
-	}}
-
-	got := prependStableFileContext(messages, attachments)
-	if len(got) != len(messages) {
-		t.Fatalf("expected current direct image OCR text to stay out of stable context, got %#v", got)
-	}
-}
-
-func TestPrependStableFileContextEscapesXMLFileContext(t *testing.T) {
-	messages := []llm.Message{{Role: "user", Content: "总结文件"}}
-	attachments := []AttachmentInput{{
-		FileName:      `A&B "notes".md`,
-		FileCategory:  "document",
-		ExtractedText: "Use <tag> & keep > value.\n\nNext line.",
-	}}
-
-	got := prependStableFileContext(messages, attachments)
-	if len(got) != len(messages)+1 {
-		t.Fatalf("expected stable file context to be prepended, got %#v", got)
-	}
-	for _, want := range []string{
-		`<file name="A&amp;B &#34;notes&#34;.md">`,
-		"Use &lt;tag&gt; &amp; keep &gt; value.\n\nNext line.",
-	} {
-		if !strings.Contains(got[0].Content, want) {
-			t.Fatalf("expected escaped XML content to contain %q, got %q", want, got[0].Content)
-		}
-	}
-	if strings.Contains(got[0].Content, "&#xA;") {
-		t.Fatalf("expected XML text content to keep real newlines, got %q", got[0].Content)
 	}
 }
 
@@ -665,10 +596,9 @@ func TestInjectUserContextCombinesDataContexts(t *testing.T) {
 		`<mem k="team">prefers short answers</mem>`,
 		`<ev k="file_rag_chunk" src="部署文档">旧轮 RAG 证据提到先执行迁移。</ev>`,
 		`<msg role="assistant" i="2">历史里提到需要先跑测试。</msg>`,
-		"<q>继续</q>",
 	} {
-		if !strings.Contains(got[0].Content, want) {
-			t.Fatalf("expected unified context to contain %q, got %q", want, got[0].Content)
+		if _, dynamic := splitUserContextParts(t, got[0]); !strings.Contains(dynamic, want) {
+			t.Fatalf("expected unified context to contain %q, got %q", want, dynamic)
 		}
 	}
 }

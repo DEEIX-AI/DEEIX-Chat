@@ -208,8 +208,8 @@ func TestStreamTemporaryChatSendsRequestScopedImageWithoutPersistence(t *testing
 		t.Fatalf("unexpected upstream input: %#v", gateway.inputs)
 	}
 	message := gateway.inputs[0].Messages[0]
-	if len(message.Parts) != 2 || message.Parts[0].Kind != llm.ContentPartText || message.Parts[1].Kind != llm.ContentPartImage {
-		t.Fatalf("temporary image was not attached to its user message: %#v", message)
+	if len(message.Parts) != 2 || message.Parts[0].Kind != llm.ContentPartImage || message.Parts[1].Kind != llm.ContentPartText {
+		t.Fatalf("temporary image was not attached before its user message text: %#v", message)
 	}
 }
 
@@ -278,6 +278,12 @@ func TestStreamTemporaryChatExtractsDocumentAndReleasesUploadSourceBeforeGenerat
 	}
 	if !strings.Contains(contextText.String(), "request-scoped document content") {
 		t.Fatalf("temporary document was not injected into model context: %q", contextText.String())
+	}
+	// 与持久化会话一致：文件随所属用户消息发送，排在原文之前，而不是放在提示词开头的 system 消息里。
+	user := gateway.inputs[0].Messages[len(gateway.inputs[0].Messages)-1]
+	if user.Role != "user" || len(user.Parts) != 2 || user.Parts[0].Kind != llm.ContentPartFile ||
+		!strings.Contains(user.Parts[0].Text, `<document source="notes.txt">`) || user.Parts[1].Text != "summarize the attachment" {
+		t.Fatalf("expected the document inside its own user turn before the question, got %#v", user)
 	}
 }
 

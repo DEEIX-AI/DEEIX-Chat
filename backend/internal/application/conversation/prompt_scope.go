@@ -103,10 +103,7 @@ type historyMessageOptions struct {
 func historyMessagesFromDomain(messages []model.Message, options historyMessageOptions) []llm.Message {
 	historyMsgs := make([]llm.Message, 0, len(messages))
 	for _, item := range messages {
-		if item.Role != "user" && item.Role != "assistant" && item.Role != "system" {
-			continue
-		}
-		if stringsEqualFold(item.Status, "blocked") {
+		if !isPromptHistoryMessage(item) {
 			continue
 		}
 		message := llm.Message{

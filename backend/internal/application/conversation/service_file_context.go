@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	apprag "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/rag"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
@@ -352,27 +353,74 @@ func splitRetrievalFallbackAttachments(items []AttachmentInput, cfg config.Confi
 	return fallbacks, skipped
 }
 
-// attachmentsWithoutContent 保留本轮既没有全文/图片，也没有检索片段的附件元数据。
-// 输入沿用已授权的活跃分支附件，不扩大到用户文件库或知识库。
-func attachmentsWithoutContent(attachments, provided []AttachmentInput, chunks []model.RAGChunk) []AttachmentInput {
-	seen := make(map[string]struct{}, len(provided)+len(chunks))
-	for _, att := range provided {
-		if isStableTextAttachment(att) || att.ContextMode == fileContextModeDirectImage {
-			seen[stableAttachmentSourceID(att)] = struct{}{}
-		}
+// 附件检索状态
+//
+// 每个文件在所属轮次都有固定说明（全文、按问题检索、无法读取，见 placeTurnDocuments）。
+// 按问题检索的文件在某一轮可能一无所获：检索失败、未命中，或多文件中只有部分命中且无法回退全文。
+// 这时模型只看到「会按问题检索」，容易误以为已读过文件，因此在本轮动态上下文中补充检索结果。
+//
+// 报告范围按信号强弱区分，避免长对话中每轮重复噪声：
+//   - 检索系统故障（失败、超时、不可用）：报告全部未拿到内容的用户附件，无论哪一轮上传；
+//   - 相关性未命中（无结果、低于阈值、部分命中）：只报告本轮上传的附件，历史文件与本轮问题无关很正常。
+// 只处理用户提交的附件；助手生成的文件不是附件，不报告。
+
+const (
+	attachmentRetrievalNoMatch = "rag_no_match"
+)
+
+// unretrievedAttachment 是本轮按问题检索但没有提供任何内容的附件。
+type unretrievedAttachment struct {
+	Attachment AttachmentInput
+	Reason     string
+}
+
+// isRetrievalSystemFailure 区分检索系统故障与相关性未命中。
+func isRetrievalSystemFailure(reason string) bool {
+	switch strings.TrimSpace(reason) {
+	case string(apprag.RetrieveStatusEmpty), string(apprag.RetrieveStatusLowScore), attachmentRetrievalNoMatch:
+		return false
+	default:
+		return true
 	}
-	for _, chunk := range chunks {
-		if strings.TrimSpace(chunk.Content) != "" || chunk.Modality == model.FileChunkModalityImage {
-			seen[strings.TrimSpace(chunk.FileID)] = struct{}{}
-		}
-	}
-	var result []AttachmentInput
+}
+
+// collectUnretrievedAttachments 从没有拿到内容的检索附件中挑出需要告知模型的部分。
+// attachments 应为本轮既无检索片段、也无法回退全文的附件。
+func collectUnretrievedAttachments(attachments []AttachmentInput, reason string) []unretrievedAttachment {
+	reason = strings.TrimSpace(reason)
+	includeHistory := isRetrievalSystemFailure(reason)
+	result := make([]unretrievedAttachment, 0, len(attachments))
+	seen := make(map[string]struct{}, len(attachments))
 	for _, att := range attachments {
+		if !att.Current && !strings.EqualFold(strings.TrimSpace(att.MessageRole), "user") {
+			continue
+		}
+		if !att.Current && !includeHistory {
+			continue
+		}
 		id := stableAttachmentSourceID(att)
-		if _, exists := seen[id]; exists {
+		if _, duplicated := seen[id]; duplicated {
 			continue
 		}
 		seen[id] = struct{}{}
+		result = append(result, unretrievedAttachment{Attachment: att, Reason: reason})
+	}
+	return result
+}
+
+// attachmentsWithoutRetrievedChunks 返回检索部分命中时没有任何片段的附件。
+func attachmentsWithoutRetrievedChunks(attachments []AttachmentInput, chunks []model.RAGChunk) []AttachmentInput {
+	hit := make(map[string]struct{}, len(chunks))
+	for _, chunk := range chunks {
+		if strings.TrimSpace(chunk.Content) != "" || chunk.Modality == model.FileChunkModalityImage {
+			hit[strings.TrimSpace(chunk.FileID)] = struct{}{}
+		}
+	}
+	result := make([]AttachmentInput, 0)
+	for _, att := range attachments {
+		if _, ok := hit[strings.TrimSpace(att.FileID)]; ok {
+			continue
+		}
 		result = append(result, att)
 	}
 	return result

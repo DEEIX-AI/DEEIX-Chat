@@ -86,7 +86,7 @@ func summarizePromptShape(mode string, sent []llm.Message, full []llm.Message, p
 				content = parts.String()
 			}
 			shape.HasUserContext = shape.HasUserContext || strings.Contains(content, "<ctx>")
-			shape.HasFiles = shape.HasFiles || strings.Contains(content, "<files>")
+			shape.HasFiles = shape.HasFiles || strings.Contains(content, "<files>") || strings.Contains(content, "<documents>")
 			shape.HasEvidence = shape.HasEvidence || strings.Contains(content, "<evs>")
 			shape.HasRAG = shape.HasRAG || strings.Contains(content, "<rag>")
 			shape.HasSummary = shape.HasSummary || strings.Contains(content, "<sum")

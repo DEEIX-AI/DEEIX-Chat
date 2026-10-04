@@ -59,6 +59,8 @@ type messageRAGRetrievalResult struct {
 	notice string
 	// imageEvidence 是命中的图片分片对应的文件；图片向量检索命中后模型需要看到原图而不是空文本。
 	imageEvidence []AttachmentInput
+	// unretrieved 是本轮检索过但既无片段、也无法回退全文的用户附件，告知模型内容未提供。
+	unretrieved []unretrievedAttachment
 }
 
 // retrievedImageEvidence 把命中的图片分片映射回文件附件，按命中顺序返回；
@@ -200,6 +202,7 @@ func (s *Service) retrieveMessageRAGContext(ctx context.Context, in messageRAGRe
 		evidences := ragFallbackEvidencesFromAttachments(fallbacks, fallbackReason, ragFallbackErrorMessage(ragResult.Status, ragErr))
 		result.fallbacks = append(result.fallbacks, evidences...)
 		result.retrievalFallbacks = append(result.retrievalFallbacks, evidences...)
+		result.unretrieved = collectUnretrievedAttachments(skipped, fallbackReason)
 		appendRAGFallbackSkippedTrace(traceRecorder, skipped, fallbackReason)
 		if knowledgeBaseSelected {
 			return result, ErrKnowledgeBaseUnavailable
@@ -228,6 +231,7 @@ func (s *Service) retrieveMessageRAGContext(ctx context.Context, in messageRAGRe
 		evidences := ragFallbackEvidencesFromAttachments(fallbacks, ragStatus, "")
 		result.fallbacks = append(result.fallbacks, evidences...)
 		result.retrievalFallbacks = append(result.retrievalFallbacks, evidences...)
+		result.unretrieved = collectUnretrievedAttachments(skipped, ragStatus)
 		appendRAGFallbackSkippedTrace(traceRecorder, skipped, ragStatus)
 		if knowledgeBaseSelected {
 			result.notice = knowledgeBaseNoEvidenceNotice
@@ -239,6 +243,11 @@ func (s *Service) retrieveMessageRAGContext(ctx context.Context, in messageRAGRe
 		}
 		result.chunks = append(result.chunks, ragChunks...)
 		result.imageEvidence = retrievedImageEvidence(ragChunks, readyObjs, fileContextPlan.FullAttachments)
+		// 部分命中时其余文件没有片段，也不做全文回退：只告知模型本轮上传的那些未检索到内容。
+		result.unretrieved = collectUnretrievedAttachments(
+			attachmentsWithoutRetrievedChunks(fileContextPlan.RAGAttachments, ragChunks),
+			attachmentRetrievalNoMatch,
+		)
 		if knowledgeBaseSelected && !knowledgeBaseHit {
 			result.notice = knowledgeBaseNoEvidenceNotice
 		}

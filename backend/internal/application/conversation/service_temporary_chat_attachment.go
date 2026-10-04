@@ -27,9 +27,9 @@ type TemporaryChatAttachment struct {
 }
 
 type temporaryAttachmentContext struct {
-	messages          []llm.Message
-	stableAttachments []AttachmentInput
-	moderationImages  []appcm.OutputImageSource
+	messages         []llm.Message
+	documents        turnDocumentPlacement
+	moderationImages []appcm.OutputImageSource
 }
 
 func (s *Service) prepareTemporaryAttachmentContext(
@@ -50,6 +50,7 @@ func (s *Service) prepareTemporaryAttachmentContext(
 	cfg := s.cfg.Snapshot()
 	imageCount := 0
 	imageBytes := 0
+	documentsByMessage := make(map[int][]turnDocument)
 	for _, item := range input.Attachments {
 		file, err := s.uploadSvc.PrepareTemporaryFile(ctx, appupload.TemporaryFileInput{
 			FileName:     item.FileName,
@@ -80,20 +81,12 @@ func (s *Service) prepareTemporaryAttachmentContext(
 				if imageBytes > maxConversationImageContextBytes {
 					return ErrFileTooLarge
 				}
-				message := result.messages[item.MessageIndex]
-				parts := append([]llm.ContentPart(nil), message.Parts...)
-				if len(parts) == 0 && strings.TrimSpace(message.Content) != "" {
-					parts = append(parts, llm.ContentPart{Kind: llm.ContentPartText, Text: message.Content})
-				}
-				parts = append(parts, llm.ContentPart{
+				result.messages[item.MessageIndex] = addUserTurnParts(result.messages[item.MessageIndex], llm.ContentPart{
 					Kind:     llm.ContentPartImage,
 					MimeType: mimeType,
 					Data:     resized,
 					FileName: file.FileName,
 				})
-				message.Content = ""
-				message.Parts = parts
-				result.messages[item.MessageIndex] = message
 				result.moderationImages = append(result.moderationImages, appcm.OutputImageSource{
 					FileID:   temporaryAttachmentContextID(file.SHA256),
 					Data:     resized,
@@ -143,7 +136,11 @@ func (s *Service) prepareTemporaryAttachmentContext(
 				if !canUseAttachmentFullContext(attachment, cfg) {
 					return ErrFileTooLargeForFullContext
 				}
-				result.stableAttachments = append(result.stableAttachments, attachment)
+				// 与持久化会话一致：文件随所属轮次提供，而不是集中放在提示词开头。
+				documentsByMessage[item.MessageIndex] = append(documentsByMessage[item.MessageIndex], turnDocument{
+					Attachment: attachment,
+					Access:     turnDocumentFull,
+				})
 			default:
 				return ErrInvalidFileReference
 			}
@@ -151,6 +148,18 @@ func (s *Service) prepareTemporaryAttachmentContext(
 		}()
 		if processErr != nil {
 			return result, processErr
+		}
+	}
+	for index, message := range result.messages {
+		documents := documentsByMessage[index]
+		if len(documents) == 0 {
+			continue
+		}
+		documentPart := turnDocumentsPart(documents)
+		result.messages[index] = addUserTurnParts(message, documentPart)
+		result.documents.TokenEstimate += estimateContentPartTokens(documentPart)
+		for _, document := range documents {
+			result.documents.FullAttachments = append(result.documents.FullAttachments, document.Attachment)
 		}
 	}
 	return result, nil

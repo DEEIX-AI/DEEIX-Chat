@@ -196,10 +196,11 @@ export function useChatAttachments({
     setAttachments((current) => current.filter((item) => item.fileID !== fileID));
   }, [setAttachments]);
 
+  // Resolves with the attachments that reached the composer (empty when skipped, rejected or failed).
   const onUploadFiles = React.useCallback(
-    async (files: File[]) => {
+    async (files: File[]): Promise<PendingAttachment[]> => {
       if (files.length === 0 || uploading) {
-        return;
+        return [];
       }
       const targetConversationKey = conversationKey;
       const targetUploadingCount = uploadingByKey[targetConversationKey]?.length ?? 0;
@@ -208,7 +209,7 @@ export function useChatAttachments({
         toast.error(t("limitReached"), {
           description: t("maxUploadFiles", { count: maxFilesPerMessage }),
         });
-        return;
+        return [];
       }
       const policyAcceptedFiles: File[] = [];
       let overflowCount = 0;
@@ -239,7 +240,7 @@ export function useChatAttachments({
         });
       }
       if (policyAcceptedFiles.length === 0) {
-        return;
+        return [];
       }
 
       if (temporary) {
@@ -263,7 +264,7 @@ export function useChatAttachments({
           };
         });
         appendAttachmentsForKey(targetConversationKey, localAttachments);
-        return;
+        return localAttachments;
       }
 
       const batchPrefix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -282,11 +283,11 @@ export function useChatAttachments({
       try {
         const token = await resolveAccessToken();
         if (controller.signal.aborted || !mountedRef.current) {
-          return;
+          return [];
         }
         if (!token) {
           toast.error(t("uploadFailed"), { description: t("uploadSignInRequired") });
-          return;
+          return [];
         }
 
         const results = await runSettledItemsWithConcurrency({
@@ -298,7 +299,7 @@ export function useChatAttachments({
           }),
         });
         if (controller.signal.aborted || !mountedRef.current) {
-          return;
+          return [];
         }
         const reusedCount = results.filter((result) => result.status === "fulfilled" && result.value.reused).length;
 
@@ -355,11 +356,13 @@ export function useChatAttachments({
         if (uploaded.length < policyAcceptedFiles.length) {
           toast.error(t("partialUploadFailed"), { description: t("retryFailedFiles") });
         }
+        return uploaded;
       } catch (error) {
         if (!controller.signal.aborted && mountedRef.current) {
           const description = resolveErrorMessage(error, t("retryLater"));
           toast.error(t("uploadFailed"), { description });
         }
+        return [];
       } finally {
         uploadControllersRef.current.delete(controller);
         if (mountedRef.current) {

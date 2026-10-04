@@ -207,7 +207,7 @@ func TestConfigureOpenAIPromptCacheRequestForRouteRecomputesAcrossFailover(t *te
 	if key != "session-1" || !usesExplicitOpenAIPromptCache(options) {
 		t.Fatalf("expected supported route explicit cache fields, got key=%q options=%#v", key, options)
 	}
-	assertOpenAIPromptCacheMessageMarkers(t, configuredMessages, 0, 1)
+	assertOpenAIPromptCacheMessageMarkers(t, configuredMessages, 0, 1, 3)
 
 	key, options, configuredMessages = configureOpenAIPromptCacheRequestForRoute(
 		unsupportedRoute,
@@ -232,7 +232,7 @@ func TestConfigureOpenAIPromptCacheRequestForRouteRecomputesAcrossFailover(t *te
 	if key != "session-1" || !usesExplicitOpenAIPromptCache(options) {
 		t.Fatalf("expected supported failover route to restore explicit cache fields, got key=%q options=%#v", key, options)
 	}
-	assertOpenAIPromptCacheMessageMarkers(t, configuredMessages, 0, 1)
+	assertOpenAIPromptCacheMessageMarkers(t, configuredMessages, 0, 1, 3)
 }
 
 func TestConfigureOpenAIPromptCacheRequestForRouteKeepsRelayExplicitOptionsWithoutMessageBreakpoints(t *testing.T) {
@@ -303,13 +303,18 @@ func TestApplyOpenAIPromptCacheMessagePolicyMarksStableSystemAndHistoricalUsers(
 		{Role: "assistant", Content: "answer one"},
 		{Role: "user", Content: "question two"},
 		{Role: "assistant", Content: "answer two"},
-		{Role: "user", Content: "current question with dynamic RAG"},
+		{Role: "user", Parts: []llm.ContentPart{
+			{Kind: llm.ContentPartText, Text: "current question"},
+			{Kind: llm.ContentPartText, Text: "<ctx>dynamic RAG</ctx>", Dynamic: true, CacheControl: &llm.CacheControl{Type: "stale"}},
+		}},
 	}
 
 	result := applyOpenAIPromptCacheMessagePolicy(route, explicitOpenAIPromptCacheOptions(), messages)
 	assertOpenAIPromptCacheMessageMarkers(t, result, 1, 2, 4)
-	if result[6].CacheControl != nil {
-		t.Fatalf("expected current user to remain unmarked, got %#v", result[6].CacheControl)
+	// 本轮 user 只在稳定段末尾标记，动态上下文不进入缓存边界。
+	current := result[6]
+	if current.CacheControl != nil || current.Parts[0].CacheControl == nil || current.Parts[1].CacheControl != nil {
+		t.Fatalf("expected only the stable part of the current user to be marked, got %#v", current)
 	}
 }
 
@@ -331,11 +336,9 @@ func TestApplyOpenAIPromptCacheMessagePolicyKeepsAllHistoricalUsers(t *testing.T
 	)
 
 	result := applyOpenAIPromptCacheMessagePolicy(route, explicitOpenAIPromptCacheOptions(), messages)
-	assertOpenAIPromptCacheMessageMarkers(t, result, 0, 1, 3, 5, 7, 9)
-	for _, index := range []int{11, 12} {
-		if result[index].CacheControl != nil {
-			t.Fatalf("expected message %d to remain unmarked, got %#v", index, result[index].CacheControl)
-		}
+	assertOpenAIPromptCacheMessageMarkers(t, result, 0, 1, 3, 5, 7, 9, 12)
+	if result[11].CacheControl != nil {
+		t.Fatalf("expected blank historical user to remain unmarked, got %#v", result[11].CacheControl)
 	}
 }
 
@@ -359,8 +362,8 @@ func TestApplyOpenAIPromptCacheMessagePolicyDoesNotRemoveEarlierBreakpointsAsHis
 
 	firstResult := applyOpenAIPromptCacheMessagePolicy(route, explicitOpenAIPromptCacheOptions(), firstTurn)
 	secondResult := applyOpenAIPromptCacheMessagePolicy(route, explicitOpenAIPromptCacheOptions(), secondTurn)
-	assertOpenAIPromptCacheMessageMarkers(t, firstResult, 0, 1, 3)
-	assertOpenAIPromptCacheMessageMarkers(t, secondResult, 0, 1, 3, 5)
+	assertOpenAIPromptCacheMessageMarkers(t, firstResult, 0, 1, 3, 5)
+	assertOpenAIPromptCacheMessageMarkers(t, secondResult, 0, 1, 3, 5, 7)
 }
 
 func TestApplyOpenAIPromptCacheMessagePolicyLeavesImplicitMessagesUntouched(t *testing.T) {
@@ -431,9 +434,9 @@ func TestApplyOpenAIPromptCacheMessagePolicyDoesNotMutateCallerMessages(t *testi
 		messages[2].CacheControl != nil || messages[4].CacheControl != oldCurrentMarker {
 		t.Fatalf("expected caller messages to remain unchanged, got %#v", messages)
 	}
-	assertOpenAIPromptCacheMessageMarkers(t, result, 1, 2)
-	if result[0].CacheControl != nil || result[4].CacheControl != nil {
-		t.Fatalf("expected obsolete and current-user markers to be cleared, got %#v", result)
+	assertOpenAIPromptCacheMessageMarkers(t, result, 1, 2, 4)
+	if result[0].CacheControl != nil || result[4].CacheControl == oldCurrentMarker {
+		t.Fatalf("expected obsolete markers to be replaced by policy markers, got %#v", result)
 	}
 }
 
