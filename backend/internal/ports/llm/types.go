@@ -58,6 +58,9 @@ type ContentPart struct {
 	Data         []byte        // Kind=image 时的原始字节（发送时 base64 编码）
 	FileName     string        // Kind=file 时的文件显示名
 	CacheControl *CacheControl // 支持块级缓存的 adapter 可读取该提示
+	// Dynamic 标记仅本轮有效的上下文（检索片段、记忆、召回等）。它不会出现在下一轮的历史里，
+	// 规划器据此把缓存断点放在它之前，状态指纹也会剔除它；adapter 按普通内容发送即可。
+	Dynamic bool
 }
 
 // CacheControl 表示可被支持方言渲染为 prompt cache breakpoint 的提示。

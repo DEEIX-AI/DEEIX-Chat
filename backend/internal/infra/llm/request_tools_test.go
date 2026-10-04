@@ -1699,10 +1699,10 @@ func TestResponsesStreamCapturesXSearchCustomToolInput(t *testing.T) {
 }
 
 func TestBuildAnthropicToolBlocks(t *testing.T) {
-	content := buildAnthropicContent(portllm.Message{
+	content, _ := buildAnthropicContent(portllm.Message{
 		Role:        "tool",
 		ToolResults: []portllm.ToolResult{{ToolCallID: "toolu_1", ToolName: "memory.list", OutputJSON: `{"items":[]}`, Status: "success"}},
-	})
+	}, nil)
 
 	blocks := content.([]map[string]any)
 	if len(blocks) != 1 || blocks[0]["type"] != "tool_result" || blocks[0]["tool_use_id"] != "toolu_1" {

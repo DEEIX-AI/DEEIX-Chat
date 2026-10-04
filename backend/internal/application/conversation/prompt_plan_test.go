@@ -18,12 +18,15 @@ func TestBuildPromptPlanLayersStableDynamicAndToolGuidance(t *testing.T) {
 	}
 	plan := buildPromptPlan(t.Context(), promptPlanInput{
 		BaseMessages: base,
-		StableAttachments: []AttachmentInput{{
-			FileID:        "file_a",
-			FileName:      "A.md",
-			FileCategory:  "document",
-			ExtractedText: "稳定文件全文",
-		}},
+		TurnDocuments: turnDocumentPlacement{
+			FullAttachments: []AttachmentInput{{
+				FileID:        "file_a",
+				FileName:      "A.md",
+				FileCategory:  "document",
+				ExtractedText: "稳定文件全文",
+			}},
+			TokenEstimate: 8,
+		},
 		DynamicContext: userContextInput{
 			Snapshot: &snapshotContext{
 				Summary:  "第一轮之前的摘要",
@@ -76,34 +79,51 @@ func TestBuildPromptPlanLayersStableDynamicAndToolGuidance(t *testing.T) {
 		Config: config.Config{},
 	})
 
-	if len(plan.Messages) != 6 {
-		t.Fatalf("expected 6 messages, got %#v", plan.Messages)
+	// 文件已随所属轮次写入对话，规划器不再在开头插入文件 system 消息。
+	if len(plan.Messages) != 5 {
+		t.Fatalf("expected 5 messages, got %#v", plan.Messages)
 	}
-	if plan.Messages[0].Role != "system" || !strings.Contains(plan.Messages[0].Content, "<files>") {
-		t.Fatalf("expected stable file context first, got %#v", plan.Messages[0])
+	if plan.Messages[0].Content != "用户偏好：回答简洁" {
+		t.Fatalf("expected existing system policy first, got %#v", plan.Messages[0])
 	}
-	if plan.Messages[1].Content != "用户偏好：回答简洁" {
-		t.Fatalf("expected existing system policy second, got %#v", plan.Messages[1])
+	if !strings.HasPrefix(strings.TrimSpace(plan.Messages[1].Content), "# tool_use") {
+		t.Fatalf("expected tool guidance after leading system messages, got %#v", plan.Messages[1])
 	}
-	if !strings.HasPrefix(strings.TrimSpace(plan.Messages[2].Content), "# tool_use") {
-		t.Fatalf("expected tool guidance after leading system messages, got %#v", plan.Messages[2])
-	}
-	if strings.Contains(plan.Messages[3].Content, "第一轮之前的摘要") {
-		t.Fatalf("expected snapshot summary to stay out of retained transcript, got %q", plan.Messages[3].Content)
-	}
-	for index := 0; index <= 2; index++ {
+	for index := 0; index <= 1; index++ {
 		if plan.Messages[index].CacheControl == nil || plan.Messages[index].CacheControl.Type != "ephemeral" {
 			t.Fatalf("expected leading system message %d to be cacheable, got %#v", index, plan.Messages[index].CacheControl)
 		}
 	}
-	if plan.Messages[3].Content != "第一轮问题" {
-		t.Fatalf("expected historical user content to stay raw, got %q", plan.Messages[3].Content)
+	if plan.Messages[2].Content != "第一轮问题" || plan.Messages[2].CacheControl != nil {
+		t.Fatalf("expected historical user content to stay raw and unmarked, got %#v", plan.Messages[2])
+	}
+
+	// 本轮 user：动态上下文在前、原文在最后（问题收尾）。本轮没有文件或图片可供下一轮重现，
+	// 缓存断点退到上一条消息末尾，动态上下文与原文都不进入缓存边界。
+	if plan.Messages[3].CacheControl == nil {
+		t.Fatalf("expected the previous message to close the cached prefix, got %#v", plan.Messages[3])
 	}
 	last := plan.Messages[len(plan.Messages)-1]
-	for _, want := range []string{"<sum", "第一轮之前的摘要", "<evs>", "旧轮命中的证据", "<rag>", "本轮 RAG 片段", "<q>第二轮问题</q>"} {
-		if !strings.Contains(last.Content, want) {
-			t.Fatalf("expected latest user to contain %q, got %q", want, last.Content)
+	if len(last.Parts) != 2 {
+		t.Fatalf("expected dynamic context and question on latest user, got %#v", last)
+	}
+	dynamic, question := last.Parts[0], last.Parts[1]
+	if !dynamic.Dynamic || dynamic.CacheControl != nil {
+		t.Fatalf("expected leading dynamic part without cache control, got %#v", dynamic)
+	}
+	if question.Dynamic || question.Text != "第二轮问题" || question.CacheControl != nil {
+		t.Fatalf("expected the raw question to close the turn, got %#v", question)
+	}
+	for _, want := range []string{"<sum", "第一轮之前的摘要", "<evs>", "旧轮命中的证据", "<rag>", "本轮 RAG 片段"} {
+		if !strings.Contains(dynamic.Text, want) {
+			t.Fatalf("expected dynamic context to contain %q, got %q", want, dynamic.Text)
 		}
+	}
+	if strings.Contains(dynamic.Text, "第二轮问题") {
+		t.Fatalf("question must not be duplicated into dynamic context, got %q", dynamic.Text)
+	}
+	if block := promptTraceBlock(plan.Trace, PromptBlockStableContext); block == nil || block.TokenEstimate != 8 || block.SourceCount != 1 {
+		t.Fatalf("expected conversation file trace block, got %#v", block)
 	}
 	for _, blockKind := range []PromptBlockKind{PromptBlockTranscript, PromptBlockStableContext, PromptBlockHistoricalEvidence, PromptBlockDynamicContext, PromptBlockToolGuidance} {
 		if !promptTraceHasBlock(plan.Trace, blockKind) {

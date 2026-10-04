@@ -278,8 +278,9 @@ func TestExplicitPromptCacheSecondResponsesTurnKeepsHistoricalUserBreakpoint(t *
 	if input.Messages[1].CacheControl == nil {
 		t.Fatalf("expected first user to become a historical cache breakpoint, got %#v", input.Messages[1])
 	}
-	if input.Messages[3].CacheControl != nil {
-		t.Fatalf("expected current user to remain outside the cache prefix, got %#v", input.Messages[3])
+	// 本轮 user 没有动态上下文时整条都是稳定内容，下一轮会原样重现，可以作为缓存边界。
+	if input.Messages[3].CacheControl == nil {
+		t.Fatalf("expected stable current user to close the cache prefix, got %#v", input.Messages[3])
 	}
 }
 
@@ -379,10 +380,13 @@ func TestPromptStateFingerprintIncludesAssistantReasoning(t *testing.T) {
 func TestBuildNextStatefulPrefixMessagesKeepsAssistantReasoning(t *testing.T) {
 	messages := []llm.Message{
 		{Role: "system", Content: "policy"},
-		{Role: "user", Content: "<ctx>dynamic</ctx><q>第一轮</q>"},
+		{Role: "user", Parts: []llm.ContentPart{
+			{Kind: llm.ContentPartText, Text: "第一轮"},
+			{Kind: llm.ContentPartText, Text: "<ctx>dynamic</ctx>", Dynamic: true},
+		}},
 	}
 
-	got := buildNextStatefulPrefixMessages(messages, "第一轮", "第一轮回答", "推理内容")
+	got := buildNextStatefulPrefixMessages(messages, "第一轮回答", "推理内容")
 
 	if len(got) != 3 {
 		t.Fatalf("expected 3 messages, got %#v", got)
@@ -402,7 +406,7 @@ func TestBuildNextStatefulPrefixMessagesKeepsRebuildableUserImages(t *testing.T)
 		},
 	}}
 	stored := buildPromptStateFingerprint(promptStateFingerprintInput{
-		Messages: buildNextStatefulPrefixMessages(firstPrompt, "第一轮", "第一轮回答", ""),
+		Messages: buildNextStatefulPrefixMessages(firstPrompt, "第一轮回答", ""),
 	})
 	secondPrompt := []llm.Message{
 		{
@@ -421,37 +425,39 @@ func TestBuildNextStatefulPrefixMessagesKeepsRebuildableUserImages(t *testing.T)
 	}
 }
 
+// 本轮 user 的动态段（检索片段等）不会出现在下一轮历史里；带文件的稳定段则原样重现。
+// 保存的状态指纹必须与下一轮可重建的历史前缀一致，previous_response_id 才能续用。
 func TestPromptStateFingerprintUsesRebuildableHistoryWhenCurrentUserHasDynamicContext(t *testing.T) {
+	stableTurn := "<documents>\n<document source=\"A.md\">\n稳定文件\n</document>\n</documents>\n\n第一轮"
 	firstPrompt := []llm.Message{
-		{Role: "system", Content: "<ctx><files><file name=\"A.md\">稳定文件</file></files></ctx>"},
 		{Role: "system", Content: "# tool_use\n- use tools only when useful"},
-		{Role: "user", Content: "<ctx><rag><doc name=\"A.md\" i=\"1\">动态片段</doc></rag></ctx>\n\n<q>第一轮</q>"},
+		{Role: "user", Parts: []llm.ContentPart{
+			{Kind: llm.ContentPartText, Text: stableTurn, CacheControl: &llm.CacheControl{Type: "ephemeral"}},
+			{Kind: llm.ContentPartText, Text: "<ctx><rag><doc name=\"A.md\" i=\"1\">动态片段</doc></rag></ctx>", Dynamic: true},
+		}},
 	}
-	stored := buildPromptStateFingerprint(promptStateFingerprintInput{
-		Protocol:          llm.AdapterOpenAIResponses,
-		Endpoint:          llm.EndpointResponses,
-		UpstreamID:        1,
-		UpstreamModel:     "gpt-5.5",
-		PlatformModelName: "gpt-5.5",
-		Messages:          buildNextStatefulPrefixMessages(firstPrompt, "第一轮", "第一轮回答", ""),
-	})
+	fingerprint := func(messages []llm.Message) string {
+		return buildPromptStateFingerprint(promptStateFingerprintInput{
+			Protocol:          llm.AdapterOpenAIResponses,
+			Endpoint:          llm.EndpointResponses,
+			UpstreamID:        1,
+			UpstreamModel:     "gpt-5.5",
+			PlatformModelName: "gpt-5.5",
+			Messages:          messages,
+		})
+	}
+	stored := fingerprint(buildNextStatefulPrefixMessages(firstPrompt, "第一轮回答", ""))
 	secondPrompt := []llm.Message{
-		{Role: "system", Content: "<ctx><files><file name=\"A.md\">稳定文件</file></files></ctx>"},
 		{Role: "system", Content: "# tool_use\n- use tools only when useful"},
-		{Role: "user", Content: "第一轮"},
+		{Role: "user", Content: stableTurn},
 		{Role: "assistant", Content: "第一轮回答"},
-		{Role: "user", Content: "<ctx><rag><doc name=\"A.md\" i=\"2\">新片段</doc></rag></ctx>\n\n<q>第二轮</q>"},
+		{Role: "user", Parts: []llm.ContentPart{
+			{Kind: llm.ContentPartText, Text: "第二轮"},
+			{Kind: llm.ContentPartText, Text: "<ctx><rag><doc name=\"A.md\" i=\"2\">新片段</doc></rag></ctx>", Dynamic: true},
+		}},
 	}
-	prefix := buildPromptStateFingerprint(promptStateFingerprintInput{
-		Protocol:          llm.AdapterOpenAIResponses,
-		Endpoint:          llm.EndpointResponses,
-		UpstreamID:        1,
-		UpstreamModel:     "gpt-5.5",
-		PlatformModelName: "gpt-5.5",
-		Messages:          promptStatePrefixMessages(secondPrompt),
-	})
 
-	if stored != prefix {
+	if stored != fingerprint(promptStatePrefixMessages(secondPrompt)) {
 		t.Fatalf("expected dynamic first round to match rebuildable second prefix")
 	}
 }

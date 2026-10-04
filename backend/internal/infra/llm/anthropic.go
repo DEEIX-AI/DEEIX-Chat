@@ -107,11 +107,20 @@ func buildAnthropicRequestBody(model string, input portllm.GenerateInput, stream
 			}
 			continue
 		}
+		var cacheFor func(*portllm.CacheControl) map[string]any
+		if !input.Ephemeral {
+			cacheFor = func(hint *portllm.CacheControl) map[string]any {
+				return anthropicCacheControlFromHint(hint, input.Options)
+			}
+		}
+		content, marked := buildAnthropicContent(msg, cacheFor)
+		explicitCacheControl = explicitCacheControl || marked
 		anthropicMessages = append(anthropicMessages, map[string]any{
 			"role":    normalizeAnthropicRole(msg.Role),
-			"content": buildAnthropicContent(msg),
+			"content": content,
 		})
 	}
+	limitAnthropicCacheBreakpoints(systemBlocks, anthropicMessages)
 
 	payload := map[string]any{
 		"model":      strings.TrimSpace(model),
@@ -567,13 +576,24 @@ func extractMessageText(msg portllm.Message) string {
 	return strings.Join(chunks, "\n")
 }
 
-// buildAnthropicContent 将 Message 转换为 Anthropic content 数组。
-// 纯文本消息可简化为字符串（Anthropic 支持简化形式）；多模态保持数组。
-func buildAnthropicContent(msg portllm.Message) any {
-	if len(msg.Parts) == 0 && len(msg.ToolCalls) == 0 && len(msg.ToolResults) == 0 {
-		// 简化形式：纯文本直接用字符串
-		return msg.Content
+// buildAnthropicContent 将 Message 转换为 Anthropic content 数组，并把消息级或内容块级缓存提示
+// 渲染为 cache_control。纯文本且无缓存提示的消息简化为字符串；cacheFor 为 nil 时不输出缓存标记。
+// 返回值 bool 表示是否写入了 cache_control。
+func buildAnthropicContent(msg portllm.Message, cacheFor func(*portllm.CacheControl) map[string]any) (any, bool) {
+	cacheControlFor := func(hint *portllm.CacheControl) map[string]any {
+		if cacheFor == nil || hint == nil {
+			return nil
+		}
+		return cacheFor(hint)
 	}
+	if len(msg.Parts) == 0 && len(msg.ToolCalls) == 0 && len(msg.ToolResults) == 0 {
+		// 简化形式：纯文本直接用字符串；带缓存提示时必须改用内容块才能携带 cache_control。
+		if cacheControl := cacheControlFor(msg.CacheControl); len(cacheControl) > 0 && strings.TrimSpace(msg.Content) != "" {
+			return []map[string]any{{"type": "text", "text": msg.Content, "cache_control": cacheControl}}, true
+		}
+		return msg.Content, false
+	}
+	marked := false
 
 	blocks := make([]map[string]any, 0, len(msg.Parts)+len(msg.ToolCalls)+len(msg.ToolResults)+1)
 	if text := strings.TrimSpace(msg.Content); text != "" {
@@ -592,23 +612,33 @@ func buildAnthropicContent(msg portllm.Message) any {
 			if mime == "" {
 				mime = "image/jpeg"
 			}
-			blocks = append(blocks, map[string]any{
+			block := map[string]any{
 				"type": "image",
 				"source": map[string]any{
 					"type":       "base64",
 					"media_type": mime,
 					"data":       base64.StdEncoding.EncodeToString(part.Data),
 				},
-			})
+			}
+			if cacheControl := cacheControlFor(part.CacheControl); len(cacheControl) > 0 {
+				block["cache_control"] = cacheControl
+				marked = true
+			}
+			blocks = append(blocks, block)
 		default: // text, file
 			text := part.Text
 			if strings.TrimSpace(text) == "" {
 				continue
 			}
-			blocks = append(blocks, map[string]any{
+			block := map[string]any{
 				"type": "text",
 				"text": text,
-			})
+			}
+			if cacheControl := cacheControlFor(part.CacheControl); len(cacheControl) > 0 {
+				block["cache_control"] = cacheControl
+				marked = true
+			}
+			blocks = append(blocks, block)
 		}
 	}
 	for _, item := range msg.ToolCalls {
@@ -640,9 +670,41 @@ func buildAnthropicContent(msg portllm.Message) any {
 	}
 
 	if len(blocks) == 0 {
-		return msg.Content
+		return msg.Content, false
 	}
-	return blocks
+	if cacheControl := cacheControlFor(msg.CacheControl); len(cacheControl) > 0 {
+		blocks[len(blocks)-1]["cache_control"] = cacheControl
+		marked = true
+	}
+	return blocks, marked
+}
+
+// maxAnthropicCacheBreakpoints 是 Anthropic 单次请求允许的 cache_control 上限。
+const maxAnthropicCacheBreakpoints = 4
+
+// limitAnthropicCacheBreakpoints 超出上限时从最早的断点开始移除。越靠后的断点覆盖的前缀越长，
+// 保留它们命中收益最大；同时避免上游因断点过多直接拒绝请求。
+func limitAnthropicCacheBreakpoints(systemBlocks []map[string]any, messages []map[string]any) {
+	marked := make([]map[string]any, 0, maxAnthropicCacheBreakpoints+1)
+	for _, block := range systemBlocks {
+		if _, ok := block["cache_control"]; ok {
+			marked = append(marked, block)
+		}
+	}
+	for _, message := range messages {
+		blocks, ok := message["content"].([]map[string]any)
+		if !ok {
+			continue
+		}
+		for _, block := range blocks {
+			if _, ok := block["cache_control"]; ok {
+				marked = append(marked, block)
+			}
+		}
+	}
+	for index := 0; index < len(marked)-maxAnthropicCacheBreakpoints; index++ {
+		delete(marked[index], "cache_control")
+	}
 }
 
 // ── HTTP 请求辅助 ──────────────────────────────────────────────────────────────

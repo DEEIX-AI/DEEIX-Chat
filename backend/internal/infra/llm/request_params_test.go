@@ -1322,3 +1322,98 @@ func TestBuildOpenAIChatCompletionsPassesPreserveThinking(t *testing.T) {
 		t.Fatalf("expected assistant reasoning passback, got %#v", messages[1])
 	}
 }
+
+// 对话边界断点（本轮 user 稳定段末尾）必须渲染到对应内容块上，动态段保持无标记。
+func TestBuildAnthropicRequestBodyMessageAndPartCacheControl(t *testing.T) {
+	marker := &portllm.CacheControl{Type: "ephemeral"}
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", portllm.GenerateInput{
+		Messages: []portllm.Message{
+			{Role: "system", Content: "policy", CacheControl: marker},
+			{Role: "user", Content: "first", CacheControl: marker},
+			{Role: "assistant", Content: "answer"},
+			{Role: "user", Parts: []portllm.ContentPart{
+				{Kind: portllm.ContentPartText, Text: "<documents>…</documents>\n\nsecond", CacheControl: marker},
+				{Kind: portllm.ContentPartText, Text: "<ctx>dynamic</ctx>", Dynamic: true},
+			}},
+		},
+	}, false)
+
+	messages, ok := payload["messages"].([]map[string]any)
+	if !ok || len(messages) != 3 {
+		t.Fatalf("expected three conversation messages, got %#v", payload["messages"])
+	}
+	first, ok := messages[0]["content"].([]map[string]any)
+	if !ok || len(first) != 1 || first[0]["cache_control"] == nil || first[0]["text"] != "first" {
+		t.Fatalf("expected message-level marker rendered as a text block, got %#v", messages[0]["content"])
+	}
+	if _, isString := messages[1]["content"].(string); !isString {
+		t.Fatalf("expected unmarked assistant message to stay a plain string, got %#v", messages[1]["content"])
+	}
+	current, ok := messages[2]["content"].([]map[string]any)
+	if !ok || len(current) != 2 {
+		t.Fatalf("expected stable and dynamic blocks, got %#v", messages[2]["content"])
+	}
+	if current[0]["cache_control"] == nil || current[1]["cache_control"] != nil {
+		t.Fatalf("expected only the stable block to carry cache_control, got %#v", current)
+	}
+	if _, ok := payload["cache_control"]; ok {
+		t.Fatalf("expected top-level automatic cache_control omitted with explicit markers, got %#v", payload["cache_control"])
+	}
+}
+
+// Anthropic 单次请求最多 4 个 cache_control；超出时保留最靠后的断点（覆盖最长前缀）。
+func TestBuildAnthropicRequestBodyCapsCacheBreakpoints(t *testing.T) {
+	marker := &portllm.CacheControl{Type: "ephemeral"}
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", portllm.GenerateInput{
+		Messages: []portllm.Message{
+			{Role: "system", Content: "s1", CacheControl: marker},
+			{Role: "system", Content: "s2", CacheControl: marker},
+			{Role: "system", Content: "s3", CacheControl: marker},
+			{Role: "user", Content: "u1", CacheControl: marker},
+			{Role: "assistant", Content: "a1"},
+			{Role: "user", Content: "u2", CacheControl: marker},
+		},
+	}, false)
+
+	system := payload["system"].([]map[string]any)
+	messages := payload["messages"].([]map[string]any)
+	if system[0]["cache_control"] != nil {
+		t.Fatalf("expected the earliest breakpoint to be dropped, got %#v", system[0])
+	}
+	count := 0
+	for _, block := range system {
+		if block["cache_control"] != nil {
+			count++
+		}
+	}
+	for _, message := range messages {
+		if blocks, ok := message["content"].([]map[string]any); ok {
+			for _, block := range blocks {
+				if block["cache_control"] != nil {
+					count++
+				}
+			}
+		}
+	}
+	last := messages[len(messages)-1]["content"].([]map[string]any)
+	if count != maxAnthropicCacheBreakpoints || last[0]["cache_control"] == nil {
+		t.Fatalf("expected %d breakpoints keeping the latest, got %d: %#v", maxAnthropicCacheBreakpoints, count, payload)
+	}
+}
+
+// 文本分段在不需要缓存断点时必须合并为字符串，兼容只接受字符串 content 的 OpenAI 兼容上游。
+func TestBuildChatCompletionsContentJoinsUnmarkedTextParts(t *testing.T) {
+	msg := portllm.Message{Role: "user", Parts: []portllm.ContentPart{
+		{Kind: portllm.ContentPartText, Text: "question", CacheControl: &portllm.CacheControl{Type: "ephemeral"}},
+		{Kind: portllm.ContentPartText, Text: "<ctx>dynamic</ctx>", Dynamic: true},
+	}}
+
+	if got := buildChatCompletionsContent(msg, nil); got != "question\n\n<ctx>dynamic</ctx>" {
+		t.Fatalf("expected joined string content without explicit cache, got %#v", got)
+	}
+	explicit := &openAIPromptCacheConfig{Explicit: true}
+	blocks, ok := buildChatCompletionsContent(msg, explicit).([]map[string]any)
+	if !ok || len(blocks) != 2 || blocks[0]["prompt_cache_breakpoint"] == nil || blocks[1]["prompt_cache_breakpoint"] != nil {
+		t.Fatalf("expected blocks with a breakpoint on the stable part, got %#v", blocks)
+	}
+}
