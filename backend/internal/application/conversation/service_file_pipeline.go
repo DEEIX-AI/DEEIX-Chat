@@ -334,7 +334,7 @@ func (s *Service) hydrateAttachmentsForSend(
 }
 
 func canUseAttachmentFullContext(att AttachmentInput, cfg config.Config) bool {
-	if att.FileCategory == fileCategoryVideo {
+	if att.FileCategory == fileCategoryVideo || att.FileCategory == fileCategoryAudio {
 		return false
 	}
 	text := strings.TrimSpace(att.ExtractedText)

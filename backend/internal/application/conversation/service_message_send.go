@@ -598,10 +598,13 @@ func (s *Service) sendMessageInternal(
 			userCtx.Memory = s.selectRelevantUserMemories(ctx, input.UserID, input.Content, otherMems, 5)
 		}
 	}
-	processTraceAttachments := attachmentProcessTraceItems(fileContextPlan.Attachments)
-	if traceRecorder != nil && shouldShowAttachmentProcessTrace(processTraceAttachments) {
-		summary, markdown, payload := buildAttachmentProcessTrace(fileMode, processTraceAttachments)
-		traceRecorder.appendProcessSection(summary, markdown, payload, messageTraceStatusStreaming)
+	// 文件上下文展示按本次路由的最终决定呈现（原生 PDF、模型不支持的图片），而不只是路由无关的文件规划；
+	// 原生文档在这里读取一次，路由提示词与故障转移共用同一份缓存，展示与实际请求一致。
+	nativeInputCache := newNativeInputCache()
+	fileTrace := attachmentRouteTrace{fileMode: fileMode, items: attachmentProcessTraceItems(fileContextPlan.Attachments), skipImages: imageAttachmentRoutingActive}
+	fileTrace.resolve(ctx, s, route, fileContextPlan.Attachments, nativeInputCache)
+	if traceRecorder != nil && fileTrace.visible() {
+		traceRecorder.appendProcessSection(fileTrace.summary, fileTrace.markdown, fileTrace.payload, messageTraceStatusStreaming)
 	}
 
 	rag, err := s.retrieveMessageRAGContext(ctx, messageRAGRetrievalInput{
@@ -678,6 +681,7 @@ func (s *Service) sendMessageInternal(
 		UIComponents:            uiComponents,
 		DomainMessages:          promptScope.activeMessages(),
 		ConversationFiles:       fileContextPlan.Attachments,
+		NativeInputs:            nativeInputCache,
 		DynamicContext:          userCtx,
 		PreferencePrompt:        preferencePrompt,
 		SkillPrompts:            skillPrompts,
@@ -771,6 +775,11 @@ func (s *Service) sendMessageInternal(
 		route = nextRoute
 		attemptedRouteIDs = append(attemptedRouteIDs, route.RouteID)
 		routeFailureRecorded = false
+		if traceRecorder != nil && fileTrace.visible() {
+			previousSummary, previousMarkdown := fileTrace.summary, fileTrace.markdown
+			fileTrace.resolve(ctx, s, route, fileContextPlan.Attachments, nativeInputCache)
+			traceRecorder.replaceProcessSection(previousSummary, previousMarkdown, fileTrace.summary, fileTrace.markdown, fileTrace.payload)
+		}
 		nextPromptPlan, nextReasoningContentPassback, buildErr := s.planRoutePrompt(ctx, input.UserID, routePromptInput, route)
 		if buildErr != nil {
 			retErr = buildErr

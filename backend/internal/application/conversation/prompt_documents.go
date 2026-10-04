@@ -29,16 +29,33 @@ const (
 	turnDocumentRetrieval turnDocumentAccess = "retrieval"
 	// turnDocumentUnavailable 没有可用的提取文本，或超出全文上限且无法检索。
 	turnDocumentUnavailable turnDocumentAccess = "unavailable"
+	// turnDocumentNative 原始文件（PDF、音频、视频）以原生内容块随该轮发送（见 native_input.go）。
+	turnDocumentNative turnDocumentAccess = "native"
+	// turnDocumentUnsupported 当前模型或路由不支持该类型的输入（如纯文本模型收到图片或音频）。
+	turnDocumentUnsupported turnDocumentAccess = "unsupported"
 )
 
 const (
 	turnDocumentRetrievalNote   = "文件较大，未提供全文；需要时系统会按当前问题检索相关片段。"
 	turnDocumentUnavailableNote = "无法读取该文件的内容。"
+	turnDocumentNativeNote      = "原始文件已随此消息附上。"
+	turnDocumentUnsupportedNote = "当前模型不支持该类型的输入，未提供该文件。"
 )
+
+// turnDocumentOptions 是与路由相关的放置选项：同一组文件在不同路由上可能以不同方式提供。
+type turnDocumentOptions struct {
+	// Native 为该路由的原生输入结果。命中的文件以内容块随所属轮次发送，并在 <documents> 中留一句说明，
+	// 便于不携带文件名的协议（如 Gemini inlineData）也能对应文件；无法提供的图片与音视频留「不支持」说明。
+	Native nativeInputs
+	// SkipImages 为 true 时本次请求不发送图片（如媒体任务），图片不留说明。
+	SkipImages bool
+}
 
 type turnDocument struct {
 	Attachment AttachmentInput
 	Access     turnDocumentAccess
+	// Native 为 Access=native 时随轮次发送的原生内容块。
+	Native llm.ContentPart
 	// FromAssistant 表示文件由上一条助手回复产生，随其后的第一条用户消息提供。
 	FromAssistant bool
 }
@@ -46,9 +63,11 @@ type turnDocument struct {
 // turnDocumentPlacement 是一次请求中文件在对话里的落位结果。
 type turnDocumentPlacement struct {
 	Messages []llm.Message
-	// FullAttachments 是以全文形式进入对话的附件，用于上下文规划 trace。
+	// FullAttachments 是以全文（提取文本）形式进入对话的附件，用于上下文规划 trace。
 	FullAttachments []AttachmentInput
-	TokenEstimate   int64
+	// NativeAttachments 是以原生内容块（PDF、音频、视频）进入对话的附件。
+	NativeAttachments []AttachmentInput
+	TokenEstimate     int64
 }
 
 // isPromptHistoryMessage 与 historyMessagesFromDomain 的过滤条件保持一致，
@@ -63,7 +82,7 @@ func isPromptHistoryMessage(item model.Message) bool {
 // placeTurnDocuments 把文件内容写入所属用户轮次。history 必须由 historyMessagesFromDomain(domainMessages)
 // 生成且尚未合并同角色消息；attachments 为本轮文件规划结果（已带 ContextMode）。
 // 当前轮的附件快照要等文件处理完成才写回消息，这里以 Current 标记归属最后一条用户消息。
-func placeTurnDocuments(history []llm.Message, domainMessages []model.Message, attachments []AttachmentInput) turnDocumentPlacement {
+func placeTurnDocuments(history []llm.Message, domainMessages []model.Message, attachments []AttachmentInput, options turnDocumentOptions) turnDocumentPlacement {
 	placement := turnDocumentPlacement{Messages: history}
 	if len(history) == 0 || len(attachments) == 0 {
 		return placement
@@ -109,7 +128,7 @@ func placeTurnDocuments(history []llm.Message, domainMessages []model.Message, a
 		switch item.Role {
 		case "assistant":
 			for _, fileID := range fileIDs {
-				if document, ok := newTurnDocument(byFileID[fileID], true); ok {
+				if document, ok := newTurnDocument(byFileID[fileID], true, options); ok {
 					pendingFromAssistant = append(pendingFromAssistant, document)
 				}
 			}
@@ -125,20 +144,28 @@ func placeTurnDocuments(history []llm.Message, domainMessages []model.Message, a
 					continue
 				}
 				seen[fileID] = struct{}{}
-				if document, ok := newTurnDocument(byFileID[fileID], false); ok {
+				if document, ok := newTurnDocument(byFileID[fileID], false, options); ok {
 					documents = append(documents, document)
 				}
 			}
 			if len(documents) == 0 {
 				continue
 			}
-			documentPart := turnDocumentsPart(documents)
-			result[historyIndex] = addUserTurnParts(result[historyIndex], documentPart)
-			placement.TokenEstimate += estimateContentPartTokens(documentPart)
+			parts := []llm.ContentPart{turnDocumentsPart(documents)}
 			for _, document := range documents {
-				if document.Access == turnDocumentFull {
-					placement.FullAttachments = append(placement.FullAttachments, document.Attachment)
+				if document.Access == turnDocumentNative {
+					parts = append(parts, document.Native)
 				}
+				switch document.Access {
+				case turnDocumentFull:
+					placement.FullAttachments = append(placement.FullAttachments, document.Attachment)
+				case turnDocumentNative:
+					placement.NativeAttachments = append(placement.NativeAttachments, document.Attachment)
+				}
+			}
+			result[historyIndex] = addUserTurnParts(result[historyIndex], parts...)
+			for _, part := range parts {
+				placement.TokenEstimate += estimateContentPartTokens(part)
 			}
 		}
 	}
@@ -162,16 +189,31 @@ func appendMissingFileIDs(fileIDs []string, extra []string) []string {
 	return result
 }
 
-// newTurnDocument 按文件规划结果决定该轮如何呈现文件。图片以图片内容块随轮次发送，不在此渲染。
-func newTurnDocument(att AttachmentInput, fromAssistant bool) (turnDocument, bool) {
-	if strings.TrimSpace(att.FileID) == "" {
+// newTurnDocument 按文件规划结果与路由选项决定该轮如何呈现文件。
+// 图片以图片内容块随轮次发送，不在此渲染；模型不支持图片时改为说明。
+func newTurnDocument(att AttachmentInput, fromAssistant bool, options turnDocumentOptions) (turnDocument, bool) {
+	fileID := strings.TrimSpace(att.FileID)
+	if fileID == "" {
 		return turnDocument{}, false
 	}
 	mode := strings.TrimSpace(att.ContextMode)
-	if strings.EqualFold(mode, fileContextModeDirectImage) {
-		return turnDocument{}, false
-	}
 	document := turnDocument{Attachment: att, FromAssistant: fromAssistant}
+	if strings.EqualFold(mode, fileContextModeDirectImage) {
+		if options.SkipImages || fromAssistant || !options.Native.unsupported(att) {
+			return turnDocument{}, false
+		}
+		document.Access = turnDocumentUnsupported
+		return document, true
+	}
+	if native, ok := options.Native.Parts[fileID]; ok && !fromAssistant {
+		document.Access = turnDocumentNative
+		document.Native = native
+		return document, true
+	}
+	if !fromAssistant && options.Native.unsupported(att) {
+		document.Access = turnDocumentUnsupported
+		return document, true
+	}
 	switch {
 	case (strings.EqualFold(mode, fileContextModeFull) || strings.EqualFold(mode, fileContextModeRAGFallback)) &&
 		strings.TrimSpace(att.ExtractedText) != "":
@@ -212,6 +254,14 @@ func renderTurnDocuments(documents []turnDocument) string {
 			builder.WriteString(" access=\"retrieval\">")
 			builder.WriteString(turnDocumentRetrievalNote)
 			builder.WriteString("</document>")
+		case turnDocumentNative:
+			builder.WriteString(" access=\"native\">")
+			builder.WriteString(turnDocumentNativeNote)
+			builder.WriteString("</document>")
+		case turnDocumentUnsupported:
+			builder.WriteString(" access=\"unsupported\">")
+			builder.WriteString(turnDocumentUnsupportedNote)
+			builder.WriteString("</document>")
 		default:
 			builder.WriteString(" access=\"unavailable\">")
 			builder.WriteString(turnDocumentUnavailableNote)
@@ -226,12 +276,12 @@ func turnDocumentsPart(documents []turnDocument) llm.ContentPart {
 	return llm.ContentPart{Kind: llm.ContentPartFile, Text: renderTurnDocuments(documents)}
 }
 
-// userTurnPartRank 规定用户消息内容块的固定顺序：文件 → 图片/视频 → 本轮动态上下文 → 用户原文。
+// userTurnPartRank 规定用户消息内容块的固定顺序：文件说明 → 原生文件/图片 → 本轮动态上下文 → 用户原文。
 func userTurnPartRank(part llm.ContentPart) int {
 	switch {
 	case part.Kind == llm.ContentPartFile:
 		return 0
-	case part.Kind == llm.ContentPartImage || part.Kind == llm.ContentPartVideo:
+	case isBinaryContentPart(part):
 		return 1
 	case part.Dynamic:
 		return 2
@@ -331,8 +381,17 @@ func promptMessageHasContent(message llm.Message) bool {
 }
 
 func contentPartHasContent(part llm.ContentPart) bool {
-	if part.Kind == llm.ContentPartImage || part.Kind == llm.ContentPartVideo {
+	if isBinaryContentPart(part) {
 		return len(part.Data) > 0
 	}
 	return strings.TrimSpace(part.Text) != ""
+}
+
+func isBinaryContentPart(part llm.ContentPart) bool {
+	switch part.Kind {
+	case llm.ContentPartImage, llm.ContentPartAudio, llm.ContentPartVideo, llm.ContentPartDocument:
+		return true
+	default:
+		return false
+	}
 }

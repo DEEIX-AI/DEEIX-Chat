@@ -47,17 +47,26 @@ const (
 	ContentPartText  = "text"  // 纯文本
 	ContentPartImage = "image" // 图片（原始字节，序列化时 base64 编码）
 	ContentPartVideo = "video" // 视频（原始字节，仅供支持视频输入的 adapter 使用）
-	ContentPartFile  = "file"  // 文件提取文本（前端解析后注入）
+	// ContentPartAudio 是原生发送的音频（原始字节，序列化时 base64 编码），只发给支持音频输入的 adapter。
+	ContentPartAudio = "audio"
+	ContentPartFile  = "file" // 文件提取文本（前端解析后注入）
+	// ContentPartDocument 是原生发送的文档（目前仅 application/pdf，原始字节，序列化时 base64 编码）。
+	// 只有支持原生文档内容块的 adapter 会收到它，见会话层的原生输入策略。
+	ContentPartDocument = "document"
 )
 
 // ContentPart 表示多模态消息中的一个内容片段。
 type ContentPart struct {
-	Kind         string        // text | image | video | file
+	Kind         string        // text | image | audio | video | file | document
 	Text         string        // Kind=text 或 Kind=file 时的文本内容
-	MimeType     string        // Kind=image 时的 MIME 类型（如 "image/jpeg"）
-	Data         []byte        // Kind=image 时的原始字节（发送时 base64 编码）
-	FileName     string        // Kind=file 时的文件显示名
+	MimeType     string        // Kind=image / audio / video / document 时的 MIME 类型（如 "image/jpeg"、"audio/mp3"、"application/pdf"）
+	Data         []byte        // Kind=image / audio / video / document 时的原始字节（发送时 base64 编码）
+	FileName     string        // Kind=file / audio / video / document 时的文件显示名
 	CacheControl *CacheControl // 支持块级缓存的 adapter 可读取该提示
+	// PageCount 为 Kind=document 时的页数（未知为 0），用于上下文预算估算。
+	PageCount int
+	// DurationSeconds 为 Kind=audio / video 时的时长（未知为 0），用于上下文预算估算。
+	DurationSeconds int64
 	// Dynamic 标记仅本轮有效的上下文（检索片段、记忆、召回等）。它不会出现在下一轮的历史里，
 	// 规划器据此把缓存断点放在它之前，状态指纹也会剔除它；adapter 按普通内容发送即可。
 	Dynamic bool

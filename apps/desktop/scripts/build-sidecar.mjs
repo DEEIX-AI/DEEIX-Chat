@@ -46,6 +46,13 @@ const ldflags = [
   `-X ${module}.BuildTime=${buildTime}`,
 ].join(" ");
 
+// Release builds refresh the bundled catalog snapshots (models.dev, OpenRouter pricing) before
+// compiling, so the sidecar ships the latest data. A failed fetch keeps the committed snapshot.
+if (process.env.DEEIX_REFRESH_CATALOG_SNAPSHOTS === "1") {
+  console.log("Refreshing bundled catalog snapshots");
+  execFileSync("go", ["run", "./cmd/catalog-snapshot", "-keep-on-error"], { cwd: backendDir, stdio: "inherit" });
+}
+
 console.log(`Building sidecar ${triple} (GOOS=${goos} GOARCH=${goarch}) → ${output}`);
 
 // Local mode only uses SQLite, the memory cache and local storage; the other

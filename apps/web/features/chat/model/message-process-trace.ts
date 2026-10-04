@@ -130,9 +130,11 @@ function parseFileContextCounts(payloadJson: string | undefined): FileContextCou
     const included = fileRefsCount || fileNamesCount;
     return included > 0 ? { included, skipped: 0 } : null;
   }
-  const skipped = readArrayCount(groups.skipped);
+  // Unsupported files (the model cannot take that input) are not in context, like skipped ones.
+  const skipped = readArrayCount(groups.skipped) + readArrayCount(groups.unsupported);
   const included =
     readArrayCount(groups.direct_images) +
+    readArrayCount(groups.native) +
     readArrayCount(groups.adaptive) +
     readArrayCount(groups.retrieval) +
     readArrayCount(groups.full_context);
@@ -204,6 +206,7 @@ export function parseFileContextBadges(payloadJson: string | undefined, labels: 
   const groups = isRecord(groupSource) ? groupSource : {};
   const badges = [
     ...readFileContextBadges(groups.direct_images, labels.fileBadges.directRead, labels.fileBadges.descriptions.directRead, "preview"),
+    ...readFileContextBadges(groups.native, labels.fileBadges.native, labels.fileBadges.descriptions.native, "preview"),
     ...readFileContextBadges(groups.adaptive, labels.fileBadges.budget, labels.fileBadges.descriptions.budget, "extract"),
     ...readFileContextBadges(groups.retrieval, labels.fileBadges.retrieval, labels.fileBadges.descriptions.retrieval, "extract"),
     ...readFileContextBadges(
@@ -212,6 +215,7 @@ export function parseFileContextBadges(payloadJson: string | undefined, labels: 
       labels.fileBadges.descriptions.fullContext,
       "extract",
     ),
+    ...readFileContextBadges(groups.unsupported, labels.fileBadges.unsupported, labels.fileBadges.descriptions.unsupported, "preview"),
     ...readFileContextBadges(groups.skipped, labels.fileBadges.skipped, labels.fileBadges.descriptions.skipped, "extract"),
   ];
   if (badges.length > 0) return badges;

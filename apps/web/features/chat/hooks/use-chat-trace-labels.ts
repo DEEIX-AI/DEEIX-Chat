@@ -9,6 +9,8 @@ export type ProcessTraceLabels = {
     budget: string;
     retrieval: string;
     fullContext: string;
+    native: string;
+    unsupported: string;
     skipped: string;
     file: string;
     descriptions: {
@@ -16,6 +18,8 @@ export type ProcessTraceLabels = {
       budget: string;
       retrieval: string;
       fullContext: string;
+      native: string;
+      unsupported: string;
       skipped: string;
       file: string;
     };
@@ -145,6 +149,8 @@ export function useChatTraceLabels(): ProcessTraceLabels {
         budget: t("fileBadges.budget"),
         retrieval: t("fileBadges.retrieval"),
         fullContext: t("fileBadges.fullContext"),
+        native: t("fileBadges.native"),
+        unsupported: t("fileBadges.unsupported"),
         skipped: t("fileBadges.skipped"),
         file: t("fileBadges.file"),
         descriptions: {
@@ -152,6 +158,8 @@ export function useChatTraceLabels(): ProcessTraceLabels {
           budget: t("fileBadges.descriptions.budget"),
           retrieval: t("fileBadges.descriptions.retrieval"),
           fullContext: t("fileBadges.descriptions.fullContext"),
+          native: t("fileBadges.descriptions.native"),
+          unsupported: t("fileBadges.descriptions.unsupported"),
           skipped: t("fileBadges.descriptions.skipped"),
           file: t("fileBadges.descriptions.file"),
         },

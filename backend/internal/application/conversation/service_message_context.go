@@ -52,8 +52,42 @@ func isCJKRune(char rune) bool {
 		(char >= 0x20000 && char <= 0x2A6DF)
 }
 
+// nativeDocumentTokensPerPage 是原生 PDF 每页的保守估算：Anthropic 文档给出每页 1500–3000 文本 token
+// 外加页面图像，Gemini 每页 258 token。按偏高值估算，宁可提前裁剪历史，也不让请求超出上下文窗口。
+const nativeDocumentTokensPerPage = 2000
+
+// nativeDocumentBytesPerPage 用于页数未知时按文件大小估算页数。
+const nativeDocumentBytesPerPage = 100 * 1024
+
+// 原生音视频按 Gemini 的计费口径估算（音频 32 token/秒，视频按 1 帧/秒约 300 token/秒，含音轨），
+// 时长未知时按偏低码率（音频 128kbps、视频 2Mbps）由文件大小推算时长，结果偏高，宁可提前裁剪历史。
+const (
+	nativeAudioTokensPerSecond = 32
+	nativeVideoTokensPerSecond = 300
+	nativeAudioBytesPerSecond  = 16 * 1024
+	nativeVideoBytesPerSecond  = 256 * 1024
+)
+
+func estimateNativeMediaTokens(part llm.ContentPart, tokensPerSecond int64, bytesPerSecond int64) int64 {
+	seconds := part.DurationSeconds
+	if seconds <= 0 {
+		seconds = max(int64(len(part.Data))/bytesPerSecond, 1)
+	}
+	return seconds * tokensPerSecond
+}
+
 func estimateContentPartTokens(part llm.ContentPart) int64 {
 	switch part.Kind {
+	case llm.ContentPartAudio:
+		return estimateNativeMediaTokens(part, nativeAudioTokensPerSecond, nativeAudioBytesPerSecond)
+	case llm.ContentPartVideo:
+		return estimateNativeMediaTokens(part, nativeVideoTokensPerSecond, nativeVideoBytesPerSecond)
+	case llm.ContentPartDocument:
+		pages := int64(part.PageCount)
+		if pages <= 0 {
+			pages = max(int64(len(part.Data))/nativeDocumentBytesPerPage, 1)
+		}
+		return pages * nativeDocumentTokensPerPage
 	case llm.ContentPartImage:
 		return 255
 	case llm.ContentPartFile:

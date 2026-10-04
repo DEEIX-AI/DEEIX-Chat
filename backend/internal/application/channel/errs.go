@@ -40,8 +40,8 @@ var (
 	ErrInvalidModelControls = apperr.New("llm.model_controls_invalid", "invalid model controls")
 	// ErrModelControlForbiddenPath 模型控件试图写入由系统管理的参数。
 	ErrModelControlForbiddenPath = apperr.New("llm.model_control_forbidden_path", "model control writes a forbidden path")
-	// ErrReasoningCatalogFetchFailed 表示拉取或解析 models.dev 目录失败，已保留当前目录。
-	ErrReasoningCatalogFetchFailed = apperr.NewMasked("llm.model_catalog_fetch_failed", "failed to sync reasoning catalog", "reasoning catalog sync failed")
+	// ErrModelCatalogFetchFailed 表示拉取或解析 models.dev 目录失败，已保留当前目录。
+	ErrModelCatalogFetchFailed = apperr.NewMasked("llm.model_catalog_fetch_failed", "failed to sync model catalog", "model catalog sync failed")
 	// ErrInvalidHeadersConfig 请求头 JSON 配置无效。
 	ErrInvalidHeadersConfig = apperr.NewMasked("llm.invalid_headers_config", "invalid headers json config", "invalid headers config")
 	// ErrInvalidAPIKeysConfig 上游 API Key 配置无效。

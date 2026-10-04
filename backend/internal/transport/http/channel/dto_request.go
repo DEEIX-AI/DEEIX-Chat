@@ -191,3 +191,14 @@ type ImportUpstreamModelItemRequest struct {
 type ModelProbeRequest struct {
 	TaskType string `json:"taskType,omitempty" binding:"omitempty,oneof=chat image_generation image_edit video_generation video_extension"`
 }
+
+// ResolveModelCatalogRequest 是模型编辑表单的自动识别查询，各字段取表单当前值（可未保存）。
+type ResolveModelCatalogRequest struct {
+	// Name 为平台模型名，为空时返回未匹配。
+	Name   string `json:"name" binding:"max=255"`
+	Vendor string `json:"vendor,omitempty" binding:"max=128"`
+	// Protocols 为模型已绑定或待绑定来源的路由协议，用于推导推理能力格式。
+	Protocols []string `json:"protocols,omitempty" binding:"max=32,dive,max=64"`
+	// CapabilitiesJSON 为表单中的能力 JSON；其中的旧版思考参数会参与推理能力推断，显式 reasoning 声明被忽略。
+	CapabilitiesJSON string `json:"capabilitiesJSON,omitempty" binding:"max=10000"`
+}

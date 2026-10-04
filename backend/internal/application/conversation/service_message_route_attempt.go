@@ -19,7 +19,9 @@ type messageRoutePromptInput struct {
 	DomainMessages           []model.Message
 	// ConversationFiles 是本轮文件规划结果（含历史轮次与本轮，已带 ContextMode）。
 	// 文本文件随所属用户轮次渲染，图片作为图片内容块随所属轮次发送。
-	ConversationFiles    []AttachmentInput
+	ConversationFiles []AttachmentInput
+	// NativeInputs 缓存本次发送已读取的原生文件，路由之间共用；为空时按需读取。
+	NativeInputs         *nativeInputCache
 	DynamicContext       userContextInput
 	PreferencePrompt     string
 	SkillPrompts         *skillPrompts
@@ -71,10 +73,20 @@ func (s *Service) buildMessageRoutePrompt(ctx context.Context, route *channel.Re
 	historyMessages := historyMessagesFromDomain(routeMessages, historyMessageOptions{
 		ReasoningContentPassback: input.ReasoningContentPassback,
 	})
+	// 原生输入按路由判断：故障转移到另一条路由时重新计算，不把原生内容块发给不支持它的协议。
+	native := s.resolveNativeInputs(ctx, route, input.ConversationFiles, input.NativeInputs)
 	// 文件按所属轮次就位必须早于图片注入与同角色合并：二者都依赖未合并的历史下标。
-	documents := placeTurnDocuments(historyMessages, routeMessages, input.ConversationFiles)
+	documents := placeTurnDocuments(historyMessages, routeMessages, input.ConversationFiles, turnDocumentOptions{
+		Native:     native,
+		SkipImages: input.SkipImageAttachments,
+	})
 	historyMessages = documents.Messages
-	if !input.SkipImageAttachments {
+	dynamicContext := input.DynamicContext
+	if native.Policy.ImageUnsupported {
+		// 模型不支持图片输入：本轮图片与检索命中的图片都不发送，所属轮次已留说明。
+		dynamicContext.Attachments = nil
+	}
+	if !input.SkipImageAttachments && !native.Policy.ImageUnsupported {
 		var err error
 		historyMessages, err = s.injectConversationImageContext(ctx, historyMessages, routeMessages, input.ConversationFiles, input.Config)
 		if err != nil {
@@ -105,7 +117,7 @@ func (s *Service) buildMessageRoutePrompt(ctx context.Context, route *channel.Re
 	return buildPromptPlan(ctx, promptPlanInput{
 		BaseMessages:   baseMessages,
 		TurnDocuments:  documents,
-		DynamicContext: input.DynamicContext,
+		DynamicContext: dynamicContext,
 		SkillPrompts:   input.SkillPrompts,
 		ToolRuntime:    input.ToolRuntime,
 		Config:         input.Config,

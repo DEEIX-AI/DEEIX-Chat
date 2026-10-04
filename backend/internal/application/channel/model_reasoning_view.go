@@ -58,6 +58,11 @@ func modelReasoningProtocolKeys(protocolsJSON string) []string {
 	if err := json.Unmarshal([]byte(strings.TrimSpace(protocolsJSON)), &protocols); err != nil {
 		return nil
 	}
+	return normalizeReasoningProtocolKeys(protocols)
+}
+
+// normalizeReasoningProtocolKeys 把路由协议映射为推理能力使用的协议键，去重并保持原有顺序。
+func normalizeReasoningProtocolKeys(protocols []string) []string {
 	keys := make([]string, 0, len(protocols))
 	seen := make(map[string]struct{}, len(protocols))
 	for _, protocol := range protocols {

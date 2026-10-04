@@ -625,6 +625,26 @@ func buildAnthropicContent(msg portllm.Message, cacheFor func(*portllm.CacheCont
 				marked = true
 			}
 			blocks = append(blocks, block)
+		case portllm.ContentPartDocument:
+			if len(part.Data) == 0 {
+				continue
+			}
+			block := map[string]any{
+				"type": "document",
+				"source": map[string]any{
+					"type":       "base64",
+					"media_type": nativeDocumentMIME(part),
+					"data":       base64.StdEncoding.EncodeToString(part.Data),
+				},
+			}
+			if title := strings.TrimSpace(part.FileName); title != "" {
+				block["title"] = title
+			}
+			if cacheControl := cacheControlFor(part.CacheControl); len(cacheControl) > 0 {
+				block["cache_control"] = cacheControl
+				marked = true
+			}
+			blocks = append(blocks, block)
 		default: // text, file
 			text := part.Text
 			if strings.TrimSpace(text) == "" {

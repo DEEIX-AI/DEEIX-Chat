@@ -63,20 +63,22 @@ func (r *settingsSeedRepo) Delete(_ context.Context, namespace string, key strin
 }
 
 func TestSeedMigratesLegacyDefaultAllowedMIMETypes(t *testing.T) {
-	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
-		Namespace: "file",
-		Key:       "allowed_mime_types",
-		Value:     legacyDefaultAllowedMIMETypes,
-		ValueType: "string",
-	})
-	service := NewService(repo, "")
+	for _, legacy := range legacyDefaultAllowedMIMETypes {
+		repo := newSettingsSeedRepo(domainsettings.SystemSetting{
+			Namespace: "file",
+			Key:       "allowed_mime_types",
+			Value:     legacy,
+			ValueType: "string",
+		})
+		service := NewService(repo, "")
 
-	if err := service.Seed(context.Background()); err != nil {
-		t.Fatalf("seed settings: %v", err)
-	}
-	got := repo.items["file:allowed_mime_types"].Value
-	if got != defaultAllowedMIMETypes {
-		t.Fatalf("expected legacy MIME defaults to migrate, got %q", got)
+		if err := service.Seed(context.Background()); err != nil {
+			t.Fatalf("seed settings: %v", err)
+		}
+		got := repo.items["file:allowed_mime_types"].Value
+		if got != defaultAllowedMIMETypes {
+			t.Fatalf("expected legacy MIME defaults to migrate, got %q", got)
+		}
 	}
 }
 

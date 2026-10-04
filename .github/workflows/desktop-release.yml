@@ -134,6 +134,10 @@ jobs:
       # x86_64 is cross-built from the arm64 runner with Apple's toolchain.
       - name: Build server sidecar
         shell: bash
+        # Refresh the bundled catalog snapshots (models.dev, OpenRouter pricing)
+        # before compiling; a failed fetch keeps the committed snapshot.
+        env:
+          DEEIX_REFRESH_CATALOG_SNAPSHOTS: "1"
         run: |
           target="${{ matrix.args }}"
           target="${target#--target }"

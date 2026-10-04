@@ -338,7 +338,7 @@
     "dropTitle": "Drop files to attach",
     "duplicateReused": "Duplicate file detected and reused",
     "partialUploadFailed": "Some files failed to upload",
-    "temporaryVideoUnsupported": "Temporary chats currently support image and document attachments, but not video attachments.",
+    "temporaryVideoUnsupported": "Temporary chats currently support image and document attachments, but not audio or video attachments.",
     "retryFailedFiles": "Please retry the failed files.",
     "retryLater": "Please try again later.",
     "screenshotUnsupported": "This browser does not support screenshots",
@@ -663,6 +663,15 @@
     "selectModel": "Select model",
     "empty": "No models",
     "group": "Group",
+    "inputModalities": {
+      "separator": ", ",
+      "title": "Accepts: ",
+      "text": "text",
+      "image": "images",
+      "pdf": "PDF",
+      "audio": "audio",
+      "video": "video"
+    },
     "viewPricing": "View pricing",
     "freeModel": "Free model",
     "freeModelDescription": "No usage balance will be deducted",
@@ -707,6 +716,8 @@
       "budget": "Budget",
       "retrieval": "Retrieval",
       "fullContext": "Full text",
+      "native": "Native",
+      "unsupported": "Unsupported",
       "skipped": "Skipped",
       "file": "File",
       "descriptions": {
@@ -714,6 +725,8 @@
         "budget": "The file is within the full-context budget, so its extracted text was included in this turn.",
         "retrieval": "The file used RAG retrieval, so only relevant chunks were included in this turn.",
         "fullContext": "The file was included in this turn as full extracted text.",
+        "native": "The original file was sent to the model, which reads its layout, tables and charts directly.",
+        "unsupported": "The current model does not accept this type of input; the file was not provided.",
         "skipped": "The file was not included in this turn, usually because it exceeded the budget or had no usable extracted text.",
         "file": "The file participated in context processing for this turn."
       }

@@ -9,6 +9,7 @@ import (
 const (
 	fileCategoryImage        = "image"
 	fileCategoryVideo        = "video"
+	fileCategoryAudio        = "audio"
 	fileCategoryPDF          = "pdf"
 	fileCategoryWord         = "word"
 	fileCategoryPresentation = "presentation"

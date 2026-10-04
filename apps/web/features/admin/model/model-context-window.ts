@@ -1,4 +1,4 @@
-import { isRecord, parseJSON } from "@/shared/lib/type-guards";
+import { parseCapabilitiesObject, stringifyCapabilitiesObject } from "@/features/admin/model/capabilities-json";
 
 export const MODEL_CONTEXT_WINDOW_MIN = 4_096;
 export const MODEL_CONTEXT_WINDOW_MAX = 16_000_000;
@@ -10,15 +10,6 @@ export const MODEL_CONTEXT_WINDOW_PRESETS = [
   { label: "500K", value: 500_000 },
   { label: "1M", value: 1_000_000 },
 ] as const;
-
-function parseCapabilitiesObject(value: string | null | undefined): Record<string, unknown> | null {
-  const normalized = value?.trim() ?? "";
-  if (!normalized) {
-    return {};
-  }
-  const parsed = parseJSON(normalized);
-  return isRecord(parsed) ? parsed : null;
-}
 
 function positiveIntegerProperty(
   payload: Record<string, unknown>,
@@ -38,6 +29,11 @@ export function isValidModelContextWindow(value: number): boolean {
   return Number.isSafeInteger(value)
     && value >= MODEL_CONTEXT_WINDOW_MIN
     && value <= MODEL_CONTEXT_WINDOW_MAX;
+}
+
+/** Context window declared by a catalog, or null when absent or outside the range the platform accepts. */
+export function normalizeCatalogContextWindow(value: number | null | undefined): number | null {
+  return typeof value === "number" && isValidModelContextWindow(value) ? value : null;
 }
 
 export function modelContextWindowOverride(value: string | null | undefined): number | null {
@@ -75,7 +71,7 @@ export function setModelContextWindowInCapabilities(
   } else {
     payload.contextWindow = contextWindow;
   }
-  return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
+  return stringifyCapabilitiesObject(payload);
 }
 
 export function setAutomaticModelContextWindowInCapabilities(
@@ -98,5 +94,5 @@ export function setAutomaticModelContextWindowInCapabilities(
     payload.contextWindow = contextWindow;
     payload._deeixContextWindowMode = "auto";
   }
-  return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
+  return stringifyCapabilitiesObject(payload);
 }

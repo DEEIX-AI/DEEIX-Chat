@@ -313,7 +313,7 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 		StoragePath:      relativePath,
 		Status:           "active",
 		ProcessingStatus: "uploaded",
-		ProcessingReady:  category == fileCategoryVideo || (category == fileCategoryImage && !cfg.ExtractImageOCREnabled),
+		ProcessingReady:  category == fileCategoryVideo || category == fileCategoryAudio || (category == fileCategoryImage && !cfg.ExtractImageOCREnabled),
 		ExtractStatus:    "none",
 		EmbedStatus:      "none",
 		ExtractorVersion: s.resolveExtractorVersion(),
@@ -664,6 +664,7 @@ func (s *Service) OpenFileContent(ctx context.Context, userID uint, fileID strin
 const (
 	fileCategoryImage        = "image"
 	fileCategoryVideo        = "video"
+	fileCategoryAudio        = "audio"
 	fileCategoryPDF          = "pdf"
 	fileCategoryWord         = "word"
 	fileCategoryPresentation = "presentation"
@@ -800,6 +801,24 @@ func normalizeDetectedMIME(detected string, fileName string) string {
 		return "video/mp4"
 	case "webm":
 		return "video/webm"
+	case "mov":
+		return "video/quicktime"
+	case "mpeg", "mpg":
+		return "video/mpeg"
+	case "mp3":
+		return "audio/mpeg"
+	case "wav":
+		return "audio/wav"
+	case "m4a":
+		return "audio/mp4"
+	case "aac":
+		return "audio/aac"
+	case "ogg", "oga":
+		return "audio/ogg"
+	case "flac":
+		return "audio/flac"
+	case "aif", "aiff":
+		return "audio/aiff"
 	}
 	if ext != "" && filetype.IsText("", "sample."+ext) {
 		return "text/plain"
@@ -868,6 +887,8 @@ func inferFileCategory(mimeType string, fileName string) string {
 		return fileCategoryImage
 	case strings.HasPrefix(mimeType, "video/"):
 		return fileCategoryVideo
+	case strings.HasPrefix(mimeType, "audio/"):
+		return fileCategoryAudio
 	case mimeType == "application/pdf" || ext == "pdf":
 		return fileCategoryPDF
 	case strings.Contains(mimeType, "wordprocessingml") || strings.Contains(mimeType, "msword") || ext == "docx" || ext == "doc":
@@ -904,7 +925,7 @@ func maxBytesForCategory(category string, cfg config.Config) int64 {
 	if category == fileCategoryImage {
 		return cfg.FileImageMaxBytes
 	}
-	if category == fileCategoryVideo {
+	if category == fileCategoryVideo || category == fileCategoryAudio {
 		return 0
 	}
 	return cfg.FileDocMaxBytes

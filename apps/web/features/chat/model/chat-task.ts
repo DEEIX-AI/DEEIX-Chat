@@ -105,7 +105,9 @@ export function resolveChatSubmitDecision(
   };
   const requestedType = requestedResponseType(options);
 
-  if (videoAttachmentCount > 0) {
+  // Video attachments extend the video on models that support it; chat models otherwise receive them as
+  // regular attachments (sent natively when the route supports video input, see backend native_input.go).
+  if (videoAttachmentCount > 0 && (supportsVideoExtension || !supportsChat)) {
     if (attachmentCount !== 1 || mp4AttachmentCount !== 1) {
       return buildDecision("video_extension", "video_extension_requires_single_mp4", baseDecision);
     }

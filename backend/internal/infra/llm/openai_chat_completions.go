@@ -228,6 +228,44 @@ func buildChatCompletionsContent(msg portllm.Message, promptCache *openAIPromptC
 			}
 			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
 			parts = append(parts, block)
+		case portllm.ContentPartDocument:
+			if len(part.Data) == 0 {
+				continue
+			}
+			block := map[string]any{
+				"type": "file",
+				"file": map[string]any{
+					"filename":  nativeDocumentFileName(part),
+					"file_data": nativeDocumentDataURL(part),
+				},
+			}
+			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
+			parts = append(parts, block)
+		case portllm.ContentPartAudio:
+			if len(part.Data) == 0 {
+				continue
+			}
+			// input_audio 用格式名而不是 MIME：OpenAI 接受 wav / mp3，OpenRouter 另接受 aiff、aac、ogg、flac、m4a。
+			block := map[string]any{
+				"type": "input_audio",
+				"input_audio": map[string]any{
+					"data":   base64.StdEncoding.EncodeToString(part.Data),
+					"format": nativeAudioFormat(part),
+				},
+			}
+			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
+			parts = append(parts, block)
+		case portllm.ContentPartVideo:
+			if len(part.Data) == 0 {
+				continue
+			}
+			// video_url 为 OpenRouter 的视频输入；官方 OpenAI 不接受视频，会话层不会发给它。
+			block := map[string]any{
+				"type":      "video_url",
+				"video_url": map[string]any{"url": nativeDocumentDataURL(part)},
+			}
+			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
+			parts = append(parts, block)
 		default: // text、file——按纯文本处理
 			text := part.Text
 			if strings.TrimSpace(text) == "" {

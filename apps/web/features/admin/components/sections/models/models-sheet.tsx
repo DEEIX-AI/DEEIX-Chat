@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useCallback, useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDownIcon, CircleHelp, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
@@ -105,6 +105,7 @@ import {
 } from "@/features/admin/components/sections/models/models-capabilities-config";
 import {
   modelContextWindowOverride,
+  normalizeCatalogContextWindow,
   setModelContextWindowInCapabilities,
 } from "@/features/admin/model/model-context-window";
 import {
@@ -115,6 +116,21 @@ import {
 } from "@/features/admin/model/models-source-binding";
 import { PermissionGroupSelector } from "@/features/admin/components/shared/permission-group-selector";
 import { ModelContextWindowField } from "@/features/admin/components/sections/models/models-context-window-field";
+import { ModelModalitiesField } from "@/features/admin/components/sections/models/models-modalities-field";
+import { ModelReasoningField } from "@/features/admin/components/sections/models/models-reasoning-field";
+import { ModelsCatalogSyncButton } from "@/features/admin/components/sections/models/models-catalog-sync-button";
+import { useAdminModelsCatalogSync } from "@/features/admin/hooks/use-admin-models-catalog-sync";
+import { useAdminModelsCatalogResolve } from "@/features/admin/hooks/use-admin-models-catalog-resolve";
+import {
+  type ModelReasoningDeclaration,
+  modelReasoningOverride,
+  setModelReasoningInCapabilities,
+} from "@/features/admin/model/model-reasoning";
+import {
+  type ModelModality,
+  modelInputModalitiesOverride,
+  setModelInputModalitiesInCapabilities,
+} from "@/features/admin/model/model-input-modalities";
 import { ModelIconField } from "@/features/admin/components/sections/models/models-icon-field";
 
 // ---------------------------------------------------------------------------
@@ -258,7 +274,14 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
   const [showCapabilitiesJSONAdvanced, setShowCapabilitiesJSONAdvanced] = useState(false);
   const sheetContentRef = useRef<HTMLDivElement | null>(null);
   const { nativeTools, capabilitySourceModels, contextWindowFallbackTokens } = useAdminModelsCapabilityContext({ open, models });
-  const { openRouterCatalog, loadOpenRouterCatalog } = useAdminModelsOpenrouterCatalog(open);
+  const { openRouterCatalog, loadOpenRouterCatalog, replaceOpenRouterCatalog } = useAdminModelsOpenrouterCatalog(open);
+  const [catalogRevision, setCatalogRevision] = useState(0);
+  const bumpCatalogRevision = useCallback(() => setCatalogRevision((value) => value + 1), []);
+  const catalogSync = useAdminModelsCatalogSync({
+    open,
+    onOpenRouterSynced: replaceOpenRouterCatalog,
+    onSynced: bumpCatalogRevision,
+  });
   const [bindRows, setBindRows] = useState<ModelSourceBindDraftRow[]>(() => [createModelSourceBindDraftRow()]);
   const {
     sources,
@@ -295,6 +318,20 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  const routeProtocols = useMemo(
+    () => Array.from(new Set([
+      ...parseProtocolsJSON(target?.protocolsJSON ?? ""),
+      ...sources.map((source) => source.protocol.trim()).filter(Boolean),
+      ...bindRows.map((row) => row.draft.protocol).filter(Boolean),
+    ])),
+    [bindRows, sources, target?.protocolsJSON],
+  );
+  const catalogResolution = useAdminModelsCatalogResolve(open, {
+    name: form.platformModelName,
+    vendor: form.vendor,
+    protocols: routeProtocols,
+    capabilitiesJSON: form.capabilitiesJSON,
+  }, catalogRevision);
   const contextWindowOverride = useMemo(
     () => modelContextWindowOverride(form.capabilitiesJSON),
     [form.capabilitiesJSON],
@@ -303,9 +340,10 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
     if (contextWindowOverride !== null) {
       return contextWindowOverride;
     }
-    const targetUnchanged = isSameContextWindowTarget(target, form.platformModelName, form.vendor);
-    if (targetUnchanged && target?.contextWindow) {
-      return target.contextWindow;
+    // Same order as the value written on save: models.dev, then OpenRouter, then what the server resolved before.
+    const modelsDevContextWindow = normalizeCatalogContextWindow(catalogResolution.result?.contextWindow);
+    if (modelsDevContextWindow !== null) {
+      return modelsDevContextWindow;
     }
     if (openRouterCatalog.status === "loaded") {
       const resolved = resolveAutomaticModelContextWindow(
@@ -317,8 +355,13 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
         return resolved;
       }
     }
+    const targetUnchanged = isSameContextWindowTarget(target, form.platformModelName, form.vendor);
+    if (targetUnchanged && target?.contextWindow) {
+      return target.contextWindow;
+    }
     return contextWindowFallbackTokens;
   }, [
+    catalogResolution.result?.contextWindow,
     contextWindowFallbackTokens,
     contextWindowOverride,
     form.platformModelName,
@@ -326,6 +369,29 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
     openRouterCatalog,
     target,
   ]);
+  const inputModalitiesOverride = useMemo(
+    () => modelInputModalitiesOverride(form.capabilitiesJSON),
+    [form.capabilitiesJSON],
+  );
+  const reasoningOverride = useMemo(
+    () => modelReasoningOverride(form.capabilitiesJSON),
+    [form.capabilitiesJSON],
+  );
+  function applyCapabilitiesJSON(nextValue: string | null): boolean {
+    if (nextValue === null) {
+      toast.error(t("sheet.capabilitiesQuick.invalidJSON"));
+      return false;
+    }
+    setField("capabilitiesJSON", nextValue);
+    return true;
+  }
+  function updateInputModalitiesOverride(value: ModelModality[] | null): boolean {
+    return applyCapabilitiesJSON(setModelInputModalitiesInCapabilities(form.capabilitiesJSON, value));
+  }
+  function updateReasoningOverride(value: ModelReasoningDeclaration | null): boolean {
+    return applyCapabilitiesJSON(setModelReasoningInCapabilities(form.capabilitiesJSON, value));
+  }
+
   function updateContextWindowOverride(value: number | null): boolean {
     const nextValue = setModelContextWindowInCapabilities(form.capabilitiesJSON, value);
     if (nextValue === null) {
@@ -469,14 +535,6 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
     label: item.name,
     iconUrl: resolveModelIconURL(item.icon),
   }));
-  const routeProtocols = useMemo(
-    () => Array.from(new Set([
-      ...parseProtocolsJSON(target?.protocolsJSON ?? ""),
-      ...sources.map((source) => source.protocol.trim()).filter(Boolean),
-      ...bindRows.map((row) => row.draft.protocol).filter(Boolean),
-    ])),
-    [bindRows, sources, target?.protocolsJSON],
-  );
   function getBindProtocolOptions(row: ModelSourceBindDraftRow): AdminLLMAdapter[] {
     const upstreamModels = upstreamModelsByID[row.draft.upstreamID] ?? [];
     const selectedUpstreamModel = upstreamModels.find((item) => String(item.id) === row.draft.upstreamModelID);
@@ -549,6 +607,7 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
     await submit({
       form,
       contextWindowOverride,
+      routeProtocols,
       bindRows,
       normalizeCapabilities: (capabilitiesJSON) => normalizeModelCapabilitiesJSON(capabilitiesJSON, nativeTools, routeProtocols),
       onCreated: (model) => {
@@ -770,14 +829,35 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
                   {t("sheet.capabilities")}
                 </AccordionTrigger>
                 <AccordionContent className="space-y-3 pb-4 pt-0">
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    {t("sheet.capabilitiesDescription")}
-                  </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      {t("sheet.capabilitiesDescription")}
+                    </p>
+                    <ModelsCatalogSyncButton
+                      modelsDevStatus={catalogSync.modelsDevStatus}
+                      openRouterFetchedAt={openRouterCatalog.fetchedAt}
+                      syncing={catalogSync.syncing}
+                      disabled={pending}
+                      onSync={() => void catalogSync.sync()}
+                    />
+                  </div>
+                  <ModelModalitiesField
+                    override={inputModalitiesOverride}
+                    resolution={catalogResolution.result}
+                    disabled={pending}
+                    onChange={updateInputModalitiesOverride}
+                  />
                   <ModelContextWindowField
                     value={contextWindowOverride}
                     effectiveValue={effectiveContextWindow}
                     disabled={pending}
                     onChange={updateContextWindowOverride}
+                  />
+                  <ModelReasoningField
+                    override={reasoningOverride}
+                    resolution={catalogResolution.result}
+                    disabled={pending}
+                    onChange={updateReasoningOverride}
                   />
                   {showImageStreamControl ? (
                     <div className="pb-1">

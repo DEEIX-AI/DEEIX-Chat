@@ -50,15 +50,18 @@ var (
 	ErrOfficialPricingCacheWriteFailed = errors.New("official pricing cache write failed")
 )
 
-type openRouterPricingProvider interface {
+// OpenRouterPricingProvider 拉取 OpenRouter 模型目录原始 JSON。
+type OpenRouterPricingProvider interface {
 	FetchModels(ctx context.Context) ([]byte, error)
 }
 
 // OfficialPricingService 编排 OpenRouter 官方定价读取、持久缓存和降级策略。
 type OfficialPricingService struct {
-	provider openRouterPricingProvider
+	provider OpenRouterPricingProvider
 	cache    repository.OpenRouterPricingCacheRepository
-	mu       sync.Mutex
+	// builtin 为随版本发布的内置快照，持久缓存缺失、损坏或更旧时作为种子，远端不可达时兜底。
+	builtin *openRouterPricingCacheFile
+	mu      sync.Mutex
 }
 
 // OfficialPricingItem 表示第三方官方模型定价项。
@@ -98,7 +101,9 @@ type OfficialPricingResult struct {
 	FetchedAt time.Time
 	Cached    bool
 	Stale     bool
-	Items     []OfficialPricingItem
+	// Origin 为 remote 或 builtin；builtin 表示数据来自内置快照，价格可能落后于官方。
+	Origin string
+	Items  []OfficialPricingItem
 }
 
 type openRouterModelsResponse struct {
@@ -141,9 +146,11 @@ type openRouterPricingOverride struct {
 }
 
 type openRouterPricingCacheFile struct {
-	Version   int                          `json:"version,omitempty"`
-	FetchedAt time.Time                    `json:"fetchedAt"`
-	Items     []openRouterPricingCacheItem `json:"items"`
+	Version   int       `json:"version,omitempty"`
+	FetchedAt time.Time `json:"fetchedAt"`
+	// Origin 为 remote（远端同步）或 builtin（随版本发布的内置快照）；旧缓存缺省视为 remote。
+	Origin string                       `json:"origin,omitempty"`
+	Items  []openRouterPricingCacheItem `json:"items"`
 }
 
 type openRouterPricingCacheItem struct {
@@ -423,7 +430,7 @@ func openRouterCacheWritePriceBasis(modelID string) string {
 }
 
 // NewOfficialPricingService 创建依赖完整的官方定价应用服务。
-func NewOfficialPricingService(provider openRouterPricingProvider, cache repository.OpenRouterPricingCacheRepository) *OfficialPricingService {
+func NewOfficialPricingService(provider OpenRouterPricingProvider, cache repository.OpenRouterPricingCacheRepository) *OfficialPricingService {
 	return &OfficialPricingService{provider: provider, cache: cache}
 }
 
@@ -456,6 +463,7 @@ func (s *OfficialPricingService) GetOpenRouterOfficialPricing(ctx context.Contex
 	nextCache := openRouterPricingCacheFile{
 		Version:   openRouterPricingCacheVersion,
 		FetchedAt: time.Now().UTC(),
+		Origin:    OfficialPricingOriginRemote,
 		Items:     officialPricingCacheItems(items),
 	}
 	data, err := json.MarshalIndent(nextCache, "", "  ")
@@ -467,23 +475,41 @@ func (s *OfficialPricingService) GetOpenRouterOfficialPricing(ctx context.Contex
 	}
 	return OfficialPricingResult{
 		FetchedAt: nextCache.FetchedAt,
+		Origin:    OfficialPricingOriginRemote,
 		Items:     append([]OfficialPricingItem(nil), items...),
 	}, nil
 }
 
+// loadOpenRouterPricingCache 读取持久缓存；缺失、损坏、格式过旧或比内置快照旧时改用内置快照，
+// 并把内置快照写入持久缓存作为种子（写入失败不影响本次读取）。
 func (s *OfficialPricingService) loadOpenRouterPricingCache(ctx context.Context) (openRouterPricingCacheFile, bool, error) {
 	data, found, err := s.cache.Load(ctx)
 	if err != nil {
 		return openRouterPricingCacheFile{}, false, err
 	}
-	if !found {
-		return openRouterPricingCacheFile{}, false, nil
+	cache, ok := openRouterPricingCacheFile{}, false
+	if found {
+		cache, ok = decodeOpenRouterPricingCacheFile(data)
 	}
+	if s.builtin != nil && (!ok || cache.Version < openRouterPricingCacheVersion || s.builtin.FetchedAt.After(cache.FetchedAt)) {
+		seed := *s.builtin
+		if encoded, encodeErr := json.MarshalIndent(seed, "", "  "); encodeErr == nil {
+			_ = s.cache.Store(ctx, encoded)
+		}
+		return seed, true, nil
+	}
+	return cache, ok, nil
+}
+
+func decodeOpenRouterPricingCacheFile(data []byte) (openRouterPricingCacheFile, bool) {
 	var cache openRouterPricingCacheFile
 	if err := json.Unmarshal(data, &cache); err != nil || cache.FetchedAt.IsZero() || len(cache.Items) == 0 {
-		return openRouterPricingCacheFile{}, false, nil
+		return openRouterPricingCacheFile{}, false
 	}
-	return cache, true, nil
+	if strings.TrimSpace(cache.Origin) == "" {
+		cache.Origin = OfficialPricingOriginRemote
+	}
+	return cache, true
 }
 
 func officialPricingResultFromCache(cache openRouterPricingCacheFile, cached bool, stale bool) OfficialPricingResult {
@@ -528,6 +554,7 @@ func officialPricingResultFromCache(cache openRouterPricingCacheFile, cached boo
 		FetchedAt: cache.FetchedAt,
 		Cached:    cached,
 		Stale:     stale,
+		Origin:    cache.Origin,
 		Items:     items,
 	}
 }

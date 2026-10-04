@@ -5,6 +5,8 @@ import type {
   AdminBatchDeleteData,
   AdminBatchDeleteRequest,
   AdminLLMSetting,
+  AdminLLMModelCatalogResolution,
+  AdminLLMModelCatalogResolveRequest,
   AdminLLMModelCatalogStatus,
   AdminLLMModelData,
   AdminLLMModelDTO,
@@ -675,25 +677,29 @@ export async function testAdminLLMUpstreamModelRoute(
 }
 
 // ---------------------------------------------------------------------------
-// Reasoning capability catalog
+// models.dev model catalog
 // ---------------------------------------------------------------------------
 
-export async function getAdminLLMModelCatalog(
-  accessToken: string,
-): Promise<AdminLLMModelCatalogStatus> {
+export async function getAdminLLMModelCatalog(accessToken: string): Promise<AdminLLMModelCatalogStatus> {
+  return authedRequest<AdminLLMModelCatalogStatus>("/api/v1/admin/llm/model-catalog", { accessToken }, true);
+}
+
+export async function refreshAdminLLMModelCatalog(accessToken: string): Promise<AdminLLMModelCatalogStatus> {
   return authedRequest<AdminLLMModelCatalogStatus>(
-    "/api/v1/admin/llm/model-catalog",
-    { accessToken },
+    "/api/v1/admin/llm/model-catalog/refresh",
+    { method: "POST", accessToken, body: {} },
     true,
   );
 }
 
-export async function refreshAdminLLMModelCatalog(
+/** Automatic detection for the model form (modalities, context window, reasoning) from its unsaved values. */
+export async function resolveAdminLLMModelCatalog(
   accessToken: string,
-): Promise<AdminLLMModelCatalogStatus> {
-  return authedRequest<AdminLLMModelCatalogStatus>(
-    "/api/v1/admin/llm/model-catalog/refresh",
-    { method: "POST", accessToken, body: {} },
+  payload: AdminLLMModelCatalogResolveRequest,
+): Promise<AdminLLMModelCatalogResolution> {
+  return authedRequest<AdminLLMModelCatalogResolution>(
+    "/api/v1/admin/llm/model-catalog/resolve",
+    { method: "POST", accessToken, body: payload },
     true,
   );
 }

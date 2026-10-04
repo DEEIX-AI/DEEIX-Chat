@@ -525,10 +525,12 @@ type OpenRouterOfficialPricingOverrideResponse struct {
 
 // OpenRouterOfficialPricingDataResponse OpenRouter 官方模型定价缓存响应。
 type OpenRouterOfficialPricingDataResponse struct {
-	FetchedAt time.Time                               `json:"fetchedAt"`
-	Cached    bool                                    `json:"cached"`
-	Stale     bool                                    `json:"stale"`
-	Items     []OpenRouterOfficialPricingItemResponse `json:"items"`
+	FetchedAt time.Time `json:"fetchedAt"`
+	Cached    bool      `json:"cached"`
+	Stale     bool      `json:"stale"`
+	// Origin 为 remote（远端同步）或 builtin（随版本发布的内置快照，价格可能落后于官方）。
+	Origin string                                  `json:"origin" enums:"remote,builtin"`
+	Items  []OpenRouterOfficialPricingItemResponse `json:"items"`
 }
 
 // BillingConfigResponse 计费全局配置响应。

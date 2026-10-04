@@ -608,6 +608,16 @@ func buildGeminiParts(msg portllm.Message) []map[string]any {
 					"data":     base64.StdEncoding.EncodeToString(part.Data),
 				},
 			})
+		case portllm.ContentPartDocument, portllm.ContentPartAudio, portllm.ContentPartVideo:
+			if len(part.Data) == 0 {
+				continue
+			}
+			parts = append(parts, map[string]any{
+				"inlineData": map[string]any{
+					"mimeType": nativeDocumentMIME(part),
+					"data":     base64.StdEncoding.EncodeToString(part.Data),
+				},
+			})
 		default: // text, file
 			text := part.Text
 			if strings.TrimSpace(text) == "" {

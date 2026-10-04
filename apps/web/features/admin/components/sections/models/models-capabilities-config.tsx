@@ -28,10 +28,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ModelsReasoningSyncButton } from "@/features/admin/components/sections/models/models-reasoning-sync-button";
 import { cn } from "@/lib/utils";
 import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { ModelCapabilitiesPresetDialog } from "@/features/admin/components/sections/models/models-capabilities-presets";
+import { parseCapabilitiesObject, stringifyCapabilitiesObject } from "@/features/admin/model/capabilities-json";
 import {
   MODEL_CONTROL_ICON_NAMES,
   MODEL_OPTION_POLICY_PROTOCOL_LABELS,
@@ -163,19 +163,6 @@ function parseJSONObjectOrEmpty(raw: string): Record<string, unknown> {
   return isRecord(parsed) ? parsed : {};
 }
 
-function parseCapabilitiesObject(raw: string): Record<string, unknown> | null {
-  const normalized = raw.trim();
-  if (!normalized) {
-    return {};
-  }
-  try {
-    const parsed: unknown = JSON.parse(normalized);
-    return isRecord(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
 function supportsPromptCacheProtocols(routeProtocols: string[]): boolean {
   return routeProtocols.some((protocol) => OPENAI_PROMPT_CACHE_PROTOCOLS.has(resolveModelOptionPolicyProtocol(protocol)));
 }
@@ -259,7 +246,7 @@ export function setImageStreamEnabledInCapabilities(raw: string, enabled: boolea
       stream: false,
     };
   }
-  return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
+  return stringifyCapabilitiesObject(payload);
 }
 
 function optionPathSegments(path: string): string[] {
@@ -698,7 +685,7 @@ export function normalizeModelCapabilitiesJSON(
     delete payload.nativeTools;
   }
   delete payload.nativeToolKeys;
-  return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
+  return stringifyCapabilitiesObject(payload);
 }
 
 function canonicalNativeToolProtocol(protocol: string): string {
@@ -1067,7 +1054,7 @@ function buildCapabilitiesJSON(
     applyPromptCacheConfig(payload, promptCacheConfig);
   }
   delete payload.nativeToolKeys;
-  return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
+  return stringifyCapabilitiesObject(payload);
 }
 
 export function ModelCapabilitiesGuideButton({ t }: { t: (key: string, values?: Record<string, string>) => string }) {
@@ -1447,7 +1434,7 @@ export function ModelCapabilitiesQuickConfig({
       delete payload.contextWindow;
       delete payload._deeixContextWindowMode;
     }
-    const sanitizedValue = Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
+    const sanitizedValue = stringifyCapabilitiesObject(payload);
     setParameterRows(parseParameterRows(payload.defaultOptions, payload.optionControls, payload.lockedOptionPaths));
     setPromptCacheConfig(parsePromptCacheConfig(payload.promptCache));
     setNativeToolRows(parseNativeToolRows(payload, nativeTools, routeProtocols));
@@ -1479,7 +1466,6 @@ export function ModelCapabilitiesQuickConfig({
                 <DialogDescription>{t("sheet.capabilitiesQuick.description")}</DialogDescription>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
-                <ModelsReasoningSyncButton />
                 <Button
                   type="button"
                   variant="secondary"

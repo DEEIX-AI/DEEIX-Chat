@@ -13,6 +13,9 @@ const (
 	defaultContextWindow    = 128_000
 	defaultMaxOutputTokens  = 8_192
 	autocompactBufferTokens = 13_000
+
+	minContextWindowOverride = 4_096
+	maxContextWindowOverride = 16_000_000
 )
 
 // ModelCaps 保存模型的上下文窗口与输出 Token 上限。
@@ -57,6 +60,14 @@ var modelCapsCatalog = []modelCapsRule{
 	{patterns: []string{"grok-3"}, caps: ModelCaps{131_072, 16_384}},
 }
 
+// NormalizeCatalogContextWindow 把目录声明的上下文窗口收敛到平台允许的覆盖范围，超出范围返回 0（视为未知）。
+func NormalizeCatalogContextWindow(value int) int {
+	if value < minContextWindowOverride || value > maxContextWindowOverride {
+		return 0
+	}
+	return value
+}
+
 // ResolveModelCapsWithFallback 返回模型能力及其来源，并允许调用方配置未知模型的回退窗口。
 // 显式能力配置和内置目录始终优先于回退值。
 func ResolveModelCapsWithFallback(modelName string, fallbackContextWindow int) ResolvedModelCaps {
@@ -79,7 +90,7 @@ func ResolveModelCapsWithFallback(modelName string, fallbackContextWindow int) R
 }
 
 func normalizeFallbackContextWindow(value int) int {
-	if value < 4_096 || value > 16_000_000 {
+	if value < minContextWindowOverride || value > maxContextWindowOverride {
 		return defaultContextWindow
 	}
 	return value
@@ -189,7 +200,7 @@ func ValidateModelCapsOverrides(capabilitiesJSON string) error {
 		return nil
 	}
 	contextWindow, hasContext := firstPresentInt(payload, "contextWindow", "context_window", "contextWindowTokens", "context_window_tokens")
-	if hasContext && (contextWindow < 4_096 || contextWindow > 16_000_000) {
+	if hasContext && (contextWindow < minContextWindowOverride || contextWindow > maxContextWindowOverride) {
 		return ErrInvalidModelCapsOverride
 	}
 	maxOutput, hasOutput := firstPresentInt(payload, "maxOutputTokens", "max_output_tokens")
@@ -200,6 +211,9 @@ func ValidateModelCapsOverrides(capabilitiesJSON string) error {
 		return ErrInvalidModelCapsOverride
 	}
 	if err := validateReasoningCapabilityOverride(payload); err != nil {
+		return err
+	}
+	if err := validateInputModalitiesOverride(payload); err != nil {
 		return err
 	}
 	return validateModelControlsOverride(payload)

@@ -219,7 +219,8 @@ export function useChatAttachments({
         sizeLimitExceeded: (limit: string) => t("policy.sizeLimitExceeded", { limit }),
       };
       for (const file of files) {
-        const rejection = temporary && normalizeUploadMime(file).startsWith("video/")
+        const mime = normalizeUploadMime(file);
+        const rejection = temporary && (mime.startsWith("video/") || mime.startsWith("audio/"))
           ? t("temporaryVideoUnsupported")
           : resolveUploadPolicyRejection(file, chatFilePolicy, policyLabels);
         if (rejection) {

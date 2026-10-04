@@ -330,6 +330,7 @@
     "pricingSaveFailed": "Could not save model pricing",
     "officialPricingApplied": "Price filled",
     "officialPricingRemoteLoaded": "Loaded {count} OpenRouter model prices",
+    "officialPricingBuiltinSnapshot": "Using the pricing bundled with this release ({date}); prices may have changed. Retry the sync later.",
     "officialPricingRemoteFailed": "Failed to fetch OpenRouter pricing",
     "officialPricingRemoteEmpty": "OpenRouter model list is empty",
     "exportEmpty": "No model pricing to export",

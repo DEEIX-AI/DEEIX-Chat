@@ -40,7 +40,11 @@ export function useAdminBillingOfficialPricingCatalog() {
       if (data.stale) {
         setHasError(true);
         if (!options.quiet) {
-          toast.error(t("toast.officialPricingRemoteFailed"));
+          // A builtin snapshot ships with the release and may lag behind OpenRouter; say so explicitly.
+          const description = data.origin === "builtin"
+            ? t("toast.officialPricingBuiltinSnapshot", { date: String(data.fetchedAt ?? "").slice(0, 10) })
+            : undefined;
+          toast.error(t("toast.officialPricingRemoteFailed"), description ? { description } : undefined);
         }
       }
       if (!options.quiet && !data.stale) {

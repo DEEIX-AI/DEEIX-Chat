@@ -1,14 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, TicketSlash } from "lucide-react";
+import { AudioLines, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, FileText, Image as ImageIcon, TicketSlash, Video } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InputGroupButton } from "@/components/ui/input-group";
-import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
+import type { ChatModelOption, ModelInputModality } from "@/features/chat/types/chat-runtime";
 import {
   resolveDesktopMenuListMaxHeight,
   resolveDesktopModelMenuListMaxHeight,
@@ -423,12 +423,54 @@ function formatTokenQuantity(value: number): string {
   return String(value);
 }
 
+const INPUT_MODALITY_ICONS: Partial<Record<ModelInputModality, React.ComponentType<{ className?: string; strokeWidth?: number }>>> = {
+  image: ImageIcon,
+  pdf: FileText,
+  audio: AudioLines,
+  video: Video,
+};
+
+type InputModalityLabels = {
+  title: string;
+  separator: string;
+  names: Record<ModelInputModality, string>;
+};
+
+// Non-text input modalities as compact icons; text is implied and omitted.
+function ModelInputModalities({ modalities, labels }: { modalities: ModelInputModality[]; labels: InputModalityLabels }) {
+  const visible = modalities.filter((modality) => INPUT_MODALITY_ICONS[modality]);
+  if (visible.length === 0) {
+    return null;
+  }
+  const description = `${labels.title}${visible.map((modality) => labels.names[modality]).join(labels.separator)}`;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="flex shrink-0 items-center gap-1 px-1 text-muted-foreground/60 group-hover:text-current group-data-[selected=true]:text-current"
+          role="img"
+          aria-label={description}
+        >
+          {visible.map((modality) => {
+            const Icon = INPUT_MODALITY_ICONS[modality];
+            return Icon ? <Icon key={modality} className="size-3" strokeWidth={1.8} /> : null;
+          })}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8} className="z-[80] text-xs">
+        {description}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function ChatModelMenuItem({
   model,
   selected,
   onSelect,
   billingDisplay,
   pricingLabels,
+  inputModalityLabels,
   viewPricingLabel,
   pricingTooltipSide,
   buttonRef,
@@ -438,6 +480,7 @@ function ChatModelMenuItem({
   onSelect: () => void;
   billingDisplay: BillingDisplayOptions;
   pricingLabels: React.ComponentProps<typeof ModelPricingTooltipContent>["labels"];
+  inputModalityLabels: InputModalityLabels;
   viewPricingLabel: string;
   pricingTooltipSide: "right";
   buttonRef?: React.Ref<HTMLButtonElement>;
@@ -473,6 +516,7 @@ function ChatModelMenuItem({
           {selected ? <Check className="size-3 text-current" strokeWidth={1.7} /> : null}
         </span>
       </button>
+      <ModelInputModalities modalities={model.inputModalities} labels={inputModalityLabels} />
       {model.pricing ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -559,6 +603,20 @@ export function ChatModelPicker({
   const mobileGroup = React.useMemo(
     () => modelGroups.find((group) => group.key === mobileGroupKey) ?? null,
     [mobileGroupKey, modelGroups],
+  );
+  const inputModalityLabels = React.useMemo<InputModalityLabels>(
+    () => ({
+      title: t("inputModalities.title"),
+      separator: t("inputModalities.separator"),
+      names: {
+        text: t("inputModalities.text"),
+        image: t("inputModalities.image"),
+        pdf: t("inputModalities.pdf"),
+        audio: t("inputModalities.audio"),
+        video: t("inputModalities.video"),
+      },
+    }),
+    [t],
   );
   const pricingLabels = React.useMemo(
     () => ({
@@ -846,6 +904,7 @@ export function ChatModelPicker({
                             }}
                             billingDisplay={billingDisplay}
                             pricingLabels={pricingLabels}
+                            inputModalityLabels={inputModalityLabels}
                             viewPricingLabel={t("viewPricing")}
                             pricingTooltipSide="right"
                           />
@@ -909,6 +968,7 @@ export function ChatModelPicker({
                             }}
                             billingDisplay={billingDisplay}
                             pricingLabels={pricingLabels}
+                            inputModalityLabels={inputModalityLabels}
                             viewPricingLabel={t("viewPricing")}
                             pricingTooltipSide="right"
                           />
