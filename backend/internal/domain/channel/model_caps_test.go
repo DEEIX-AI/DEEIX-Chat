@@ -153,3 +153,26 @@ func TestEffectiveContextBudgetFromCapabilitiesUsesConfiguredWindow(t *testing.T
 		t.Fatalf("expected budget %d, got %d", want, got)
 	}
 }
+
+// TestResolveDisplayContextWindow 固定展示窗口的取值优先级：显式配置 > 目录 > 未知。
+func TestResolveDisplayContextWindow(t *testing.T) {
+	tests := []struct {
+		name         string
+		capabilities string
+		catalog      int
+		want         int
+	}{
+		{name: "explicit wins", capabilities: `{"contextWindow":200000}`, catalog: 1_048_576, want: 200_000},
+		{name: "legacy key", capabilities: `{"context_window_tokens":"64000"}`, catalog: 0, want: 64_000},
+		{name: "catalog fallback", capabilities: `{}`, catalog: 1_048_576, want: 1_048_576},
+		{name: "catalog out of range", capabilities: ``, catalog: 1_000, want: 0},
+		{name: "unknown", capabilities: ``, catalog: 0, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ResolveDisplayContextWindow(tt.capabilities, tt.catalog); got != tt.want {
+				t.Fatalf("ResolveDisplayContextWindow() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}

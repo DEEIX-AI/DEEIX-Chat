@@ -167,7 +167,7 @@ export function UpstreamsTable({
     >
       <TableHeader>
         <TableRow className="hover:bg-transparent">
-          <TableHead className="w-[44px] py-1.5 text-center">
+          <TableHead className="w-[44px] py-1.5 text-center" stickyStart>
             <div className="flex h-7 items-center justify-center">
               <Checkbox
                 checked={allSelected ? true : someSelected ? "indeterminate" : false}
@@ -176,8 +176,7 @@ export function UpstreamsTable({
               />
             </div>
           </TableHead>
-          <TableHead>{t("table.id")}</TableHead>
-          <TableHead>{t("table.name")}</TableHead>
+          <TableHead className="left-[44px]" stickyStart>{t("table.name")}</TableHead>
           <TableHead>{t("table.url")}</TableHead>
           <TableHead>{t("table.compatibilityProtocol")}</TableHead>
           <TableHead className="text-center">{t("fields.status")}</TableHead>
@@ -189,14 +188,14 @@ export function UpstreamsTable({
       </TableHeader>
       <TableBody>
         {initialLoading ? (
-          <TableLoadingRow colSpan={10} />
+          <TableLoadingRow colSpan={9} />
         ) : null}
 
         {items.length === 0 && !loading ? (
-          <TableEmptyRow colSpan={10}>{t("table.empty")}</TableEmptyRow>
+          <TableEmptyRow colSpan={9}>{t("table.empty")}</TableEmptyRow>
         ) : showRows ? (
           <>
-            <VirtualTablePaddingRow colSpan={10} height={virtualRows.paddingTop} />
+            <VirtualTablePaddingRow colSpan={9} height={virtualRows.paddingTop} />
             {virtualRows.rows.map(({ item }) => {
               const protocolDefaults = parseProtocolDefaults(item.protocolDefaultsJSON);
 
@@ -205,7 +204,7 @@ export function UpstreamsTable({
                   key={item.id}
                   selected={selected.has(item.id)}
                 >
-                <TableCell className="w-[44px] py-1.5 whitespace-nowrap text-center">
+                <TableCell className="w-[44px] py-1.5 whitespace-nowrap text-center" stickyStart>
                   <div className="flex h-7 items-center justify-center">
                     <Checkbox
                       checked={selected.has(item.id)}
@@ -217,14 +216,14 @@ export function UpstreamsTable({
                   </div>
                 </TableCell>
 
-                <TableCell className="py-1.5 whitespace-nowrap font-mono text-xs text-muted-foreground">
-                  <span className="flex h-7 items-center">{item.id}</span>
-                </TableCell>
-
-                <TableCell>
-                  <div className="max-w-[18rem] truncate whitespace-nowrap">
-                    <span className="font-medium">{item.name}</span>
-                  </div>
+                <TableCell className="left-[44px]" stickyStart>
+                  <button
+                    type="button"
+                    className="block max-w-[18rem] cursor-pointer truncate whitespace-nowrap rounded-sm text-left font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/35"
+                    onClick={() => onEdit(item)}
+                  >
+                    {item.name}
+                  </button>
                 </TableCell>
 
                 <TableCell>
@@ -377,7 +376,7 @@ export function UpstreamsTable({
                 </TableRow>
               );
             })}
-            <VirtualTablePaddingRow colSpan={10} height={virtualRows.paddingBottom} />
+            <VirtualTablePaddingRow colSpan={9} height={virtualRows.paddingBottom} />
           </>
         ) : null}
       </TableBody>

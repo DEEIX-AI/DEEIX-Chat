@@ -673,6 +673,16 @@
       "video": "video"
     },
     "viewPricing": "View pricing",
+    "freeBadge": "Free",
+    "detail": {
+      "modalities": "Modalities",
+      "context": "Context",
+      "price": "Price",
+      "perMillion": "per 1M tokens",
+      "schedule": "Time-of-day rates",
+      "unknown": "Unknown",
+      "noPricing": "Not set"
+    },
     "freeModel": "Free model",
     "freeModelDescription": "No usage balance will be deducted",
     "tieredPricing": "Tiered pricing",
@@ -707,7 +717,10 @@
       "fri": "Fri",
       "sat": "Sat",
       "sun": "Sun",
-      "everyDay": "Every day"
+      "everyDay": "Every day",
+      "dayRange": "{from}–{to}",
+      "daySeparator": ", ",
+      "timeRange": "{from}–{to}"
     }
   },
   "processTrace": {

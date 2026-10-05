@@ -16,6 +16,7 @@ import {
   type ModelModality,
   normalizeModalities,
 } from "@/features/admin/model/model-input-modalities";
+import { MODEL_MODALITY_TONES } from "@/features/admin/components/shared/model-modality-tones";
 
 const MODALITY_ICONS: Record<ModelModality, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
   text: Type,
@@ -23,14 +24,6 @@ const MODALITY_ICONS: Record<ModelModality, React.ComponentType<{ className?: st
   pdf: FileText,
   audio: AudioLines,
   video: Video,
-};
-
-const MODALITY_TONES: Record<ModelModality, string> = {
-  text: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  image: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  pdf: "bg-amber-500/12 text-amber-700 dark:text-amber-300",
-  audio: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
-  video: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
 };
 
 type ModelModalitiesFieldProps = {
@@ -127,7 +120,7 @@ function ModalityChips({ modalities, names }: { modalities: ModelModality[]; nam
         return (
           <span
             key={modality}
-            className={cn("inline-flex size-5 shrink-0 items-center justify-center rounded", MODALITY_TONES[modality])}
+            className={cn("inline-flex size-5 shrink-0 items-center justify-center rounded", MODEL_MODALITY_TONES[modality])}
             title={names[modality]}
           >
             <Icon className="size-3" strokeWidth={2} aria-hidden="true" />

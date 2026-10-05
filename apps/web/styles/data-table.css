@@ -9,7 +9,8 @@
   box-shadow: 0 -1px 0 0 var(--data-table-header-bg);
 }
 
-.data-table-sticky-end-head {
+.data-table-sticky-end-head,
+.data-table-sticky-start-head {
   background-color: var(--data-table-header-bg);
 }
 
@@ -28,7 +29,8 @@ tbody .data-table-row[data-tone="muted"] {
   --data-table-row-hover-bg: color-mix(in oklch, var(--muted) 30%, var(--background));
 }
 
-tbody .data-table-row[data-tone="muted"] > .data-table-sticky-end-cell {
+tbody .data-table-row[data-tone="muted"] > .data-table-sticky-end-cell,
+tbody .data-table-row[data-tone="muted"] > .data-table-sticky-start-cell {
   background-color: color-mix(in oklch, var(--muted) 20%, var(--background));
 }
 
@@ -37,7 +39,8 @@ tbody .data-table-row[data-tone="warning"] {
   --data-table-row-hover-bg: color-mix(in oklch, var(--amber-100) 60%, var(--background));
 }
 
-tbody .data-table-row[data-tone="warning"] > .data-table-sticky-end-cell {
+tbody .data-table-row[data-tone="warning"] > .data-table-sticky-end-cell,
+tbody .data-table-row[data-tone="warning"] > .data-table-sticky-start-cell {
   background-color: color-mix(in oklch, var(--amber-100) 45%, var(--background));
 }
 
@@ -46,7 +49,8 @@ tbody .data-table-row[data-tone="warning"] > .data-table-sticky-end-cell {
   --data-table-row-hover-bg: color-mix(in oklch, var(--amber-900) 24%, var(--background));
 }
 
-.dark tbody .data-table-row[data-tone="warning"] > .data-table-sticky-end-cell {
+.dark tbody .data-table-row[data-tone="warning"] > .data-table-sticky-end-cell,
+.dark tbody .data-table-row[data-tone="warning"] > .data-table-sticky-start-cell {
   background-color: color-mix(in oklch, var(--amber-900) 18%, var(--background));
 }
 
@@ -55,7 +59,8 @@ tbody .data-table-row[data-selected="true"] {
   --data-table-row-hover-bg: var(--accent);
 }
 
-tbody .data-table-row[data-selected="true"] > .data-table-sticky-end-cell {
+tbody .data-table-row[data-selected="true"] > .data-table-sticky-end-cell,
+tbody .data-table-row[data-selected="true"] > .data-table-sticky-start-cell {
   background-color: var(--accent);
 }
 
@@ -63,11 +68,13 @@ tbody .data-table-row:not([data-interactive="false"]):hover {
   --data-table-row-bg: var(--data-table-row-hover-bg);
 }
 
-tbody .data-table-row:not([data-interactive="false"]):hover > .data-table-sticky-end-cell {
+tbody .data-table-row:not([data-interactive="false"]):hover > .data-table-sticky-end-cell,
+tbody .data-table-row:not([data-interactive="false"]):hover > .data-table-sticky-start-cell {
   background-color: var(--data-table-row-hover-bg);
 }
 
-tbody .data-table-sticky-end-cell {
+tbody .data-table-sticky-end-cell,
+tbody .data-table-sticky-start-cell {
   background-color: var(--data-table-row-bg);
 }
 

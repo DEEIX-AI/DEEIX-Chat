@@ -40,7 +40,7 @@ type modelCatalogFetcher interface {
 }
 
 type modelCatalogState struct {
-	// catalog 只索引带推理选项的条目；modalities 索引所有声明了输入模态的条目。
+	// catalog 只索引带推理选项的条目；modalities 索引所有声明了输入模态的条目，并带出展示用的输出模态与上下文窗口。
 	catalog    *domainchannel.ModelCatalog
 	modalities *domainchannel.ModelCatalog
 	origin     string
@@ -425,6 +425,10 @@ type ModelCapabilityInfo struct {
 	Controls []domainchannel.ModelControl
 	// InputModalities 为生效的输入模态（显式声明优先，其次 models.dev 目录）；来源为空表示未知。
 	InputModalities domainchannel.InputModalities
+	// OutputModalities 为 models.dev 目录声明的输出模态，仅用于展示；未匹配时为空。
+	OutputModalities []string
+	// ContextWindow 为生效的上下文窗口（Token）：能力 JSON 中的 contextWindow 优先，其次 models.dev 目录；未知时为 0。
+	ContextWindow int
 }
 
 // ModelCapabilityResolver 在一次请求内复用同一份目录快照解析多个模型的推理能力。
@@ -447,16 +451,21 @@ func (r ModelCapabilityResolver) Resolve(view ModelView) ModelCapabilityInfo {
 		suggestion, _ = domainchannel.CatalogReasoningCapabilityForProtocols(entry, protocolKeys, view.Vendor)
 	}
 	capability, source := domainchannel.ResolveReasoningCapabilityForProtocols(protocolKeys, view.CapabilitiesJSON, suggestion)
-	var catalogModalities []string
+	var catalogModalities, catalogOutputs []string
+	catalogContextWindow := 0
 	if r.modalities != nil {
 		if entry := r.modalities.Match(view.PlatformModelName, view.Vendor, protocolKeys); entry != nil {
 			catalogModalities = entry.InputModalities
+			catalogOutputs = domainchannel.NormalizeOutputModalities(entry.OutputModalities)
+			catalogContextWindow = entry.ContextWindow
 		}
 	}
 	info := ModelCapabilityInfo{
-		Source:          source,
-		Controls:        domainchannel.ResolveModelControls(view.CapabilitiesJSON, protocolKeys, capability, source),
-		InputModalities: domainchannel.ResolveInputModalities(view.CapabilitiesJSON, catalogModalities),
+		Source:           source,
+		Controls:         domainchannel.ResolveModelControls(view.CapabilitiesJSON, protocolKeys, capability, source),
+		InputModalities:  domainchannel.ResolveInputModalities(view.CapabilitiesJSON, catalogModalities),
+		OutputModalities: catalogOutputs,
+		ContextWindow:    domainchannel.ResolveDisplayContextWindow(view.CapabilitiesJSON, catalogContextWindow),
 	}
 	if capability != nil {
 		info.View = &ModelReasoningView{

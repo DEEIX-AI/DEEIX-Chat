@@ -18,6 +18,9 @@ const (
 	maxContextWindowOverride = 16_000_000
 )
 
+// contextWindowCapabilityKeys 是能力 JSON 中表示上下文窗口的键，按优先级排列；下划线写法兼容旧配置。
+var contextWindowCapabilityKeys = []string{"contextWindow", "context_window", "contextWindowTokens", "context_window_tokens"}
+
 // ModelCaps 保存模型的上下文窗口与输出 Token 上限。
 type ModelCaps struct {
 	ContextWindow   int
@@ -66,6 +69,17 @@ func NormalizeCatalogContextWindow(value int) int {
 		return 0
 	}
 	return value
+}
+
+// ResolveDisplayContextWindow 返回展示给用户的上下文窗口：能力 JSON 显式配置优先，其次为目录值；都未知时返回 0，
+// 不使用请求链路的回退窗口，避免把猜测值当成模型规格。
+func ResolveDisplayContextWindow(capabilitiesJSON string, catalogContextWindow int) int {
+	if payload, ok := parseCapabilities(capabilitiesJSON); ok {
+		if value, found := firstPositiveInt(payload, contextWindowCapabilityKeys...); found {
+			return value
+		}
+	}
+	return NormalizeCatalogContextWindow(catalogContextWindow)
 }
 
 // ResolveModelCapsWithFallback 返回模型能力及其来源，并允许调用方配置未知模型的回退窗口。
@@ -177,7 +191,7 @@ func ResolveModelCapsFromCapabilitiesWithFallback(modelName string, capabilities
 		return resolved
 	}
 	overridden := false
-	if value, found := firstPositiveInt(payload, "contextWindow", "context_window", "contextWindowTokens", "context_window_tokens"); found {
+	if value, found := firstPositiveInt(payload, contextWindowCapabilityKeys...); found {
 		resolved.ContextWindow = value
 		overridden = true
 	}
@@ -199,7 +213,7 @@ func ValidateModelCapsOverrides(capabilitiesJSON string) error {
 	if !ok {
 		return nil
 	}
-	contextWindow, hasContext := firstPresentInt(payload, "contextWindow", "context_window", "contextWindowTokens", "context_window_tokens")
+	contextWindow, hasContext := firstPresentInt(payload, contextWindowCapabilityKeys...)
 	if hasContext && (contextWindow < minContextWindowOverride || contextWindow > maxContextWindowOverride) {
 		return ErrInvalidModelCapsOverride
 	}

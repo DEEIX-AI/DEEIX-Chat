@@ -673,6 +673,16 @@
       "video": "视频"
     },
     "viewPricing": "查看价格",
+    "freeBadge": "免费",
+    "detail": {
+      "modalities": "模态",
+      "context": "上下文",
+      "price": "价格",
+      "perMillion": "每 1M tokens",
+      "schedule": "时段倍率",
+      "unknown": "未知",
+      "noPricing": "未配置"
+    },
     "freeModel": "免费模型",
     "freeModelDescription": "不会扣除按量余额",
     "tieredPricing": "阶梯计费",
@@ -707,7 +717,10 @@
       "fri": "周五",
       "sat": "周六",
       "sun": "周日",
-      "everyDay": "每天"
+      "everyDay": "每天",
+      "dayRange": "{from}至{to}",
+      "daySeparator": "、",
+      "timeRange": "{from}-{to}"
     }
   },
   "processTrace": {
