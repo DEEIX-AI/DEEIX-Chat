@@ -1091,7 +1091,6 @@ export function ChatModelPicker({
     // top and the row's list sliding in, so take its layout offset from the submenu's target top.
     const anchorOffset = anchorRow && submenu ? layoutOffsetTop(anchorRow, submenu) : Number.NaN;
     const anchorTop = Number.isFinite(anchorOffset) ? nextSubmenuTop + anchorOffset : nextSubmenuTop;
-    // Keep it inside the viewport: never above the list, never ending past the collision padding.
     // Height comes from the natural content, since the rendered box is capped by the previous one.
     const pane = desktopDetailPaneRef.current;
     const paneBody = desktopDetailBodyRef.current;
@@ -1099,8 +1098,9 @@ export function ChatModelPicker({
     const paneContent = pane && detailModelName ? findDetailContent(pane, detailModelName) : null;
     const paneContentHeight = paneContent?.scrollHeight ?? 0;
     const paneHeight = Math.max(paneContentHeight + paneBorder, DESKTOP_DETAIL_PANE_MIN_HEIGHT);
+    const paneTopFloor = viewportTop - menuRootRect.top;
     const maxDetailTop = viewportBottom - menuRootRect.top - paneHeight;
-    const nextDetailTop = Math.max(nextSubmenuTop, Math.min(anchorTop, maxDetailTop));
+    const nextDetailTop = Math.max(paneTopFloor, Math.min(anchorTop, maxDetailTop));
     const nextDetailMaxHeight = viewportBottom - (menuRootRect.top + nextDetailTop);
     const detailHeightFits = nextDetailMaxHeight >= DESKTOP_DETAIL_PANE_MIN_HEIGHT;
     const nextDetailBodyHeight = paneContent ? Math.min(paneContentHeight, nextDetailMaxHeight - paneBorder) : null;
