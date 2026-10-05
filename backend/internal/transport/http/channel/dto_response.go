@@ -442,6 +442,9 @@ type UpstreamModelSyncPlanResponse struct {
 	InactivatedModels []string `json:"inactivatedModels"`
 	UnchangedModels   []string `json:"unchangedModels"`
 	ProtectedModels   []string `json:"protectedModels"`
+	// UnresolvedProtocolModels 为同步后没有建议协议的远端模型：模型类型推断不出协议，需要为上游设置对应默认协议，
+	// 或绑定时手动选择。它们仍会写入目录，与上面的分类不互斥。
+	UnresolvedProtocolModels []string `json:"unresolvedProtocolModels"`
 }
 
 func toUpstreamRemoteModelsResponse(d appchannel.UpstreamRemoteModelsData) UpstreamRemoteModelsResponse {
@@ -465,12 +468,13 @@ func toUpstreamRemoteModelsResponse(d appchannel.UpstreamRemoteModelsData) Upstr
 		Items:      items,
 		SnapshotID: d.SnapshotID,
 		SyncPlan: UpstreamModelSyncPlanResponse{
-			AddedModels:       stringList(d.SyncPlan.AddedModels),
-			UpdatedModels:     stringList(d.SyncPlan.UpdatedModels),
-			ReactivatedModels: stringList(d.SyncPlan.ReactivatedModels),
-			InactivatedModels: stringList(d.SyncPlan.InactivatedModels),
-			UnchangedModels:   stringList(d.SyncPlan.UnchangedModels),
-			ProtectedModels:   stringList(d.SyncPlan.ProtectedModels),
+			AddedModels:              stringList(d.SyncPlan.AddedModels),
+			UpdatedModels:            stringList(d.SyncPlan.UpdatedModels),
+			ReactivatedModels:        stringList(d.SyncPlan.ReactivatedModels),
+			InactivatedModels:        stringList(d.SyncPlan.InactivatedModels),
+			UnchangedModels:          stringList(d.SyncPlan.UnchangedModels),
+			ProtectedModels:          stringList(d.SyncPlan.ProtectedModels),
+			UnresolvedProtocolModels: stringList(d.SyncPlan.UnresolvedProtocolModels),
 		},
 	}
 }
@@ -508,6 +512,8 @@ type SyncUpstreamModelsResponse struct {
 	InactivatedModels       int64                       `json:"inactivatedModels"`
 	ReactivatedModels       int                         `json:"reactivatedModels"`
 	SyncedModels            []UpstreamSyncModelResponse `json:"syncedModels"`
+	// UnresolvedProtocolModels 为写入目录但没有建议协议的远端模型，含义同同步计划中的同名字段。
+	UnresolvedProtocolModels []string `json:"unresolvedProtocolModels"`
 }
 
 func toSyncUpstreamModelsResponse(d appchannel.SyncUpstreamModelsData) SyncUpstreamModelsResponse {
@@ -526,17 +532,18 @@ func toSyncUpstreamModelsResponse(d appchannel.SyncUpstreamModelsData) SyncUpstr
 		})
 	}
 	return SyncUpstreamModelsResponse{
-		SnapshotID:              d.SnapshotID,
-		TotalUpstream:           d.TotalUpstream,
-		CreatedUpstreamModels:   d.CreatedUpstreamModels,
-		UpdatedUpstreamModels:   d.UpdatedUpstreamModels,
-		UnchangedUpstreamModels: d.UnchangedUpstreamModels,
-		ProtectedUpstreamModels: d.ProtectedUpstreamModels,
-		ExistingUpstreamModels:  d.ExistingUpstreamModels,
-		SkippedUpstreamModels:   d.SkippedUpstreamModels,
-		InactivatedModels:       d.InactivatedModels,
-		ReactivatedModels:       d.ReactivatedModels,
-		SyncedModels:            models,
+		SnapshotID:               d.SnapshotID,
+		TotalUpstream:            d.TotalUpstream,
+		CreatedUpstreamModels:    d.CreatedUpstreamModels,
+		UpdatedUpstreamModels:    d.UpdatedUpstreamModels,
+		UnchangedUpstreamModels:  d.UnchangedUpstreamModels,
+		ProtectedUpstreamModels:  d.ProtectedUpstreamModels,
+		ExistingUpstreamModels:   d.ExistingUpstreamModels,
+		SkippedUpstreamModels:    d.SkippedUpstreamModels,
+		InactivatedModels:        d.InactivatedModels,
+		ReactivatedModels:        d.ReactivatedModels,
+		SyncedModels:             models,
+		UnresolvedProtocolModels: stringList(d.UnresolvedProtocolModels),
 	}
 }
 

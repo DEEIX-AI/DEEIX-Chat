@@ -3951,6 +3951,8 @@ export interface SyncUpstreamModelsResponse {
   syncedModels: UpstreamSyncModelResponse[];
   totalUpstream: number;
   unchangedUpstreamModels: number;
+  /** UnresolvedProtocolModels 为写入目录但没有建议协议的远端模型，含义同同步计划中的同名字段。 */
+  unresolvedProtocolModels: string[];
   updatedUpstreamModels: number;
 }
 
@@ -4601,6 +4603,11 @@ export interface UpstreamModelSyncPlanResponse {
   protectedModels: string[];
   reactivatedModels: string[];
   unchangedModels: string[];
+  /**
+   * UnresolvedProtocolModels 为同步后没有建议协议的远端模型：模型类型推断不出协议，需要为上游设置对应默认协议，
+   * 或绑定时手动选择。它们仍会写入目录，与上面的分类不互斥。
+   */
+  unresolvedProtocolModels: string[];
   updatedModels: string[];
 }
 

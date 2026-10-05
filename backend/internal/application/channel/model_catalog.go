@@ -2,6 +2,7 @@ package channel
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
@@ -271,6 +272,26 @@ func resolveRouteProtocols(explicit []string, upCompatible string, defaultsJSON 
 		return nil, err
 	}
 	return []string{protocol}, nil
+}
+
+// suggestSyncProtocol 返回同步目录时为远端模型记录的建议协议。同步只记录上游提供哪些模型，
+// 推断不出协议是正常状态（例如以 Anthropic 兼容类型接入、目录里混有图像模型的网关）：返回空串，
+// 由绑定路由时再要求协议。只放过 ErrProtocolRequired，其余错误照常返回。
+func suggestSyncProtocol(upCompatible string, defaultsJSON string, kindsJSON string) (string, error) {
+	protocol, err := resolveRouteProtocol("", upCompatible, defaultsJSON, kindsJSON)
+	if errors.Is(err, ErrProtocolRequired) {
+		return "", nil
+	}
+	return protocol, err
+}
+
+// suggestSyncProtocols 与 suggestSyncProtocol 相同，返回预览导入时建议的整组协议；推断不出时返回空列表。
+func suggestSyncProtocols(upCompatible string, defaultsJSON string, kindsJSON string) ([]string, error) {
+	protocols, err := resolveRouteProtocols(nil, upCompatible, defaultsJSON, kindsJSON)
+	if errors.Is(err, ErrProtocolRequired) {
+		return []string{}, nil
+	}
+	return protocols, err
 }
 
 func unifiedProtocolForMultiKindRoute(upCompatible string, defaultsJSON string, kindsJSON string) string {
