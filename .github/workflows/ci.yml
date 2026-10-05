@@ -107,6 +107,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-24.04
+    env:
+      SIDECAR_TAGS: nopostgres,noredis,nos3,noswagger,nomsgpack,nootlp
     defaults:
       run:
         working-directory: backend
@@ -123,10 +125,14 @@ jobs:
       - name: Build (default and sidecar tag sets)
         run: |
           go build ./...
-          go build -tags nopostgres,noredis,nos3,noswagger,nomsgpack ./...
+          go build -tags "$SIDECAR_TAGS" ./...
       - name: Test
         # Go's test cache (persisted by setup-go) skips packages whose inputs did not change.
         run: go test ./...
+      # Packages whose behavior differs under the sidecar tag set; keep the tags in sync with
+      # apps/desktop/scripts/build-sidecar.mjs.
+      - name: Test (sidecar tag set)
+        run: go test -tags "$SIDECAR_TAGS" ./internal/infra/observability/tracing/... ./internal/infra/openwebui/... ./internal/infra/persistence/...
 
   web:
     name: Web
@@ -223,13 +229,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      # Builds the default Dockerfile target, the path users take; release images use the prebuilt
+      # web assets (see .github/workflows/image.yml). mode=min keeps this job from filling the
+      # repository-wide cache quota with the multi-GB install and compile layers.
       - name: Build image (no push)
         uses: docker/build-push-action@v6
         with:
           context: .
           push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=ci-image
+          cache-to: type=gha,scope=ci-image,mode=min
 
   dependencies:
     name: Dependencies

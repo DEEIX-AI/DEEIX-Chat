@@ -56,8 +56,9 @@ if (process.env.DEEIX_REFRESH_CATALOG_SNAPSHOTS === "1") {
 console.log(`Building sidecar ${triple} (GOOS=${goos} GOARCH=${goarch}) → ${output}`);
 
 // Local mode only uses SQLite, the memory cache and local storage; the other
-// drivers, the Swagger UI and gin's msgpack binding are compiled out.
-const tags = "nopostgres,noredis,nos3,noswagger,nomsgpack";
+// drivers, the Swagger UI, gin's msgpack binding and the OTLP trace exporter
+// (with its gRPC/protobuf stack) are compiled out. Keep in sync with ci.yml.
+const tags = "nopostgres,noredis,nos3,noswagger,nomsgpack,nootlp";
 
 execFileSync("go", ["build", "-trimpath", "-tags", tags, "-ldflags", ldflags, "-o", output, "./cmd/server"], {
   cwd: backendDir,

@@ -294,8 +294,6 @@
     "sessionExpired": "登录状态已失效",
     "choose": "选择或上传图标",
     "searchIcons": "搜索图标",
-    "loadIconLibraryFailed": "图标库加载失败",
-    "retryIconLibrary": "重试",
     "uploadShort": "上传",
     "uploadedIcons": "已上传",
     "builtInIcons": "内置图标",

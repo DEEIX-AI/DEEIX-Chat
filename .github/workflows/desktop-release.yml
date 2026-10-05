@@ -54,6 +54,10 @@ on:
 permissions:
   contents: write
 
+env:
+  # Incremental artefacts are useless across CI runs and bloat the Rust cache.
+  CARGO_INCREMENTAL: 0
+
 jobs:
   build:
     name: Build (${{ matrix.label }})
@@ -129,6 +133,11 @@ jobs:
         shell: bash
         run: gcc --version | head -1 || { echo "::error::no C compiler for cgo"; exit 1; }
 
+      # Version drift between VERSION, package.json, tauri.conf.json and
+      # Cargo.toml must fail the release rather than ship a mislabelled build.
+      - name: Verify version consistency
+        run: node scripts/sync-version.mjs --check
+
       # The Go server ships inside the app as a sidecar (local mode). It links
       # SQLite through cgo, so it is built natively on each matrix leg; macOS
       # x86_64 is cross-built from the arm64 runner with Apple's toolchain.
@@ -146,11 +155,6 @@ jobs:
           else
             node apps/desktop/scripts/build-sidecar.mjs
           fi
-
-      # Version drift between VERSION, package.json, tauri.conf.json and
-      # Cargo.toml must fail the release rather than ship a mislabelled build.
-      - name: Verify version consistency
-        run: node scripts/sync-version.mjs --check
 
       # Tauri treats a signing variable that merely exists as configured, so
       # the Apple credentials are exported only when the secrets are set;

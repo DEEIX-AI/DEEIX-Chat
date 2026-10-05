@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	gormpostgres "gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -68,7 +67,7 @@ func openDB(dsn string) (*gorm.DB, error) {
 		if _, err := url.Parse(trimmed); err != nil {
 			return nil, repository.ErrInvalidInput
 		}
-		return gorm.Open(gormpostgres.Open(trimmed), &gorm.Config{})
+		return openPostgres(trimmed)
 	}
 	const sqliteScheme = "sqlite://"
 	if strings.HasPrefix(lower, sqliteScheme) {

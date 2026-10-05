@@ -195,7 +195,9 @@ func NewAppWithOptions(opts Options) (*App, error) {
 		Protocol:     cfg.OTelExporterOTLPProtocol,
 		SamplingRate: cfg.OTelSamplingRate,
 	})
-	if err != nil {
+	// 不含 OTLP exporter 的构建（桌面端 sidecar）只关闭链路追踪，不因环境里残留的 OTEL_* 变量而无法启动。
+	tracingUnavailable := errors.Is(err, platformtracing.ErrExporterUnavailable)
+	if err != nil && !tracingUnavailable {
 		return nil, fmt.Errorf("init tracing: %w", err)
 	}
 	keepTracing := false
@@ -216,6 +218,9 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	log, err := newLogger(cfg.Env)
 	if err != nil {
 		return nil, err
+	}
+	if tracingUnavailable {
+		log.Warn("tracing is configured but this build has no OTLP exporter; tracing is disabled")
 	}
 
 	db, err := persistence.Open(cfg)

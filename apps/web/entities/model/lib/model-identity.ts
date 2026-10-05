@@ -1,3 +1,4 @@
+import { lobehubIconURL, parseLobehubIconSlug } from "@/entities/model/lib/lobehub-icons";
 import { resolveConfiguredApiBaseURL } from "@/shared/api/http-client";
 
 type ModelIdentityInput = {
@@ -388,6 +389,10 @@ export function resolveModelIconURL(icon: string): string | null {
   if (!normalized) {
     return null;
   }
+  const legacyBundledSlug = parseLobehubIconSlug(normalized);
+  if (legacyBundledSlug) {
+    return lobehubIconURL(legacyBundledSlug);
+  }
   if (isModelIconResource(normalized)) {
     const assetMatch = /^asset:(ico_[a-f0-9]{32})$/iu.exec(normalized);
     if (assetMatch) {
@@ -395,5 +400,5 @@ export function resolveModelIconURL(icon: string): string | null {
     }
     return normalized;
   }
-  return `/vendor/lobehub-icons/${normalized}.svg`;
+  return lobehubIconURL(normalized);
 }

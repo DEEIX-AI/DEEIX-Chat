@@ -303,7 +303,7 @@ R2、OSS、MinIO、AWS S3 等统一走 S3 兼容协议，不为不同厂商维�
 
 | 位置 | 内容 | 写入方 |
 |---|---|---|
-| `internal/infra/catalogdata/data/*.json.gz` | 内置快照，随二进制发布（`go:embed`） | `make catalog-snapshot`；镜像与桌面端构建时自动刷新 |
+| `internal/infra/catalogdata/data/*.json.gz` | 内置快照，随二进制发布（`go:embed`） | `make catalog-snapshot`；发布镜像与桌面端发布时刷新 |
 | `storage/catalogs/models-dev.json`、`storage/catalogs/openrouter-pricing.json` | 运行时最近一次同步结果（明文 JSON） | 管理员同步成功时写入；首次启动或缓存比内置快照旧时由内置快照写入 |
 
 运行时以 storage 中的数据为准；缺失、损坏、格式过旧或比内置快照旧时使用内置快照并写入 storage 作为种子。之后照常按需同步远端（models.dev 在管理员编辑模型或查看目录状态且超过 24 小时时后台同步；后台「编辑模型 → 模型能力」的「同步目录」会同时立即同步 models.dev 与 OpenRouter，对应 `POST /admin/llm/model-catalog/refresh` 与 `GET /admin/billing/official-pricing/openrouter?refresh=true`；OpenRouter 定价在管理员打开官方价格时按 24 小时有效期刷新）。远端不可达时继续使用已有数据，内网与离线部署也始终有可用目录；OpenRouter 定价来自内置快照时接口返回 `origin: "builtin"`，管理端会提示价格可能已变化。
@@ -325,7 +325,7 @@ go run ./cmd/catalog-snapshot -only models-dev          # 只刷新指定数据�
 go run ./cmd/catalog-snapshot -models-dev-input api.json  # 从本地文件生成，不访问网络
 ```
 
-镜像构建（`Dockerfile`）与桌面端发布（`DEEIX_REFRESH_CATALOG_SNAPSHOTS=1`）会以 `-keep-on-error` 先刷新一次再编译：拉取或校验失败（条目数异常偏少）时保留仓库中已提交的快照，构建不受外部服务影响。离线构建镜像可传 `--build-arg REFRESH_CATALOG_SNAPSHOTS=false` 跳过刷新。
+刷新默认关闭，构建时按需开启：发布镜像（`.github/workflows/image.yml`）传 `--build-arg REFRESH_CATALOG_SNAPSHOTS=true`，桌面端发布设 `DEEIX_REFRESH_CATALOG_SNAPSHOTS=1`，两者都以 `-keep-on-error` 先刷新一次再编译，拉取或校验失败（条目数异常偏少）时保留仓库中已提交的快照，构建不受外部服务影响。直接 `docker build .` 用仓库中的快照，不访问网络。
 
 ## 向量存储
 
