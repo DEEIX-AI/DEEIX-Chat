@@ -37,12 +37,16 @@ export type ChatModelOption = {
   controls: ModelControl[];
   // Input modalities the model accepts (explicit declaration, else models.dev); empty when unknown.
   // Describes the model only: whether a file is sent natively also depends on the route, decided by the server.
-  inputModalities: ModelInputModality[];
+  inputModalities: ModelModality[];
+  // Output modalities from the models.dev catalog, for display only; empty when unknown.
+  outputModalities: ModelModality[];
+  // Context window in tokens (administrator setting, else models.dev); null when unknown.
+  contextWindow: number | null;
 };
 
-export const MODEL_INPUT_MODALITIES = ["text", "image", "pdf", "audio", "video"] as const;
+export const MODEL_MODALITIES = ["text", "image", "pdf", "audio", "video"] as const;
 
-export type ModelInputModality = (typeof MODEL_INPUT_MODALITIES)[number];
+export type ModelModality = (typeof MODEL_MODALITIES)[number];
 
 export type ModelMediaTaskConfig = {
   enabled: boolean;

@@ -5,9 +5,9 @@ import * as React from "react";
 import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
 import {
   type ChatModelOption,
-  MODEL_INPUT_MODALITIES,
+  MODEL_MODALITIES,
   MODEL_OPTION_CONTROL_TYPES,
-  type ModelInputModality,
+  type ModelModality,
   type ModelOptionControl,
   type ModelOptionControlType,
 } from "@/features/chat/types/chat-runtime";
@@ -373,16 +373,19 @@ function toChatModelOption(
     // Re-validated at runtime so an older server (field absent) or unknown levels degrade to null.
     reasoning: parseModelReasoningCapability(item.reasoning),
     controls: parseModelControls(item.controls),
-    inputModalities: parseInputModalities(item.inputModalities),
+    inputModalities: parseModalities(item.inputModalities),
+    outputModalities: parseModalities(item.outputModalities),
+    // Older servers omit the field, and a zero window means unknown.
+    contextWindow: typeof item.contextWindow === "number" && item.contextWindow > 0 ? item.contextWindow : null,
   };
 }
 
-// Older servers omit the field; unknown values are dropped so the UI never shows an unsupported badge.
-function parseInputModalities(value: unknown): ModelInputModality[] {
+// Older servers omit the fields; unknown values are dropped so the UI never shows an unsupported badge.
+function parseModalities(value: unknown): ModelModality[] {
   if (!Array.isArray(value)) {
     return [];
   }
-  return MODEL_INPUT_MODALITIES.filter((modality) => value.includes(modality));
+  return MODEL_MODALITIES.filter((modality) => value.includes(modality));
 }
 
 export function useChatModelOptions({

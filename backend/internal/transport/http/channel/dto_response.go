@@ -151,6 +151,14 @@ func toModelResponse(v appchannel.ModelView) ModelResponse {
 	}
 }
 
+// optionalPositiveInt 把 0 与负数视为未知，返回 nil。
+func optionalPositiveInt(value int) *int {
+	if value <= 0 {
+		return nil
+	}
+	return &value
+}
+
 func optionalTrimmedString(value string) *string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -668,6 +676,10 @@ type PublicModelResponse struct {
 	InputModalities []string `json:"inputModalities"`
 	// InputModalitiesSource 为输入模态来源：explicit 为管理员在能力 JSON 中声明，catalog 为 models.dev 目录；未知时为 null。
 	InputModalitiesSource *string `json:"inputModalitiesSource" enums:"explicit,catalog" extensions:"x-nullable,!x-omitempty"`
+	// OutputModalities 为 models.dev 目录声明的输出模态（text / image / audio / video …），仅用于展示；未知时为空数组。
+	OutputModalities []string `json:"outputModalities"`
+	// ContextWindow 为上下文窗口（Token）：能力 JSON 显式配置优先，其次 models.dev 目录；未知时为 null。
+	ContextWindow *int `json:"contextWindow" extensions:"x-nullable,!x-omitempty"`
 }
 
 // PublicModelControlResponse 是一个用户端模型控件。
@@ -1073,6 +1085,8 @@ func toPublicModelResponse(v appchannel.ModelView, resolver appchannel.ModelCapa
 		Controls:              toPublicModelControlResponses(reasoning.Controls),
 		InputModalities:       append([]string{}, reasoning.InputModalities.Values...),
 		InputModalitiesSource: optionalTrimmedString(reasoning.InputModalities.Source),
+		OutputModalities:      append([]string{}, reasoning.OutputModalities...),
+		ContextWindow:         optionalPositiveInt(reasoning.ContextWindow),
 	}
 }
 

@@ -7330,6 +7330,12 @@ definitions:
     properties:
       capabilitiesJSON:
         type: string
+      contextWindow:
+        description: ContextWindow 为上下文窗口（Token）：能力 JSON 显式配置优先，其次 models.dev 目录；未知时为
+          null。
+        type: integer
+        x-nullable: true
+        x-omitempty: false
       controls:
         description: |-
           Controls 是用户端可操作的模型控件（管理员隐藏的控件不下发），顺序即展示顺序。
@@ -7367,6 +7373,12 @@ definitions:
         x-omitempty: false
       kindsJSON:
         type: string
+      outputModalities:
+        description: OutputModalities 为 models.dev 目录声明的输出模态（text / image / audio
+          / video …），仅用于展示；未知时为空数组。
+        items:
+          type: string
+        type: array
       platformModelName:
         type: string
       pricing:
@@ -7392,6 +7404,7 @@ definitions:
         type: string
     required:
     - capabilitiesJSON
+    - contextWindow
     - controls
     - description
     - displayGroupID
@@ -7401,6 +7414,7 @@ definitions:
     - inputModalities
     - inputModalitiesSource
     - kindsJSON
+    - outputModalities
     - platformModelName
     - pricing
     - protocolsJSON

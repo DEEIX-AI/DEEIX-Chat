@@ -27624,6 +27624,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "capabilitiesJSON",
+                "contextWindow",
                 "controls",
                 "description",
                 "displayGroupID",
@@ -27633,6 +27634,7 @@ const docTemplate = `{
                 "inputModalities",
                 "inputModalitiesSource",
                 "kindsJSON",
+                "outputModalities",
                 "platformModelName",
                 "pricing",
                 "protocolsJSON",
@@ -27645,6 +27647,12 @@ const docTemplate = `{
             "properties": {
                 "capabilitiesJSON": {
                     "type": "string"
+                },
+                "contextWindow": {
+                    "description": "ContextWindow 为上下文窗口（Token）：能力 JSON 显式配置优先，其次 models.dev 目录；未知时为 null。",
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
                 },
                 "controls": {
                     "description": "Controls 是用户端可操作的模型控件（管理员隐藏的控件不下发），顺序即展示顺序。\n用户请求只提交 {控件 id: 取值}，参数片段只保存在服务端。",
@@ -27689,6 +27697,13 @@ const docTemplate = `{
                 },
                 "kindsJSON": {
                     "type": "string"
+                },
+                "outputModalities": {
+                    "description": "OutputModalities 为 models.dev 目录声明的输出模态（text / image / audio / video …），仅用于展示；未知时为空数组。",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "platformModelName": {
                     "type": "string"
