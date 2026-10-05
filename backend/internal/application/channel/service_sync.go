@@ -74,7 +74,10 @@ func (s *Service) ListRemoteModels(ctx context.Context, upstreamID uint) (*Upstr
 			continue
 		}
 		kindsJSON := inferKindsJSON(name)
-		suggestedProtocols, _ := resolveRouteProtocols(nil, upstreamItem.Compatible, upstreamItem.ProtocolDefaultsJSON, kindsJSON)
+		suggestedProtocols, err := suggestSyncProtocols(upstreamItem.Compatible, upstreamItem.ProtocolDefaultsJSON, kindsJSON)
+		if err != nil {
+			return nil, err
+		}
 		suggestedProtocol := ""
 		if len(suggestedProtocols) > 0 {
 			suggestedProtocol = suggestedProtocols[0]
@@ -208,12 +211,16 @@ func (s *Service) reconcileRemoteModelSnapshot(
 			name := item.ID
 			remoteNameSet[name] = struct{}{}
 			kindsJSON := inferKindsJSON(name)
-			protocol, resolveErr := resolveRouteProtocol("", upstreamItem.Compatible, upstreamItem.ProtocolDefaultsJSON, kindsJSON)
+			protocol, resolveErr := suggestSyncProtocol(upstreamItem.Compatible, upstreamItem.ProtocolDefaultsJSON, kindsJSON)
 			if resolveErr != nil {
 				return resolveErr
 			}
+			existing, managed := managedByName[name]
+			if _, protected := existingByName[name]; protocol == "" && (managed || !protected) {
+				result.UnresolvedProtocolModels = append(result.UnresolvedProtocolModels, name)
+			}
 
-			if existing, managed := managedByName[name]; managed {
+			if managed {
 				desired := syncedUpstreamModel(upstreamItem, item, existing.BindingCode, &now, protocol, kindsJSON)
 				desired.ID = existing.ID
 				desired.CreatedAt = existing.CreatedAt
@@ -338,6 +345,8 @@ func buildUpstreamModelSyncPlan(
 		InactivatedModels: []string{},
 		UnchangedModels:   []string{},
 		ProtectedModels:   []string{},
+		// 与其余分类不互斥：没有建议协议的模型同时属于新增、更新等分类之一。
+		UnresolvedProtocolModels: []string{},
 	}
 	managedByName := make(map[string]domainchannel.UpstreamModel, len(managedModels))
 	for _, item := range managedModels {
@@ -351,22 +360,26 @@ func buildUpstreamModelSyncPlan(
 		name := strings.TrimSpace(item.ID)
 		remoteNames[name] = struct{}{}
 		existing, managed := managedByName[name]
+		if _, protected := existingByName[name]; !managed && protected {
+			// 手动维护的同名模型不受同步影响，也就无需推断协议。
+			plan.ProtectedModels = append(plan.ProtectedModels, name)
+			continue
+		}
+		kindsJSON := inferKindsJSON(name)
+		protocol, err := suggestSyncProtocol(upstream.Compatible, upstream.ProtocolDefaultsJSON, kindsJSON)
+		if err != nil {
+			return UpstreamModelSyncPlanView{}, err
+		}
+		if protocol == "" {
+			plan.UnresolvedProtocolModels = append(plan.UnresolvedProtocolModels, name)
+		}
 		if !managed {
-			if _, protected := existingByName[name]; protected {
-				plan.ProtectedModels = append(plan.ProtectedModels, name)
-			} else {
-				plan.AddedModels = append(plan.AddedModels, name)
-			}
+			plan.AddedModels = append(plan.AddedModels, name)
 			continue
 		}
 		if !strings.EqualFold(strings.TrimSpace(existing.Status), "active") {
 			plan.ReactivatedModels = append(plan.ReactivatedModels, name)
 			continue
-		}
-		kindsJSON := inferKindsJSON(name)
-		protocol, err := resolveRouteProtocol("", upstream.Compatible, upstream.ProtocolDefaultsJSON, kindsJSON)
-		if err != nil {
-			return UpstreamModelSyncPlanView{}, err
 		}
 		desired := syncedUpstreamModel(upstream, item, existing.BindingCode, nil, protocol, kindsJSON)
 		if upstreamModelMetadataChanged(existing, desired) {

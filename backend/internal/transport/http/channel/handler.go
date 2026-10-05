@@ -777,6 +777,8 @@ func (h *Handler) ListRemoteModels(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 		case errors.Is(err, appchannel.ErrRemoteModelsUnavailable):
 			response.ErrorFrom(c, http.StatusBadGateway, err)
+		case errors.Is(err, appchannel.ErrProtocolRequired):
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 		default:
 			response.InternalError(c)
 		}
@@ -825,6 +827,8 @@ func (h *Handler) SyncUpstreamModels(c *gin.Context) {
 			response.ErrorWithCode(c, http.StatusConflict, "llm.remote_models_empty_confirmation_required")
 		case errors.Is(err, appchannel.ErrRemoteModelsSnapshotChanged):
 			response.ErrorWithCode(c, http.StatusConflict, "llm.remote_models_snapshot_changed")
+		case errors.Is(err, appchannel.ErrProtocolRequired):
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 		default:
 			response.InternalError(c)
 		}
