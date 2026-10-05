@@ -3,6 +3,12 @@
 export { ModelIcon } from "@/entities/model/components/model-icon";
 export { ModelOptionIcon } from "@/entities/model/components/model-option-icon";
 export { ModelSelect } from "@/entities/model/components/model-select";
+export {
+  listLobehubIconOptions,
+  type LobehubIconOption,
+  lobehubIconLabel,
+  lobehubIconURL,
+} from "@/entities/model/lib/lobehub-icons";
 export { resolveModelIconURL, resolveModelIdentity } from "@/entities/model/lib/model-identity";
 export {
   isRoutableChatPlatformModel,

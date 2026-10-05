@@ -294,8 +294,6 @@
     "sessionExpired": "Your session has expired",
     "choose": "Choose or upload an icon",
     "searchIcons": "Search icons",
-    "loadIconLibraryFailed": "Failed to load the icon library",
-    "retryIconLibrary": "Retry",
     "uploadShort": "Upload",
     "uploadedIcons": "Uploaded",
     "builtInIcons": "Built-in icons",

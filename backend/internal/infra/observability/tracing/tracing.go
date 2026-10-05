@@ -3,15 +3,11 @@ package tracing
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -20,6 +16,10 @@ import (
 )
 
 const instrumentationName = "github.com/DEEIX-AI/DEEIX-Chat/backend"
+
+// ErrExporterUnavailable 表示当前二进制以 -tags nootlp 构建、不含 OTLP exporter。Init 此时只安装
+// 传播器并返回空操作的释放函数，调用方应把它当作「链路追踪已关闭」的提示而不是启动失败。
+var ErrExporterUnavailable = errors.New("tracing: OTLP exporter not compiled into this binary")
 
 // ShutdownFunc 释放一次 tracing 初始化所创建的资源。
 type ShutdownFunc func(context.Context) error
@@ -52,6 +52,9 @@ func Init(ctx context.Context, cfg Config) (ShutdownFunc, error) {
 	}
 
 	exporter, err := newExporter(ctx, cfg)
+	if errors.Is(err, ErrExporterUnavailable) {
+		return func(context.Context) error { return nil }, err
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -97,53 +100,6 @@ func enabled(cfg Config) bool {
 		return *cfg.Enabled
 	}
 	return strings.TrimSpace(cfg.Endpoint) != ""
-}
-
-func newExporter(ctx context.Context, cfg Config) (*otlptrace.Exporter, error) {
-	switch cfg.Protocol {
-	case "grpc":
-		return otlptracegrpc.New(ctx, grpcExporterOptions(cfg)...)
-	case "http":
-		return otlptracehttp.New(ctx, httpExporterOptions(cfg)...)
-	default:
-		return nil, fmt.Errorf("unsupported otel exporter protocol %q", cfg.Protocol)
-	}
-}
-
-func grpcExporterOptions(cfg Config) []otlptracegrpc.Option {
-	options := make([]otlptracegrpc.Option, 0, 3)
-	if endpoint := strings.TrimSpace(cfg.Endpoint); endpoint != "" {
-		if strings.Contains(endpoint, "://") {
-			options = append(options, otlptracegrpc.WithEndpointURL(endpoint))
-		} else {
-			options = append(options, otlptracegrpc.WithEndpoint(endpoint))
-		}
-	}
-	if headers := parseHeaders(cfg.Headers); len(headers) > 0 {
-		options = append(options, otlptracegrpc.WithHeaders(headers))
-	}
-	if cfg.Insecure {
-		options = append(options, otlptracegrpc.WithInsecure())
-	}
-	return options
-}
-
-func httpExporterOptions(cfg Config) []otlptracehttp.Option {
-	options := make([]otlptracehttp.Option, 0, 3)
-	if endpoint := strings.TrimSpace(cfg.Endpoint); endpoint != "" {
-		if strings.Contains(endpoint, "://") {
-			options = append(options, otlptracehttp.WithEndpointURL(endpoint))
-		} else {
-			options = append(options, otlptracehttp.WithEndpoint(endpoint))
-		}
-	}
-	if headers := parseHeaders(cfg.Headers); len(headers) > 0 {
-		options = append(options, otlptracehttp.WithHeaders(headers))
-	}
-	if cfg.Insecure {
-		options = append(options, otlptracehttp.WithInsecure())
-	}
-	return options
 }
 
 func parseHeaders(value string) map[string]string {

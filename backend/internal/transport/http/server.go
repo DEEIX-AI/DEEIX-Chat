@@ -395,7 +395,8 @@ func applyFrontendCacheHeaders(c *gin.Context, requestPath string) {
 		return
 	}
 	if isVendorIconAsset(requestPath) {
-		c.Header("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800")
+		// 图标按包版本放在 /vendor/lobehub-icons/<version>/ 下，升级即换路径，可以永久缓存。
+		c.Header("Cache-Control", "public, max-age=31536000, immutable")
 		return
 	}
 	if isNextExportDataAsset(requestPath) {
@@ -411,8 +412,15 @@ func isImmutableFrontendAsset(requestPath string) bool {
 		strings.HasPrefix(requestPath, "/fonts/")
 }
 
+// isVendorIconAsset 只匹配带版本目录的内置图标（/vendor/lobehub-icons/<version>/<slug>.svg）。
 func isVendorIconAsset(requestPath string) bool {
-	return strings.HasPrefix(requestPath, "/vendor/lobehub-icons/")
+	rest, ok := strings.CutPrefix(requestPath, "/vendor/lobehub-icons/")
+	if !ok {
+		return false
+	}
+	version, file, found := strings.Cut(rest, "/")
+	return found && version != "" && file != "" && !strings.Contains(file, "/") &&
+		version[0] >= '0' && version[0] <= '9'
 }
 
 func isNextExportDataAsset(requestPath string) bool {

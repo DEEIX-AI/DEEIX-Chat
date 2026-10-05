@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LogoCarousel, type LogoCarouselLogo } from "@/components/ui/logo-carousel";
+import { lobehubIconLabel, lobehubIconURL } from "@/entities/model";
 import { Onboarding } from "@/components/ui/onboarding";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SpinnerLabel } from "@/components/ui/spinner";
@@ -49,15 +50,6 @@ const USER_ONBOARDING_TIPS = [
 
 const isAppLocale = isOneOf(APP_LOCALES);
 
-function titleFromIconSlug(slug: string): string {
-  return slug
-    .replace(/-(brand|brand-color|color|text|text-cn)$/u, "")
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 const ONBOARDING_LOGO_ITEMS: LogoCarouselLogo[] = [
   "openai",
   "codex",
@@ -95,8 +87,8 @@ const ONBOARDING_LOGO_ITEMS: LogoCarouselLogo[] = [
   "elevenlabs",
 ].map((slug, index) => ({
   id: `${slug}-${index}`,
-  name: titleFromIconSlug(slug),
-  src: `/vendor/lobehub-icons/${slug}.svg`,
+  name: lobehubIconLabel(slug),
+  src: lobehubIconURL(slug),
 }));
 
 const ONBOARDING_THEME_PRESETS: ThemePreset[] = [
