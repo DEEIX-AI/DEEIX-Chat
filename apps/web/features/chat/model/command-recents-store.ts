@@ -3,7 +3,7 @@ import { isRecord } from "@/shared/lib/type-guards";
 const COMMAND_RECENTS_STORAGE_KEY = "deeix.chat.command.recents.v1";
 const COMMAND_RECENTS_MAX_ENTRIES_PER_KIND = 20;
 
-export type CommandRecentsKind = "model" | "file" | "tool" | "skill" | "prompt";
+export type CommandRecentsKind = "model" | "file" | "knowledge" | "tool" | "skill" | "prompt";
 
 export type CommandRecentsEntry = {
   id: string;
@@ -27,7 +27,7 @@ function sanitizeState(value: unknown): CommandRecentsState {
     return {};
   }
   const state: CommandRecentsState = {};
-  for (const kind of ["model", "file", "tool", "skill", "prompt"] as const) {
+  for (const kind of ["model", "file", "knowledge", "tool", "skill", "prompt"] as const) {
     const entries = value[kind];
     if (!Array.isArray(entries)) {
       continue;

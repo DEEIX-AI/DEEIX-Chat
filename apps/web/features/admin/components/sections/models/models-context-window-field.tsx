@@ -122,7 +122,7 @@ export function ModelContextWindowField({
         // In automatic mode the detected value is shown as the content of the row.
         placeholder={new Intl.NumberFormat(locale).format(effectiveValue)}
         disabled={disabled}
-        className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 text-right text-xs text-secondary-foreground tabular-nums shadow-none placeholder:text-secondary-foreground focus-visible:ring-0 focus-visible:placeholder:text-muted-foreground"
+        className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 dark:bg-transparent text-right text-xs text-secondary-foreground tabular-nums shadow-none placeholder:text-secondary-foreground focus-visible:ring-0 focus-visible:placeholder:text-muted-foreground"
         onChange={(event) => setInputValue(event.target.value.replace(/\D/g, ""))}
         onBlur={commitInput}
         onKeyDown={(event) => {

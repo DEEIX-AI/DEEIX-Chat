@@ -736,40 +736,42 @@ function ChatModelDetailPanel({
           )}
         </ModelDetailLine>
       </dl>
-      <div className="mx-2 my-1 h-px shrink-0 bg-border" />
-      {!table ? (
-        <dl className="shrink-0">
-          <ModelDetailLine label={t("price")}>
-            {pricing?.isFree ? pricingLabels.freeModel : <span className="text-muted-foreground">{t("noPricing")}</span>}
-          </ModelDetailLine>
-        </dl>
-      ) : (
-        <table className="w-full shrink-0 border-separate border-spacing-0 tabular-nums">
-          <thead>
-            <tr className="h-7 text-muted-foreground">
-              <th scope="col" className="px-2 text-left font-normal">{t("price")}</th>
-              {table.tiers.length > 0 ? (
-                table.tiers.map((tier) => (
-                  <th key={tier} scope="col" className="whitespace-nowrap pr-2 text-right font-normal">{tier}</th>
-                ))
-              ) : (
-                <th scope="col" className="pr-2 text-right font-normal">{priceUnit}</th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {table.rows.map((row) => (
-              <tr key={row.label} className="h-7">
-                <th scope="row" className="whitespace-nowrap px-2 text-left font-normal text-muted-foreground">{row.label}</th>
-                {row.values.map((value, index) => (
-                  <td key={`${row.label}-${table.tiers[index] ?? index}`} className="whitespace-nowrap pr-2 text-right text-foreground">
-                    {value}
-                  </td>
+      {!table && !pricing?.isFree ? null : (
+        <>
+          <div className="mx-2 my-1 h-px shrink-0 bg-border" />
+          {!table ? (
+            <dl className="shrink-0">
+              <ModelDetailLine label={t("price")}>{pricingLabels.freeModel}</ModelDetailLine>
+            </dl>
+          ) : (
+            <table className="w-full shrink-0 border-separate border-spacing-0 tabular-nums">
+              <thead>
+                <tr className="h-7 text-muted-foreground">
+                  <th scope="col" className="px-2 text-left font-normal">{t("price")}</th>
+                  {table.tiers.length > 0 ? (
+                    table.tiers.map((tier) => (
+                      <th key={tier} scope="col" className="whitespace-nowrap pr-2 text-right font-normal">{tier}</th>
+                    ))
+                  ) : (
+                    <th scope="col" className="pr-2 text-right font-normal">{priceUnit}</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {table.rows.map((row) => (
+                  <tr key={row.label} className="h-7">
+                    <th scope="row" className="whitespace-nowrap px-2 text-left font-normal text-muted-foreground">{row.label}</th>
+                    {row.values.map((value, index) => (
+                      <td key={`${row.label}-${table.tiers[index] ?? index}`} className="whitespace-nowrap pr-2 text-right text-foreground">
+                        {value}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              </tbody>
+            </table>
+          )}
+        </>
       )}
       {table && table.tiers.length > 0 && priceUnit ? (
         <p className="shrink-0 px-2 pb-1 text-right text-[10px] text-muted-foreground">{priceUnit}</p>
