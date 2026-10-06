@@ -42,11 +42,12 @@ type ReorderServerInput struct {
 }
 
 type ServerInput struct {
-	Name        string
-	BaseURL     string
-	AuthToken   string
-	HeadersJSON string
-	Status      string
+	Name              string
+	BaseURL           string
+	AuthToken         string
+	HeadersJSON       string
+	Status            string
+	FileCreateEnabled *bool
 }
 
 type ToolInput struct {
@@ -92,11 +93,12 @@ func (s *Service) CreateServer(ctx context.Context, input ServerInput) (*domainm
 		return nil, err
 	}
 	item, err := s.repo.CreateServer(ctx, repository.CreateMCPServerInput{
-		Name:         normalized.Name,
-		BaseURL:      normalized.BaseURL,
-		AuthTokenEnc: tokenEnc,
-		HeadersJSON:  normalized.HeadersJSON,
-		Status:       normalized.Status,
+		Name:              normalized.Name,
+		BaseURL:           normalized.BaseURL,
+		AuthTokenEnc:      tokenEnc,
+		HeadersJSON:       normalized.HeadersJSON,
+		Status:            normalized.Status,
+		FileCreateEnabled: normalized.FileCreateEnabled != nil && *normalized.FileCreateEnabled,
 	})
 	if errors.Is(err, repository.ErrMCPServerLimitExceeded) {
 		return nil, ErrServerLimitExceeded
@@ -110,10 +112,11 @@ func (s *Service) UpdateServer(ctx context.Context, serverID uint, input ServerI
 		return nil, err
 	}
 	update := repository.UpdateMCPServerInput{
-		Name:        &normalized.Name,
-		BaseURL:     &normalized.BaseURL,
-		HeadersJSON: &normalized.HeadersJSON,
-		Status:      &normalized.Status,
+		Name:              &normalized.Name,
+		BaseURL:           &normalized.BaseURL,
+		HeadersJSON:       &normalized.HeadersJSON,
+		Status:            &normalized.Status,
+		FileCreateEnabled: normalized.FileCreateEnabled,
 	}
 	if normalized.AuthToken != "" {
 		tokenEnc, encryptErr := s.encryptToken(normalized.AuthToken)
@@ -427,11 +430,12 @@ func (s *Service) normalizeServerInput(input ServerInput, requireToken bool) (Se
 		input.AuthToken = strings.TrimSpace(input.AuthToken)
 	}
 	return ServerInput{
-		Name:        name,
-		BaseURL:     baseURL,
-		AuthToken:   strings.TrimSpace(input.AuthToken),
-		HeadersJSON: headersJSON,
-		Status:      status,
+		Name:              name,
+		BaseURL:           baseURL,
+		AuthToken:         strings.TrimSpace(input.AuthToken),
+		HeadersJSON:       headersJSON,
+		Status:            status,
+		FileCreateEnabled: input.FileCreateEnabled,
 	}, nil
 }
 

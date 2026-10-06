@@ -14194,6 +14194,94 @@ const docTemplate = `{
                 }
             }
         },
+        "/mcp/servers/{id}/files": {
+            "post": {
+                "description": "仅接受 DEEIX 在 tools/call 签发的一文件 capability，不接受用户 JWT 或 MCP 共享 HMAC 上下文。重复相同文件返回同一 file_id；创建不代表提取或向量化已完成。",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcp"
+                ],
+                "summary": "创建 MCP 工具产物文件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "登记的 MCP 服务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer \u003cDEEIX-issued file-create token\u003e",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "唯一文件，不接受其他字段",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/FileCreateResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/McpErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/McpErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/McpErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/McpErrorDoc"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/McpErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/McpErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/McpErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/mcp/tools": {
             "get": {
                 "security": [
@@ -21528,6 +21616,10 @@ const docTemplate = `{
                 "baseURL": {
                     "type": "string"
                 },
+                "fileCreateEnabled": {
+                    "description": "FileCreateEnabled authorizes automatic creation of one user file per persistent tool call.",
+                    "type": "boolean"
+                },
                 "headersJSON": {
                     "type": "string"
                 },
@@ -22200,6 +22292,68 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/FeaturePolicyResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "FileCreateResponse": {
+            "type": "object",
+            "required": [
+                "embed_status",
+                "extract_status",
+                "file_id",
+                "file_name",
+                "processing_ready",
+                "processing_status",
+                "replayed",
+                "reused",
+                "sha256",
+                "size_bytes"
+            ],
+            "properties": {
+                "embed_status": {
+                    "type": "string"
+                },
+                "extract_status": {
+                    "type": "string"
+                },
+                "file_id": {
+                    "type": "string"
+                },
+                "file_name": {
+                    "type": "string"
+                },
+                "processing_ready": {
+                    "type": "boolean"
+                },
+                "processing_status": {
+                    "type": "string"
+                },
+                "replayed": {
+                    "type": "boolean"
+                },
+                "reused": {
+                    "type": "boolean"
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "FileCreateResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/FileCreateResponse"
                 },
                 "errorMsg": {
                     "type": "string"
@@ -29037,6 +29191,7 @@ const docTemplate = `{
                 "activeToolCount",
                 "baseURL",
                 "createdAt",
+                "fileCreateEnabled",
                 "headersJSON",
                 "id",
                 "lastError",
@@ -29057,6 +29212,9 @@ const docTemplate = `{
                 },
                 "createdAt": {
                     "type": "string"
+                },
+                "fileCreateEnabled": {
+                    "type": "boolean"
                 },
                 "headersJSON": {
                     "type": "string"

@@ -198,6 +198,7 @@ if #pending == 0 or pending[1][2] ~= ARGV[2] then
 end
 redis.call("XACK", KEYS[1], ARGV[1], ARGV[3])
 redis.call("XDEL", KEYS[1], ARGV[3])
+if KEYS[2] ~= "" and redis.call("GET", KEYS[2]) == ARGV[3] then redis.call("DEL", KEYS[2]) end
 return 1
 `)
 
@@ -206,7 +207,7 @@ local pending = redis.call("XPENDING", KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
 if #pending == 0 or pending[1][2] ~= ARGV[2] then
 	return 0
 end
-redis.call(
+local next_id = redis.call(
 	"XADD", KEYS[1], "*",
 	"user_id", ARGV[4],
 	"file_id", ARGV[5],
@@ -218,6 +219,7 @@ redis.call(
 )
 redis.call("XACK", KEYS[1], ARGV[1], ARGV[3])
 redis.call("XDEL", KEYS[1], ARGV[3])
+if KEYS[2] ~= "" and redis.call("GET", KEYS[2]) == ARGV[3] then redis.call("SET", KEYS[2], next_id) end
 return 1
 `)
 
@@ -238,7 +240,18 @@ redis.call(
 )
 redis.call("XACK", KEYS[1], ARGV[1], ARGV[3])
 redis.call("XDEL", KEYS[1], ARGV[3])
+if KEYS[3] and KEYS[3] ~= "" and redis.call("GET", KEYS[3]) == ARGV[3] then redis.call("DEL", KEYS[3]) end
 return 1
+`)
+
+// An outstanding stream entry, not an expiring key, is the enqueue authority.
+// Recovery after an uncertain enqueue reuses it; deleted streams can be rebuilt.
+var enqueueFileProcessingOnceScript = goredis.NewScript(`
+local current = redis.call("GET", KEYS[2])
+if current and #redis.call("XRANGE", KEYS[1], current, current, "COUNT", 1) > 0 then return current end
+local id = redis.call("XADD", KEYS[1], "*", "user_id", ARGV[1], "file_id", ARGV[2], "retry", ARGV[3], "last_error", ARGV[4])
+redis.call("SET", KEYS[2], id)
+return id
 `)
 
 var renewGenerationStreamLeaseScript = goredis.NewScript(`
@@ -331,18 +344,12 @@ func (c *conversationCache) EnqueueFileProcessing(ctx context.Context, userID ui
 	if c.client == nil {
 		return nil
 	}
-	values := map[string]any{
-		"user_id": userID,
-		"file_id": fileID,
-		"retry":   retry,
+	fileID = strings.TrimSpace(fileID)
+	if fileID == "" {
+		return repository.ErrInvalidInput
 	}
-	if strings.TrimSpace(lastError) != "" {
-		values["last_error"] = truncateStr(lastError, 255)
-	}
-	_, err := c.client.XAdd(ctx, &goredis.XAddArgs{
-		Stream: fileProcessingStreamName,
-		Values: values,
-	}).Result()
+	_, err := enqueueFileProcessingOnceScript.Run(ctx, c.client,
+		[]string{fileProcessingStreamName, processingOutstandingKey(userID, fileID)}, userID, fileID, retry, truncateStr(lastError, 255)).Result()
 	return err
 }
 
@@ -556,11 +563,16 @@ func (c *conversationCache) deadLetterInvalidFileProcessingMessage(
 	queue fileQueueConfig,
 ) (bool, error) {
 	lastError := "invalid queue message"
+	userID, _ := strconv.ParseUint(getStringVal(message.Values["user_id"]), 10, 64)
+	marker := ""
+	if queue.queue == repository.FileProcessingQueueDefault && getOptionalStringVal(message.Values, "kind") == "" {
+		marker = processingOutstandingKey(uint(userID), getStringVal(message.Values["file_id"]))
+	}
 
 	return fileProcessingScriptResult(deadLetterFileProcessingMessageScript.Run(
 		ctx,
 		c.client,
-		[]string{queue.stream, queue.dlq},
+		[]string{queue.stream, queue.dlq, marker},
 		queue.group,
 		consumerName,
 		message.ID,
@@ -599,7 +611,7 @@ func (c *conversationCache) SettleFileProcessingMessage(ctx context.Context, con
 	return fileProcessingScriptResult(settleFileProcessingMessageScript.Run(
 		ctx,
 		c.client,
-		[]string{queue.stream},
+		[]string{queue.stream, processingOutstandingMessageKey(message)},
 		queue.group,
 		consumerName,
 		message.ID,
@@ -620,7 +632,7 @@ func (c *conversationCache) RequeueFileProcessingMessage(
 	return fileProcessingScriptResult(requeueFileProcessingMessageScript.Run(
 		ctx,
 		c.client,
-		[]string{queue.stream},
+		[]string{queue.stream, processingOutstandingMessageKey(message)},
 		queue.group,
 		consumerName,
 		message.ID,
@@ -647,7 +659,7 @@ func (c *conversationCache) DeadLetterFileProcessingMessage(
 	return fileProcessingScriptResult(deadLetterFileProcessingMessageScript.Run(
 		ctx,
 		c.client,
-		[]string{queue.stream, queue.dlq},
+		[]string{queue.stream, queue.dlq, processingOutstandingMessageKey(message)},
 		queue.group,
 		consumerName,
 		message.ID,
@@ -660,6 +672,17 @@ func (c *conversationCache) DeadLetterFileProcessingMessage(
 		message.EmbeddingHost,
 		fileProcessingDLQMaxLen,
 	).Result())
+}
+
+func processingOutstandingKey(userID uint, fileID string) string {
+	return fmt.Sprintf("file_processing:outstanding:%d:%s", userID, strings.TrimSpace(fileID))
+}
+
+func processingOutstandingMessageKey(message repository.FileProcessingMessage) string {
+	if redisQueueForMessage(message).queue != repository.FileProcessingQueueDefault || message.Kind != "" {
+		return ""
+	}
+	return processingOutstandingKey(message.UserID, message.FileID)
 }
 
 func processingQueueConfig() fileQueueConfig {

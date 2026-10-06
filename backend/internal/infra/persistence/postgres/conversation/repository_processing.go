@@ -14,14 +14,20 @@ func (r *Repo) UpdateFileObjectProcessingState(ctx context.Context, item *domain
 	if item == nil {
 		return nil
 	}
-	result := r.db.WithContext(ctx).
+	query := r.db.WithContext(ctx).
 		Model(&models.FileObject{}).
-		Where("id = ? AND user_id = ?", item.FileObjectID, item.UserID).
-		Updates(fileObjectProcessingStateUpdates(item))
+		Where("id = ? AND user_id = ?", item.FileObjectID, item.UserID)
+	if item.ExpectedStatus != "" {
+		query = query.Where("status = ? AND processing_status = ?", "active", item.ExpectedStatus)
+	}
+	result := query.Updates(fileObjectProcessingStateUpdates(item))
 	if result.Error != nil {
 		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
+		if item.ExpectedStatus != "" {
+			return repository.ErrConflict
+		}
 		return repository.ErrNotFound
 	}
 	return nil

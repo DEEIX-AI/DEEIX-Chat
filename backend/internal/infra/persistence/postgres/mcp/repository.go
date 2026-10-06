@@ -40,12 +40,13 @@ func (r *Repo) CreateServer(ctx context.Context, input repository.CreateMCPServe
 			return err
 		}
 		item := models.MCPServer{
-			Name:         input.Name,
-			BaseURL:      input.BaseURL,
-			AuthTokenEnc: input.AuthTokenEnc,
-			HeadersJSON:  input.HeadersJSON,
-			Status:       input.Status,
-			SortOrder:    maxSortOrder + 100,
+			Name:              input.Name,
+			BaseURL:           input.BaseURL,
+			AuthTokenEnc:      input.AuthTokenEnc,
+			HeadersJSON:       input.HeadersJSON,
+			Status:            input.Status,
+			FileCreateEnabled: input.FileCreateEnabled,
+			SortOrder:         maxSortOrder + 100,
 		}
 		if err := tx.Create(&item).Error; err != nil {
 			return err
@@ -77,6 +78,13 @@ func (r *Repo) UpdateServer(ctx context.Context, serverID uint, input repository
 	}
 	if input.LastError != nil {
 		updates["last_error"] = *input.LastError
+	}
+	if input.FileCreateEnabled != nil {
+		updates["file_create_enabled"] = *input.FileCreateEnabled
+	}
+	// Re-enabling must not revive an old capability. Connection changes revoke too.
+	if input.Status != nil || input.BaseURL != nil || input.AuthTokenEnc != nil || input.HeadersJSON != nil || input.FileCreateEnabled != nil {
+		updates["file_create_epoch"] = gorm.Expr("file_create_epoch + 1")
 	}
 	if len(updates) > 0 {
 		if err := r.db.WithContext(ctx).Model(&models.MCPServer{}).Where("id = ?", serverID).Updates(updates).Error; err != nil {
@@ -166,6 +174,10 @@ func (r *Repo) GetServer(ctx context.Context, serverID uint) (*domainmcp.Server,
 
 func (r *Repo) DeleteServer(ctx context.Context, serverID uint) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var server models.MCPServer
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&server, serverID).Error; err != nil {
+			return err
+		}
 		toolIDs := make([]uint, 0)
 		if err := tx.Model(&models.MCPTool{}).Where("server_id = ?", serverID).Pluck("id", &toolIDs).Error; err != nil {
 			return err
@@ -183,6 +195,10 @@ func (r *Repo) DeleteServer(ctx context.Context, serverID uint) error {
 func (r *Repo) ReplaceServerTools(ctx context.Context, serverID uint, tools []domainmcp.Tool, overwriteCustomizedMetadata bool) error {
 	now := time.Now()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var server models.MCPServer
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&server, serverID).Error; err != nil {
+			return err
+		}
 		var maxSortOrder int
 		if err := tx.Model(&models.MCPTool{}).
 			Where("server_id = ?", serverID).
@@ -369,6 +385,11 @@ func (r *Repo) UpdateTool(ctx context.Context, toolID uint, input repository.Upd
 				return err
 			}
 		}
+		if input.Status != nil && *input.Status != "active" {
+			if err := tx.Model(&models.MCPFileCreateGrant{}).Where("tool_id = ?", toolID).Update("expires_at", time.Unix(0, 0)).Error; err != nil {
+				return err
+			}
+		}
 		result = toDomainTool(row)
 		return nil
 	})
@@ -379,10 +400,15 @@ func (r *Repo) UpdateTool(ctx context.Context, toolID uint, input repository.Upd
 }
 
 func (r *Repo) UpdateServerToolsStatus(ctx context.Context, serverID uint, toolIDs []uint, status string) ([]domainmcp.Tool, error) {
-	if err := r.db.WithContext(ctx).
-		Model(&models.MCPTool{}).
-		Where("server_id = ? AND id IN ?", serverID, toolIDs).
-		Update("status", status).Error; err != nil {
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.MCPTool{}).Where("server_id = ? AND id IN ?", serverID, toolIDs).Update("status", status).Error; err != nil {
+			return err
+		}
+		if status != "active" {
+			return tx.Model(&models.MCPFileCreateGrant{}).Where("server_id = ? AND tool_id IN ?", serverID, toolIDs).Update("expires_at", time.Unix(0, 0)).Error
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	return r.ListTools(ctx, serverID, false)
@@ -485,19 +511,21 @@ func (r *Repo) ReorderServersWithTools(ctx context.Context, order []repository.R
 
 func toDomainServer(row models.MCPServer) domainmcp.Server {
 	return domainmcp.Server{
-		ID:              row.ID,
-		Name:            row.Name,
-		BaseURL:         row.BaseURL,
-		AuthTokenEnc:    row.AuthTokenEnc,
-		HeadersJSON:     row.HeadersJSON,
-		Status:          row.Status,
-		SortOrder:       row.SortOrder,
-		ToolCount:       row.ToolCount,
-		ActiveToolCount: 0,
-		LastSyncedAt:    row.LastSyncedAt,
-		LastError:       row.LastError,
-		CreatedAt:       row.CreatedAt,
-		UpdatedAt:       row.UpdatedAt,
+		ID:                row.ID,
+		Name:              row.Name,
+		BaseURL:           row.BaseURL,
+		AuthTokenEnc:      row.AuthTokenEnc,
+		HeadersJSON:       row.HeadersJSON,
+		Status:            row.Status,
+		FileCreateEnabled: row.FileCreateEnabled,
+		FileCreateEpoch:   row.FileCreateEpoch,
+		SortOrder:         row.SortOrder,
+		ToolCount:         row.ToolCount,
+		ActiveToolCount:   0,
+		LastSyncedAt:      row.LastSyncedAt,
+		LastError:         row.LastError,
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
 	}
 }
 

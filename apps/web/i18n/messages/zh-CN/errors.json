@@ -267,6 +267,12 @@
     "modelCatalogFetchFailed": "同步 models.dev 失败，已保留上次同步的数据。"
   },
   "mcp": {
+    "fileCreate": {
+      "unauthorized": "文件创建授权无效、已过期或已撤销。",
+      "conflict": "此授权已绑定其他文件，或已有内容不可用。",
+      "resultGone": "原文件创建结果已不可用。",
+      "invalidInput": "必须且只能提交一个符合大小限制的文件。"
+    },
     "clientUnavailable": "MCP 客户端不可用。",
     "imageProcessingFailed": "MCP 图片处理工具执行失败。",
     "invalidAttachmentConfiguration": "MCP 工具附件配置无效。",

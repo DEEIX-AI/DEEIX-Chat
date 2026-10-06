@@ -18,6 +18,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
 	portmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 )
 
 const (
@@ -52,7 +53,16 @@ func newMCPHTTPClient(policy security.OutboundPolicy, redirectPolicy security.Ou
 	transport := security.NewOutboundHTTPTransport(policy, defaultConnectTimeout)
 	client := &http.Client{Transport: platformtracing.NewHTTPTransport(transport)}
 	if trustedOrigin != "" {
-		client.CheckRedirect = outboundhttp.NewRedirectPolicy(redirectPolicy, trustedOrigin, "MCP request")
+		baseRedirect := outboundhttp.NewRedirectPolicy(redirectPolicy, trustedOrigin, "MCP request")
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			if len(via) > 0 && via[0].Header.Get(portmcp.FileCreateHeader) != "" {
+				origin, err := security.HTTPOrigin(req.URL.String())
+				if err != nil || origin != trustedOrigin {
+					return fmt.Errorf("MCP file capability cannot cross origins")
+				}
+			}
+			return baseRedirect(req, via)
+		}
 	}
 	return outboundhttp.ManagedClient{Client: client, CloseIdleConnections: transport.CloseIdleConnections}, nil
 }
@@ -175,10 +185,13 @@ func (c *Client) rpcWithSession(
 	}
 	for key, value := range cfg.Headers {
 		headerKey := strings.TrimSpace(key)
-		if headerKey == "" {
+		if headerKey == "" || strings.EqualFold(headerKey, portmcp.FileCreateHeader) {
 			continue
 		}
 		req.Header.Set(headerKey, strings.TrimSpace(value))
+	}
+	if method == "tools/call" && cfg.FileCreateToken != "" {
+		req.Header.Set(portmcp.FileCreateHeader, cfg.FileCreateToken)
 	}
 
 	resp, err := c.httpClients.Do(req, cfg.BaseURL, "")
@@ -200,6 +213,7 @@ func (c *Client) rpcWithSession(
 	if notification {
 		return nil, sessionID, nil
 	}
+	body = []byte(toolresult.RedactSecret(string(body), cfg.FileCreateToken))
 	result, err := parseRPCResponse(resp.Header.Get("Content-Type"), body)
 	if err != nil {
 		return nil, sessionID, err

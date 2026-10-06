@@ -2,6 +2,8 @@ package settings
 
 import (
 	"context"
+	"strconv"
+	"time"
 
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
@@ -44,12 +46,23 @@ func (r *Repo) Upsert(ctx context.Context, items []domainsettings.SystemSetting)
 		return nil
 	}
 	dbItems := toModelSystemSettings(items)
-	return dberror.Translate(r.db.WithContext(ctx).
-		Clauses(clause.OnConflict{
+	return dberror.Translate(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "namespace"}, {Name: "key"}},
 			DoUpdates: clause.AssignmentColumns([]string{"value", "updated_at"}),
-		}).
-		Create(&dbItems).Error)
+		}).Create(&dbItems).Error; err != nil {
+			return err
+		}
+		for _, item := range items {
+			if item.Namespace == "mcp" && item.Key == "mcp_enable" {
+				enabled, err := strconv.ParseBool(item.Value)
+				if err != nil || !enabled {
+					return tx.Model(&models.MCPFileCreateGrant{}).Where("expires_at > ?", time.Unix(0, 0)).Update("expires_at", time.Unix(0, 0)).Error
+				}
+			}
+		}
+		return nil
+	}))
 }
 
 // UpsertWithDescription 批量写入含描述的配置（种子用）。

@@ -329,6 +329,8 @@ func IsFileProcessing(file FileObject) bool {
 
 // FileObjectProcessing 表示 file_objects 中的服务端处理状态。
 type FileObjectProcessing struct {
+	// ExpectedStatus fences initialization/failure writes against a progressed worker.
+	ExpectedStatus     string
 	ID                 uint
 	FileObjectID       uint
 	UserID             uint

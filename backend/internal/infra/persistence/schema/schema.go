@@ -31,6 +31,7 @@ func Models() []any {
 		&models.LLMPlatformModelRoute{},
 		&models.MCPServer{},
 		&models.MCPTool{},
+		&models.MCPFileCreateGrant{},
 		&models.Conversation{},
 		&models.ConversationProject{},
 		&models.ConversationShare{},

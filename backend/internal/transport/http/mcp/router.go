@@ -7,6 +7,10 @@ func (m *Module) RegisterRoutes(authGroup *gin.RouterGroup) {
 	group.GET("/tools", m.Handler.ListAvailableTools)
 }
 
+func (m *Module) RegisterFileCreateRoute(group *gin.RouterGroup, limit gin.HandlerFunc) {
+	group.POST("/mcp/servers/:id/files", m.Handler.authorizeFileCreate, limit, m.Handler.CreateFile)
+}
+
 func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	group := adminGroup.Group("/mcp")
 	group.GET("/servers", m.Handler.ListServers)

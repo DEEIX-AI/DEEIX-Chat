@@ -13,6 +13,7 @@ import (
 	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
+	appmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/mcp"
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	appprocessing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/processing"
 	apprag "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/rag"
@@ -131,6 +132,7 @@ type Service struct {
 	routeResolver         routeResolver
 	memoryRecorder        memoryRecorder
 	mcpRepo               mcpToolResolver
+	mcpFileCreate         *appmcp.FileCreateService
 	llmClient             llmGateway
 	mediaDownloader       generatedMediaDownloader
 	mcpClient             mcpToolCaller
@@ -374,4 +376,8 @@ func (s *Service) SetObjectStoreProvider(provider appstorage.Provider) {
 // SetMCPRepository 注入会话运行所需的 MCP 工具查询能力。
 func (s *Service) SetMCPRepository(repo mcpToolResolver) {
 	s.mcpRepo = repo
+}
+
+func (s *Service) SetMCPFileCreateService(service *appmcp.FileCreateService) {
+	s.mcpFileCreate = service
 }

@@ -55,6 +55,7 @@ backend/
 - [项目主 README](../README.md)
 - [前端 README](../apps/web/README.md)
 - `docs/README.md`：后端文档索引
+- [MCP 文件创建委托（Draft 评审契约）](../docs/MCP_FILE_CREATE.md)：默认关闭、每次工具调用一文件的受限上传能力
 - `docs/swagger.json` / `docs/swagger.yaml`：Swagger API 文档
 
 ## 核心约束
