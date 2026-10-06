@@ -1,13 +1,13 @@
 "use client";
 
-import * as React from "react";
+import { Braces, CircleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
-import type * as Monaco from "monaco-editor";
+import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { JsonEditorController, JsonEditorTheme } from "@/shared/components/json-code-editor-runtime";
 import { useTheme } from "@/shared/components/theme-provider";
-import { isRecord } from "@/shared/lib/type-guards";
 
 export type JsonCodeEditorProps = {
   id?: string;
@@ -24,44 +24,22 @@ export type JsonCodeEditorProps = {
   onChange?: (value: string) => void;
 };
 
-type MonacoModule = typeof Monaco;
-type JsonDiagnosticsDefaults = {
-  setDiagnosticsOptions: (options: {
-    validate: boolean;
-    allowComments: boolean;
-    trailingCommas: "ignore" | "error";
-  }) => void;
-};
+type JsonEditorRuntime = typeof import("@/shared/components/json-code-editor-runtime");
+type EditorStatus = "loading" | "ready" | "failed";
 
-function isJsonDiagnosticsDefaults(value: unknown): value is JsonDiagnosticsDefaults {
-  return isRecord(value) && typeof value.setDiagnosticsOptions === "function";
-}
-
-// The JSON contribution still registers `languages.json` at runtime, while the typings only
-// describe it as a deprecated marker; read it defensively instead of trusting either shape.
-function resolveJsonDiagnosticsDefaults(monaco: MonacoModule): JsonDiagnosticsDefaults | undefined {
-  const legacyJson: unknown = monaco.languages.json;
-  return isRecord(legacyJson) && isJsonDiagnosticsDefaults(legacyJson.jsonDefaults) ? legacyJson.jsonDefaults : undefined;
-}
-
-let monacoLoadPromise: Promise<MonacoModule> | null = null;
 const BASE_EDITOR_FONT_SIZE = 12;
+const AUTO_FOCUS_DELAY_MS = 50;
 
-function isMonacoCanceledError(error: unknown): boolean {
-  return error instanceof Error && (error.name === "Canceled" || error.message === "Canceled");
-}
+let runtimePromise: Promise<JsonEditorRuntime> | null = null;
 
-function disposeMonacoResource(resource: { dispose: () => void } | null | undefined) {
-  if (!resource) {
-    return;
-  }
-  try {
-    resource.dispose();
-  } catch (error) {
-    if (!isMonacoCanceledError(error)) {
-      throw error;
-    }
-  }
+// The editor runtime is a separate chunk shared by every JsonCodeEditor instance.
+function loadJsonEditorRuntime(): Promise<JsonEditorRuntime> {
+  runtimePromise ??= import("@/shared/components/json-code-editor-runtime").catch((error: unknown) => {
+    // Let a later mount retry after a transient chunk-load failure.
+    runtimePromise = null;
+    throw error;
+  });
+  return runtimePromise;
 }
 
 function readUIFontScale() {
@@ -69,58 +47,13 @@ function readUIFontScale() {
     return 1;
   }
 
-  const rawScale = window
-    .getComputedStyle(document.documentElement)
-    .getPropertyValue("--ui-font-scale")
-    .trim();
+  const rawScale = window.getComputedStyle(document.documentElement).getPropertyValue("--ui-font-scale").trim();
   const scale = Number.parseFloat(rawScale);
   return Number.isFinite(scale) && scale > 0 ? scale : 1;
 }
 
 function getEditorFontSize() {
   return BASE_EDITOR_FONT_SIZE * readUIFontScale();
-}
-
-function preservePlaceholderIndentation(value: string | undefined): string | undefined {
-  return value?.replace(/^[ \t]+/gm, (indent) =>
-    indent
-      .replaceAll(" ", "\u00A0")
-      .replaceAll("\t", "\u00A0\u00A0"),
-  );
-}
-
-function configureMonacoWorkers() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  globalThis.MonacoEnvironment = {
-    getWorker: (_workerID: string, label: string) => {
-      if (label === "json") {
-        return new Worker(
-          new URL("monaco-editor/esm/vs/language/json/json.worker.js", import.meta.url),
-          { type: "module" },
-        );
-      }
-
-      return new Worker(
-        new URL("monaco-editor/esm/vs/editor/editor.worker.js", import.meta.url),
-        { type: "module" },
-      );
-    },
-  };
-}
-
-function loadMonaco(): Promise<MonacoModule> {
-  if (!monacoLoadPromise) {
-    configureMonacoWorkers();
-    monacoLoadPromise = Promise.all([
-      import("monaco-editor/esm/vs/editor/editor.all.js"),
-      import("monaco-editor/esm/vs/language/json/monaco.contribution.js"),
-      import("monaco-editor/esm/vs/editor/editor.api.js"),
-    ]).then(([, , monaco]) => monaco);
-  }
-  return monacoLoadPromise;
 }
 
 export function JsonCodeEditor({
@@ -140,70 +73,85 @@ export function JsonCodeEditor({
   const t = useTranslations("common.jsonEditor");
   const { resolvedTheme } = useTheme();
   const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const editorRef = React.useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
-  const monacoRef = React.useRef<MonacoModule | null>(null);
-  const onChangeRef = React.useRef(onChange);
-  const suppressChangeRef = React.useRef(false);
-  const valueRef = React.useRef(value);
-  const editorValueRef = React.useRef(value);
-  const mountValueRef = React.useRef(value);
-  const mountDisabledRef = React.useRef(disabled);
-  const mountReadOnlyRef = React.useRef(readOnly);
-  const mountWordWrapRef = React.useRef(wordWrap);
-  const mountThemeRef = React.useRef(resolvedTheme);
-  const mountAutoFocusRef = React.useRef(autoFocus);
-  const placeholderRef = React.useRef(preservePlaceholderIndentation(placeholder));
-  const [loading, setLoading] = React.useState(true);
-  const [markerCount, setMarkerCount] = React.useState(0);
+  const editorRef = React.useRef<JsonEditorController | null>(null);
+  const [status, setStatus] = React.useState<EditorStatus>("loading");
+  const [diagnosticCount, setDiagnosticCount] = React.useState(0);
+  const effectiveReadOnly = disabled || readOnly;
+  const theme: JsonEditorTheme = resolvedTheme === "dark" ? "dark" : "light";
+
+  // Latest props, read when the lazily loaded editor mounts and from editor callbacks,
+  // so prop changes never recreate the editor.
+  const latestPropsRef = React.useRef({ value, placeholder, readOnly: effectiveReadOnly, wordWrap, theme, autoFocus, onChange });
+  React.useEffect(() => {
+    latestPropsRef.current = { value, placeholder, readOnly: effectiveReadOnly, wordWrap, theme, autoFocus, onChange };
+  });
 
   React.useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
+    let disposed = false;
 
-  React.useEffect(() => {
-    valueRef.current = value;
-    mountValueRef.current = value;
-  }, [value]);
+    loadJsonEditorRuntime()
+      .then(({ createJsonEditor }) => {
+        const parent = containerRef.current;
+        if (disposed || !parent) {
+          return;
+        }
+        const props = latestPropsRef.current;
+        const editor = createJsonEditor({
+          parent,
+          value: props.value,
+          placeholder: props.placeholder,
+          readOnly: props.readOnly,
+          wordWrap: props.wordWrap === "on",
+          theme: props.theme,
+          fontSize: getEditorFontSize(),
+          onChange: (nextValue) => latestPropsRef.current.onChange?.(nextValue),
+          // A controlled parent may reject or normalize edits; leaving the editor shows its value again.
+          onBlur: () => editorRef.current?.setValue(latestPropsRef.current.value),
+          onDiagnosticsChange: setDiagnosticCount,
+        });
+        editorRef.current = editor;
+        setStatus("ready");
 
-  const syncEditorValue = React.useCallback((nextValue: string) => {
-    const editor = editorRef.current;
-    if (!editor || editorValueRef.current === nextValue) {
-      return;
-    }
+        if (props.autoFocus) {
+          window.setTimeout(() => {
+            if (!disposed) {
+              editor.focus();
+            }
+          }, AUTO_FOCUS_DELAY_MS);
+        }
+      })
+      .catch(() => {
+        if (!disposed) {
+          setStatus("failed");
+        }
+      });
 
-    suppressChangeRef.current = true;
-    try {
-      const model = editor.getModel();
-      if (model) {
-        model.setValue(nextValue);
-      } else {
-        editor.setValue(nextValue);
-      }
-      editorValueRef.current = editor.getValue();
-    } finally {
-      suppressChangeRef.current = false;
-    }
+    return () => {
+      disposed = true;
+      editorRef.current?.destroy();
+      editorRef.current = null;
+    };
   }, []);
 
   React.useEffect(() => {
-    mountDisabledRef.current = disabled;
-  }, [disabled]);
+    editorRef.current?.setValue(value);
+  }, [value]);
 
   React.useEffect(() => {
-    mountReadOnlyRef.current = readOnly;
-  }, [readOnly]);
+    editorRef.current?.setReadOnly(effectiveReadOnly);
+  }, [effectiveReadOnly]);
 
   React.useEffect(() => {
-    mountWordWrapRef.current = wordWrap;
+    editorRef.current?.setWordWrap(wordWrap === "on");
   }, [wordWrap]);
 
   React.useEffect(() => {
-    mountThemeRef.current = resolvedTheme;
-  }, [resolvedTheme]);
+    editorRef.current?.setTheme(theme);
+  }, [theme]);
 
   React.useEffect(() => {
-    mountAutoFocusRef.current = autoFocus;
-  }, [autoFocus]);
+    editorRef.current?.setPlaceholder(placeholder);
+  }, [placeholder]);
 
   React.useEffect(() => {
     if (!autoFocus) {
@@ -211,142 +159,13 @@ export function JsonCodeEditor({
     }
     const timer = window.setTimeout(() => {
       editorRef.current?.focus();
-    }, 50);
+    }, AUTO_FOCUS_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [autoFocus]);
 
   React.useEffect(() => {
-    const formattedPlaceholder = preservePlaceholderIndentation(placeholder);
-    placeholderRef.current = formattedPlaceholder;
-    editorRef.current?.updateOptions({ placeholder: formattedPlaceholder || undefined });
-  }, [placeholder]);
-
-  React.useEffect(() => {
-    let disposed = false;
-    let contentSubscription: Monaco.IDisposable | null = null;
-    let markerSubscription: Monaco.IDisposable | null = null;
-    let blurSubscription: Monaco.IDisposable | null = null;
-
-    async function mountEditor() {
-      const monaco = await loadMonaco();
-      if (disposed || !containerRef.current) {
-        return;
-      }
-
-      monacoRef.current = monaco;
-      const jsonDefaults = resolveJsonDiagnosticsDefaults(monaco);
-      jsonDefaults?.setDiagnosticsOptions({
-        validate: true,
-        allowComments: true,
-        trailingCommas: "ignore",
-      });
-
-      const editor = monaco.editor.create(containerRef.current, {
-        value: mountValueRef.current,
-        language: "json",
-        placeholder: placeholderRef.current || undefined,
-        readOnly: mountDisabledRef.current || mountReadOnlyRef.current,
-        theme: mountThemeRef.current === "dark" ? "vs-dark" : "vs",
-        automaticLayout: true,
-        bracketPairColorization: { enabled: true },
-        contextmenu: true,
-        detectIndentation: false,
-        editContext: false,
-        fixedOverflowWidgets: true,
-        folding: true,
-        fontFamily: "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-        fontSize: getEditorFontSize(),
-        lineDecorationsWidth: 8,
-        lineNumbersMinChars: 3,
-        hideCursorInOverviewRuler: true,
-        minimap: { enabled: false },
-        overviewRulerBorder: false,
-        overviewRulerLanes: 0,
-        padding: { top: 8, bottom: 8 },
-        renderLineHighlight: "line",
-        renderWhitespace: "selection",
-        scrollBeyondLastLine: false,
-        scrollbar: {
-          horizontalScrollbarSize: 8,
-          verticalScrollbarSize: 8,
-        },
-        tabSize: 2,
-        tabFocusMode: false,
-        wordWrap: mountWordWrapRef.current,
-      });
-
-      editorRef.current = editor;
-      editorValueRef.current = editor.getValue();
-      contentSubscription = editor.onDidChangeModelContent(() => {
-        const nextValue = editor.getValue();
-        editorValueRef.current = nextValue;
-        if (suppressChangeRef.current) return;
-        valueRef.current = nextValue;
-        onChangeRef.current?.(nextValue);
-      });
-      blurSubscription = editor.onDidBlurEditorText(() => {
-        syncEditorValue(valueRef.current);
-      });
-      markerSubscription = monaco.editor.onDidChangeMarkers((uris) => {
-        const model = editor.getModel();
-        if (!model || !uris.some((uri) => uri.toString() === model.uri.toString())) {
-          return;
-        }
-        setMarkerCount(monaco.editor.getModelMarkers({ resource: model.uri }).length);
-      });
-      setLoading(false);
-
-      if (mountAutoFocusRef.current) {
-        setTimeout(() => {
-          if (!disposed) {
-            editor.focus();
-          }
-        }, 50);
-      }
-    }
-
-    void mountEditor();
-
-    return () => {
-      disposed = true;
-      disposeMonacoResource(contentSubscription);
-      disposeMonacoResource(markerSubscription);
-      disposeMonacoResource(blurSubscription);
-      disposeMonacoResource(editorRef.current);
-      editorRef.current = null;
-      monacoRef.current = null;
-    };
-  }, [syncEditorValue]);
-
-  React.useEffect(() => {
-    if (!editorRef.current || editorValueRef.current === value) {
-      return;
-    }
-    syncEditorValue(value);
-  }, [syncEditorValue, value]);
-
-  React.useEffect(() => {
-    editorRef.current?.updateOptions({ readOnly: disabled || readOnly });
-  }, [disabled, readOnly]);
-
-  React.useEffect(() => {
-    editorRef.current?.updateOptions({ wordWrap });
-  }, [wordWrap]);
-
-  React.useEffect(() => {
-    const monaco = monacoRef.current;
-    if (monaco) {
-      monaco.editor.setTheme(resolvedTheme === "dark" ? "vs-dark" : "vs");
-    }
-  }, [resolvedTheme]);
-
-  React.useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
     function updateEditorFontSize() {
-      editorRef.current?.updateOptions({ fontSize: getEditorFontSize() });
+      editorRef.current?.setFontSize(getEditorFontSize());
     }
 
     const observer = new MutationObserver(updateEditorFontSize);
@@ -360,11 +179,7 @@ export function JsonCodeEditor({
   }, []);
 
   const formatDocument = React.useCallback(() => {
-    const editor = editorRef.current;
-    if (!editor) {
-      return;
-    }
-    void editor.getAction("editor.action.formatDocument")?.run();
+    editorRef.current?.format();
   }, []);
 
   return (
@@ -377,11 +192,17 @@ export function JsonCodeEditor({
       )}
       style={{ height }}
     >
-      <div className="flex h-8 items-center justify-between border-b border-input/40 bg-muted/25 px-2">
-        <span className="font-mono text-[11px] text-muted-foreground">JSON</span>
-        <div className="flex items-center gap-2">
-          {!loading && markerCount > 0 ? (
-            <span className="text-[11px] text-destructive">{t("errors", { count: markerCount })}</span>
+      <div className="flex h-8 items-center justify-between gap-2 border-b border-input/30 pl-2.5 pr-1">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+          <Braces className="size-3.5" aria-hidden="true" />
+          JSON
+        </span>
+        <div className="flex min-w-0 items-center gap-1">
+          {status === "ready" && diagnosticCount > 0 ? (
+            <span className="inline-flex items-center gap-1 px-1 text-[11px] text-destructive" role="status">
+              <CircleAlert className="size-3" aria-hidden="true" />
+              {t("errors", { count: diagnosticCount })}
+            </span>
           ) : null}
           {actions}
           {showFormatAction ? (
@@ -390,7 +211,7 @@ export function JsonCodeEditor({
               variant="ghost"
               size="sm"
               className="h-6 px-2 text-[11px]"
-              disabled={disabled || readOnly || loading}
+              disabled={effectiveReadOnly || status !== "ready"}
               onClick={formatDocument}
             >
               {t("format")}
@@ -398,8 +219,20 @@ export function JsonCodeEditor({
           ) : null}
         </div>
       </div>
-      <div ref={containerRef} className="h-[calc(100%-2rem)] w-full" />
-      {loading ? (
+      {status === "failed" ? (
+        // Plain-text fallback keeps the field usable when the editor chunk cannot be loaded.
+        <textarea
+          value={value}
+          placeholder={placeholder}
+          readOnly={effectiveReadOnly}
+          spellCheck={false}
+          onChange={(event) => onChange?.(event.target.value)}
+          className="block h-[calc(100%-2rem)] w-full resize-none bg-transparent px-3 py-2 font-mono text-xs leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+        />
+      ) : (
+        <div ref={containerRef} className="h-[calc(100%-2rem)] w-full" />
+      )}
+      {status === "loading" ? (
         <div className="absolute inset-x-0 bottom-0 top-8 flex items-center px-3 font-mono text-xs text-muted-foreground">
           {t("loading")}
         </div>

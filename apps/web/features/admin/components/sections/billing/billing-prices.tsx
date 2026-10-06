@@ -55,6 +55,12 @@ type BillingPricesSectionProps = {
 
 const OFFICIAL_PRICING_SUGGESTION_LIMIT = 10;
 
+// A fixed-layout table ignores column min-widths: the unsized model-name column only gets what the
+// sized columns leave, which is nothing on a narrow screen. Holding the table itself to the sum of
+// the sized columns (56 + 128 + 4 × 72 + 140 + 56 = 668px) plus the name's 210px keeps the name
+// column at least that wide; narrower screens scroll sideways with the name frozen.
+const MODEL_PRICING_TABLE_MIN_WIDTH_CLASS = "min-w-[878px]";
+
 function splitOfficialPricingID(id: string): { vendor: string; modelID: string } {
   const parts = id.split("/");
   if (parts.length <= 1) {
@@ -429,7 +435,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         </TableToolbar>
 
         <Table
-          className="min-w-full table-fixed"
+          className={cn("table-fixed", MODEL_PRICING_TABLE_MIN_WIDTH_CLASS)}
           viewportRef={modelPricingVirtualRows.viewportRef}
           viewportClassName={modelPricingVirtualRows.viewportClassName}
           viewportStyle={modelPricingVirtualRows.viewportStyle}
@@ -437,7 +443,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
           <TableHeader>
             <TableRow>
               {/* Fixed layout: every column but the model name has an explicit width, so the numbers stay together and the name absorbs the rest. */}
-              <TableHead className="min-w-[210px]">{t("modelPricing.platformModel")}</TableHead>
+              <TableHead stickyStart>{t("modelPricing.platformModel")}</TableHead>
               <TableHead className="w-[56px] whitespace-nowrap">{t("modelPricing.free")}</TableHead>
               <TableHead className="w-[128px] whitespace-nowrap">{t("modelPricing.pricingMode")}</TableHead>
               <TableHead className="w-[72px] whitespace-nowrap text-right">{t("modelPricing.priceInput")}</TableHead>
@@ -463,7 +469,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
 
                   return (
                     <TableRow key={row.platformModelName}>
-                      <TableCell className="py-1.5">
+                      <TableCell stickyStart className="py-1.5">
                         <div className="flex h-7 min-w-0 items-center gap-2">
                           <ModelIcon iconUrl={iconURL} label={row.platformModelName} />
                           <div className="flex min-w-0 flex-1">

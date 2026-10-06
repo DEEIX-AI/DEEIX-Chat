@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, WandSparkles } from "lucide-react";
+import { WandSparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 
@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { UIComponentDTO } from "@/shared/api/ui-components-types";
+import { ComposerOptionRow } from "@/features/chat/components/shared/composer-option-row";
 import { uiComponentIcon } from "@/features/chat/model/ui-component-icons";
 
 // Builtin names and summaries are localised on the client; the catalog text
@@ -119,7 +120,7 @@ export function ChatUIComponents({
                 </button>
               )}
             </div>
-            <div className="min-h-0 max-h-72 space-y-0.5 overflow-y-auto px-0.5">
+            <div className="min-h-0 max-h-72 overflow-y-auto px-0.5">
               {loading ? (
                 <div className="flex items-center justify-center py-6">
                   <Spinner className="size-4" />
@@ -127,23 +128,17 @@ export function ChatUIComponents({
               ) : (
                 components.map((component) => {
                   const selected = selectedSet.has(component.id);
-                  const Icon = uiComponentIcon(component.name);
                   const label = labelFor(component);
                   return (
-                    <button
+                    <ComposerOptionRow
                       key={component.id}
-                      type="button"
-                      data-selected={selected}
+                      icon={uiComponentIcon(component.name)}
+                      label={label.title}
+                      meta={component.scope !== "builtin" ? t(`uiComponentScope.${component.scope}`) : null}
+                      selected={selected}
                       title={label.summary}
-                      className="flex h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-foreground/80 transition-colors hover:bg-accent hover:text-accent-foreground data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
-                      aria-pressed={selected}
                       onClick={() => onChange(selected ? selectedIDs.filter((id) => id !== component.id) : [...selectedIDs, component.id])}
-                    >
-                      <Icon className={cn("size-3.5 shrink-0", selected ? "text-primary" : "text-muted-foreground")} strokeWidth={1.6} />
-                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-current">{label.title}</span>
-                      {component.scope !== "builtin" ? <span className="shrink-0 text-[10px] leading-none text-muted-foreground">{t(`uiComponentScope.${component.scope}`)}</span> : null}
-                      <Check className={cn("size-3.5 shrink-0 text-primary transition-opacity", selected ? "opacity-100" : "opacity-0")} strokeWidth={2} />
-                    </button>
+                    />
                   );
                 })
               )}
@@ -155,10 +150,15 @@ export function ChatUIComponents({
         {htmlVisual ? (
           <div className="shrink-0 px-0.5">
             {hasCatalog ? <div className="my-1.5 border-t-[0.5px] border-border" /> : null}
-            <label className="flex h-7 cursor-pointer items-center justify-between gap-3 rounded-md px-1.5 text-xs text-foreground/80 transition-colors hover:bg-accent hover:text-accent-foreground">
-              <span className="flex items-center gap-1.5">
-                <WandSparkles className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
-                <span className="font-medium">{t("htmlVisualPrompt")}</span>
+            <label
+              className={cn(
+                "flex h-7 cursor-pointer items-center justify-between gap-3 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground",
+                htmlVisual.enabled && "text-foreground",
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <WandSparkles className="size-3.5 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+                <span>{t("htmlVisualPrompt")}</span>
               </span>
               <Switch size="sm" checked={htmlVisual.enabled} onCheckedChange={htmlVisual.onChange} />
             </label>

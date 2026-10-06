@@ -54,6 +54,7 @@ import {
 import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
 import { ChatMentionMenuPortal } from "@/features/chat/components/shared/chat-mention-menu";
 import { useChatMentionMenu } from "@/features/chat/hooks/use-chat-mention-menu";
+import { MAX_SELECTED_KNOWLEDGE_BASES } from "@/features/chat/hooks/use-chat-knowledge-base-catalog";
 import {
   type SpeechInputErrorCode,
   useChatSpeechInput,
@@ -79,6 +80,7 @@ import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 import type { UIComponentDTO } from "@/shared/api/ui-components-types";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
 import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";
 import type { BillingDisplayCurrency } from "@/entities/billing";
 import {
@@ -96,7 +98,7 @@ const TEMPORARY_NOTICE_TRANSITION = {
   duration: 0.22,
   ease: [0.16, 1, 0.3, 1] as const,
 };
-const TEMPORARY_MENTION_KINDS = ["model", "tool", "skill", "prompt"] as const;
+const TEMPORARY_MENTION_KINDS = ["model", "knowledge", "tool", "skill", "prompt"] as const;
 
 type QueuedComposerMessage = {
   id: string;
@@ -337,6 +339,7 @@ function ChatInputComponent({
 }: ChatInputProps) {
   const tChat = useTranslations("chat");
   const tComposer = useTranslations("chat.composer");
+  const { knowledgeBaseEnabled } = useFeaturePolicy();
   const tFileStatus = useTranslations("files.status");
   const locale = useLocale();
   const [isVoiceHovered, setIsVoiceHovered] = React.useState(false);
@@ -557,6 +560,15 @@ function ChatInputComponent({
   } = useChatMentionMenu({
     attachments,
     availableTools,
+    // Same gate as the composer's knowledge-base button, plus any RAG outage: the button explains an
+    // outage, while @ simply does not offer knowledge bases that cannot be searched.
+    knowledgeBasesDisabled: isMediaMode || !knowledgeBaseEnabled || ragAvailable === false,
+    maxSelectedKnowledgeBases: MAX_SELECTED_KNOWLEDGE_BASES,
+    selectedKnowledgeBaseIDs,
+    onSelectedKnowledgeBasesChange,
+    onKnowledgeBaseLimitReached: () => {
+      toast.error(tComposer("knowledgeBaseLimit", { limit: MAX_SELECTED_KNOWLEDGE_BASES }));
+    },
     defaultFileLabel: tComposer("mention.fileFallback"),
     disabled: loading || uploading || modelLoading || modelDisabled,
     draft,

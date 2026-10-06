@@ -482,8 +482,6 @@
     "knowledgeBaseLoadMore": "加载更多",
     "knowledgeBaseUnavailable": "知识库检索当前不可用",
     "knowledgeBaseUnavailableDescription": "请联系管理员检查 RAG 与向量服务配置。",
-    "knowledgeBaseUnavailableRAGDisabled": "RAG 检索未启用，请联系管理员开启 RAG。",
-    "knowledgeBaseUnavailableEmbeddingDisabled": "向量服务未启用，请联系管理员开启 Embedding。",
     "knowledgeBaseUnavailableEmbeddingHostMissing": "未配置向量服务地址，请联系管理员完成 Embedding 配置。",
     "knowledgeBaseUnavailableEmbeddingModelMissing": "未配置向量模型，请联系管理员完成 Embedding 配置。",
     "knowledgeBaseUnavailableEmbeddingClientMissing": "向量服务客户端不可用，请联系管理员检查 Embedding 配置。",
@@ -594,6 +592,7 @@
       "fileFallback": "文件",
       "sections": {
         "file": "文件",
+        "knowledge": "知识库",
         "tool": "MCP",
         "model": "模型",
         "skill": "技能",
@@ -602,6 +601,7 @@
       "tabs": {
         "all": "全部",
         "file": "文件",
+        "knowledge": "知识库",
         "tool": "MCP",
         "model": "模型",
         "skill": "技能",
@@ -616,6 +616,7 @@
       "empty": {
         "all": "没有匹配的内容",
         "file": "没有匹配的文件",
+        "knowledge": "没有匹配的知识库",
         "tool": "没有匹配的工具",
         "model": "没有匹配的模型",
         "skill": "没有匹配的技能",
@@ -680,8 +681,7 @@
       "price": "价格",
       "perMillion": "每 1M tokens",
       "schedule": "时段倍率",
-      "unknown": "未知",
-      "noPricing": "未配置"
+      "unknown": "未知"
     },
     "freeModel": "免费模型",
     "freeModelDescription": "不会扣除按量余额",

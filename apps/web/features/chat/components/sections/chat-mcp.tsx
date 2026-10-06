@@ -56,7 +56,7 @@ function MCPToolRowAction({
       aria-label={label}
       title={label}
       className={cn(
-        "flex size-7 shrink-0 items-center justify-center rounded-md text-foreground/35 outline-none transition-[background-color,color] duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",
+        "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 outline-none transition-[background-color,color] duration-150 hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground",
         className,
       )}
     >
@@ -375,7 +375,7 @@ export function ChatMCP({
               <div key={group.key} className="mb-0.5 last:mb-0">
                 <div
                   data-interactive={groupInteractive}
-                  className="group/server flex h-7 items-center gap-1.5 rounded-md px-1.5 text-foreground/80 transition-colors data-[interactive=true]:bg-accent data-[interactive=true]:text-accent-foreground"
+                  className="group/server flex h-7 items-center gap-2 rounded-md px-2 text-foreground transition-colors data-[interactive=true]:bg-accent/70"
                 >
                   <Checkbox
                     checked={groupState.allSelected ? true : groupState.partiallySelected ? "indeterminate" : false}
@@ -401,7 +401,7 @@ export function ChatMCP({
                       ) : null}
                       <span
                         title={tComposer("mcpServerToolCount", { selected: groupState.selectedCount, total: group.tools.length })}
-                        className="shrink-0 text-[10px] leading-none tabular-nums text-muted-foreground transition-colors group-data-[interactive=true]/server:text-accent-foreground/75"
+                        className="shrink-0 text-[10px] leading-none tabular-nums text-muted-foreground"
                       >
                         {groupState.selectedCount}/{group.tools.length}
                       </span>
@@ -440,7 +440,7 @@ export function ChatMCP({
                     </Tooltip>
                     <button
                       type="button"
-                      className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground/35 outline-none transition-[background-color,color] duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
+                      className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 outline-none transition-[background-color,color] duration-150 hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground"
                       aria-label={expanded ? tComposer("mcpCollapseServerTools", { server: group.serverName }) : tComposer("mcpExpandServerTools", { server: group.serverName })}
                       onClick={() => toggleServerExpanded(group.key)}
                     >
@@ -473,7 +473,8 @@ export function ChatMCP({
                             <div
                               key={tool.id}
                               data-interactive={toolInteractive}
-                              className="group/tool flex h-7 items-center gap-1.5 rounded-md px-1.5 text-[11px] font-medium text-foreground/70 transition-colors data-[interactive=true]:bg-accent data-[interactive=true]:text-accent-foreground"
+                              data-checked={checked}
+                              className="group/tool flex h-7 items-center gap-2 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors data-[checked=true]:text-foreground data-[interactive=true]:bg-accent/70 data-[interactive=true]:text-foreground"
                             >
                               <Checkbox
                                 checked={checked}
