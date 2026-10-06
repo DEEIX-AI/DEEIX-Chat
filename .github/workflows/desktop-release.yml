@@ -59,11 +59,74 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
+  # The draft is created exactly once, here, before any leg starts. Each build
+  # leg then uploads into it by id. Letting the legs create it is unsafe: a
+  # draft is invisible to a tag lookup, so two legs finishing together both see
+  # "no release" and each create their own, which is how one tag ends up with
+  # two half-filled drafts.
+  release:
+    name: Create draft release
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      id: ${{ steps.release.outputs.id }}
+    steps:
+      - name: Create draft release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.ref_name }}"
+          # tauri-action needs the numeric REST id, so the REST API is used throughout.
+          # Drafts have no tag yet, so they are matched on tag_name in the list.
+          ids="$(gh api "repos/$GH_REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$tag\") | .id")"
+          count="$(printf '%s' "$ids" | grep -c . || true)"
+          if [[ "$count" -gt 1 ]]; then
+            echo "::error::$tag already has $count releases ($(echo $ids)); delete the extra drafts and re-run"
+            exit 1
+          fi
+          id="$ids"
+          if [[ -z "$id" ]]; then
+            # Release notes list the asset names the assets job produces.
+            notes="$RUNNER_TEMP/release-notes.md"
+            cat > "$notes" <<'BODY'
+          ### ⏬ Download
+
+          | Platform | Download | Verified | Available |
+          | --- | --- | --- | --- |
+          | macOS · Apple silicon | `macos-arm64.dmg` | ✅ Verified | ✅ Available |
+          | macOS · Intel | `macos-x64.dmg` | ✅ Verified | ✅ Available |
+          | Linux · x86_64 | `linux-x64.AppImage` or `.deb` | ✅ Verified | ✅ Available |
+          | Windows · x86_64 | `windows-x64-setup.exe` | ✅ Verified | ✅ Available |
+          | Windows · x86_64 · MSI | `windows-x64.msi` | ✅ Verified | ✅ Available |
+          | Windows · x86_64 · Portable | `windows-x64-portable.zip` | ✅ Verified | ✅ Available |
+
+          Checksums are in `SHA256SUMS`. `-updater.tar.gz`, `.sig` and `latest.json` belong to the built-in updater.
+          BODY
+            # Beta tags (v1.2.3-beta.1) are prereleases; stable tags are not.
+            if [[ "$tag" == *-* ]]; then prerelease=true; else prerelease=false; fi
+            # Draft until a human publishes it: publishing is the act that ships.
+            id="$(gh api -X POST "repos/$GH_REPO/releases" \
+              -f tag_name="$tag" -f name="$tag" -F draft=true -F prerelease="$prerelease" \
+              -F body=@"$notes" --jq .id)"
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          echo "Draft release $tag has id $id"
+
   build:
     name: Build (${{ matrix.label }})
+    needs: release
+    # On a manual run (no tag) no release is created and the legs only upload
+    # workflow artifacts, so a skipped release job is fine.
+    if: ${{ !cancelled() && needs.release.result != 'failure' }}
     runs-on: ${{ matrix.runner }}
     permissions:
-      contents: write # create the draft release and upload assets
+      contents: write # upload assets into the draft release
       id-token: write # sign build provenance (Sigstore)
       attestations: write # store build provenance
     strategy:
@@ -233,30 +296,15 @@ jobs:
           tauriScript: pnpm tauri
           # Beta endpoint, MSI version and signing thumbprint; see the channel step.
           args: ${{ matrix.args }} ${{ steps.channel.outputs.tauri_args }}
+          # Upload into the one draft the release job created. Without a
+          # releaseId each leg looks the draft up by tag and creates it when it
+          # finds none; legs that finish together all miss and each create one,
+          # leaving duplicate drafts that each hold only part of the assets.
+          releaseId: ${{ needs.release.outputs.id }}
+          # Still needed with a releaseId: it is not used to create anything here
+          # (that is skipped when a releaseId is present) but it builds the
+          # updater's asset URLs, which a prerelease must point at its own tag.
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: "v__VERSION__"
-          # Asset suffixes as produced by the assets job below. The Verified and
-          # Available columns are edited by hand on the draft when a platform
-          # needs a caveat.
-          releaseBody: |
-            ### ⏬ Download
-
-            | Platform | Download | Verified | Available |
-            | --- | --- | --- | --- |
-            | macOS · Apple silicon | `macos-arm64.dmg` | ✅ Verified | ✅ Available |
-            | macOS · Intel | `macos-x64.dmg` | ✅ Verified | ✅ Available |
-            | Linux · x86_64 | `linux-x64.AppImage` or `.deb` | ✅ Verified | ✅ Available |
-            | Windows · x86_64 | `windows-x64-setup.exe` | ✅ Verified | ✅ Available |
-            | Windows · x86_64 · MSI | `windows-x64.msi` | ✅ Verified | ✅ Available |
-            | Windows · x86_64 · Portable | `windows-x64-portable.zip` | ✅ Verified | ✅ Available |
-
-            Checksums are in `SHA256SUMS`. `-updater.tar.gz`, `.sig` and `latest.json` belong to the built-in updater.
-          # Draft until a human publishes it. Stable installs poll GitHub's
-          # releases/latest URL (newest published non-prerelease); beta installs
-          # poll the desktop-beta rolling manifest, refreshed on publish by
-          # desktop-channel.yml. Publishing the draft is the act that ships.
-          releaseDraft: true
-          prerelease: ${{ steps.channel.outputs.name == 'beta' }}
           includeUpdaterJson: true
           # With both NSIS and MSI built, point the generic `windows-x86_64`
           # entry at the per-user installer (the auto-updating form). Installed
