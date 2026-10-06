@@ -67,8 +67,9 @@ func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.PATCH("/llm/model-display-groups/:id", m.Handler.UpdateModelDisplayGroup)
 	adminGroup.DELETE("/llm/model-display-groups/:id", m.Handler.DeleteModelDisplayGroup)
 
-	// models.dev 推理目录
+	// models.dev 模型目录
 	adminGroup.GET("/llm/model-catalog", m.Handler.GetModelCatalog)
+	adminGroup.POST("/llm/model-catalog/resolve", m.Handler.ResolveModelCatalog)
 	adminGroup.POST("/llm/model-catalog/refresh", m.Handler.RefreshModelCatalog)
 
 	// 全局设置

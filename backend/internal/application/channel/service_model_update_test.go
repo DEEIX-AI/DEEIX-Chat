@@ -888,6 +888,7 @@ type modelUpdateRepo struct {
 	upsertLLMSettingErr      error
 	upstreamModels           map[string]domainchannel.UpstreamModel
 	catalogApplyCalls        int
+	catalogApplyErr          error
 }
 
 func (r *modelUpdateRepo) WithinTransaction(ctx context.Context, fn func(repository.ChannelRepository) error) error {
@@ -1051,6 +1052,9 @@ func (r *modelUpdateRepo) ListManagedUpstreamModels(_ context.Context, upstreamI
 
 func (r *modelUpdateRepo) ApplyUpstreamModelCatalogChanges(_ context.Context, upstreamID uint, input repository.ApplyUpstreamModelCatalogChangesInput) (int64, error) {
 	r.catalogApplyCalls++
+	if r.catalogApplyErr != nil {
+		return 0, r.catalogApplyErr
+	}
 	for _, item := range input.Create {
 		stored := item
 		if stored.ID == 0 {

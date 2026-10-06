@@ -54,6 +54,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for workflow in desktop-release.yml ghcr-image.yml dockerhub-image.yml; do
+          for workflow in desktop-release.yml image.yml; do
             gh workflow run "$workflow" --ref "${{ steps.tag.outputs.tag }}" --repo "${{ github.repository }}"
           done

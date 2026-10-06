@@ -586,20 +586,23 @@ export function buildPricingRows(models: AdminLLMModelDTO[], pricingItems: Admin
     }
   }
 
-  return Array.from(groupedModels.entries())
-    .map(([platformModelName, model]) => {
-      const pricing = pricingMap.get(platformModelName) || null;
-      return {
-        platformModelName,
-        vendor: pricing?.modelVendor || model.vendor || "",
-        icon: pricing?.modelIcon || model.icon || "",
-        pricing,
-        isFree: pricing?.isFree ?? false,
-        supportsVideoGeneration: parseKindsJSON(model.kindsJSON).some(
-          (kind) => kind === "video_gen" || kind === "video_extension",
-        ),
-      };
-    });
+  const rows: BillingModelPricingRow[] = Array.from(groupedModels.entries()).map(([platformModelName, model]) => {
+    const pricing = pricingMap.get(platformModelName) || null;
+    return {
+      platformModelName,
+      vendor: pricing?.modelVendor || model.vendor || "",
+      icon: pricing?.modelIcon || model.icon || "",
+      pricing,
+      isFree: pricing?.isFree ?? false,
+      supportsVideoGeneration: parseKindsJSON(model.kindsJSON).some(
+        (kind) => kind === "video_gen" || kind === "video_extension",
+      ),
+    };
+  });
+
+  // Row order of the source list is the model order the admin configured, so the sort is stable:
+  // models still missing a pricing entry float to the top and keep their relative order.
+  return rows.sort((left, right) => Number(Boolean(left.pricing)) - Number(Boolean(right.pricing)));
 }
 
 export function parseIntValue(value: string): number {

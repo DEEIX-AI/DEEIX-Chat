@@ -388,7 +388,7 @@ func TestNormalizeDetectedMIMEDowngradesActiveContent(t *testing.T) {
 	}
 }
 
-func TestNormalizeDetectedMIMERecognizesVideoExtensions(t *testing.T) {
+func TestNormalizeDetectedMIMERecognizesMediaExtensions(t *testing.T) {
 	tests := []struct {
 		detected string
 		fileName string
@@ -396,6 +396,11 @@ func TestNormalizeDetectedMIMERecognizesVideoExtensions(t *testing.T) {
 	}{
 		{detected: "application/octet-stream", fileName: "clip.mp4", want: "video/mp4"},
 		{detected: "application/octet-stream", fileName: "clip.webm", want: "video/webm"},
+		{detected: "application/octet-stream", fileName: "clip.mov", want: "video/quicktime"},
+		{detected: "audio/mpeg", fileName: "voice.mp3", want: "audio/mpeg"},
+		{detected: "audio/wave", fileName: "voice.wav", want: "audio/wav"},
+		// m4a 的内容嗅探结果是 video/mp4，按扩展名纠正为音频。
+		{detected: "video/mp4", fileName: "voice.m4a", want: "audio/mp4"},
 	}
 	for _, tt := range tests {
 		if got := normalizeDetectedMIME(tt.detected, tt.fileName); got != tt.want {
@@ -471,6 +476,15 @@ func TestUploadFileAllowsMP4WhenVideoMP4IsAllowed(t *testing.T) {
 	}
 	if result.File.ProcessingStatus != "uploaded" || !result.File.ProcessingReady {
 		t.Fatalf("video processing state = %q ready=%v, want uploaded ready=true", result.File.ProcessingStatus, result.File.ProcessingReady)
+	}
+}
+
+func TestInferFileCategoryRecognizesAudio(t *testing.T) {
+	if got := inferFileCategory("audio/mpeg", "voice.mp3"); got != fileCategoryAudio {
+		t.Fatalf("inferFileCategory(audio/mpeg) = %q, want %q", got, fileCategoryAudio)
+	}
+	if fileCategoryRequiresProcessing(fileCategoryAudio) || maxBytesForCategory(fileCategoryAudio, config.Config{FileDocMaxBytes: 1}) != 0 {
+		t.Fatal("audio files need no extraction and are limited only by the global upload size")
 	}
 }
 

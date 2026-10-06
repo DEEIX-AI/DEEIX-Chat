@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Box, Check, ChevronRight, FileText, LoaderCircle, ScrollText, Wrench } from "lucide-react";
+import { BookOpen, Box, Check, ChevronRight, FileText, LoaderCircle, ScrollText, Wrench } from "lucide-react";
 
 import type {
   ChatMentionMenuItem,
@@ -56,6 +56,10 @@ function ChatMentionMenuItemButton({
       ) : item.kind === "file" ? (
         <span className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground">
           <FileText className="size-3.5" strokeWidth={1.7} />
+        </span>
+      ) : item.kind === "knowledge" ? (
+        <span className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground">
+          <BookOpen className="size-3.5" strokeWidth={1.7} />
         </span>
       ) : item.kind === "tool" ? (
         <span className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground">

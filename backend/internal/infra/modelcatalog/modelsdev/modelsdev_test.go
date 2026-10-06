@@ -6,12 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
-// TestBuiltinReasoningSnapshotIsUsable 防止发版时内置快照损坏或误删主流厂商数据。
-func TestBuiltinReasoningSnapshotIsUsable(t *testing.T) {
-	snapshot, err := BuiltinReasoningSnapshot()
+// TestBuiltinSnapshotIsUsable 防止发版时内置快照损坏或误删主流厂商数据。
+func TestBuiltinSnapshotIsUsable(t *testing.T) {
+	snapshot, err := BuiltinSnapshot()
 	if err != nil {
 		t.Fatalf("decode builtin snapshot: %v", err)
 	}
@@ -29,6 +30,10 @@ func TestBuiltinReasoningSnapshotIsUsable(t *testing.T) {
 		if !providers[provider] {
 			t.Fatalf("builtin snapshot has no %s models", provider)
 		}
+	}
+	reasoning, modalities := domainchannel.SplitCatalogEntries(snapshot.Entries)
+	if len(reasoning) < 1000 || len(modalities) < 1000 {
+		t.Fatalf("builtin snapshot misses reasoning or modality data: %d reasoning, %d modalities", len(reasoning), len(modalities))
 	}
 }
 

@@ -25,9 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Spinner } from "@/components/ui/spinner";
 import type { AdminLLMModelIconAssetListItem } from "@/features/admin/api/llm-types";
 import { useAdminModelsIcons } from "@/features/admin/hooks/use-admin-models-icons";
-import { ModelIcon, resolveModelIconURL } from "@/entities/model";
-
-type LobeHubIconOption = { id: string; name: string; src: string };
+import { listLobehubIconOptions, lobehubIconURL, ModelIcon, resolveModelIconURL } from "@/entities/model";
 
 type ModelIconFieldProps = {
   id: string;
@@ -53,8 +51,6 @@ export function ModelIconField({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [iconQuery, setIconQuery] = React.useState("");
-  const [lobehubIcons, setLobehubIcons] = React.useState<LobeHubIconOption[] | null>(null);
-  const [lobehubLoadFailed, setLobehubLoadFailed] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<AdminLLMModelIconAssetListItem | null>(null);
   const {
     uploading,
@@ -71,33 +67,10 @@ export function ModelIconField({
   const matchedUploadedIcons = React.useMemo(() => (uploadedIcons ?? []).filter(
     (item) => !normalizedQuery || item.publicID.toLowerCase().includes(normalizedQuery),
   ), [normalizedQuery, uploadedIcons]);
-  const matchedIcons = React.useMemo(() => (lobehubIcons ?? [])
+  const matchedIcons = React.useMemo(() => listLobehubIconOptions()
     .filter((item) => !normalizedQuery || item.id.includes(normalizedQuery) || item.name.toLowerCase().includes(normalizedQuery))
-    .slice(0, 120), [lobehubIcons, normalizedQuery]);
+    .slice(0, 120), [normalizedQuery]);
 
-  React.useEffect(() => {
-    if (!pickerOpen || lobehubIcons !== null || lobehubLoadFailed) {
-      return;
-    }
-    let canceled = false;
-    void import("@/shared/generated/lobehub-icon-manifest")
-      .then(({ lobehubIconManifest }) => {
-        if (!canceled) {
-          setLobehubIcons(lobehubIconManifest.filter(
-            (item) => !/-(?:brand|brand-color|color|text|text-cn)$/u.test(item.id),
-          ));
-        }
-      })
-      .catch(() => {
-        if (!canceled) {
-          setLobehubIcons([]);
-          setLobehubLoadFailed(true);
-        }
-      });
-    return () => {
-      canceled = true;
-    };
-  }, [lobehubIcons, lobehubLoadFailed, pickerOpen]);
 
   const handleFile = React.useCallback(async (file: File) => {
     await uploadIcon(file, (ref) => {
@@ -253,26 +226,7 @@ export function ModelIconField({
                   </section>
                 ) : null}
 
-                {lobehubLoadFailed ? (
-                  <div className="flex h-20 flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
-                    <span>{t("loadIconLibraryFailed")}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => {
-                        setLobehubLoadFailed(false);
-                        setLobehubIcons(null);
-                      }}
-                    >
-                      {t("retryIconLibrary")}
-                    </Button>
-                  </div>
-                ) : lobehubIcons === null && !uploadedIconsLoading ? (
-                  <div className="flex h-20 items-center justify-center text-muted-foreground">
-                    <Spinner className="size-4" />
-                  </div>
-                ) : matchedIcons.length > 0 ? (
+                {matchedIcons.length > 0 ? (
                   <section>
                     <p className="px-1 pb-1.5 text-[11px] font-medium text-muted-foreground">{t("builtInIcons")}</p>
                     <div className="grid grid-cols-6 gap-1">
@@ -290,12 +244,12 @@ export function ModelIconField({
                             setPickerOpen(false);
                           }}
                         >
-                          <ModelIcon iconUrl={item.src} label={item.name} size={20} />
+                          <ModelIcon iconUrl={lobehubIconURL(item.id)} label={item.name} size={20} />
                         </button>
                       ))}
                     </div>
                   </section>
-                ) : lobehubIcons !== null && !uploadedIconsLoading && matchedUploadedIcons.length === 0 ? (
+                ) : !uploadedIconsLoading && matchedUploadedIcons.length === 0 ? (
                   <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">{t("noIconResults")}</div>
                 ) : null}
                 {matchedIcons.length === 120 ? (

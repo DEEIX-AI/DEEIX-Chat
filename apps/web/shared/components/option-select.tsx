@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ChevronDownIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,8 @@ type OptionSelectProps<TOption extends OptionSelectOption> = {
   contentClassName?: string;
   triggerClassName?: string;
   valueClassName?: string;
+  /** Extra classes on every list item, e.g. a group name the rendered option styles against. */
+  itemClassName?: string;
   portalContainer?: HTMLElement | ShadowRoot | null | React.RefObject<HTMLElement | ShadowRoot | null>;
   renderIcon?: (option: TOption | undefined) => React.ReactNode;
   renderOption?: (option: TOption) => React.ReactNode;
@@ -60,6 +63,7 @@ export function OptionSelect<TOption extends OptionSelectOption>({
   contentClassName = "min-w-[320px]",
   triggerClassName,
   valueClassName,
+  itemClassName,
   portalContainer,
   renderIcon,
   renderOption,
@@ -118,7 +122,7 @@ export function OptionSelect<TOption extends OptionSelectOption>({
             type="button"
             variant="outline"
             className={cn(
-              "w-full justify-between border-input/40 bg-transparent px-3 py-1 font-normal hover:bg-transparent focus-visible:border-ring/60 focus-visible:ring-[1px] focus-visible:ring-ring/40 dark:border-input/40 dark:bg-input/30 dark:hover:bg-input/30 [&_[data-slot=combobox-trigger-icon]]:size-3 [&_[data-slot=combobox-trigger-icon]]:opacity-50",
+              "w-full justify-between border-input/40 bg-transparent px-3 py-1 font-normal hover:bg-transparent focus-visible:border-ring/60 focus-visible:ring-[1px] focus-visible:ring-ring/40 dark:border-input/40 dark:bg-input/30 dark:hover:bg-input/30",
               triggerClassName,
             )}
             disabled={disabled}
@@ -136,6 +140,13 @@ export function OptionSelect<TOption extends OptionSelectOption>({
                 {selectedItem ? <ComboboxValue /> : resolvedPlaceholder}
               </span>
             </span>
+            {/* The trigger's own chevron is dropped when it renders through this Button, so it is drawn here,
+                exactly like the Select trigger's: 12px, muted, half opacity. */}
+            <ChevronDownIcon
+              data-slot="combobox-trigger-icon"
+              className="size-3 shrink-0 text-muted-foreground opacity-50"
+              aria-hidden="true"
+            />
           </Button>
         }
       />
@@ -147,7 +158,7 @@ export function OptionSelect<TOption extends OptionSelectOption>({
             <ComboboxItem
               key={item.value}
               value={item}
-              className={cn(itemClass)}
+              className={cn(itemClass, itemClassName)}
             >
               {renderOption ? (
                 renderOption(item)

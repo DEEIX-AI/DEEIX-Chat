@@ -138,12 +138,12 @@ func (s *Service) StreamTemporaryChat(
 		return nil, err
 	}
 	promptPlan := buildPromptPlan(ctx, promptPlanInput{
-		BaseMessages:      messages,
-		StableAttachments: attachmentContext.stableAttachments,
-		DynamicContext:    knowledgeContext,
-		SkillPrompts:      skillPrompts,
-		ToolRuntime:       toolRuntime,
-		Config:            cfg,
+		BaseMessages:   messages,
+		TurnDocuments:  attachmentContext.documents,
+		DynamicContext: knowledgeContext,
+		SkillPrompts:   skillPrompts,
+		ToolRuntime:    toolRuntime,
+		Config:         cfg,
 	})
 	messages = stripTemporaryMessageCacheControls(promptPlan.Messages)
 	fullMessages := cloneLLMMessages(messages)

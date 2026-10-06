@@ -49,6 +49,9 @@ type UpstreamModelSyncPlanView struct {
 	InactivatedModels []string
 	UnchangedModels   []string
 	ProtectedModels   []string
+	// UnresolvedProtocolModels 为同步后没有建议协议的远端模型：模型类型推断不出协议，
+	// 需要管理员为上游设置对应默认协议，或绑定时手动选择。它们仍会写入目录，与上面的分类不互斥。
+	UnresolvedProtocolModels []string
 }
 
 // UpstreamRemoteModelView 上游远程模型预览项（内部传输，不携带序列化标记）。
@@ -80,6 +83,8 @@ type SyncUpstreamModelsData struct {
 	InactivatedModels     int64
 	ReactivatedModels     int
 	SyncedModels          []UpstreamSyncModelView
+	// UnresolvedProtocolModels 为写入目录但没有建议协议的远端模型，含义同同步计划中的同名字段。
+	UnresolvedProtocolModels []string
 }
 
 // UpstreamSyncModelView 单个同步结果（内部传输，不携带序列化标记）。

@@ -2,7 +2,7 @@ import type { ChatFilePolicyDTO } from "@/shared/api/file-types";
 import { formatBytes } from "@/entities/file";
 import { isOneOf } from "@/shared/lib/type-guards";
 
-export type UploadCategory = "image" | "pdf" | "word" | "excel" | "text" | "unknown";
+export type UploadCategory = "image" | "audio" | "video" | "pdf" | "word" | "excel" | "text" | "unknown";
 
 const TEXT_FILE_EXTENSIONS = [
   "txt",
@@ -135,6 +135,12 @@ export function inferUploadCategory(file: File): UploadCategory {
   if (mime.startsWith("image/")) {
     return "image";
   }
+  if (mime.startsWith("audio/")) {
+    return "audio";
+  }
+  if (mime.startsWith("video/")) {
+    return "video";
+  }
   if (mime === "application/pdf" || ext === "pdf") {
     return "pdf";
   }
@@ -165,6 +171,10 @@ export function resolveEffectiveUploadLimit(policy: ChatFilePolicyDTO | null, ca
 
   if (category === "image") {
     return policy.effectiveImageMaxBytes || policy.imageMaxBytes || policy.maxUploadFileBytes;
+  }
+  // Audio and video are not extracted, so only the global upload limit applies (same as the backend).
+  if (category === "audio" || category === "video") {
+    return policy.maxUploadFileBytes;
   }
 
   return policy.effectiveDocMaxBytes || policy.docMaxBytes || policy.maxUploadFileBytes;
@@ -200,7 +210,7 @@ export function resolveUploadPolicyRejection(
   const limit = resolveEffectiveUploadLimit(policy, category);
   if (limit > 0 && file.size > limit) {
     const formattedLimit = formatBytes(limit);
-    if (policy.capabilityMode === "full_context_only" && category !== "image") {
+    if (policy.capabilityMode === "full_context_only" && category !== "image" && category !== "audio" && category !== "video") {
       return labels.fullContextLimitExceeded(formattedLimit);
     }
     return labels.sizeLimitExceeded(formattedLimit);

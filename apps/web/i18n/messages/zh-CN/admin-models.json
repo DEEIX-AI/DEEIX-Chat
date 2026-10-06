@@ -294,8 +294,6 @@
     "sessionExpired": "登录状态已失效",
     "choose": "选择或上传图标",
     "searchIcons": "搜索图标",
-    "loadIconLibraryFailed": "图标库加载失败",
-    "retryIconLibrary": "重试",
     "uploadShort": "上传",
     "uploadedIcons": "已上传",
     "builtInIcons": "内置图标",
@@ -359,17 +357,6 @@
     "vendorInUseMore": "，以及另外 {count} 个模型",
     "deleting": "删除中"
   },
-  "reasoningSync": {
-    "button": "同步思考能力",
-    "syncing": "同步中…",
-    "description": "为未配置思考参数的模型自动识别可用的思考强度档位，只在运行时生效，不会写入模型配置。数据超过 24 小时后，打开模型能力配置时会在后台自动更新。",
-    "lastSynced": "上次同步：{time} · {count} 个模型",
-    "lastError": "上次同步失败：{error}",
-    "toast": {
-      "synced": "思考能力已同步（{count} 个模型）",
-      "failed": "同步思考能力失败"
-    }
-  },
   "sheet": {
     "createTitle": "新建模型",
     "editTitle": "编辑模型",
@@ -402,12 +389,54 @@
     "capabilitiesJSON": "模型能力 JSON",
     "capabilitiesDescription": "定义当前模型的上下文上限、默认请求参数与原生工具。",
     "contextWindow": "上下文窗口",
-    "contextWindowAuto": "自动识别",
-    "contextWindowCustom": "自定义",
     "contextWindowPresets": "选择常用上下文窗口",
     "contextWindowInvalid": "请输入 4,096 至 16,000,000 之间的整数。",
     "contextWindowDescription": "模型单次请求可处理的最大 Token 数。",
-    "contextWindowEffective": "当前生效：{value} Token",
+    "catalogSync": {
+      "button": "同步",
+      "syncing": "同步中",
+      "description": "从 models.dev 与 OpenRouter 同步模型数据，每 24 小时自动同步。",
+      "lastSynced": "{source}：{time}",
+      "never": "未同步",
+      "lastError": "失败：{error}",
+      "synced": "已同步",
+      "syncedDescription": "models.dev {modelsDev} · OpenRouter {openRouter}",
+      "partial": "部分同步失败",
+      "failed": "同步失败",
+      "failedSource": "{source}：{error}",
+      "unreachable": "无法连接"
+    },
+    "reasoning": {
+      "label": "可用推理强度",
+      "description": "模型控件中可选的推理强度档位。",
+      "edit": "设置可用推理强度",
+      "customTitle": "自定义可用档位",
+      "default": "默认档位",
+      "unknown": "未识别",
+      "unsupported": "不支持",
+      "invalid": "配置无效",
+      "noTemplate": "请先绑定上游来源",
+      "levelWithValue": "{name}（{value}）",
+      "budgetTokens": "{value} Token"
+    },
+    "capabilityMode": {
+      "auto": "自动识别",
+      "custom": "自定义"
+    },
+    "modalities": {
+      "label": "模型多模态",
+      "description": "模型支持的输入与输出类型。",
+      "edit": "设置模型多模态",
+      "customTitle": "自定义输入模态",
+      "unknown": "未识别",
+      "names": {
+        "text": "文本",
+        "image": "图片",
+        "pdf": "PDF",
+        "audio": "音频",
+        "video": "视频"
+      }
+    },
     "circuitBreak": "模型熔断机制",
     "circuitBreakDescription": "为当前模型的各上游来源配置熔断规则。自动熔断开启后生效；各来源独立统计失败并执行熔断，参数为 0 时继承系统默认值。",
     "circuitPolicyMode": "应用方式",

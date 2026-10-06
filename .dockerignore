@@ -18,3 +18,13 @@ apps/web/package-lock.json
 backend/storage
 storage
 tmp
+# The image only builds the web app and the API; the desktop shell and local build
+# artifacts would otherwise be walked for every COPY.
+apps/desktop
+**/target
+**/*.tsbuildinfo
+**/__pycache__
+**/.venv
+.ruff_cache
+.codex
+.DS_Store

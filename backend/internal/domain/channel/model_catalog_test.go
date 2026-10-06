@@ -2,9 +2,9 @@ package channel
 
 import "testing"
 
-func TestReasoningCatalogMatchOrder(t *testing.T) {
+func TestModelCatalogMatchOrder(t *testing.T) {
 	effort := []ReasoningCatalogOption{{Type: ReasoningCatalogOptionEffort, Values: []string{"low", "high"}}}
-	catalog := NewReasoningCatalog([]ReasoningCatalogEntry{
+	catalog := NewModelCatalog([]ModelCatalogEntry{
 		{Provider: "openrouter", ModelID: "openai/gpt-5", CanonicalID: "openai/gpt-5", Reasoning: true, Options: effort},
 		{Provider: "azure", ModelID: "gpt-5", CanonicalID: "openai/gpt-5", Reasoning: true, Options: effort},
 		{Provider: "openai", ModelID: "gpt-5", CanonicalID: "openai/gpt-5", Reasoning: true, Options: effort},
@@ -43,7 +43,7 @@ func TestReasoningCatalogMatchOrder(t *testing.T) {
 
 func TestCatalogReasoningCapabilityPerProtocol(t *testing.T) {
 	budgetMin := 1024
-	entry := &ReasoningCatalogEntry{Provider: "anthropic", ModelID: "claude", Reasoning: true, Options: []ReasoningCatalogOption{
+	entry := &ModelCatalogEntry{Provider: "anthropic", ModelID: "claude", Reasoning: true, Options: []ReasoningCatalogOption{
 		{Type: ReasoningCatalogOptionEffort, Values: []string{"low", "medium", "high", "max"}},
 		{Type: ReasoningCatalogOptionBudget, Min: &budgetMin},
 	}}
@@ -83,14 +83,14 @@ func TestResolveReasoningCapabilityCatalogPrecedence(t *testing.T) {
 
 func TestCatalogReasoningCapabilityQwenFormatFollowsVendor(t *testing.T) {
 	options := []ReasoningCatalogOption{{Type: ReasoningCatalogOptionToggle}, {Type: ReasoningCatalogOptionBudget}}
-	hostedKimi := &ReasoningCatalogEntry{Provider: "alibaba-cn", ModelID: "kimi-k2-thinking", CanonicalID: "moonshotai/kimi-k2-thinking", Reasoning: true, Options: options}
+	hostedKimi := &ModelCatalogEntry{Provider: "alibaba-cn", ModelID: "kimi-k2-thinking", CanonicalID: "moonshotai/kimi-k2-thinking", Reasoning: true, Options: options}
 	for _, vendor := range []string{"moonshot", "unknown"} {
 		capability, _ := CatalogReasoningCapability(hostedKimi, ReasoningProtocolOpenAIChat, vendor)
 		if capability == nil || capability.Format != ReasoningFormatToggle {
 			t.Fatalf("vendor %q: expected toggle for a non-Qwen model hosted by Alibaba, got %#v", vendor, capability)
 		}
 	}
-	qwen := &ReasoningCatalogEntry{Provider: "alibaba", ModelID: "qwen-plus", Reasoning: true, Options: options}
+	qwen := &ModelCatalogEntry{Provider: "alibaba", ModelID: "qwen-plus", Reasoning: true, Options: options}
 	for _, vendor := range []string{"qwen", ""} {
 		capability, _ := CatalogReasoningCapability(qwen, ReasoningProtocolOpenAIChat, vendor)
 		if capability == nil || capability.Format != ReasoningFormatQwen {

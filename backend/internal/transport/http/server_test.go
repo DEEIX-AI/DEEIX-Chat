@@ -128,6 +128,38 @@ func TestFrontendStaticCachesImmutableBuildAssets(t *testing.T) {
 	}
 }
 
+// 内置图标在版本目录下按 immutable 缓存；不在版本目录下的路径走普通静态资源缓存。
+func TestFrontendStaticCachesVersionedVendorIcons(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	root := t.TempDir()
+	iconDir := filepath.Join(root, "vendor", "lobehub-icons", "1.90.0")
+	if err := os.MkdirAll(iconDir, 0o755); err != nil {
+		t.Fatalf("create icon dir: %v", err)
+	}
+	for _, name := range []string{filepath.Join(iconDir, "claude.svg"), filepath.Join(root, "vendor", "lobehub-icons", "__sync-version.txt")} {
+		if err := os.WriteFile(name, []byte("<svg/>"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	engine := gin.New()
+	registerFrontendStatic(engine, root, nil)
+
+	for requestPath, want := range map[string]string{
+		"/vendor/lobehub-icons/1.90.0/claude.svg":  "public, max-age=31536000, immutable",
+		"/vendor/lobehub-icons/__sync-version.txt": "no-cache",
+	} {
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, requestPath, nil))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s: expected status 200, got %d", requestPath, recorder.Code)
+		}
+		if got := recorder.Header().Get("Cache-Control"); got != want {
+			t.Fatalf("%s: expected %q, got %q", requestPath, want, got)
+		}
+	}
+}
+
 func TestFrontendStaticFallbackSkipsAPIPaths(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	root := t.TempDir()

@@ -150,15 +150,18 @@ function TableRow({
 
 type TableHeadProps = React.ComponentProps<"th"> & {
   stickyEnd?: boolean
+  /** Frozen to the left edge; columns after the first also pass their offset as `left-*`. */
+  stickyStart?: boolean
 }
 
-function TableHead({ className, stickyEnd, ...props }: TableHeadProps) {
+function TableHead({ className, stickyEnd, stickyStart, ...props }: TableHeadProps) {
   return (
     <th
       data-slot="table-head"
       className={cn(
         "h-8 px-3 py-1.5 text-left align-middle text-[11px] font-medium text-muted-foreground whitespace-nowrap",
         stickyEnd && "data-table-sticky-end-head sticky right-0 z-10",
+        stickyStart && "data-table-sticky-start-head sticky left-0 z-10",
         className
       )}
       {...props}
@@ -168,15 +171,18 @@ function TableHead({ className, stickyEnd, ...props }: TableHeadProps) {
 
 type TableCellProps = React.ComponentProps<"td"> & {
   stickyEnd?: boolean
+  /** Frozen to the left edge; columns after the first also pass their offset as `left-*`. */
+  stickyStart?: boolean
 }
 
-function TableCell({ className, stickyEnd, ...props }: TableCellProps) {
+function TableCell({ className, stickyEnd, stickyStart, ...props }: TableCellProps) {
   return (
     <td
       data-slot="table-cell"
       className={cn(
         "px-3 py-2.5 align-middle text-xs leading-5 whitespace-nowrap",
         stickyEnd && "data-table-sticky-end-cell sticky right-0 z-10",
+        stickyStart && "data-table-sticky-start-cell sticky left-0 z-10",
         className
       )}
       {...props}

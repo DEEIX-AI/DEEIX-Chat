@@ -1,0 +1,216 @@
+name: Image
+
+# Builds the runtime image once per architecture and publishes it to GHCR and, when its secrets are
+# configured, Docker Hub.
+#
+#   * One build serves both registries. They used to be two workflows that built the very same image
+#     independently, so every push paid for four builds instead of two.
+#   * The Dockerfile keeps its dependency and compiler caches (pnpm store, Go module and build caches)
+#     in BuildKit cache mounts. Those live inside the builder and vanish with a GitHub-hosted runner,
+#     so every run used to download and compile from scratch. They are saved to and restored from
+#     actions/cache around the build (buildkit-cache-dance), the approach the Docker documentation
+#     recommends for cache mounts in GitHub Actions. The Dockerfile itself stays the single build
+#     path: `docker build .` and this workflow produce the same image.
+#   * The layer cache is exported with mode=min (final stage only). With the cache mounts restored,
+#     intermediate layers are cheap to rebuild and not worth the repository cache quota.
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+
+      # The download and compile caches are the expensive part of a cold build (measured without
+      # them: pnpm install 157s, go mod download 104s, go build 32s). The Turbopack cache is left out:
+      # a cold Next build takes about 20s and the cache would cost ~1 GB of the repository quota.
+      # Keyed on the lockfiles, which is when dependencies change; the Go build cache is
+      # content-addressed, so restoring an older one still saves most of the compile.
+      - name: Cache BuildKit cache mounts
+        id: mounts
+        uses: actions/cache@v4
+        with:
+          path: |
+            buildkit-cache/pnpm-store
+            buildkit-cache/go-mod
+            buildkit-cache/go-build
+          key: image-mounts-${{ matrix.arch }}-${{ hashFiles('pnpm-lock.yaml', 'backend/go.sum') }}
+          restore-keys: |
+            image-mounts-${{ matrix.arch }}-
+
+      # Copies the restored directories into the builder's cache mounts before the build and back out
+      # afterwards. Ids and targets must match the RUN --mount flags in the Dockerfile.
+      - name: Inject cache mounts into the builder
+        uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-map: |
+            {
+              "buildkit-cache/pnpm-store": { "target": "/pnpm/store", "id": "pnpm-store" },
+              "buildkit-cache/go-mod": { "target": "/go/pkg/mod", "id": "go-mod" },
+              "buildkit-cache/go-build": { "target": "/root/.cache/go-build", "id": "go-build" }
+            }
+          skip-extraction: ${{ steps.mounts.outputs.cache-hit }}
+
+      # Docker Hub is optional: without its secrets the image is still published to GHCR.
+      - name: Resolve image names
+        id: image
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          repository=$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          images="ghcr.io/$repository"
+          if [[ -n "$DOCKERHUB_TOKEN" ]]; then
+            namespace=$(printf '%s' "${DOCKERHUB_USERNAME:-${GITHUB_REPOSITORY_OWNER}}" | tr '[:upper:]' '[:lower:]')
+            images+=$'\n'"$namespace/${repository#*/}"
+            echo "dockerhub=true" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "images<<__EOF__"
+            echo "$images"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.images }}
+          tags: |
+            type=ref,event=branch,suffix=-${{ matrix.arch }}
+            # Tag refs arrive either as pushes or via workflow_dispatch from Release Tag.
+            type=raw,value=${{ github.ref_name }},suffix=-${{ matrix.arch }},enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=latest-${{ matrix.arch }},enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        if: steps.image.outputs.dockerhub == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and publish
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            REFRESH_CATALOG_SNAPSHOTS=true
+          cache-from: type=gha,scope=image-${{ matrix.arch }}
+          cache-to: type=gha,scope=image-${{ matrix.arch }},mode=min
+
+  merge:
+    name: Merge
+    needs:
+      - build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve image names
+        id: image
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          repository=$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          images="ghcr.io/$repository"
+          if [[ -n "$DOCKERHUB_TOKEN" ]]; then
+            namespace=$(printf '%s' "${DOCKERHUB_USERNAME:-${GITHUB_REPOSITORY_OWNER}}" | tr '[:upper:]' '[:lower:]')
+            images+=$'\n'"$namespace/${repository#*/}"
+            echo "dockerhub=true" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "images<<__EOF__"
+            echo "$images"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.images }}
+          tags: |
+            type=ref,event=branch
+            type=raw,value=${{ github.ref_name }},enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        if: steps.image.outputs.dockerhub == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create manifest lists
+        run: |
+          set -euo pipefail
+          jq -cr '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON" | while read -r tag; do
+            docker buildx imagetools create \
+              -t "$tag" \
+              "${tag}-amd64" \
+              "${tag}-arm64"
+          done
+
+      - name: Inspect images
+        run: |
+          set -euo pipefail
+          jq -cr '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON" | while read -r tag; do
+            docker buildx imagetools inspect "$tag"
+          done

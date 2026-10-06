@@ -294,8 +294,6 @@
     "sessionExpired": "Your session has expired",
     "choose": "Choose or upload an icon",
     "searchIcons": "Search icons",
-    "loadIconLibraryFailed": "Failed to load the icon library",
-    "retryIconLibrary": "Retry",
     "uploadShort": "Upload",
     "uploadedIcons": "Uploaded",
     "builtInIcons": "Built-in icons",
@@ -359,17 +357,6 @@
     "vendorInUseMore": ", plus {count} more",
     "deleting": "Deleting"
   },
-  "reasoningSync": {
-    "button": "Sync reasoning",
-    "syncing": "Syncing…",
-    "description": "Detects available reasoning levels for models without their own reasoning parameters. Applied at runtime only and never written into model configs. Data older than 24 hours is updated in the background when the model capabilities dialog opens.",
-    "lastSynced": "Last synced {time} · {count} models",
-    "lastError": "Last sync failed: {error}",
-    "toast": {
-      "synced": "Reasoning capabilities synced ({count} models)",
-      "failed": "Failed to sync reasoning capabilities"
-    }
-  },
   "sheet": {
     "createTitle": "Create model",
     "editTitle": "Edit model",
@@ -402,12 +389,54 @@
     "capabilitiesJSON": "Model capabilities JSON",
     "capabilitiesDescription": "Define this model's context limit, default request parameters, and native tools.",
     "contextWindow": "Context window",
-    "contextWindowAuto": "Auto detect",
-    "contextWindowCustom": "Custom",
     "contextWindowPresets": "Choose a common context window",
     "contextWindowInvalid": "Enter an integer between 4,096 and 16,000,000.",
     "contextWindowDescription": "The maximum number of tokens the model can process in one request.",
-    "contextWindowEffective": "Effective: {value} tokens",
+    "catalogSync": {
+      "button": "Sync",
+      "syncing": "Syncing",
+      "description": "Syncs model data from models.dev and OpenRouter. Runs automatically every 24 hours.",
+      "lastSynced": "{source}: {time}",
+      "never": "Never",
+      "lastError": "Failed: {error}",
+      "synced": "Synced",
+      "syncedDescription": "models.dev {modelsDev} · OpenRouter {openRouter}",
+      "partial": "Partially synced",
+      "failed": "Sync failed",
+      "failedSource": "{source}: {error}",
+      "unreachable": "Unreachable"
+    },
+    "reasoning": {
+      "label": "Reasoning levels",
+      "description": "Reasoning levels offered in the model control.",
+      "edit": "Configure reasoning levels",
+      "customTitle": "Custom levels",
+      "default": "Default level",
+      "unknown": "Not detected",
+      "unsupported": "Not supported",
+      "invalid": "Invalid configuration",
+      "noTemplate": "Bind an upstream source first",
+      "levelWithValue": "{name} ({value})",
+      "budgetTokens": "{value} tokens"
+    },
+    "capabilityMode": {
+      "auto": "Auto",
+      "custom": "Custom"
+    },
+    "modalities": {
+      "label": "Multimodal input",
+      "description": "Input and output types the model supports.",
+      "edit": "Configure modalities",
+      "customTitle": "Custom input modalities",
+      "unknown": "Not detected",
+      "names": {
+        "text": "Text",
+        "image": "Image",
+        "pdf": "PDF",
+        "audio": "Audio",
+        "video": "Video"
+      }
+    },
     "circuitBreak": "Model circuit breaker",
     "circuitBreakDescription": "Configure circuit-breaker rules for this model's upstream sources. Rules apply when automatic circuit breaking is enabled; failures and circuit state are tracked independently per source, and 0 inherits the system default.",
     "circuitPolicyMode": "Apply mode",

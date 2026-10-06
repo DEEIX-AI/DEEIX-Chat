@@ -297,6 +297,36 @@ R2、OSS、MinIO、AWS S3 等统一走 S3 兼容协议，不为不同厂商维�
 
 内置技术厂商受系统保护，不允许删除。自定义厂商仅在没有平台模型引用时可删除；冲突响应会返回关联模型总数和有界预览，管理员需先将这些模型迁移到其他厂商。删除自定义展示分组时，组内模型会自动恢复为按技术厂商展示。
 
+## 外部目录快照
+
+后端依赖两份外部目录：models.dev 模型目录（推理能力、输入/输出模态与上下文窗口）和 OpenRouter 官方模型定价。每份数据有两个位置：
+
+| 位置 | 内容 | 写入方 |
+|---|---|---|
+| `internal/infra/catalogdata/data/*.json.gz` | 内置快照，随二进制发布（`go:embed`） | `make catalog-snapshot`；发布镜像与桌面端发布时刷新 |
+| `storage/catalogs/models-dev.json`、`storage/catalogs/openrouter-pricing.json` | 运行时最近一次同步结果（明文 JSON） | 管理员同步成功时写入；首次启动或缓存比内置快照旧时由内置快照写入 |
+
+运行时以 storage 中的数据为准；缺失、损坏、格式过旧或比内置快照旧时使用内置快照并写入 storage 作为种子。之后照常按需同步远端（models.dev 在管理员编辑模型或查看目录状态且超过 24 小时时后台同步；后台「编辑模型 → 模型能力」的「同步目录」会同时立即同步 models.dev 与 OpenRouter，对应 `POST /admin/llm/model-catalog/refresh` 与 `GET /admin/billing/official-pricing/openrouter?refresh=true`；OpenRouter 定价在管理员打开官方价格时按 24 小时有效期刷新）。远端不可达时继续使用已有数据，内网与离线部署也始终有可用目录；OpenRouter 定价来自内置快照时接口返回 `origin: "builtin"`，管理端会提示价格可能已变化。
+
+后台「编辑模型 → 模型能力」中的自动识别都来自这里，由 `POST /admin/llm/model-catalog/resolve` 按表单当前值（模型名、厂商、路由协议、能力 JSON）计算：
+
+- 模型多模态：见「原生输入」。
+- 可用推理强度：自动识别与请求链路一致（能力配置中的思考参数 > models.dev 目录）；自定义时按服务端给出的模板（格式、可选档位、预算类格式的建议预算）勾选档位并指定默认档，写入能力 JSON 的 `reasoning`，保存时按显式声明校验。
+- 上下文窗口：自动识别依次取 models.dev、OpenRouter，保存时带 `_deeixContextWindowMode: "auto"` 写入 `contextWindow`，修改模型名或厂商后自动清除；都未匹配时使用内置规则或全局回退值。
+
+旧版本的 `storage/admin/models-dev-reasoning-catalog.json`、`storage/admin/openrouter-model-pricing.json` 会在首次读取时迁移到 `storage/catalogs/`。
+
+内置快照刷新：
+
+```bash
+# backend 目录
+make catalog-snapshot                                   # 拉取全部数据源
+go run ./cmd/catalog-snapshot -only models-dev          # 只刷新指定数据源
+go run ./cmd/catalog-snapshot -models-dev-input api.json  # 从本地文件生成，不访问网络
+```
+
+刷新默认关闭，构建时按需开启：发布镜像（`.github/workflows/image.yml`）传 `--build-arg REFRESH_CATALOG_SNAPSHOTS=true`，桌面端发布设 `DEEIX_REFRESH_CATALOG_SNAPSHOTS=1`，两者都以 `-keep-on-error` 先刷新一次再编译，拉取或校验失败（条目数异常偏少）时保留仓库中已提交的快照，构建不受外部服务影响。直接 `docker build .` 用仓库中的快照，不访问网络。
+
 ## 向量存储
 
 Embedding 输出支持 64–4096 维。系统会通过 OpenAI-compatible `dimensions` 参数请求目标维度，并校验上游实际返回的向量长度；维度不一致时明确失败，不会通过截断或补零伪装成目标维度。PostgreSQL 按模型原始维度保存向量，SQLite 因 vec0 固定槽限制在持久化边界补零至 4096 维。文件、历史消息和用户记忆向量都会记录模型、服务端点与维度共同生成的空间签名，检索只使用当前向量空间的数据。
@@ -334,9 +364,36 @@ geoip:
 
 文件链路支持三类上下文策略：
 
-- 图片：默认按模型能力直接传原图上下文；开启图片 OCR 后进入 OCR 文本提取链路。
+- 图片：模型支持图片输入时直接传原图上下文；模型声明不支持图片时，在所属轮次说明「当前模型不支持该类型的输入」，不发送图片。开启图片 OCR 后进入 OCR 文本提取链路。
 - 文本类文件：小文件可全文注入；超出阈值时按配置走 RAG 或回退策略。
-- PDF/Office 等文档：通过内置提取、Tika、Docling、MinerU 或 OCR 引擎提取文本；PDF OCR 回退可单独控制。
+- PDF/Office 等文档：通过内置提取、Tika、Docling、MinerU 或 OCR 引擎提取文本；PDF OCR 回退可单独控制。满足原生输入条件的 PDF 改为原生发送（见下文）。
+
+### 原生输入
+
+模型能接收的输入模态（`text`、`image`、`pdf`、`audio`、`video`）按「能力 JSON 显式声明 > models.dev 目录」解析，与思考强度共用同一份 models.dev 目录（见「外部目录快照」，管理接口 `/admin/llm/model-catalog`），未匹配时视为未知并保持原有行为。可在能力 JSON 中用 `inputModalities` 覆盖目录，例如 `{"inputModalities": ["text", "image", "pdf"]}`。后台「编辑模型 → 模型能力 → 模型多模态」以「输入 → 输出」图标展示自动识别结果，也可在同一处切换为自定义，写入的就是这个字段；输出模态只用于展示。公开模型接口以 `inputModalities` 与 `inputModalitiesSource` 下发，模型选择器据此展示可输入类型。
+
+PDF 原生发送需同时满足：
+
+1. 输入模态包含 `pdf`；
+2. 路由协议支持文档内容块：Anthropic Messages（`document`）、Gemini generateContent（`inlineData`）、OpenAI Responses（`input_file`）、OpenAI Chat Completions（`file`）、OpenRouter；
+3. 上游可信：Anthropic 与 Gemini 原生协议按原样透传，任意地址均可；OpenAI 兼容协议只在官方地址（`api.openai.com`、`openrouter.ai`）或能力 JSON 显式声明 `inputModalities` 时启用，第三方中转站可能不认识文件内容块；
+4. 文件是本系统本来会全文提供的 PDF，或没有可用提取文本的 PDF（如扫描件）；走检索的大文件保持检索。PDF 合计不超过 8MB、100 页，越新的文件越优先，超出的旧文件退回提取文本。
+
+音频与视频（用户上传；助手生成的视频不回传）在模型输入模态包含 `audio` / `video` 时原生发送：
+
+| 协议 | 音频 | 视频 |
+|---|---|---|
+| Gemini generateContent（`inlineData`，任意地址） | wav、mp3、aiff、aac、ogg、flac | mp4、mpeg、mov、avi、flv、mpg、webm、wmv、3gpp |
+| OpenAI Chat Completions（`input_audio`，官方地址或显式声明） | wav、mp3 | 中转站显式声明时按 OpenRouter 方式发送 `video_url` |
+| OpenRouter Chat Completions（`input_audio`、`video_url`，官方地址或显式声明） | wav、mp3、aiff、aac、ogg、flac、m4a | mp4、mpeg、mov、webm |
+
+其余协议（Anthropic、OpenAI / OpenRouter Responses 等）没有可用的音视频输入。音视频没有文本可回退：路由无法原生发送时，所属轮次留「当前模型不支持该类型的输入」说明。上传端支持 `audio/*`（无需提取，只受全局上传大小限制），默认白名单新增常见音频格式与 `video/quicktime`、`video/mpeg`；临时对话不支持音视频。上下文预算按 Gemini 口径估算（音频 32 token/秒、视频约 300 token/秒，时长未知时由文件大小推算）。
+
+所有原生文件（PDF、音频、视频）单次请求最多 5 个、合计不超过 14MB（base64 后仍在 Gemini 内联 20MB 上限内）。文件一律以 base64 内嵌在请求体中，不使用各家 Files API。原生文件随提交它的那一轮发送，所属轮次的 `<documents>` 中保留文件名说明；路由故障转移时按新路由重新判断。PDF 上下文预算按每页 2000 token 偏高估算。
+
+每条回复的「处理完成 → 文件上下文」按实际发出请求的路由展示每个文件的处理方式：直读（图片内容块）、原生（原生 PDF、音频、视频）、预算 / 全文（提取文本）、检索（RAG 片段）、不支持（模型或路由不支持该类型输入）、未纳入。路由故障转移后，展示会更新为新路由的决定。上下文规划中原生文件的来源类型为 `file_native`，提取文本为 `file_full`。
+
+普通会话中，每个附件都随提交它的那一轮发送给模型：能全文注入的放全文，按问题检索的大文件和无法读取的文件只留一句说明，模型由此始终知道附件存在。按问题检索的文件如果本轮没有拿到任何片段、也无法回退全文，会在本轮的补充上下文中以 `<attachment_status>` 列出完整文件名、本轮/历史标记和检索结果（如 `rag_error`、`rag_timeout`、`rag_empty`、`rag_low_score`、`rag_no_match`），并提示模型不得仅凭文件名声称已读取内容。检索失败或超时时列出全部未取到内容的用户附件；未命中或部分命中时只列出本轮上传的附件，避免长对话中每轮重复。助手生成的文件不在此列。该状态只随本轮发送，不进入可缓存的提示词前缀，也不扩大文件访问范围。
 
 MinerU 可在设置中选择处理的文件类型；云端 MinerU 支持 `.doc/.docx/.ppt/.pptx/.xls/.xlsx`，自部署 MinerU 支持 `.docx/.pptx/.xlsx`。
 
@@ -356,6 +413,7 @@ OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract 
 - `lockedOptionPaths`：声明不可由用户覆盖的参数路径；对应值仍从 `defaultOptions` 读取，后端发送前会恢复为管理员默认值。
 - `optionControls`：定义用户参数配置对话框的可视化控件，不会单独传给上游。
 - `nativeToolKeys`：定义当前模型允许的厂商官方原生工具，例如 OpenAI、xAI、Google 和 Anthropic 的原生搜索、代码执行或图片生成能力。
+- `inputModalities`：覆盖 models.dev 目录中的输入模态，取值为 `text`、`image`、`pdf`、`audio`、`video`；用于纠正目录、关闭某类原生输入，或为第三方 OpenAI 兼容地址开启原生 PDF。
 - `image.stream`：仅对图像类模型能力生效；未配置时保持默认流式，显式写 `false` 时关闭图像流式调用。
 
 用户手写 `tools` 时，只有命中 `nativeToolKeys` 的官方原生工具会作为官方工具保留，工具子参数会随该工具透传；普通用户不能通过 JSON 自行启用未被管理员允许的 MCP Tool 或官方原生工具。MCP Tool 仍必须由管理员在工具页配置和启用。

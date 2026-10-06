@@ -1,4 +1,8 @@
 # syntax=docker/dockerfile:1
+#
+# Single build path for the runtime image: the web app and the API are both built from source here,
+# so `docker build .` and the release workflow (.github/workflows/image.yml) produce the same image.
+# Dependency and compiler caches live in BuildKit cache mounts; CI persists them between runs.
 
 FROM node:24-bookworm-slim AS frontend-builder
 
@@ -22,6 +26,7 @@ COPY apps/web/public/pwa ./apps/web/public/pwa
 RUN corepack enable
 
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    --mount=type=cache,id=corepack,target=/root/.cache/node/corepack \
     pnpm config set store-dir /pnpm/store \
     && pnpm install --frozen-lockfile --prefer-offline --filter @deeix/web
 
@@ -33,8 +38,9 @@ COPY packages/core ./packages/core
 
 WORKDIR /src/apps/web
 
-# 如果你的 Next 版本支持，可以在 next.config 里开启 turbopack build filesystem cache
+# Turbopack keeps its build cache in .next/cache (enabled by default since Next.js 16).
 RUN --mount=type=cache,id=next-cache,target=/src/apps/web/.next/cache \
+    --mount=type=cache,id=corepack,target=/root/.cache/node/corepack \
     pnpm build
 
 
@@ -51,13 +57,23 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends libsqlite3-dev \
   && rm -rf /var/lib/apt/lists/*
 
-RUN --mount=type=cache,target=/go/pkg/mod \
+RUN --mount=type=cache,id=go-mod,target=/go/pkg/mod \
     go mod download
 
 COPY backend ./
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
+# Opt-in: the repository ships catalog snapshots, so a plain build needs no network. The release
+# workflow passes true to ship the freshest data; a failed fetch keeps the committed snapshot.
+ARG REFRESH_CATALOG_SNAPSHOTS=false
+RUN --mount=type=cache,id=go-mod,target=/go/pkg/mod \
+    --mount=type=cache,id=go-build,target=/root/.cache/go-build \
+    if [ "${REFRESH_CATALOG_SNAPSHOTS}" = "true" ]; then \
+      echo "refreshing catalog snapshots for ${GIT_COMMIT}" \
+      && go run ./cmd/catalog-snapshot -keep-on-error; \
+    fi
+
+RUN --mount=type=cache,id=go-mod,target=/go/pkg/mod \
+    --mount=type=cache,id=go-build,target=/root/.cache/go-build \
     VERSION="$(cat /src/VERSION)" \
     && if [ -z "${BUILD_TIME}" ]; then BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; fi \
     && CGO_ENABLED=1 \

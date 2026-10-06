@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Check } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -14,8 +14,14 @@ import {
   MAX_SELECTED_KNOWLEDGE_BASES,
   useChatKnowledgeBaseCatalog,
 } from "@/features/chat/hooks/use-chat-knowledge-base-catalog";
+import { ComposerOptionRow } from "@/features/chat/components/shared/composer-option-row";
 import { cn } from "@/lib/utils";
 import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
+
+// RAG or embedding switched off is a deliberate admin choice, not a fault: knowledge bases cannot be
+// used at all, so the entry is hidden, as when the knowledge-base feature itself is off. Incomplete
+// configuration and runtime faults keep the entry and explain why it is unavailable.
+const SWITCHED_OFF_REASONS: ReadonlySet<string> = new Set(["rag_disabled", "embedding_disabled"]);
 
 export function ChatKnowledgeBases({
   selectedIDs,
@@ -50,12 +56,6 @@ export function ChatKnowledgeBases({
     : items;
   let unavailableDescription = t("knowledgeBaseUnavailableDescription");
   switch (unavailableReason) {
-    case "rag_disabled":
-      unavailableDescription = t("knowledgeBaseUnavailableRAGDisabled");
-      break;
-    case "embedding_disabled":
-      unavailableDescription = t("knowledgeBaseUnavailableEmbeddingDisabled");
-      break;
     case "embedding_host_missing":
       unavailableDescription = t("knowledgeBaseUnavailableEmbeddingHostMissing");
       break;
@@ -71,7 +71,9 @@ export function ChatKnowledgeBases({
       break;
   }
 
+  // After every hook, so the effect above still clears a selection made before the switch-off.
   if (!knowledgeBaseEnabled) return null;
+  if (available === false && SWITCHED_OFF_REASONS.has(unavailableReason)) return null;
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -153,24 +155,25 @@ export function ChatKnowledgeBases({
             value={query}
             placeholder={t("searchKnowledgeBases")}
             className="h-7 border-0 bg-muted/45 px-2.5 text-xs shadow-none dark:bg-muted/35"
+            disabled={available === false}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => event.stopPropagation()}
           />
         </div>
-        <div className="min-h-0 max-h-72 space-y-0.5 overflow-y-auto px-0.5">
+        <div className="min-h-0 max-h-72 overflow-y-auto px-0.5">
           {loading && items.length === 0 ? (
             <div className="flex items-center justify-center py-6"><Spinner className="size-4" /></div>
           ) : filteredItems.length > 0 ? filteredItems.map((item) => {
             const selected = selectedSet.has(item.publicID);
             const ready = item.readyFileCount > 0;
             return (
-              <button
+              <ComposerOptionRow
                 key={item.publicID}
-                type="button"
-                data-selected={selected}
-                className="flex h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-foreground/80 transition-colors hover:bg-accent hover:text-accent-foreground data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-45"
+                icon={BookOpen}
+                label={<span title={item.name}>{item.name}</span>}
+                meta={ready ? t("knowledgeBaseReadyFiles", { count: item.readyFileCount }) : t("knowledgeBaseNotReady")}
+                selected={selected}
                 disabled={available === false || (!ready && !selected)}
-                aria-pressed={selected}
                 onClick={() => {
                   if (selected) {
                     onChange(selectedIDs.filter((id) => id !== item.publicID));
@@ -182,21 +185,7 @@ export function ChatKnowledgeBases({
                   }
                   onChange([...selectedIDs, item.publicID]);
                 }}
-              >
-                <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                  {selected ? (
-                    <Check className="size-3.5 shrink-0 text-primary" strokeWidth={1.8} />
-                  ) : (
-                    <BookOpen className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
-                  )}
-                  <span className="truncate text-xs font-medium text-current" title={item.name}>{item.name}</span>
-                </span>
-                <span className="shrink-0 text-[10px] leading-none tabular-nums text-muted-foreground">
-                  {ready
-                    ? t("knowledgeBaseReadyFiles", { count: item.readyFileCount })
-                    : t("knowledgeBaseNotReady")}
-                </span>
-              </button>
+              />
             );
           }) : (
             <p className="px-2 py-6 text-center text-xs text-muted-foreground">{t("knowledgeBaseEmpty")}</p>
@@ -204,7 +193,7 @@ export function ChatKnowledgeBases({
           {hasMore ? (
             <button
               type="button"
-              className="flex h-7 w-full items-center justify-center rounded-md text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none"
+              className="flex h-7 w-full items-center justify-center rounded-md text-[11px] text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground disabled:pointer-events-none"
               disabled={loadingMore}
               onClick={loadMore}
             >

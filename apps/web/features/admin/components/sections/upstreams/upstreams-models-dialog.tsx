@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { Activity, Cable, Check, ChevronDownIcon, CircleOff, CloudDownload, Plus, RefreshCw, Search, Tags, ToggleLeft, Trash2 } from "lucide-react";
+import { Activity, Cable, Check, ChevronDownIcon, CircleOff, CloudDownload, Plus, RefreshCw, Search, Tags, ToggleLeft, Trash2, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   AlertDialog,
@@ -522,6 +522,9 @@ function RemoteModelsDialog({
   const remoteTotal = catalog?.total ?? null;
   const remoteSnapshotID = catalog?.snapshotID ?? "";
   const syncPlan = catalog?.syncPlan ?? null;
+  // Models the upstream's compatibility type and defaults give no protocol for (an image model behind
+  // an Anthropic-compatible gateway, say). They still sync into the catalog; binding them needs a protocol.
+  const unresolvedProtocolModels = syncPlan?.unresolvedProtocolModels ?? [];
 
   React.useEffect(() => {
     setRemoteItems([]);
@@ -533,7 +536,13 @@ function RemoteModelsDialog({
     const items = dedupeRemoteModels(catalog.items);
     const syncableItems = items.filter((item) => !item.alreadyBound);
     setRemoteItems([...syncableItems, ...items.filter((item) => item.alreadyBound)]);
-    setSelected(new Set(syncableItems.map((item) => item.upstreamModelName)));
+    // Binding a model needs a protocol, and this dialog has no picker for one: preselecting a model the
+    // upstream gives no protocol for would make every apply partly fail.
+    setSelected(new Set(
+      syncableItems
+        .filter((item) => item.suggestedProtocol || item.suggestedProtocols.length > 0)
+        .map((item) => item.upstreamModelName),
+    ));
     setDraftPlatformModelNames(createDraftPlatformModelNameMap(syncableItems));
   }, [catalog]);
 
@@ -661,7 +670,7 @@ function RemoteModelsDialog({
   }
 
   function formatCatalogSummary(result: Awaited<ReturnType<typeof applySync>>["catalog"]) {
-    return t("modelsDialog.catalogSyncSummary", {
+    const summary = t("modelsDialog.catalogSyncSummary", {
       createdUpstreamModels: result.createdUpstreamModels,
       updatedUpstreamModels: result.updatedUpstreamModels,
       reactivatedModels: result.reactivatedModels,
@@ -669,6 +678,10 @@ function RemoteModelsDialog({
       unchangedUpstreamModels: result.unchangedUpstreamModels,
       protectedUpstreamModels: result.protectedUpstreamModels,
     });
+    const unresolved = result.unresolvedProtocolModels.length;
+    return unresolved > 0
+      ? `${summary} · ${t("modelsDialog.catalogSyncUnresolvedProtocols", { count: unresolved })}`
+      : summary;
   }
 
   async function executeSyncBindings(allowEmpty: boolean) {
@@ -830,6 +843,39 @@ function RemoteModelsDialog({
                 </Button>
             </div>
           </div>
+
+          <DialogCollapsible open={unresolvedProtocolModels.length > 0} className="shrink-0">
+            <div className="px-5 pb-2">
+              <div className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-[11px] leading-5 text-amber-700 dark:text-amber-300">
+                <TriangleAlert className="mt-[3px] size-3.5 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+                <p className="min-w-0 flex-1">
+                  {t("modelsDialog.syncUnresolvedProtocols", { count: unresolvedProtocolModels.length })}
+                  <Tooltip>
+                    <TooltipTrigger
+                      type="button"
+                      className="ml-1 underline underline-offset-2 hover:text-amber-800 dark:hover:text-amber-200"
+                    >
+                      {t("modelsDialog.syncUnresolvedProtocolsView")}
+                    </TooltipTrigger>
+                    <TooltipContent
+                      portalContainer={tooltipPortalContainer}
+                      side="bottom"
+                      sideOffset={6}
+                      className="w-72 px-3 py-2.5"
+                    >
+                      <div className="max-h-48 space-y-0.5 overflow-y-auto overscroll-contain pr-1">
+                        {unresolvedProtocolModels.map((modelName) => (
+                          <div key={modelName} className="break-all font-mono text-[11px] leading-5 text-background/80">
+                            {modelName}
+                          </div>
+                        ))}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </p>
+              </div>
+            </div>
+          </DialogCollapsible>
 
           <DialogCollapsible open={catalogRows.length > 0} className="shrink-0">
             <div>

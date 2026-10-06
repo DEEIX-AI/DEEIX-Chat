@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"encoding/json"
 	"reflect"
 	"sort"
 	"strings"
@@ -37,9 +38,9 @@ var reasoningCatalogBudgetTargets = []struct {
 	{ReasoningLevelHigh, 24576},
 }
 
-// reasoningCatalogVendorProviders 把平台技术厂商 key 映射到 models.dev 的第一方 provider id；
+// modelCatalogVendorProviders 把平台技术厂商 key 映射到 models.dev 的第一方 provider id；
 // 首项同时作为该厂商在 canonical_model_id 中使用的前缀。未登记的厂商直接以自身 key 作为 provider id。
-var reasoningCatalogVendorProviders = map[string][]string{
+var modelCatalogVendorProviders = map[string][]string{
 	"openai":     {"openai"},
 	"anthropic":  {"anthropic"},
 	"google":     {"google"},
@@ -64,18 +65,18 @@ var reasoningCatalogVendorProviders = map[string][]string{
 	"copilot":    {"github-copilot"},
 }
 
-// reasoningCatalogAggregatorProviders 是映射表中转售多家模型的 provider，不视为第一方。
-var reasoningCatalogAggregatorProviders = map[string]struct{}{
+// modelCatalogAggregatorProviders 是映射表中转售多家模型的 provider，不视为第一方。
+var modelCatalogAggregatorProviders = map[string]struct{}{
 	"openrouter":     {},
 	"github-copilot": {},
 	"amazon-bedrock": {},
 }
 
-var reasoningCatalogFirstPartyProviders = func() map[string]struct{} {
+var modelCatalogFirstPartyProviders = func() map[string]struct{} {
 	result := make(map[string]struct{})
-	for _, providers := range reasoningCatalogVendorProviders {
+	for _, providers := range modelCatalogVendorProviders {
 		for _, provider := range providers {
-			if _, aggregator := reasoningCatalogAggregatorProviders[provider]; !aggregator {
+			if _, aggregator := modelCatalogAggregatorProviders[provider]; !aggregator {
 				result[provider] = struct{}{}
 			}
 		}
@@ -91,36 +92,58 @@ type ReasoningCatalogOption struct {
 	Max    *int
 }
 
-// ReasoningCatalogEntry 是 models.dev 中单个 provider 下单个模型的精简推理信息。
-type ReasoningCatalogEntry struct {
+// ModelCatalogEntry 是 models.dev 中单个 provider 下单个模型的精简目录信息：推理能力、输入/输出模态与上下文窗口。
+// Reasoning 为 true 时 Options 非空；InputModalities 可独立存在（纯文本模型也会登记）。
+type ModelCatalogEntry struct {
 	Provider    string
 	ModelID     string
 	CanonicalID string
 	Reasoning   bool
 	Options     []ReasoningCatalogOption
+	// InputModalities 为 models.dev modalities.input 的归一化结果，见 NormalizeInputModalities。
+	InputModalities []string
+	// OutputModalities 为 models.dev modalities.output 的归一化结果，仅用于展示。
+	OutputModalities []string
+	// ContextWindow 为 models.dev limit.context（Token）；未声明或超出平台允许范围时为 0。
+	ContextWindow int
 }
 
-// ReasoningCatalog 是按 provider/model、模型 id 与 canonical id 建立的只读内存索引，支持请求链路 O(1) 查找。
-type ReasoningCatalog struct {
-	entries         []ReasoningCatalogEntry
+// SplitCatalogEntries 把目录条目分成推理索引与输入模态索引各自需要的部分。
+// 两类查询分别建索引：推理匹配只在有推理选项的条目中进行，与只含推理条目的旧目录行为一致；
+// 输入模态匹配则覆盖所有声明了模态的模型（包括纯文本模型，用于判断「不支持图片」）。
+func SplitCatalogEntries(entries []ModelCatalogEntry) (reasoning []ModelCatalogEntry, modalities []ModelCatalogEntry) {
+	for _, entry := range entries {
+		if entry.Reasoning && len(entry.Options) > 0 {
+			reasoning = append(reasoning, entry)
+		}
+		if len(entry.InputModalities) > 0 {
+			modalities = append(modalities, entry)
+		}
+	}
+	return reasoning, modalities
+}
+
+// ModelCatalog 是按 provider/model、模型 id 与 canonical id 建立的只读内存索引，支持请求链路 O(1) 查找。
+type ModelCatalog struct {
+	entries         []ModelCatalogEntry
 	byProviderModel map[string]int
 	byModelID       map[string][]int
 	byCanonical     map[string][]int
 	byCanonicalName map[string][]int
 }
 
-// NewReasoningCatalog 构建目录索引；provider 与模型 id 忽略大小写，重复条目保留首个。
-func NewReasoningCatalog(entries []ReasoningCatalogEntry) *ReasoningCatalog {
-	catalog := &ReasoningCatalog{
-		entries:         make([]ReasoningCatalogEntry, 0, len(entries)),
+// NewModelCatalog 构建目录索引；provider 与模型 id 忽略大小写，重复条目保留首个。
+func NewModelCatalog(entries []ModelCatalogEntry) *ModelCatalog {
+	catalog := &ModelCatalog{
+		entries:         make([]ModelCatalogEntry, 0, len(entries)),
 		byProviderModel: make(map[string]int, len(entries)),
 		byModelID:       make(map[string][]int),
 		byCanonical:     make(map[string][]int),
 		byCanonicalName: make(map[string][]int),
 	}
 	for _, entry := range entries {
-		provider := normalizeReasoningCatalogKey(entry.Provider)
-		modelID := normalizeReasoningCatalogKey(entry.ModelID)
+		provider := normalizeModelCatalogKey(entry.Provider)
+		modelID := normalizeModelCatalogKey(entry.ModelID)
 		if provider == "" || modelID == "" {
 			continue
 		}
@@ -132,7 +155,7 @@ func NewReasoningCatalog(entries []ReasoningCatalogEntry) *ReasoningCatalog {
 		catalog.entries = append(catalog.entries, entry)
 		catalog.byProviderModel[key] = index
 		catalog.byModelID[modelID] = append(catalog.byModelID[modelID], index)
-		if canonical := normalizeReasoningCatalogKey(entry.CanonicalID); canonical != "" {
+		if canonical := normalizeModelCatalogKey(entry.CanonicalID); canonical != "" {
 			catalog.byCanonical[canonical] = append(catalog.byCanonical[canonical], index)
 			if slash := strings.LastIndex(canonical, "/"); slash >= 0 && slash < len(canonical)-1 {
 				name := canonical[slash+1:]
@@ -149,7 +172,7 @@ func NewReasoningCatalog(entries []ReasoningCatalogEntry) *ReasoningCatalog {
 }
 
 // Len 返回索引中的模型条目数。
-func (c *ReasoningCatalog) Len() int {
+func (c *ModelCatalog) Len() int {
 	if c == nil {
 		return 0
 	}
@@ -157,37 +180,37 @@ func (c *ReasoningCatalog) Len() int {
 }
 
 // Entries 返回索引条目副本，用于序列化快照。
-func (c *ReasoningCatalog) Entries() []ReasoningCatalogEntry {
+func (c *ModelCatalog) Entries() []ModelCatalogEntry {
 	if c == nil {
 		return nil
 	}
-	return append([]ReasoningCatalogEntry(nil), c.entries...)
+	return append([]ModelCatalogEntry(nil), c.entries...)
 }
 
 // sortCandidates 让同一查找键下的候选按「第一方优先，再按 provider id 字母序」确定性排序。
-func (c *ReasoningCatalog) sortCandidates(indexes []int) {
+func (c *ModelCatalog) sortCandidates(indexes []int) {
 	sort.SliceStable(indexes, func(left, right int) bool {
 		a, b := c.entries[indexes[left]], c.entries[indexes[right]]
-		aFirst, bFirst := reasoningCatalogIsFirstParty(a), reasoningCatalogIsFirstParty(b)
+		aFirst, bFirst := modelCatalogIsFirstParty(a), modelCatalogIsFirstParty(b)
 		if aFirst != bFirst {
 			return aFirst
 		}
-		aProvider, bProvider := normalizeReasoningCatalogKey(a.Provider), normalizeReasoningCatalogKey(b.Provider)
+		aProvider, bProvider := normalizeModelCatalogKey(a.Provider), normalizeModelCatalogKey(b.Provider)
 		if aProvider != bProvider {
 			return aProvider < bProvider
 		}
-		return normalizeReasoningCatalogKey(a.ModelID) < normalizeReasoningCatalogKey(b.ModelID)
+		return normalizeModelCatalogKey(a.ModelID) < normalizeModelCatalogKey(b.ModelID)
 	})
 }
 
 // Match 按固定顺序为平台模型查找目录条目，不做模糊匹配：
 // (1) 厂商对应 provider 下 id 相同；(2) 任一第一方 provider 下 id 相同；
 // (3) canonical_model_id 为「厂商前缀/名称」或以「/名称」结尾；(4) OpenRouter 路由查 openrouter provider。
-func (c *ReasoningCatalog) Match(name string, vendor string, protocolKeys []string) *ReasoningCatalogEntry {
+func (c *ModelCatalog) Match(name string, vendor string, protocolKeys []string) *ModelCatalogEntry {
 	if c.Len() == 0 {
 		return nil
 	}
-	fullName := normalizeReasoningCatalogKey(name)
+	fullName := normalizeModelCatalogKey(name)
 	if fullName == "" {
 		return nil
 	}
@@ -199,17 +222,17 @@ func (c *ReasoningCatalog) Match(name string, vendor string, protocolKeys []stri
 			return nil
 		}
 	}
-	providers, canonicalPrefixes := reasoningCatalogVendorTargets(normalizeReasoningCatalogKey(vendor), namePrefix)
+	providers, canonicalPrefixes := modelCatalogVendorTargets(normalizeModelCatalogKey(vendor), namePrefix)
 
 	for _, provider := range providers {
-		for _, modelID := range uniqueReasoningCatalogKeys(bareName, fullName) {
+		for _, modelID := range uniqueModelCatalogKeys(bareName, fullName) {
 			if entry := c.lookup(provider, modelID); entry != nil {
 				return entry
 			}
 		}
 	}
 	for _, index := range c.byModelID[bareName] {
-		if reasoningCatalogIsFirstParty(c.entries[index]) {
+		if modelCatalogIsFirstParty(c.entries[index]) {
 			return &c.entries[index]
 		}
 	}
@@ -221,7 +244,7 @@ func (c *ReasoningCatalog) Match(name string, vendor string, protocolKeys []stri
 	if indexes := c.byCanonicalName[bareName]; len(indexes) > 0 {
 		return &c.entries[indexes[0]]
 	}
-	if reasoningCatalogHasOpenRouterProtocol(protocolKeys) {
+	if modelCatalogHasOpenRouterProtocol(protocolKeys) {
 		candidates := []string{fullName}
 		for _, prefix := range canonicalPrefixes {
 			candidates = append(candidates, prefix+"/"+bareName)
@@ -235,7 +258,7 @@ func (c *ReasoningCatalog) Match(name string, vendor string, protocolKeys []stri
 	return nil
 }
 
-func (c *ReasoningCatalog) lookup(provider string, modelID string) *ReasoningCatalogEntry {
+func (c *ModelCatalog) lookup(provider string, modelID string) *ModelCatalogEntry {
 	index, ok := c.byProviderModel[provider+"\x00"+modelID]
 	if !ok {
 		return nil
@@ -243,8 +266,8 @@ func (c *ReasoningCatalog) lookup(provider string, modelID string) *ReasoningCat
 	return &c.entries[index]
 }
 
-// reasoningCatalogVendorTargets 返回按优先级排列的 provider 列表与 canonical 前缀列表：先平台厂商，再名称前缀。
-func reasoningCatalogVendorTargets(vendor string, namePrefix string) ([]string, []string) {
+// modelCatalogVendorTargets 返回按优先级排列的 provider 列表与 canonical 前缀列表：先平台厂商，再名称前缀。
+func modelCatalogVendorTargets(vendor string, namePrefix string) ([]string, []string) {
 	var providers, prefixes []string
 	seenProviders := map[string]struct{}{}
 	seenPrefixes := map[string]struct{}{}
@@ -252,7 +275,7 @@ func reasoningCatalogVendorTargets(vendor string, namePrefix string) ([]string, 
 		if key == "" || key == "unknown" {
 			continue
 		}
-		mapped, ok := reasoningCatalogVendorProviders[key]
+		mapped, ok := modelCatalogVendorProviders[key]
 		if !ok {
 			mapped = []string{key}
 		}
@@ -270,7 +293,7 @@ func reasoningCatalogVendorTargets(vendor string, namePrefix string) ([]string, 
 	return providers, prefixes
 }
 
-func uniqueReasoningCatalogKeys(values ...string) []string {
+func uniqueModelCatalogKeys(values ...string) []string {
 	result := make([]string, 0, len(values))
 	for _, value := range values {
 		duplicated := false
@@ -287,18 +310,18 @@ func uniqueReasoningCatalogKeys(values ...string) []string {
 	return result
 }
 
-// reasoningCatalogIsFirstParty 判断条目是否来自模型原厂：provider 等于 canonical 前缀，或属于已登记的厂商 provider。
-func reasoningCatalogIsFirstParty(entry ReasoningCatalogEntry) bool {
-	provider := normalizeReasoningCatalogKey(entry.Provider)
-	canonical := normalizeReasoningCatalogKey(entry.CanonicalID)
+// modelCatalogIsFirstParty 判断条目是否来自模型原厂：provider 等于 canonical 前缀，或属于已登记的厂商 provider。
+func modelCatalogIsFirstParty(entry ModelCatalogEntry) bool {
+	provider := normalizeModelCatalogKey(entry.Provider)
+	canonical := normalizeModelCatalogKey(entry.CanonicalID)
 	if slash := strings.Index(canonical, "/"); slash > 0 && canonical[:slash] == provider {
 		return true
 	}
-	_, ok := reasoningCatalogFirstPartyProviders[provider]
+	_, ok := modelCatalogFirstPartyProviders[provider]
 	return ok
 }
 
-func reasoningCatalogHasOpenRouterProtocol(protocolKeys []string) bool {
+func modelCatalogHasOpenRouterProtocol(protocolKeys []string) bool {
 	for _, protocolKey := range protocolKeys {
 		if strings.HasPrefix(protocolKey, "openrouter_") {
 			return true
@@ -307,13 +330,13 @@ func reasoningCatalogHasOpenRouterProtocol(protocolKeys []string) bool {
 	return false
 }
 
-func normalizeReasoningCatalogKey(value string) string {
+func normalizeModelCatalogKey(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
 // CatalogReasoningCapability 把目录条目转换为指定协议上的推理能力；失败时返回 nil 与原因。
 // 优先使用 effort，其次 budget_tokens，最后 toggle；结果必须通过显式声明的同一套校验。
-func CatalogReasoningCapability(entry *ReasoningCatalogEntry, protocolKey string, vendor string) (*ReasoningCapability, string) {
+func CatalogReasoningCapability(entry *ModelCatalogEntry, protocolKey string, vendor string) (*ReasoningCapability, string) {
 	if entry == nil || !entry.Reasoning || len(entry.Options) == 0 {
 		return nil, ReasoningCatalogReasonNotReasoning
 	}
@@ -350,7 +373,7 @@ func CatalogReasoningCapability(entry *ReasoningCatalogEntry, protocolKey string
 
 // CatalogReasoningCapabilityForProtocols 在模型的全部可用协议上转换目录条目，取对最多协议有效的能力；
 // 票数相同时取协议顺序中最先出现者。全部失败时按 invalid > not_reasoning > unsupported_protocol 返回原因。
-func CatalogReasoningCapabilityForProtocols(entry *ReasoningCatalogEntry, protocolKeys []string, vendor string) (*ReasoningCapability, string) {
+func CatalogReasoningCapabilityForProtocols(entry *ModelCatalogEntry, protocolKeys []string, vendor string) (*ReasoningCapability, string) {
 	if len(protocolKeys) == 0 {
 		if entry == nil || !entry.Reasoning || len(entry.Options) == 0 {
 			return nil, ReasoningCatalogReasonNotReasoning
@@ -405,7 +428,7 @@ func worseReasoningCatalogReason(current string, next string) string {
 	return current
 }
 
-func (e *ReasoningCatalogEntry) option(optionType string) *ReasoningCatalogOption {
+func (e *ModelCatalogEntry) option(optionType string) *ReasoningCatalogOption {
 	for index := range e.Options {
 		if e.Options[index].Type == optionType {
 			return &e.Options[index]
@@ -416,19 +439,19 @@ func (e *ReasoningCatalogEntry) option(optionType string) *ReasoningCatalogOptio
 
 // reasoningCatalogIsQwen 判断条目是否属于通义千问系列。平台厂商已知时以厂商为准：阿里云托管的其他厂商模型
 // （如 alibaba-cn 下的 kimi）不应按 enable_thinking 下发。厂商未知时才按 canonical 前缀、provider 或模型 id 推测。
-func reasoningCatalogIsQwen(entry *ReasoningCatalogEntry, vendor string) bool {
-	switch normalizeReasoningCatalogKey(vendor) {
+func reasoningCatalogIsQwen(entry *ModelCatalogEntry, vendor string) bool {
+	switch normalizeModelCatalogKey(vendor) {
 	case "alibaba", "qwen":
 		return true
 	case "", "unknown":
 	default:
 		return false
 	}
-	if canonical := normalizeReasoningCatalogKey(entry.CanonicalID); canonical != "" {
+	if canonical := normalizeModelCatalogKey(entry.CanonicalID); canonical != "" {
 		return strings.HasPrefix(canonical, "alibaba/") || strings.HasPrefix(canonical, "qwen/") || strings.Contains(canonical, "/qwen")
 	}
-	return strings.HasPrefix(normalizeReasoningCatalogKey(entry.Provider), "alibaba") ||
-		strings.Contains(normalizeReasoningCatalogKey(entry.ModelID), "qwen")
+	return strings.HasPrefix(normalizeModelCatalogKey(entry.Provider), "alibaba") ||
+		strings.Contains(normalizeModelCatalogKey(entry.ModelID), "qwen")
 }
 
 func isReasoningOpenAICompatibleChat(protocolKey string) bool {
@@ -463,7 +486,7 @@ func catalogEffortPayload(values []string, protocolKey string) map[string]any {
 			levels = append(levels, level)
 		}
 	}
-	levels = uniqueReasoningCatalogKeys(levels...)
+	levels = uniqueModelCatalogKeys(levels...)
 	if len(levels) == 0 {
 		return nil
 	}
@@ -565,6 +588,24 @@ func reasoningLevelsPayload(levels []string) []any {
 		result = append(result, level)
 	}
 	return result
+}
+
+// WithoutExplicitReasoning 返回移除显式 reasoning 声明后的能力 JSON，用于计算「自动识别」时的生效能力；
+// JSON 无法解析时返回空串（视为未配置）。
+func WithoutExplicitReasoning(capabilitiesJSON string) string {
+	payload, ok := parseCapabilities(capabilitiesJSON)
+	if !ok {
+		return ""
+	}
+	if _, declared := payload["reasoning"]; !declared {
+		return capabilitiesJSON
+	}
+	delete(payload, "reasoning")
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
 }
 
 // HasExplicitReasoning 判断能力 JSON 是否已显式声明 reasoning 字段（无论是否有效）。

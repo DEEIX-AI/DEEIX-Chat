@@ -284,6 +284,17 @@ func buildResponsesAPIContent(msg portllm.Message, promptCache *openAIPromptCach
 			}
 			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
 			parts = append(parts, block)
+		case portllm.ContentPartDocument:
+			if normalizeRole(msg.Role) == "assistant" || len(part.Data) == 0 {
+				continue
+			}
+			block := map[string]any{
+				"type":      "input_file",
+				"filename":  nativeDocumentFileName(part),
+				"file_data": nativeDocumentDataURL(part),
+			}
+			appendOpenAIPromptCacheBreakpoint(block, part.CacheControl, promptCache)
+			parts = append(parts, block)
 		default: // text, file
 			text := part.Text
 			if strings.TrimSpace(text) == "" {

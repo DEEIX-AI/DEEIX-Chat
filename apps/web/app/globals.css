@@ -106,8 +106,8 @@ html[data-branding-pending] body {
   --popover-foreground: oklch(0.9211 0.0040 106.4781);
   --primary: oklch(0.6724 0.1308 38.7559);
   --primary-foreground: oklch(1.0000 0 0);
-  --secondary: oklch(0.9245 0.0138 92.9892);
-  --secondary-foreground: oklch(0.4334 0.0177 98.6048);
+  --secondary: oklch(0.3211 0.0042 106.5);
+  --secondary-foreground: oklch(0.8748 0.0120 95.0);
   --muted: oklch(0.2213 0.0038 106.7070);
   --muted-foreground: oklch(0.7713 0.0169 99.0657);
   --accent: oklch(18.32% 0 89.88);

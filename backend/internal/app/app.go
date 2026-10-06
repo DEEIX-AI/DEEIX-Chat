@@ -40,6 +40,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/usersettings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/cache"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/catalogdata"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	moderationclient "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
@@ -194,7 +195,9 @@ func NewAppWithOptions(opts Options) (*App, error) {
 		Protocol:     cfg.OTelExporterOTLPProtocol,
 		SamplingRate: cfg.OTelSamplingRate,
 	})
-	if err != nil {
+	// 不含 OTLP exporter 的构建（桌面端 sidecar）只关闭链路追踪，不因环境里残留的 OTEL_* 变量而无法启动。
+	tracingUnavailable := errors.Is(err, platformtracing.ErrExporterUnavailable)
+	if err != nil && !tracingUnavailable {
 		return nil, fmt.Errorf("init tracing: %w", err)
 	}
 	keepTracing := false
@@ -215,6 +218,9 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	log, err := newLogger(cfg.Env)
 	if err != nil {
 		return nil, err
+	}
+	if tracingUnavailable {
+		log.Warn("tracing is configured but this build has no OTLP exporter; tracing is disabled")
 	}
 
 	db, err := persistence.Open(cfg)
@@ -271,6 +277,9 @@ func NewAppWithOptions(opts Options) (*App, error) {
 		openrouterpricing.New(cfg.StrictOutboundPolicy()),
 		filecache.NewOpenRouterPricingCache(runtimeCfg.Snapshot().StorageRootDir),
 	)
+	if err := officialPricingService.SetBuiltinSnapshot(catalogdata.OpenRouterPricing()); err != nil {
+		log.Warn("builtin openrouter pricing snapshot is invalid", zap.Error(err))
+	}
 	paymentCheckoutService := billing.NewPaymentCheckoutService(stripepayment.New(cfg.StrictOutboundPolicy()), epaypayment.New())
 	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg, officialPricingService, paymentCheckoutService, log)
 	billingModule := billinghttp.NewModule(billingHandler)
@@ -353,14 +362,14 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	channelService.SetBillingModelPricingFilter(billingService)
 	channelService.SetPermissionGroupRepo(channelRepo)
 	channelService.SetSubscriptionGroupResolver(&subscriptionGroupAdapter{billing: billingService})
-	builtinReasoningCatalog, builtinReasoningErr := modelsdev.BuiltinReasoningSnapshot()
-	if builtinReasoningErr != nil {
-		log.Warn("builtin models.dev reasoning catalog is invalid", zap.Error(builtinReasoningErr))
+	builtinModelCatalog, builtinModelCatalogErr := modelsdev.BuiltinSnapshot()
+	if builtinModelCatalogErr != nil {
+		log.Warn("builtin models.dev model catalog is invalid", zap.Error(builtinModelCatalogErr))
 	}
-	channelService.SetReasoningCatalogSources(
+	channelService.SetModelCatalogSources(
 		modelsdev.New(cfg.StrictOutboundPolicy()),
-		filecache.NewReasoningCatalogCache(runtimeCfg.Snapshot().StorageRootDir),
-		&builtinReasoningCatalog,
+		filecache.NewModelCatalogCache(runtimeCfg.Snapshot().StorageRootDir),
+		&builtinModelCatalog,
 	)
 	billingService.SetGroupRateMultiplierResolver(channelRepo)
 	billingService.SetPermissionGroupLookup(channelRepo)
@@ -540,7 +549,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	conversationService.StartBackgroundWorkers(backgroundCtx)
 	contentModerationService.StartBackgroundWorkers(backgroundCtx)
 	channelService.StartModelIconAssetCleanup(backgroundCtx)
-	channelService.LoadReasoningCatalog(backgroundCtx)
+	channelService.LoadModelCatalog(backgroundCtx)
 
 	app := &App{
 		stopCh:                 make(chan struct{}),

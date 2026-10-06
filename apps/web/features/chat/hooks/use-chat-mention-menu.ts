@@ -14,6 +14,8 @@ import {
 } from "@/features/chat/model/mention-file-search";
 import type { ChatModelOption, PendingAttachment } from "@/features/chat/types/chat-runtime";
 import type { FileObjectDTO } from "@/shared/api/file-types";
+import { listVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
+import type { KnowledgeBaseDTO } from "@/shared/api/knowledge-bases-types";
 import type { MCPToolDTO } from "@/shared/api/mcp-types";
 import { listVisiblePromptPresets } from "@/shared/api/prompt-presets";
 import type { PromptPresetDTO } from "@/shared/api/prompt-presets-types";
@@ -23,11 +25,12 @@ import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { readSessionRevision } from "@/shared/auth/session";
 import { resolveModelPresentationGroup } from "@/entities/model";
 
-const DEFAULT_MENTION_MENU_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "tool", "skill", "prompt"];
-const MENTION_TRIGGER_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "tool"];
+const DEFAULT_MENTION_MENU_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "knowledge", "tool", "skill", "prompt"];
+const MENTION_TRIGGER_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "knowledge", "tool"];
 const PROMPT_TRIGGER_KINDS: readonly ChatMentionMenuKind[] = ["skill", "prompt"];
+const EMPTY_KNOWLEDGE_BASE_IDS: string[] = [];
 
-export type ChatMentionMenuKind = "file" | "tool" | "model" | "skill" | "prompt";
+export type ChatMentionMenuKind = "file" | "knowledge" | "tool" | "model" | "skill" | "prompt";
 export type ChatMentionMenuTab = "all" | ChatMentionMenuKind;
 
 type ChatMentionFileMenuItem = {
@@ -36,6 +39,15 @@ type ChatMentionFileMenuItem = {
   label: string;
   description: string;
   file: FileObjectDTO;
+  selected: boolean;
+};
+
+type ChatMentionKnowledgeBaseMenuItem = {
+  id: string;
+  kind: "knowledge";
+  label: string;
+  description: string;
+  knowledgeBase: KnowledgeBaseDTO;
   selected: boolean;
 };
 
@@ -77,6 +89,7 @@ type ChatMentionSkillMenuItem = {
 
 export type ChatMentionMenuItem =
   | ChatMentionFileMenuItem
+  | ChatMentionKnowledgeBaseMenuItem
   | ChatMentionToolMenuItem
   | ChatMentionModelMenuItem
   | ChatMentionSkillMenuItem
@@ -114,13 +127,17 @@ type ChatMentionMenuControllerArgs = {
   draft: string;
   maxSelectedTools: number;
   maxSelectedSkills: number;
+  maxSelectedKnowledgeBases?: number;
   modelOptions: ChatModelOption[];
   selectedSkills?: SkillSummaryDTO[];
   selectedPlatformModelName: string;
   selectedToolIDs: number[];
+  selectedKnowledgeBaseIDs?: string[];
   anchorRef: React.RefObject<HTMLElement | null>;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   toolsDisabled: boolean;
+  /** Knowledge-base feature off, RAG unavailable, or a mode without retrieval. */
+  knowledgeBasesDisabled?: boolean;
   onDraftChange: (value: string) => void;
   enabledKinds?: readonly ChatMentionMenuKind[];
   onFileSelect: (file: FileObjectDTO) => void | Promise<void>;
@@ -130,6 +147,8 @@ type ChatMentionMenuControllerArgs = {
   placementPreference?: ChatMentionMenuPlacementPreference;
   onModelCatalogRefresh?: () => void | Promise<void>;
   onSelectedToolsChange: (toolIDs: number[]) => void;
+  onSelectedKnowledgeBasesChange?: (ids: string[]) => void;
+  onKnowledgeBaseLimitReached?: () => void;
   onSkillLimitReached?: () => void;
   onToolLimitReached?: () => void;
 };
@@ -399,6 +418,25 @@ function filterTools(
     }));
 }
 
+// A knowledge base without a retrievable file cannot be selected (the composer popover disables it),
+// so the menu only lists ready ones, plus any already selected so they can still be removed.
+function knowledgeBasesToItems(
+  knowledgeBases: KnowledgeBaseDTO[],
+  selectedKnowledgeBaseIDs: string[],
+): ChatMentionKnowledgeBaseMenuItem[] {
+  const selectedIDs = new Set(selectedKnowledgeBaseIDs);
+  return knowledgeBases
+    .filter((knowledgeBase) => knowledgeBase.readyFileCount > 0 || selectedIDs.has(knowledgeBase.publicID))
+    .map((knowledgeBase) => ({
+      id: `knowledge:${knowledgeBase.publicID}`,
+      kind: "knowledge" as const,
+      label: knowledgeBase.name,
+      description: knowledgeBase.description.trim(),
+      knowledgeBase,
+      selected: selectedIDs.has(knowledgeBase.publicID),
+    }));
+}
+
 function filesToItems(
   files: FileObjectDTO[],
   attachments: PendingAttachment[],
@@ -421,6 +459,8 @@ function mentionItemRecentsID(item: ChatMentionMenuItem): string {
       return item.model.platformModelName;
     case "file":
       return item.file.fileID;
+    case "knowledge":
+      return item.knowledgeBase.publicID;
     case "tool":
       return String(item.tool.id);
     case "skill":
@@ -584,6 +624,16 @@ function buildKindTabRows(
     return rows;
   }
 
+  if (kind === "knowledge") {
+    for (const item of data.items) {
+      rows.push({ type: "item", key: `tab:${item.id}`, item });
+    }
+    if (data.loading && data.items.length === 0) {
+      rows.push({ type: "loading", key: "loading:knowledge" });
+    }
+    return rows;
+  }
+
   if (kind === "skill") {
     buildScopeGroupedRows(rows, data.items, (item) => (item.kind === "skill" ? item.skill.scope : "user"));
     return rows;
@@ -650,29 +700,35 @@ function buildMenuRows({
     }
   }
 
+  // A kind still searching gets no section of its own here: an empty header with a spinner per
+  // server-searched kind (files, knowledge bases) appeared on every keystroke and vanished when the
+  // search came back empty, so the menu grew and shrank while typing. A kind shows up once it has
+  // matches; the single spinner below only covers the case where nothing has matched yet.
+  let anyLoading = false;
   for (const kind of sessionKinds) {
     const data = kindData[kind];
-    if (!data || (data.items.length === 0 && !data.loading)) {
+    if (!data) {
       continue;
     }
+    anyLoading ||= data.loading;
     const ordered = orderByRecents(data.items, recents[kind]).filter(
       (item) => !recentShownIDs.has(item.id),
     );
     const preview = ordered.slice(0, 4);
-    if (preview.length === 0 && !data.loading) {
+    if (preview.length === 0) {
       continue;
     }
     rows.push({ type: "header", key: `header:${kind}`, labelKey: `mention.sections.${kind}` });
     for (const item of preview) {
       rows.push({ type: "item", key: `all:${item.id}`, item });
     }
-    if (data.loading && preview.length === 0) {
-      rows.push({ type: "loading", key: `loading:${kind}` });
-    }
     const shownCount = preview.length + (recentShownByKind.get(kind) ?? 0);
     if (data.total > shownCount) {
       rows.push({ type: "viewAll", key: `viewAll:${kind}`, tab: kind, count: data.total });
     }
+  }
+  if (rows.length === 0 && anyLoading) {
+    rows.push({ type: "loading", key: "loading:all" });
   }
 
   return rows;
@@ -701,7 +757,10 @@ function resolveMentionMenuContentHeight(rows: ChatMentionMenuRow[], showTabBar:
   }
   const rowsHeight = rows.reduce((total, row) => total + resolveRowHeight(row), 0);
   const gaps = Math.max(0, rows.length - 1) * 2;
-  return Math.min(maxHeight, tabBarHeight + rowsHeight + gaps + 12);
+  // The list pads 6px top and bottom, except under the tab bar, where it only pads the bottom; the
+  // menu's two 0.5px borders add the last pixel.
+  const listPadding = showTabBar ? 6 : 12;
+  return Math.min(maxHeight, tabBarHeight + rowsHeight + gaps + listPadding + 1);
 }
 
 function resolveMentionMenuLayout(
@@ -771,13 +830,16 @@ export function useChatMentionMenu({
   draft,
   maxSelectedTools,
   maxSelectedSkills,
+  maxSelectedKnowledgeBases = 0,
   modelOptions,
   selectedSkills = [],
   selectedPlatformModelName,
   selectedToolIDs,
+  selectedKnowledgeBaseIDs = EMPTY_KNOWLEDGE_BASE_IDS,
   anchorRef,
   textareaRef,
   toolsDisabled,
+  knowledgeBasesDisabled = false,
   onDraftChange,
   onSelectedSkillsChange,
   enabledKinds = DEFAULT_MENTION_MENU_KINDS,
@@ -787,6 +849,8 @@ export function useChatMentionMenu({
   placementPreference = "auto",
   onModelCatalogRefresh,
   onSelectedToolsChange,
+  onSelectedKnowledgeBasesChange,
+  onKnowledgeBaseLimitReached,
   onSkillLimitReached,
   onToolLimitReached,
 }: ChatMentionMenuControllerArgs) {
@@ -808,6 +872,9 @@ export function useChatMentionMenu({
   const [prompts, setPrompts] = React.useState<PromptPresetDTO[]>([]);
   const [promptsTotal, setPromptsTotal] = React.useState(0);
   const [promptsLoading, setPromptsLoading] = React.useState(false);
+  const [knowledgeBases, setKnowledgeBases] = React.useState<KnowledgeBaseDTO[]>([]);
+  const [knowledgeBasesTotal, setKnowledgeBasesTotal] = React.useState(0);
+  const [knowledgeBasesLoading, setKnowledgeBasesLoading] = React.useState(false);
   const [skills, setSkills] = React.useState<SkillSummaryDTO[]>([]);
   const [skillsTotal, setSkillsTotal] = React.useState(0);
   const [skillsLoading, setSkillsLoading] = React.useState(false);
@@ -831,14 +898,17 @@ export function useChatMentionMenu({
   const sessionKinds = React.useMemo<ChatMentionMenuKind[]>(() => {
     if (sessionKind === "mention") {
       return MENTION_TRIGGER_KINDS.filter(
-        (kind) => enabledKindSet.has(kind) && (kind !== "tool" || !toolsDisabled),
+        (kind) =>
+          enabledKindSet.has(kind) &&
+          (kind !== "tool" || !toolsDisabled) &&
+          (kind !== "knowledge" || (!knowledgeBasesDisabled && onSelectedKnowledgeBasesChange !== undefined)),
       );
     }
     if (sessionKind === "prompt") {
       return PROMPT_TRIGGER_KINDS.filter((kind) => enabledKindSet.has(kind));
     }
     return [];
-  }, [enabledKindSet, sessionKind, toolsDisabled]);
+  }, [enabledKindSet, knowledgeBasesDisabled, onSelectedKnowledgeBasesChange, sessionKind, toolsDisabled]);
   const showTabBar = sessionKinds.length > 1;
   const tabIDs = React.useMemo<ChatMentionMenuTab[]>(
     () => (showTabBar ? ["all", ...sessionKinds] : sessionKinds),
@@ -880,6 +950,7 @@ export function useChatMentionMenu({
     setRecentsSnapshot({
       model: readCommandRecents("model"),
       file: readCommandRecents("file"),
+      knowledge: readCommandRecents("knowledge"),
       tool: readCommandRecents("tool"),
       skill: readCommandRecents("skill"),
       prompt: readCommandRecents("prompt"),
@@ -1015,6 +1086,53 @@ export function useChatMentionMenu({
     })();
   }, [fileSearchKey, files.length, filesLoading, filesLoadingMore, filesPage, filesQueryKey, filesTotal]);
 
+  const knowledgeBaseSearchKey = sessionKinds.includes("knowledge") && !disabled ? normalizedQuery : null;
+
+  React.useEffect(() => {
+    if (knowledgeBaseSearchKey === null) {
+      setKnowledgeBases([]);
+      setKnowledgeBasesTotal(0);
+      setKnowledgeBasesLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setKnowledgeBasesLoading(true);
+      void (async () => {
+        try {
+          const token = await resolveAccessToken();
+          if (!token || controller.signal.aborted) {
+            return;
+          }
+          const data = await listVisibleKnowledgeBases(
+            token,
+            { query: knowledgeBaseSearchKey, page: 1, pageSize: 50 },
+            controller.signal,
+          );
+          if (!controller.signal.aborted) {
+            setKnowledgeBases(data.results);
+            setKnowledgeBasesTotal(data.total ?? data.results.length);
+          }
+        } catch {
+          if (!controller.signal.aborted) {
+            setKnowledgeBases([]);
+            setKnowledgeBasesTotal(0);
+          }
+        } finally {
+          if (!controller.signal.aborted) {
+            setKnowledgeBasesLoading(false);
+          }
+        }
+      })();
+    }, 180);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [knowledgeBaseSearchKey]);
+
   const promptSearchKey =
     sessionKind === "prompt" && enabledKindSet.has("prompt") && !disabled ? normalizedQuery : null;
 
@@ -1129,6 +1247,17 @@ export function useChatMentionMenu({
         };
         continue;
       }
+      if (kind === "knowledge") {
+        const items = knowledgeBasesToItems(knowledgeBases, selectedKnowledgeBaseIDs);
+        // The total counts every match on the server; drop the not-ready ones this page filtered out.
+        const hidden = knowledgeBases.length - items.length;
+        data.knowledge = {
+          items,
+          total: Math.max(knowledgeBasesTotal - hidden, items.length),
+          loading: knowledgeBasesLoading,
+        };
+        continue;
+      }
       if (kind === "skill") {
         const items = skillsToItems(skills, selectedSkills);
         data.skill = { items, total: Math.max(skillsTotal, items.length), loading: skillsLoading };
@@ -1147,12 +1276,16 @@ export function useChatMentionMenu({
     filesLoading,
     filesQueryKey,
     filesTotal,
+    knowledgeBases,
+    knowledgeBasesLoading,
+    knowledgeBasesTotal,
     modelOptions,
     normalizedQuery,
     prompts,
     promptsLoading,
     promptsTotal,
     query,
+    selectedKnowledgeBaseIDs,
     selectedPlatformModelName,
     selectedSkills,
     selectedToolIDs,
@@ -1395,6 +1528,27 @@ export function useChatMentionMenu({
         return;
       }
 
+      if (item.kind === "knowledge") {
+        const publicID = item.knowledgeBase.publicID;
+        const alreadySelected = selectedKnowledgeBaseIDs.includes(publicID);
+        if (!alreadySelected && selectedKnowledgeBaseIDs.length >= maxSelectedKnowledgeBases) {
+          onKnowledgeBaseLimitReached?.();
+          return;
+        }
+        if (!alreadySelected) {
+          recordCommandRecentUsage("knowledge", publicID);
+        }
+        onSelectedKnowledgeBasesChange?.(
+          alreadySelected
+            ? selectedKnowledgeBaseIDs.filter((id) => id !== publicID)
+            : [...selectedKnowledgeBaseIDs, publicID],
+        );
+        if (triggerQuery) {
+          enterBrowseMode();
+        }
+        return;
+      }
+
       recordCommandRecentUsage("file", item.file.fileID);
       void onFileSelect(item.file);
       closeSession();
@@ -1404,16 +1558,20 @@ export function useChatMentionMenu({
       draft,
       enterBrowseMode,
       focusTextarea,
+      maxSelectedKnowledgeBases,
       maxSelectedSkills,
       maxSelectedTools,
       onDraftChange,
       onFileSelect,
+      onKnowledgeBaseLimitReached,
       onModelChange,
+      onSelectedKnowledgeBasesChange,
       onSelectedSkillsChange,
       onSelectedToolsChange,
       onSkillLimitReached,
       onToolLimitReached,
       selectTab,
+      selectedKnowledgeBaseIDs,
       selectedSkills,
       selectedToolIDs,
       textareaRef,

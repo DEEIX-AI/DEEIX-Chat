@@ -348,7 +348,7 @@ What a local `pnpm build` costs once caches are warm, and where it goes:
 
 | Step | Unchanged | Changed | Notes |
 | --- | --- | --- | --- |
-| Go sidecar | ~3 s | ~20 s | Go build cache; `-tags nopostgres,noredis,nos3,noswagger,nomsgpack` compiles out drivers local mode does not use. cgo needs a C compiler and SQLite headers; `build-sidecar.mjs` takes the headers from the `go-sqlite3` module so Windows works without a system SQLite |
+| Go sidecar | ~3 s | ~20 s | Go build cache; `-tags nopostgres,noredis,nos3,noswagger,nomsgpack,nootlp` compiles out drivers and the OTLP trace exporter that local mode does not use. cgo needs a C compiler and SQLite headers; `build-sidecar.mjs` takes the headers from the `go-sqlite3` module so Windows works without a system SQLite |
 | Web (`next build`) | **0.3 s** | ~35 s | runs through `turbo`, so an untouched frontend is a cache hit |
 | Rust app crate | ~1 s | ~60 s | recompiles whenever `out/` changed (assets are embedded); fat LTO, the shipped profile |
 | `.app` | ~1 s | | |

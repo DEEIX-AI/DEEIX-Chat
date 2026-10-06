@@ -8,6 +8,7 @@ import {
   bindAdminLLMModelUpstreamSource,
   createAdminLLMModel,
   invalidateAdminReferenceDataCache,
+  resolveAdminLLMModelCatalog,
   updateAdminLLMModel,
 } from "@/features/admin/api";
 import type { AdminOfficialPricingCatalogItemDTO } from "@/features/admin/api/billing-types";
@@ -20,7 +21,10 @@ import type {
   UpdateAdminLLMModelRequest,
 } from "@/features/admin/api/llm-types";
 import type { OpenRouterCatalogState } from "@/features/admin/hooks/use-admin-models-openrouter-catalog";
-import { setAutomaticModelContextWindowInCapabilities } from "@/features/admin/model/model-context-window";
+import {
+  normalizeCatalogContextWindow,
+  setAutomaticModelContextWindowInCapabilities,
+} from "@/features/admin/model/model-context-window";
 import {
   type ModelSourceBindDraftRow,
   resolveModelSourceBindDraftRows,
@@ -80,6 +84,8 @@ type UseAdminModelsSheetSubmitOptions = {
 type AdminModelSheetSubmitInput = {
   form: AdminModelSheetForm;
   contextWindowOverride: number | null;
+  /** Route protocols of the model (saved and pending sources), used for catalog matching. */
+  routeProtocols: readonly string[];
   bindRows: ModelSourceBindDraftRow[];
   /** Capability JSON normalisation lives with the capability editor; the sheet passes it in. */
   normalizeCapabilities: (capabilitiesJSON: string) => string;
@@ -100,7 +106,40 @@ export function useAdminModelsSheetSubmit({
   const t = useTranslations("adminModels");
   const [pending, setPending] = React.useState(false);
 
-  async function submit({ form, contextWindowOverride, bindRows, normalizeCapabilities, onCreated }: AdminModelSheetSubmitInput) {
+  /**
+   * Automatic context window for the model identity at save time: models.dev first, then OpenRouter.
+   * Returns undefined when no catalog could be consulted, so a previous value is not cleared by an outage.
+   */
+  async function resolveAutomaticContextWindow(
+    token: string,
+    form: AdminModelSheetForm,
+    routeProtocols: readonly string[],
+  ): Promise<number | null | undefined> {
+    if (token && form.platformModelName.trim()) {
+      try {
+        const resolution = await resolveAdminLLMModelCatalog(token, {
+          name: form.platformModelName,
+          vendor: form.vendor,
+          protocols: [...routeProtocols],
+        });
+        const contextWindow = normalizeCatalogContextWindow(resolution.contextWindow);
+        if (contextWindow !== null) {
+          return contextWindow;
+        }
+      } catch {
+        // Fall through to OpenRouter.
+      }
+    }
+    const catalog = openRouterCatalog.status === "loaded"
+      ? openRouterCatalog.items
+      : await loadOpenRouterCatalog(token);
+    if (!catalog) {
+      return undefined;
+    }
+    return resolveAutomaticModelContextWindow(catalog, form.platformModelName, form.vendor);
+  }
+
+  async function submit({ form, contextWindowOverride, routeProtocols, bindRows, normalizeCapabilities, onCreated }: AdminModelSheetSubmitInput) {
     if (pending || (mode === "edit" && !target)) return;
 
     const bindDraftResult = mode === "create"
@@ -123,15 +162,8 @@ export function useAdminModelsSheetSubmit({
       const token = await resolveAccessToken();
       let capabilitiesJSON = form.capabilitiesJSON;
       if (contextWindowOverride === null) {
-        const catalog = openRouterCatalog.status === "loaded"
-          ? openRouterCatalog.items
-          : await loadOpenRouterCatalog(token);
-        if (catalog) {
-          const catalogContextWindow = resolveAutomaticModelContextWindow(
-            catalog,
-            form.platformModelName,
-            form.vendor,
-          );
+        const catalogContextWindow = await resolveAutomaticContextWindow(token, form, routeProtocols);
+        if (catalogContextWindow !== undefined) {
           const nextCapabilitiesJSON = setAutomaticModelContextWindowInCapabilities(
             capabilitiesJSON,
             catalogContextWindow,
@@ -142,8 +174,8 @@ export function useAdminModelsSheetSubmit({
           }
           capabilitiesJSON = nextCapabilitiesJSON;
         } else if (!isSameContextWindowTarget(target, form.platformModelName, form.vendor)) {
-          // Auto values belong only to the model identity matched at save time. If the model or vendor changes and the catalog is temporarily
-          // unavailable, the old value must be removed so the backend built-in catalog or global fallback takes over.
+          // Auto values belong only to the model identity matched at save time. If the model or vendor changes and no catalog is
+          // available, the old value must be removed so the backend built-in catalog or global fallback takes over.
           const nextCapabilitiesJSON = setAutomaticModelContextWindowInCapabilities(
             capabilitiesJSON,
             null,

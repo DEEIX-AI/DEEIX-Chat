@@ -78,9 +78,10 @@ import {
   useAdminModelsInlineSources,
 } from "@/features/admin/hooks/use-admin-models-inline-sources";
 import { isAdminLLMModelAccessScope } from "@/features/admin/model/admin-unions";
+import { ModelKindIcons } from "@/features/admin/components/shared/model-kind-icons";
 import { sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
 import { cn } from "@/lib/utils";
-import { ModelIcon, parseKindsJSON, resolveModelIconURL, resolveModelIdentity } from "@/entities/model";
+import { ModelIcon, resolveModelIconURL, resolveModelIdentity } from "@/entities/model";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { isString, parseJSON } from "@/shared/lib/type-guards";
 import {
@@ -110,23 +111,101 @@ function CollapsibleTableCell({
     <TableCell
       className={cn(
         className,
-        "transition-[padding] duration-200 ease-in-out motion-reduce:transition-none",
+        "transition-[padding] duration-200 ease-out motion-reduce:transition-none",
         closed && "py-0",
       )}
       {...props}
     >
       <div
         className={cn(
-          "grid transition-[grid-template-rows,opacity,transform] duration-200 ease-in-out motion-reduce:transition-none",
-          closed
-            ? "grid-rows-[0fr] -translate-y-1 opacity-0"
-            : "grid-rows-[1fr] translate-y-0 opacity-100",
+          // Same motion as DialogCollapsible, so rows unfold like the rest of the admin UI.
+          "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+          closed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100",
         )}
       >
         <div className={cn("min-h-0 overflow-hidden", innerClassName)}>{children}</div>
       </div>
     </TableCell>
   );
+}
+
+// A fetch faster than this shows no placeholder: the sources unfold directly instead of the
+// placeholder flashing open and being swapped out a few frames later.
+const SOURCES_PLACEHOLDER_DELAY_MS = 150;
+
+type SourcesReveal = {
+  loading: boolean;
+  expanded: boolean;
+  placeholder: "hidden" | "entering" | "shown";
+  swap: "idle" | "entering" | "leaving";
+};
+
+function useNextFrames(active: boolean, callback: () => void) {
+  const callbackRef = React.useRef(callback);
+  callbackRef.current = callback;
+  React.useEffect(() => {
+    if (!active) return undefined;
+    let second = 0;
+    const first = window.requestAnimationFrame(() => {
+      second = window.requestAnimationFrame(() => callbackRef.current());
+    });
+    return () => {
+      window.cancelAnimationFrame(first);
+      window.cancelAnimationFrame(second);
+    };
+  }, [active]);
+}
+
+/** How the expanded area of a row moves from "loading" to its sources without popping. */
+function useSourcesReveal(loading: boolean, expanded: boolean) {
+  const [state, setState] = React.useState<SourcesReveal>({ loading, expanded, placeholder: "hidden", swap: "idle" });
+  let current = state;
+  if (state.loading !== loading || state.expanded !== expanded) {
+    const arrived = state.loading && !loading && expanded;
+    current = {
+      loading,
+      expanded,
+      placeholder: expanded ? state.placeholder : "hidden",
+      swap: arrived ? "entering" : expanded ? state.swap : "idle",
+    };
+    setState(current);
+  }
+  const update = React.useCallback(
+    (patch: (value: SourcesReveal) => SourcesReveal | null) => setState((value) => patch(value) ?? value),
+    [],
+  );
+
+  React.useEffect(() => {
+    if (!loading || !expanded || current.placeholder !== "hidden") return undefined;
+    const timer = window.setTimeout(
+      () => update((value) => (value.loading && value.placeholder === "hidden" ? { ...value, placeholder: "entering" } : null)),
+      SOURCES_PLACEHOLDER_DELAY_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [loading, expanded, current.placeholder, update]);
+  useNextFrames(current.placeholder === "entering", () =>
+    update((value) => (value.placeholder === "entering" ? { ...value, placeholder: "shown" } : null)),
+  );
+  useNextFrames(current.swap === "entering", () =>
+    update((value) =>
+      value.swap !== "entering" ? null : value.placeholder === "hidden" ? { ...value, swap: "idle" } : { ...value, swap: "leaving" },
+    ),
+  );
+  React.useEffect(() => {
+    if (current.swap !== "leaving") return undefined;
+    const timer = window.setTimeout(
+      () => update((value) => (value.swap === "leaving" ? { ...value, swap: "idle", placeholder: "hidden" } : null)),
+      EXPANDED_ROW_ANIMATION_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [current.swap, update]);
+
+  return {
+    placeholderShown: current.placeholder !== "hidden",
+    placeholderOpening: current.placeholder === "entering",
+    placeholderClosing: current.swap === "leaving",
+    sourcesOpening: current.swap === "entering",
+  };
 }
 
 function formatCircuitUntil(until: string, locale: string): string {
@@ -159,23 +238,6 @@ function ProtocolBadges({ protocols }: { protocols: string[] }) {
 
 function SingleProtocolText({ protocol }: { protocol: string }) {
   return <Badge variant="secondary" className="whitespace-nowrap">{ADAPTER_LABELS[protocol] ?? protocol}</Badge>;
-}
-
-function KindsBadges({ kindsJson }: { kindsJson: string | null | undefined }) {
-  const t = useTranslations("adminModels");
-  const kinds = parseKindsJSON(kindsJson);
-  if (kinds.length === 0) return <span className="text-muted-foreground">-</span>;
-  return (
-    <div className="flex min-w-0 flex-nowrap items-center justify-start gap-1 overflow-hidden">
-      {kinds.map((kind) => (
-        <Badge key={kind} variant="secondary">
-          {["chat", "audio", "image_gen", "image_edit", "video_gen", "video_extension"].includes(kind)
-            ? t(`kinds.${kind}`)
-            : kind}
-        </Badge>
-      ))}
-    </div>
-  );
 }
 
 type ModelAvailability = "available" | "notEnabled" | "noSource";
@@ -373,6 +435,9 @@ const ModelTableRow = React.memo(function ModelTableRow({
   const titleText = item.platformModelName.trim();
   const protocols = resolveModelProtocols(item);
   const availability = resolveModelAvailability(item);
+  const sourcesLoading = !inlineData || inlineData.loading;
+  const sourcesReveal = useSourcesReveal(sourcesLoading, expanded && !collapsing);
+  const sourcesOpening = opening || sourcesReveal.sourcesOpening;
   const muted = availability !== "available";
 
   return (
@@ -384,7 +449,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
         aria-expanded={expanded && !collapsing}
         onClick={() => onToggleRow(item)}
       >
-        <TableCell className="w-[44px] py-1.5 whitespace-nowrap">
+        <TableCell className="w-[44px] py-1.5 whitespace-nowrap" stickyStart>
           <div className="flex h-7 items-center justify-center">
             <Checkbox
               checked={selected}
@@ -396,18 +461,30 @@ const ModelTableRow = React.memo(function ModelTableRow({
           </div>
         </TableCell>
 
-        <TableCell className="py-1.5">
-          <div className="flex min-w-0 items-center gap-2">
+        <TableCell className="left-[44px] py-1.5" stickyStart>
+          <button
+            type="button"
+            className="group/name flex min-w-0 cursor-pointer items-center gap-2 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35"
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit(item);
+            }}
+          >
             <ModelAvailabilityBadge availability={availability} />
             <ModelIcon iconUrl={iconURL} label={titleText} />
-            <span className={cn("min-w-0 flex-1 truncate text-xs font-medium leading-5", muted ? "text-muted-foreground" : "text-foreground")}>
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate text-xs font-medium leading-5 underline-offset-4 group-hover/name:underline",
+                muted ? "text-muted-foreground" : "text-foreground",
+              )}
+            >
               {titleText}
             </span>
-          </div>
+          </button>
         </TableCell>
 
         <TableCell className="py-1.5">
-          <KindsBadges kindsJson={item.kindsJSON} />
+          <ModelKindIcons kindsJson={item.kindsJSON} />
         </TableCell>
 
         <TableCell className="py-1.5">
@@ -536,19 +613,20 @@ const ModelTableRow = React.memo(function ModelTableRow({
         </TableCell>
       </TableRow>
 
-      {expanded ? (
-          inlineData?.loading ? (
-            <TableRow tone="muted">
-              <CollapsibleTableCell
-                colSpan={10}
-                opening={opening}
-                closing={collapsing}
-                className="py-3 pl-16 text-xs text-muted-foreground"
-              >
-                <div className="h-3 w-24 animate-pulse rounded-sm bg-muted/70" aria-hidden="true" />
-              </CollapsibleTableCell>
-            </TableRow>
-          ) : inlineData && inlineData.items.length > 0 ? (
+      {expanded && sourcesReveal.placeholderShown ? (
+        <TableRow tone="muted">
+          <CollapsibleTableCell
+            colSpan={10}
+            opening={opening || sourcesReveal.placeholderOpening}
+            closing={collapsing || sourcesReveal.placeholderClosing}
+            className="py-3 pl-16 text-xs text-muted-foreground"
+          >
+            <div className="h-3 w-24 animate-pulse rounded-sm bg-muted/70" aria-hidden="true" />
+          </CollapsibleTableCell>
+        </TableRow>
+      ) : null}
+      {expanded && !sourcesLoading ? (
+          inlineData.items.length > 0 ? (
             inlineData.items.map((source) => {
               const sourceIdentity = resolveModelIdentity({
                 code: source.upstreamModelName,
@@ -560,15 +638,21 @@ const ModelTableRow = React.memo(function ModelTableRow({
               return (
                 <TableRow key={source.id} tone="muted">
                   <CollapsibleTableCell
-                    opening={opening}
+                    opening={sourcesOpening}
                     closing={collapsing}
                     className="w-[44px] whitespace-nowrap py-1.5"
+                    stickyStart
                   >
                     <div className="flex h-7 items-center justify-center">
                       <span className="size-1.5 rounded-full bg-muted-foreground/40" />
                     </div>
                   </CollapsibleTableCell>
-                  <CollapsibleTableCell opening={opening} closing={collapsing} className="py-1.5">
+                  <CollapsibleTableCell
+                    opening={sourcesOpening}
+                    closing={collapsing}
+                    className="left-[44px] py-1.5"
+                    stickyStart
+                  >
                     <div className="flex min-w-0 items-baseline gap-1.5">
                       <span className="shrink-0 text-[11px] leading-4 text-muted-foreground">{t("upstreamModel")}</span>
                       <span
@@ -579,13 +663,13 @@ const ModelTableRow = React.memo(function ModelTableRow({
                       </span>
                     </div>
                   </CollapsibleTableCell>
-                  <CollapsibleTableCell opening={opening} closing={collapsing} className="py-1.5">
-                    <KindsBadges kindsJson={source.upstreamModelKindsJSON} />
+                  <CollapsibleTableCell opening={sourcesOpening} closing={collapsing} className="py-1.5">
+                    <ModelKindIcons kindsJson={source.upstreamModelKindsJSON} />
                   </CollapsibleTableCell>
-                  <CollapsibleTableCell opening={opening} closing={collapsing} className="py-1.5">
+                  <CollapsibleTableCell opening={sourcesOpening} closing={collapsing} className="py-1.5">
                     <SingleProtocolText protocol={source.protocol} />
                   </CollapsibleTableCell>
-                  <CollapsibleTableCell opening={opening} closing={collapsing} className="w-[120px] py-1.5">
+                  <CollapsibleTableCell opening={sourcesOpening} closing={collapsing} className="w-[120px] py-1.5">
                     {sourceIdentity.vendorKey !== "unknown" ? (
                       <div className="flex min-w-0 items-center gap-1.5">
                         {sourceVendorIconURL ? <ModelIcon iconUrl={sourceVendorIconURL} label={sourceIdentity.vendorLabel} size={14} /> : null}
@@ -598,7 +682,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
                     )}
                   </CollapsibleTableCell>
                   <CollapsibleTableCell
-                    opening={opening}
+                    opening={sourcesOpening}
                     closing={collapsing}
                     className="py-1.5 text-center text-[11px] leading-4 text-muted-foreground"
                   >
@@ -607,7 +691,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
                     </div>
                   </CollapsibleTableCell>
                   <CollapsibleTableCell
-                    opening={opening}
+                    opening={sourcesOpening}
                     closing={collapsing}
                     className="w-[72px] whitespace-nowrap py-1.5"
                   >
@@ -624,21 +708,21 @@ const ModelTableRow = React.memo(function ModelTableRow({
                     </div>
                   </CollapsibleTableCell>
                   <CollapsibleTableCell
-                    opening={opening}
+                    opening={sourcesOpening}
                     closing={collapsing}
                     className="w-[112px] whitespace-nowrap py-1.5 text-[11px] leading-4 text-muted-foreground"
                   >
                     -
                   </CollapsibleTableCell>
                   <CollapsibleTableCell
-                    opening={opening}
+                    opening={sourcesOpening}
                     closing={collapsing}
                     className="whitespace-nowrap py-1.5 text-[11px] leading-4 text-muted-foreground"
                   >
                     {formatDateTime(source.updatedAt, locale)}
                   </CollapsibleTableCell>
                   <CollapsibleTableCell
-                    opening={opening}
+                    opening={sourcesOpening}
                     closing={collapsing}
                     className="w-[56px] whitespace-nowrap py-1.5"
                     stickyEnd
@@ -716,7 +800,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
             <TableRow tone="muted">
               <CollapsibleTableCell
                 colSpan={10}
-                opening={opening}
+                opening={sourcesOpening}
                 closing={collapsing}
                 className="py-3 pl-16 text-xs text-muted-foreground"
               >
@@ -921,7 +1005,7 @@ export function ModelsTable({
     >
       <TableHeader>
         <TableRow className="hover:bg-transparent">
-          <TableHead className="w-[44px] py-1.5 text-center">
+          <TableHead className="w-[44px] py-1.5 text-center" stickyStart>
             <div className="flex h-7 items-center justify-center">
               <Checkbox
                 checked={allModelsSelected ? true : someModelsSelected ? "indeterminate" : false}
@@ -930,8 +1014,8 @@ export function ModelsTable({
               />
             </div>
           </TableHead>
-          <TableHead>{t("platformModel")}</TableHead>
-          <TableHead>{t("table.kind")}</TableHead>
+          <TableHead className="left-[44px]" stickyStart>{t("platformModel")}</TableHead>
+          <TableHead className="w-[76px]">{t("table.kind")}</TableHead>
           <TableHead>{t("sources.protocol")}</TableHead>
           <TableHead className="w-[120px]">{t("table.vendor")}</TableHead>
           <TableHead className="w-[96px] text-center">{t("table.sources")}</TableHead>

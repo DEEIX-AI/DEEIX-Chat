@@ -207,13 +207,16 @@ func (s *Service) InitializeUploadedFile(ctx context.Context, fileObj *domaincon
 	if fileObj == nil {
 		return nil
 	}
-	if fileObj.FileCategory == "video" || (fileObj.FileCategory == "image" && !s.snapshot().ExtractImageOCREnabled) {
+	if fileObj.FileCategory == "video" || fileObj.FileCategory == "audio" || (fileObj.FileCategory == "image" && !s.snapshot().ExtractImageOCREnabled) {
 		fileObj.ProcessingStatus = "ready"
 		fileObj.ProcessingReady = true
 		fileObj.ExtractStatus = "none"
 		ragReason := "image_not_applicable"
-		if fileObj.FileCategory == "video" {
+		switch fileObj.FileCategory {
+		case "video":
 			ragReason = "video_not_applicable"
+		case "audio":
+			ragReason = "audio_not_applicable"
 		}
 		return s.repo.UpdateFileObjectProcessingState(ctx, s.readyWithoutExtractionState(fileObj, ragReason))
 	}

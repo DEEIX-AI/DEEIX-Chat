@@ -10,6 +10,7 @@ import type {
   CreateUpstreamRequest,
   ImportUpstreamModelsRequest,
   ImportUpstreamModelsResponse,
+  ModelCatalogResolveResponse,
   ModelCatalogStatusResponse,
   ModelDataResponse,
   ModelDisplayGroupDataResponse,
@@ -21,6 +22,7 @@ import type {
   ModelProbeDebugResponse,
   ModelProbeDebugResponseResponse,
   ModelProbeResponse,
+  ModelReasoningTemplateResponse,
   ModelResponse,
   ModelUpstreamSourceDataResponse,
   ModelUpstreamSourceResponse,
@@ -28,6 +30,7 @@ import type {
   ModelVendorDeleteConflictDetails,
   ModelVendorResponse,
   ReorderModelsRequest,
+  ResolveModelCatalogRequest,
   SetModelProtocolsRequest,
   SetModelsDisplayGroupRequest,
   SyncUpstreamModelsResponse,
@@ -169,8 +172,12 @@ export type AdminLLMSetting = {
   updatedAt: string;
 };
 
-// Reasoning capability catalog.
+// models.dev model catalog: automatic detection for the model form.
+export type AdminLLMModelCatalogResolveRequest = ResolveModelCatalogRequest;
+export type AdminLLMModelCatalogResolution = ModelCatalogResolveResponse;
 export type AdminLLMModelCatalogStatus = ModelCatalogStatusResponse;
+export type AdminLLMModelReasoningFormat = ModelReasoningTemplateResponse["format"];
+export type AdminLLMModelReasoningLevel = ModelReasoningTemplateResponse["levels"][number];
 
 export type AdminLLMModelVendorDTO = ModelVendorResponse;
 export type AdminLLMModelVendorDeleteConflictDetails = ModelVendorDeleteConflictDetails;
