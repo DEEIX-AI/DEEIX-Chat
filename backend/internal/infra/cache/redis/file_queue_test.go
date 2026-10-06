@@ -122,6 +122,36 @@ func TestFileProcessingRedisRecoveryEnqueueIsIdempotent(t *testing.T) {
 	if client.Exists(ctx, processingOutstandingKey(0, "invalid")).Val() != 0 {
 		t.Fatal("invalid-message DLQ leaked marker")
 	}
+	// ParseUint returns a saturated value on overflow and zero on syntax errors.
+	// Neither value is an authenticated identity for another file's marker.
+	for _, test := range []struct {
+		name        string
+		rawUserID   string
+		aliasUserID uint
+	}{
+		{name: "overflow", rawUserID: "18446744073709551616", aliasUserID: ^uint(0)},
+		{name: "invalid", rawUserID: "not-a-user", aliasUserID: 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fileID := "invalid-" + test.name
+			id, err := client.XAdd(ctx, &goredis.XAddArgs{Stream: fileProcessingStreamName, Values: map[string]any{
+				"user_id": test.rawUserID, "file_id": fileID, "retry": 0,
+			}}).Result()
+			if err != nil {
+				t.Fatal(err)
+			}
+			key := processingOutstandingKey(test.aliasUserID, fileID)
+			if err = client.Set(ctx, key, id, 0).Err(); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = cache.ReadFileProcessingMessages(ctx, "worker"); err != nil {
+				t.Fatal(err)
+			}
+			if value, err := client.Get(ctx, key).Result(); err != nil || value != id {
+				t.Fatalf("invalid user %q altered marker for %d: %q / %v", test.rawUserID, test.aliasUserID, value, err)
+			}
+		})
+	}
 }
 
 func TestRedisQueueForMessagePreservesLegacySourceQueue(t *testing.T) {

@@ -563,9 +563,9 @@ func (c *conversationCache) deadLetterInvalidFileProcessingMessage(
 	queue fileQueueConfig,
 ) (bool, error) {
 	lastError := "invalid queue message"
-	userID, _ := strconv.ParseUint(getStringVal(message.Values["user_id"]), 10, 64)
+	userID, userIDErr := strconv.ParseUint(getStringVal(message.Values["user_id"]), 10, strconv.IntSize)
 	marker := ""
-	if queue.queue == repository.FileProcessingQueueDefault && getOptionalStringVal(message.Values, "kind") == "" {
+	if userIDErr == nil && queue.queue == repository.FileProcessingQueueDefault && getOptionalStringVal(message.Values, "kind") == "" {
 		marker = processingOutstandingKey(uint(userID), getStringVal(message.Values["file_id"]))
 	}
 
