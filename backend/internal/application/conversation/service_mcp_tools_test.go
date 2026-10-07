@@ -8,7 +8,7 @@ import (
 )
 
 func TestInjectMCPToolGuidanceOnlyAddsPolicy(t *testing.T) {
-	messages := []llm.Message{{Role: "user", Content: "搜索 DEEIX Chat"}}
+	messages := []llm.Message{{Role: "user", Content: "搜索 WebReOn Chat"}}
 	runtime := selectedToolRuntime{
 		definitions: []llm.ToolDefinition{{
 			Name:        "bing_search",

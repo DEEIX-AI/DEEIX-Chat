@@ -1,11 +1,11 @@
 import Script from "next/script";
 
 const BANNER = String.raw`
- ____  _____ _____ _____  __  ____ _   _    _  _____
-|  _ \| ____| ____|_ _\ \/ / / ___| | | |  / \|_   _|
-| | | |  _| |  _|  | | \  / | |   | |_| | / _ \ | |
-| |_| | |___| |___ | | /  \ | |___|  _  |/ ___ \| |
-|____/|_____|_____|___/_/\_\ \____|_| |_/_/   \_\_|
+▄▄▄ ▄▄▄ ▄▄▄▄▄▄▄ ▄▄▄▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄ ▄▄▄▄▄▄ 
+███ ███ ███ ▀▀▀ ███ ███ ███ ███ ███ ▀▀▀ ███ ███ ███ ███
+██ ▄ ██ ███▀    ███▀██▄ ███▄██▀ ███▀    ███ ███ ███ ███
+██ █ ██ ███▄███ ███▄███ ███ ███ ███▄███ ███▄███ ███ ███
+▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀ ▀▀▀▀▀▀  ▀▀▀ ▀▀▀ ▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀ ▀▀▀ ▀▀▀
 `;
 
 const BANNER_SCRIPT = `
@@ -26,7 +26,7 @@ const BANNER_SCRIPT = `
     "background:#d4d4d4",
     "background:transparent"
   );
-  console.log("%cOfficial: https://deeix.com  |  Repository: https://github.com/DEEIX-AI/DEEIX-Chat  |  License: Apache License 2.0", "color:#64748b;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace");
+  console.log("%cOfficial: https://webreon.agency  |  Repository: https://github.com/webreonagency/WebReOn-Chat  |  License: Copyright © 2026 WebReOn Agency. All rights reserved..", "color:#64748b;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace");
 })();
 `;
 

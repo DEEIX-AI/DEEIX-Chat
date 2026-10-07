@@ -11298,8 +11298,8 @@ definitions:
     type: object
 info:
   contact: {}
-  description: DEEIX Chat 后端 API 文档
-  title: DEEIX Chat API
+  description: WebReOn Chat 后端 API 文档
+  title: WebReOn Chat API
   version: "0.4.4-beta.5"
 paths:
   /admin/announcements:

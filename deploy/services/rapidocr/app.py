@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 from rapidocr_onnxruntime import RapidOCR
 
-app = FastAPI(title="DEEIX Chat RapidOCR Service")
+app = FastAPI(title="WebReOn Chat RapidOCR Service")
 engine = RapidOCR(params={"EngineConfig.onnxruntime.enable_cpu_mem_arena": False})
 render_scale = max(1.0, min(2.0, float(os.getenv("RAPIDOCR_RENDER_SCALE", "1.25"))))
 image_suffixes = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"}

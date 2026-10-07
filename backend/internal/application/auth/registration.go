@@ -1171,7 +1171,7 @@ func canBootstrapEmail(item *domainuser.User) bool {
 
 func (s *Service) sendRegistrationVerificationEmail(to string, code string) error {
 	return s.sendEmailVerificationCode(to, code, verificationEmailTemplate{
-		Subject:      "DEEIX Chat 验证码",
+		Subject:      "WebReOn Chat 验证码",
 		Title:        "完成邮箱注册",
 		SecurityNote: "如果不是您本人操作，请忽略这封邮件。",
 	}, "email registration")
@@ -1179,7 +1179,7 @@ func (s *Service) sendRegistrationVerificationEmail(to string, code string) erro
 
 func (s *Service) sendPasswordChangeVerificationEmail(to string, code string) error {
 	return s.sendEmailVerificationCode(to, code, verificationEmailTemplate{
-		Subject:      "DEEIX Chat 验证码",
+		Subject:      "WebReOn Chat 验证码",
 		Title:        "确认修改密码",
 		SecurityNote: "如果不是您本人操作，请立即检查账号安全。",
 	}, "password change")
@@ -1187,7 +1187,7 @@ func (s *Service) sendPasswordChangeVerificationEmail(to string, code string) er
 
 func (s *Service) sendPasswordResetVerificationEmail(to string, code string) error {
 	return s.sendEmailVerificationCode(to, code, verificationEmailTemplate{
-		Subject:      "DEEIX Chat 验证码",
+		Subject:      "WebReOn Chat 验证码",
 		Title:        "重置密码",
 		SecurityNote: "如果不是您本人操作，请立即检查账号安全。",
 	}, "password reset")
@@ -1195,7 +1195,7 @@ func (s *Service) sendPasswordResetVerificationEmail(to string, code string) err
 
 func (s *Service) sendEmailChangeVerificationEmail(to string, code string) error {
 	return s.sendEmailVerificationCode(to, code, verificationEmailTemplate{
-		Subject:      "DEEIX Chat 验证码",
+		Subject:      "WebReOn Chat 验证码",
 		Title:        "验证邮箱地址",
 		SecurityNote: "如果不是您本人操作，请忽略这封邮件。",
 	}, "email change")
@@ -1203,7 +1203,7 @@ func (s *Service) sendEmailChangeVerificationEmail(to string, code string) error
 
 func (s *Service) sendAccountDeleteVerificationEmail(to string, code string) error {
 	return s.sendEmailVerificationCode(to, code, verificationEmailTemplate{
-		Subject:      "DEEIX Chat 验证码",
+		Subject:      "WebReOn Chat 验证码",
 		Title:        "确认删除账号",
 		SecurityNote: "如果不是您本人操作，请立即检查账号安全。",
 	}, "account deletion")

@@ -201,11 +201,11 @@ func TestGenerateTOTPCodeMatchesRFC6238SHA1ModuloSixDigits(t *testing.T) {
 }
 
 func TestBuildOTPAuthURLPreservesIssuerAccountSeparator(t *testing.T) {
-	got := buildOTPAuthURL("DEEIX Chat", "user@example.com", "ABCDEF")
-	if strings.Contains(got, "DEEIX%20Chat%3A") {
+	got := buildOTPAuthURL("WebReOn Chat", "user@example.com", "ABCDEF")
+	if strings.Contains(got, "WebReOn%20Chat%3A") {
 		t.Fatalf("issuer/account separator should stay as ':' in otpauth label: %s", got)
 	}
-	if !strings.HasPrefix(got, "otpauth://totp/DEEIX%20Chat:") {
+	if !strings.HasPrefix(got, "otpauth://totp/WebReOn%20Chat:") {
 		t.Fatalf("expected otpauth label to start with issuer and raw separator, got %s", got)
 	}
 	parsed, err := url.Parse(got)
@@ -213,7 +213,7 @@ func TestBuildOTPAuthURLPreservesIssuerAccountSeparator(t *testing.T) {
 		t.Fatalf("parse otpauth URL: %v", err)
 	}
 	query := parsed.Query()
-	if query.Get("secret") != "ABCDEF" || query.Get("issuer") != "DEEIX Chat" || query.Get("digits") != "6" || query.Get("period") != "30" {
+	if query.Get("secret") != "ABCDEF" || query.Get("issuer") != "WebReOn Chat" || query.Get("digits") != "6" || query.Get("period") != "30" {
 		t.Fatalf("unexpected otpauth query: %s", parsed.RawQuery)
 	}
 }

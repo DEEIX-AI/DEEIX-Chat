@@ -1,5 +1,5 @@
 app:
-  name: DEEIX Chat
+  name: WebReOn Chat
   # Required. Use prod and replace security values before public deployment.
   env: dev
 

@@ -1,9 +1,9 @@
-name: deeix-chat
+name: webreon-chat
 
 services:
   app:
     image: ${DEEIX_CHAT_IMAGE:-ghcr.io/deeix-ai/deeix-chat:latest}
-    container_name: deeix-chat-app
+    container_name: webreon-chat-app
     depends_on:
       postgres:
         condition: service_healthy

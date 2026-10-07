@@ -19,7 +19,7 @@
   },
   "aboutPage": {
     "title": "About",
-    "description": "DEEIX Chat is a model access and conversation operations platform for multi-user AI applications. It unifies the model catalog, multi-provider routing, parameter governance, files and RAG, MCP tools, usage billing, identity security, audit, and operational settings in a single control plane.",
+    "description": "WebReOn Chat is a model access and conversation operations platform for multi-user AI applications. It unifies the model catalog, multi-provider routing, parameter governance, files and RAG, MCP tools, usage billing, identity security, audit, and operational settings in a single control plane.",
     "details": "Product information",
     "product": "Product",
     "version": "Version",

@@ -27,8 +27,8 @@
     "finishNavigation": "Finish onboarding navigation"
   },
   "bootstrapTitle": "Admin setup",
-  "adminWelcomeTitle": "Welcome to DEEIX Chat Admin",
-  "userWelcomeTitle": "Welcome to DEEIX Chat",
+  "adminWelcomeTitle": "Welcome to WebReOn Chat Admin",
+  "userWelcomeTitle": "Welcome to WebReOn Chat",
   "adminWelcomeDescription": "Finish admin account security first, then configure upstreams, platform models, billing, logs, identity providers, and system policies.",
   "userWelcomeDescription": "Finish your profile and security setup before using chats, files, tools, memory, and sharing.",
   "adminAccountTitle": "Complete admin account",

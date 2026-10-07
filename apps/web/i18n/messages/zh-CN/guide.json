@@ -27,8 +27,8 @@
     "finishNavigation": "完成引导步骤导航"
   },
   "bootstrapTitle": "初始化管理员账户",
-  "adminWelcomeTitle": "欢迎进入 DEEIX Chat 管理端",
-  "userWelcomeTitle": "欢迎使用 DEEIX Chat",
+  "adminWelcomeTitle": "欢迎进入 WebReOn Chat 管理端",
+  "userWelcomeTitle": "欢迎使用 WebReOn Chat",
   "adminWelcomeDescription": "先完成管理账户安全设置，再进入后台配置上游、平台模型、计费、日志、身份源和系统策略。",
   "userWelcomeDescription": "先完成个人资料与安全设置，再开始使用对话、文件、工具、记忆和分享能力。",
   "adminAccountTitle": "完善管理账户",

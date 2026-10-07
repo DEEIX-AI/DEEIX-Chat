@@ -3,7 +3,7 @@
   "untitledConversation": "新对话",
   "modelListLoadFailed": "模型列表加载失败",
   "projectDefaultModelUnavailable": "项目默认模型「{model}」当前不可用，将按全局默认规则选择模型。",
-  "placeholder": "发送消息给 DEEIX Chat",
+  "placeholder": "发送消息给 WebReOn Chat",
   "projectMode": "项目模式",
   "projectModeTooltip": "在此模式下，新会话会创建到当前项目。项目提示词仅对聊天模型请求生效；图像生成、图像编辑等非聊天能力不会应用。",
   "send": "发送",

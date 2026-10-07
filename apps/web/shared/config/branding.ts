@@ -2,9 +2,9 @@ import type { BrandingDTO } from "@/shared/api/branding";
 import { pwaAsset } from "@/shared/pwa/assets";
 
 export const DEFAULT_BRANDING: BrandingDTO = {
-  title: "DEEIX Chat",
-  shortName: "DEEIX",
-  description: "DEEIX Chat is a multi-model AI conversation system.",
+  title: "WebReOn Chat",
+  shortName: "WebReOn",
+  description: "WebReOn Chat is a multi-model AI conversation system.",
   logoURL: "",
   faviconURL: "/favicon.ico",
   pwaIcon192URL: pwaAsset("/pwa/icon-192.png"),

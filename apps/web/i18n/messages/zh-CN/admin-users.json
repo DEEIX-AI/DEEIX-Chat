@@ -19,7 +19,7 @@
   },
   "aboutPage": {
     "title": "关于",
-    "description": "DEEIX Chat 是面向多用户 AI 应用的模型接入与对话运营平台。它将模型目录、多上游路由、参数治理、文件与 RAG、MCP 工具、用量计费、身份安全、审计与运维配置整合到同一套控制面。",
+    "description": "WebReOn Chat 是面向多用户 AI 应用的模型接入与对话运营平台。它将模型目录、多上游路由、参数治理、文件与 RAG、MCP 工具、用量计费、身份安全、审计与运维配置整合到同一套控制面。",
     "details": "产品信息",
     "product": "产品",
     "version": "版本",
@@ -54,8 +54,8 @@
     "social": "X",
     "blog": "博客",
     "contact": "联系与支持",
-    "copyright": "© 2026 DEEIX. DEEIX Chat.",
-    "license": "代码遵循 Apache License 2.0 授权。",
+    "copyright": "© 2026 WebReOn. WebReOn Chat.",
+    "license": "Copyright © 2026 WebReOn Agency. All rights reserved。",
     "desktopDownload": {
       "title": "桌面端下载",
       "enabledLabel": "下载入口",

@@ -3,7 +3,7 @@
   "untitledConversation": "New chat",
   "modelListLoadFailed": "Could not load models.",
   "projectDefaultModelUnavailable": "The project default model \"{model}\" is currently unavailable. Global model defaults will be used instead.",
-  "placeholder": "Message DEEIX Chat",
+  "placeholder": "Message WebReOn Chat",
   "projectMode": "Project mode",
   "projectModeTooltip": "In this mode, new chats are created in the current project. Project instructions apply only to chat model requests; image generation, image editing, and other non-chat capabilities do not use them.",
   "send": "Send",

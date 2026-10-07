@@ -41,7 +41,7 @@ import { ConversationShareExportIconDropdown } from "@/entities/conversation";
 import { useCopyAction } from "@/shared/components/copy-action";
 import type { FileContentLoader } from "@/entities/file";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
-import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
+import { PoweredByWebReOn } from "@/shared/components/powered-by-deeix";
 import { useBranding } from "@/shared/config/branding-provider";
 import type { BillingDisplayCurrency } from "@/entities/billing";
 import type { ReasoningEffortLevel } from "@/entities/model";
@@ -239,7 +239,7 @@ function ChatScreenshotBrandMark({ placement }: { placement: "top" | "bottom" })
       {placement === "top" ? (
         <>
           <AppLogo width={65} height={20} className="h-5 w-auto opacity-75" />
-          {branding.logoURL ? <PoweredByDeeix className="text-[10px]" /> : null}
+          {branding.logoURL ? <PoweredByWebReOn className="text-[10px]" /> : null}
         </>
       ) : branding.logoURL ? (
         <>

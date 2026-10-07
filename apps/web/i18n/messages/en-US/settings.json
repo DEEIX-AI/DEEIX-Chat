@@ -8,7 +8,7 @@
   "navigation": "Settings navigation",
   "aboutPage": {
     "title": "About",
-    "description": "DEEIX Chat is a model access and conversation operations platform for multi-user AI applications. It unifies the model catalog, multi-provider routing, parameter governance, files and RAG, MCP tools, usage billing, identity security, audit, and operational settings in a single control plane.",
+    "description": "WebReOn Chat is a model access and conversation operations platform for multi-user AI applications. It unifies the model catalog, multi-provider routing, parameter governance, files and RAG, MCP tools, usage billing, identity security, audit, and operational settings in a single control plane.",
     "details": "Product information",
     "product": "Product",
     "version": "Version",
@@ -20,8 +20,8 @@
     "social": "X",
     "blog": "Blog",
     "contact": "Contact & support",
-    "copyright": "© 2026 DEEIX. DEEIX Chat.",
-    "license": "Code licensed under the Apache License 2.0."
+    "copyright": "© 2026 WebReOn. WebReOn Chat.",
+    "license": "Copyright © 2026 WebReOn Agency. All rights reserved."
   },
   "appearance": "Appearance",
   "language": "Language",
@@ -240,7 +240,7 @@
         "description": {
           "bootstrapVerified": "Setting your first email requires verifying ownership of the new address.",
           "saveOnly": "The email address will be updated after saving.",
-          "change": "DEEIX Chat will ask for the verification required by your account before saving this change."
+          "change": "WebReOn Chat will ask for the verification required by your account before saving this change."
         },
         "labels": {
           "newEmail": "New email"

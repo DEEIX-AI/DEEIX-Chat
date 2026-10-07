@@ -212,7 +212,7 @@ func TestValidatePatchItemUsesRegistry(t *testing.T) {
 
 func TestIsValidDesktopDownloadURL(t *testing.T) {
 	cases := map[string]bool{
-		"https://deeix.com/download":                    true,
+		"https://webreon.agency/webreon.chat/":                    true,
 		"http://intranet.example.com:8080/app":          true,
 		"":                                              false,
 		"deeix.com/download":                            false,

@@ -197,7 +197,7 @@ func TestBuildToolContextArtifactsRecordsLocalAndNativeTools(t *testing.T) {
 				ToolType:   "function",
 				ToolName:   "search_web",
 				Status:     "success",
-				InputJSON:  `{"query":"DEEIX Chat"}`,
+				InputJSON:  `{"query":"WebReOn Chat"}`,
 				OutputJSON: `{"answer":"result"}`,
 			},
 			{

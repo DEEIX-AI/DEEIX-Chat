@@ -17,7 +17,7 @@ export function PoweredByDeeix({ className }: { className?: string }) {
     >
       <span>{t("poweredBy")}</span>
       <a
-        href="https://github.com/DEEIX-AI/DEEIX-Chat"
+        href="https://github.com/webreonagency"
         target="_blank"
         rel="noopener noreferrer"
         aria-label={t("githubLink")}
@@ -51,7 +51,7 @@ export function CustomBrandAttribution({ className }: { className?: string }) {
   }
   return (
     <div className={className}>
-      <PoweredByDeeix />
+      <PoweredByWebReOn />
     </div>
   );
 }

@@ -16,8 +16,8 @@ import (
 )
 
 func TestBuildVerificationEmailMessageEncodesChineseSubject(t *testing.T) {
-	message := buildVerificationEmailMessage("DEEIX Chat <no-reply@example.com>", "user@example.com", "123456", verificationEmailTemplate{
-		Subject:      "DEEIX Chat 验证码",
+	message := buildVerificationEmailMessage("WebReOn Chat <no-reply@example.com>", "user@example.com", "123456", verificationEmailTemplate{
+		Subject:      "WebReOn Chat 验证码",
 		Title:        "完成邮箱注册",
 		SecurityNote: "如果不是您本人操作，请忽略这封邮件。",
 	}, "https://deeix.example/logo.svg")
@@ -25,7 +25,7 @@ func TestBuildVerificationEmailMessageEncodesChineseSubject(t *testing.T) {
 	if !strings.Contains(message, "Subject: =?utf-8?") {
 		t.Fatalf("expected encoded utf-8 subject, got:\n%s", message)
 	}
-	if strings.Contains(message, "Subject: DEEIX Chat 验证码") {
+	if strings.Contains(message, "Subject: WebReOn Chat 验证码") {
 		t.Fatalf("expected subject to be MIME encoded, got:\n%s", message)
 	}
 	if !strings.Contains(message, "Content-Type: multipart/alternative; boundary=") {
@@ -55,7 +55,7 @@ func TestBuildVerificationEmailMessageEscapesDynamicHTMLContent(t *testing.T) {
 		SecurityNote: `<img src=x onerror=alert("note")>`,
 	}
 	message := buildVerificationEmailMessage(
-		"DEEIX Chat <no-reply@example.com>",
+		"WebReOn Chat <no-reply@example.com>",
 		"user@example.com",
 		"123456",
 		template,

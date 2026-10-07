@@ -40,7 +40,7 @@ export function AppSidebar({
       }
     : {
         name: branding.title,
-        email: "deeix.com",
+        email: "webreon.agency",
         avatar: "",
       };
 

@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	defaultAppName                      = "DEEIX Chat"
-	defaultBrandTitle                   = "DEEIX Chat"
-	defaultBrandShortName               = "DEEIX"
-	defaultBrandDescription             = "DEEIX Chat is a multi-model AI conversation system."
+	defaultAppName                      = "WebReOn Chat"
+	defaultBrandTitle                   = "WebReOn Chat"
+	defaultBrandShortName               = "WebReOn"
+	defaultBrandDescription             = "WebReOn Chat is a multi-model AI conversation system."
 	defaultBrandFaviconURL              = "/favicon.ico"
 	defaultBrandPWAIcon192URL           = "/pwa/icon-192.png"
 	defaultBrandPWAIcon512URL           = "/pwa/icon-512.png"

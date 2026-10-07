@@ -7,7 +7,7 @@ from docling.document_converter import DocumentConverter
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
-app = FastAPI(title="DEEIX Chat Docling Service")
+app = FastAPI(title="WebReOn Chat Docling Service")
 converter = DocumentConverter()
 
 

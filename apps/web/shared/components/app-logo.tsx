@@ -36,7 +36,7 @@ export function AppLogo({
 }
 
 export function DeeixLogo({
-  alt = "DEEIX Chat",
+  alt = "WebReOn Chat",
   width,
   height,
   priority,

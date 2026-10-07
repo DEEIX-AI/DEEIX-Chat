@@ -385,7 +385,7 @@ export function PublicSharePage() {
               </>
             ) : null}
             <a
-              href="https://github.com/DEEIX-AI/DEEIX-Chat"
+              href="https://github.com/webreonagency"
               target="_blank"
               rel="noopener noreferrer"
               aria-label={attributionT("githubLink")}
