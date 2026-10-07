@@ -68,3 +68,8 @@ windows-sys = { version = "0.61", features = [
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["NSString"] }
+
+# Linux-only: sizes the tab strip inside the window's GtkBox (tabs.rs). Same
+# version tauri/wry already link; nothing new is downloaded.
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"

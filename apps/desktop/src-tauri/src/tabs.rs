@@ -228,7 +228,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     }
 
     let (width, _) = logical_size(&window)?;
-    window.add_child(
+    let _strip = window.add_child(
         content_webview(
             app,
             WebviewBuilder::new(CHROME_LABEL, WebviewUrl::App(CHROME_URL.into())),
@@ -236,6 +236,8 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
         LogicalPosition::new(0.0, 0.0),
         LogicalSize::new(width, STRIP_HEIGHT),
     )?;
+    #[cfg(target_os = "linux")]
+    pin_strip_height(&_strip)?;
 
     let event_window = window.clone();
     window.on_window_event(move |event| match event {
@@ -436,6 +438,23 @@ fn logical_size<R: Runtime>(window: &Window<R>) -> Result<(f64, f64)> {
         .inner_size()?
         .to_logical::<f64>(window.scale_factor()?);
     Ok((size.width, size.height))
+}
+
+/// Linux packs child webviews into the window's GtkBox instead of placing them:
+/// position and size requests are ignored and every visible webview gets an
+/// equal share of the height, so the strip would take half the window. Pin it
+/// to its height and let the active tab (packed after it) take the rest.
+#[cfg(target_os = "linux")]
+fn pin_strip_height<R: Runtime>(strip: &tauri::Webview<R>) -> Result<()> {
+    use gtk::prelude::*;
+    strip.with_webview(|platform| {
+        let webview = platform.inner();
+        webview.set_size_request(-1, STRIP_HEIGHT as i32);
+        if let Some(parent) = webview.parent().and_then(|p| p.downcast::<gtk::Box>().ok()) {
+            parent.set_child_packing(&webview, false, false, 0, gtk::PackType::Start);
+        }
+    })?;
+    Ok(())
 }
 
 fn relayout<R: Runtime>(window: &Window<R>) -> Result<()> {
