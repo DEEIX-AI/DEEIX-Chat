@@ -624,20 +624,18 @@
       }
     },
     "mediaMode": {
-      "imageGeneration": "图像生成",
-      "imageGenerationIntro": "当前为图像生成模式。",
-      "imageGenerationDescription": "将根据文字提示创建新图像；上传图片后会自动切换为图像编辑。",
-      "imageEdit": "图像编辑",
-      "imageEditIntro": "当前为图像编辑模式。",
-      "imageEditDescription": "将基于已上传图片和文字提示进行编辑。",
-      "videoGeneration": "视频生成",
-      "videoGenerationIntro": "当前为视频生成模式。",
-      "videoGenerationDescription": "将根据文字提示生成视频；上传一张图片后会作为视频参考输入。",
-      "videoExtension": "视频扩展",
-      "videoExtensionIntro": "当前为视频扩展模式。",
-      "videoExtensionDescription": "将根据文字提示扩展已上传的 MP4 视频，仅需设置扩展时长。",
-      "invalidFile": "监测到无效文件",
-      "invalidFileIntro": "当前文件无法用于媒体任务。",
+      "placeholders": {
+        "image_generation": "描述要生成的图像",
+        "image_edit": "描述要如何修改这张图片",
+        "video_generation": "描述要生成的视频",
+        "video_extension": "描述视频接下来的内容"
+      },
+      "parameters": {
+        "image_generation": "图像生成参数",
+        "image_edit": "图像编辑参数",
+        "video_generation": "视频生成参数",
+        "video_extension": "视频扩展参数"
+      },
       "blockedDescriptions": {
         "image_edit_input_required": "请先上传需要编辑的图片。",
         "image_edit_unsupported": "当前模型不支持图像编辑，请移除图片或切换模型。",
@@ -1138,6 +1136,7 @@
     "numberInvalid": "请输入有效的数值",
     "numberInvalidRange": "请输入 {min} – {max} 之间的有效数值",
     "increase": "增加",
-    "decrease": "减少"
+    "decrease": "减少",
+    "empty": "该模型没有可调参数。"
   }
 }

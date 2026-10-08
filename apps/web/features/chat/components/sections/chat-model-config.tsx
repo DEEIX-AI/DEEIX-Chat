@@ -5,7 +5,6 @@ import { useMessages, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 
-import { Cog } from "@/components/animate-ui/icons/cog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -18,7 +17,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { InputGroupButton } from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -28,9 +26,14 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { NESTED_VISUAL_OPTION_PATHS, NUMBER_OPTION_KEYS, OPTION_SELECT_VALUES } from "@/features/chat/model/chat-option-controls";
 import {
+  getOptionAtPath,
+  hasOptionAtPath,
   isReservedConversationOptionKey,
+  optionPathSegments,
   sanitizeConversationOptions,
+  setOptionAtPath,
 } from "@/features/chat/model/conversation-options";
 import {
   hasProviderTool,
@@ -49,6 +52,7 @@ import {
   type ModelNativeToolConfig,
   type ModelOptionPolicy,
   type NativeToolDefinition,
+  resolveModelOptionLabel,
   resolveModelOptionPolicyProtocol,
 } from "@/entities/model";
 import { isOneOf, isRecord } from "@/shared/lib/type-guards";
@@ -85,7 +89,6 @@ type OptionValueEntry = {
 
 
 type ChatModelConfigProps = {
-  disabled: boolean;
   options: ConversationOptions;
   defaultOptions: ConversationOptions;
   optionControls: ModelOptionControl[];
@@ -98,11 +101,9 @@ type ChatModelConfigProps = {
   onOptionsChange: React.Dispatch<React.SetStateAction<ConversationOptions>>;
   onOptionsReset: (defaults?: ConversationOptions) => void;
   onDefaultOptionsRestore: () => Promise<ConversationOptions | null>;
-  // Controlled dialog; the composer opens it from its "more parameters" popover.
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  // Hide the trigger button when the caller opens the dialog itself.
-  hideTrigger?: boolean;
+  // The composer opens the dialog from its parameters popover.
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 };
 
 type OptionTranslationResolver = ((key: string) => string) & {
@@ -291,126 +292,9 @@ const OPTION_ORDER = [
   "imageConfig.imageSize",
 ];
 
-const NUMBER_OPTION_KEYS = new Set([
-  "budget_tokens",
-  "candidate_count",
-  "duration",
-  "frequency_penalty",
-  "generationConfig.candidateCount",
-  "generationConfig.frequencyPenalty",
-  "generationConfig.logprobs",
-  "generationConfig.maxOutputTokens",
-  "generationConfig.presencePenalty",
-  "generationConfig.seed",
-  "generationConfig.thinkingConfig.thinkingBudget",
-  "generationConfig.topK",
-  "logprobs",
-  "max_completion_tokens",
-  "max_output_tokens",
-  "max_tokens",
-  "n",
-  "output_compression",
-  "partial_images",
-  "presence_penalty",
-  "seed",
-  "temperature",
-  "thinking.budget_tokens",
-  "thinking.thinking_budget",
-  "thinking.thinkingBudget",
-  "thinkingConfig.thinkingBudget",
-  "top_k",
-  "top_p",
-]);
-
 const NUMBER_OPTION_PLACEHOLDERS: Record<string, string> = {
   "generation_config.max_output_tokens": "4096",
 };
-
-const OPTION_SELECT_VALUES: Record<string, string[]> = {
-  cache_timeout: ["5m", "1h"],
-  effort: ["low", "medium", "high", "xhigh", "max"],
-  service_tier: ["default", "priority", "flex"],
-  speed: ["fast"],
-  "generationConfig.mediaResolution": ["MEDIA_RESOLUTION_UNSPECIFIED", "MEDIA_RESOLUTION_LOW", "MEDIA_RESOLUTION_MEDIUM", "MEDIA_RESOLUTION_HIGH"],
-  "generationConfig.responseModalities": ["TEXT", "IMAGE"],
-  "generationConfig.responseMimeType": ["text/plain", "application/json", "text/x.enum"],
-  "generationConfig.imageConfig.aspectRatio": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
-  "generationConfig.imageConfig.imageSize": ["1K", "2K", "4K"],
-  background: ["auto", "opaque", "transparent"],
-  "generationConfig.thinkingConfig.thinkingLevel": ["low", "medium", "high"],
-  "imageConfig.aspectRatio": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
-  "imageConfig.imageSize": ["1K", "2K", "4K"],
-  input_fidelity: ["low", "high"],
-  moderation: ["auto", "low"],
-  "output_config.effort": ["low", "medium", "high"],
-  "output_config.format.type": ["json_object", "json_schema", "text"],
-  output_format: ["png", "jpeg", "webp"],
-  quality: ["auto", "low", "medium", "high", "standard", "hd"],
-  "reasoning.effort": ["low", "medium", "high"],
-  "reasoning.summary": ["auto", "concise", "detailed"],
-  reasoning_effort: ["minimal", "low", "medium", "high", "xhigh"],
-  reasoning_summary: ["auto", "concise", "detailed"],
-  response_format: ["url", "b64_json"],
-  "response_format.type": ["json_object", "json_schema", "text"],
-  resolution: ["1k", "2k"],
-  size: ["auto", "1024x1024", "1024x1536", "1536x1024", "2048x2048", "2048x1152", "3840x2160", "2160x3840"],
-  aspect_ratio: ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
-  aspectRatio: ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
-  image_size: ["1K", "2K", "4K"],
-  imageSize: ["1K", "2K", "4K"],
-  "thinking.display": ["summarized", "omitted"],
-  "thinking.thinking_level": ["low", "medium", "high"],
-  "thinking.thinkingLevel": ["low", "medium", "high"],
-  "thinking.type": ["enabled", "adaptive", "disabled"],
-  "thinkingConfig.thinkingLevel": ["low", "medium", "high"],
-  "tool_config.functionCallingConfig.mode": ["AUTO", "ANY", "NONE"],
-  "toolConfig.functionCallingConfig.mode": ["AUTO", "ANY", "NONE"],
-  "tool_choice.type": ["auto", "any", "none"],
-  verbosity: ["low", "medium", "high"],
-};
-
-const NESTED_VISUAL_OPTION_PATHS = [
-  ["thinking", "type"],
-  ["thinking", "budget_tokens"],
-  ["thinking", "include_thoughts"],
-  ["thinking", "thinking_budget"],
-  ["thinking", "thinking_level"],
-  ["thinking", "includeThoughts"],
-  ["thinking", "thinkingBudget"],
-  ["thinking", "thinkingLevel"],
-  ["thinking", "display"],
-  ["thinkingConfig", "includeThoughts"],
-  ["thinkingConfig", "thinkingBudget"],
-  ["thinkingConfig", "thinkingLevel"],
-  ["reasoning", "effort"],
-  ["reasoning", "summary"],
-  ["output_config", "effort"],
-  ["output_config", "format", "type"],
-  ["response_format", "type"],
-  ["tool_choice", "type"],
-  ["generationConfig", "maxOutputTokens"],
-  ["generationConfig", "temperature"],
-  ["generationConfig", "topP"],
-  ["generationConfig", "topK"],
-  ["generationConfig", "candidateCount"],
-  ["generationConfig", "seed"],
-  ["generationConfig", "presencePenalty"],
-  ["generationConfig", "frequencyPenalty"],
-  ["generationConfig", "responseLogprobs"],
-  ["generationConfig", "logprobs"],
-  ["generationConfig", "responseModalities"],
-  ["generationConfig", "responseMimeType"],
-  ["generationConfig", "mediaResolution"],
-  ["generationConfig", "imageConfig", "aspectRatio"],
-  ["generationConfig", "imageConfig", "imageSize"],
-  ["imageConfig", "aspectRatio"],
-  ["imageConfig", "imageSize"],
-  ["generationConfig", "thinkingConfig", "includeThoughts"],
-  ["generationConfig", "thinkingConfig", "thinkingBudget"],
-  ["generationConfig", "thinkingConfig", "thinkingLevel"],
-  ["tool_config", "functionCallingConfig", "mode"],
-  ["toolConfig", "functionCallingConfig", "mode"],
-];
 
 const PROTOCOL_LABELS: Record<string, string> = {
   anthropic_messages: "Messages",
@@ -535,43 +419,6 @@ function policyLimitedVisualOption(
   };
 }
 
-function getOptionAtPath(options: ConversationOptions, path: string[]): unknown {
-  let current: unknown = options;
-  for (const segment of path) {
-    if (!isPlainOptionObject(current)) {
-      return undefined;
-    }
-    current = current[segment];
-  }
-  return current;
-}
-
-function hasOptionAtPath(options: ConversationOptions, path: string[]): boolean {
-  let current: unknown = options;
-  for (const segment of path) {
-    if (!isPlainOptionObject(current) || !Object.hasOwn(current, segment)) {
-      return false;
-    }
-    current = current[segment];
-  }
-  return true;
-}
-
-function setOptionAtPath(options: ConversationOptions, path: string[], value: unknown): ConversationOptions {
-  if (path.length === 0) {
-    return options;
-  }
-  const [segment, ...rest] = path;
-  if (rest.length === 0) {
-    return { ...options, [segment]: value };
-  }
-  const current = options[segment];
-  return {
-    ...options,
-    [segment]: setOptionAtPath(isPlainOptionObject(current) ? current : {}, rest, value),
-  };
-}
-
 function applyLockedDefaultOptions(
   options: ConversationOptions,
   defaults: ConversationOptions,
@@ -581,7 +428,7 @@ function applyLockedDefaultOptions(
     return options;
   }
   return lockedPaths.reduce((nextOptions, key) => {
-    const path = optionPathFromControl(key);
+    const path = optionPathSegments(key);
     if (path.length === 0) {
       return nextOptions;
     }
@@ -637,13 +484,6 @@ function visualOptionsFromOptions(
     .sort((left, right) => compareOptionKeys(left.key, right.key));
 }
 
-function optionPathFromControl(path: string): string[] {
-  return path
-    .split(".")
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-}
-
 function resolveControlEditableValue(options: ConversationOptions, path: string[]): EditableOptionValue {
   const currentValue = getOptionAtPath(options, path);
   if (isEditableOptionValue(currentValue)) {
@@ -675,7 +515,7 @@ function visualOptionsFromControls(
   defaultOptions: ConversationOptions = {},
 ): VisualOption[] {
   return controls.flatMap((control): VisualOption[] => {
-    const path = optionPathFromControl(control.path);
+    const path = optionPathSegments(control.path);
     if (path.length === 0 || isReservedConversationOptionKey(path[0] ?? "")) {
       return [];
     }
@@ -901,7 +741,6 @@ function resolveNativeToolDescription(tool: NativeToolDefinition, messages: unkn
 }
 
 export function ChatModelConfig({
-  disabled,
   options,
   defaultOptions,
   optionControls,
@@ -914,24 +753,14 @@ export function ChatModelConfig({
   onOptionsChange,
   onOptionsReset,
   onDefaultOptionsRestore,
-  open,
-  onOpenChange,
-  hideTrigger = false,
+  open: dialogOpen,
+  onOpenChange: setDialogOpen,
 }: ChatModelConfigProps) {
   const tCommon = useTranslations("common.actions");
   const tComposer = useTranslations("chat.composer");
   const tOptionLabels = useTranslations("chat.optionLabels");
   const tOptionDescriptions = useTranslations("chat.optionDescriptions");
   const messages = useMessages();
-  const [hovered, setHovered] = React.useState(false);
-  const [uncontrolledDialogOpen, setUncontrolledDialogOpen] = React.useState(false);
-  const dialogOpen = open ?? uncontrolledDialogOpen;
-  const setDialogOpen = React.useCallback((next: boolean) => {
-    if (open === undefined) {
-      setUncontrolledDialogOpen(next);
-    }
-    onOpenChange?.(next);
-  }, [onOpenChange, open]);
   const [optionsDraft, setOptionsDraft] = React.useState("");
   const [optionsObject, setOptionsObject] = React.useState<ConversationOptions>({});
   const [mobileView, setMobileView] = React.useState<OptionsViewMode>("visual");
@@ -985,29 +814,7 @@ export function ChatModelConfig({
     optionsObjectRef.current = optionsObject;
   }, [optionsObject]);
 
-  const openOptionsDialog = React.useCallback(() => {
-    const sanitized = applyLockedDefaultOptions(
-      sanitizeConversationOptions(options),
-      effectiveDefaultOptions,
-      lockedOptionPaths,
-    );
-    const hasVisualContent = hasVisualConfigurationContent({
-      nativeToolDefinitions,
-      optionControls,
-      options: sanitized,
-      policy: modelOptionPolicy,
-      protocols: selectedProtocols,
-      hasReasoning: false,
-    });
-    optionsObjectRef.current = sanitized;
-    setOptionsObject(sanitized);
-    setOptionsDraft(stringifyOptions(sanitized));
-    setMobileView(hasVisualContent ? "visual" : "json");
-    setRestoredDefaultOptions(null);
-    setDialogOpen(true);
-  }, [effectiveDefaultOptions, lockedOptionPaths, modelOptionPolicy, nativeToolDefinitions, optionControls, options, selectedProtocols, setDialogOpen]);
-
-  // The caller (composer popover) can open the dialog itself; load the draft when it does.
+  // Load the draft when the composer opens the dialog.
   const dialogPreparedRef = React.useRef(false);
   React.useEffect(() => {
     if (!dialogOpen) {
@@ -1439,33 +1246,6 @@ export function ChatModelConfig({
 
   return (
     <>
-      {hideTrigger ? null : (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <InputGroupButton
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
-              disabled={disabled}
-              onClick={openOptionsDialog}
-              aria-label={tComposer("modelOptions")}
-              onMouseEnter={() => setHovered(true)}
-              onMouseLeave={() => setHovered(false)}
-            >
-              <Cog
-                size={20}
-                strokeWidth={1.4}
-                animate={hovered ? "default" : false}
-              />
-            </InputGroupButton>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">
-            {tComposer("modelOptions")}
-          </TooltipContent>
-        </Tooltip>
-      )}
-
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           className="w-[calc(100vw-1rem)] overflow-hidden p-4 sm:w-full sm:max-w-[800px] sm:p-6 md:max-w-[900px]"
@@ -1477,7 +1257,7 @@ export function ChatModelConfig({
                 <div className="shrink-0 md:hidden">{renderOptionsViewToggle()}</div>
               </div>
               <DialogDescription className="hidden md:block">
-                {tComposer("dialogDescription", { model: selectedModelName || tComposer("currentModel") })}
+                {tComposer("dialogDescription", { model: resolveModelOptionLabel(selectedModelName) || tComposer("currentModel") })}
               </DialogDescription>
             </DialogHeader>
 
