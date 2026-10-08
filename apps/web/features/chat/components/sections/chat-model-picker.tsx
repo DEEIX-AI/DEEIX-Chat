@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InputGroupButton } from "@/components/ui/input-group";
 import type { ChatModelOption, ModelModality } from "@/features/chat/types/chat-runtime";
+import { useChatPopoverAlignOffset } from "@/features/chat/hooks/use-chat-popover-align-offset";
 import {
   resolveDesktopMenuListMaxHeight,
   resolveDesktopModelMenuListMaxHeight,
@@ -51,6 +52,8 @@ type ChatModelPickerProps = {
   disabled: boolean;
   onModelCatalogRefresh?: () => void | Promise<void>;
   onModelChange: (platformModelName: string) => void;
+  /** Side the phone menu opens on: below the composer on the landing page, above it in a conversation. */
+  placementPreference: "top" | "bottom";
 };
 
 const MODEL_MENU_COLLISION_PADDING = 24;
@@ -881,9 +884,11 @@ export function ChatModelPicker({
   disabled,
   onModelCatalogRefresh,
   onModelChange,
+  placementPreference,
 }: ChatModelPickerProps) {
   const t = useTranslations("chat.modelPicker");
   const isMobile = useIsMobile();
+  const mobileShift = useChatPopoverAlignOffset("end");
   const [open, setOpen] = React.useState(false);
   const [activeGroupKey, setActiveGroupKey] = React.useState("");
   const [mobileGroupKey, setMobileGroupKey] = React.useState<string | null>(null);
@@ -924,18 +929,13 @@ export function ChatModelPicker({
     () => modelOptions.find((item) => item.platformModelName === selectedPlatformModelName) ?? null,
     [modelOptions, selectedPlatformModelName],
   );
-  const selectedGroupKey = React.useMemo(() => {
-    if (!selectedModel) {
-      return "";
-    }
-    return resolveModelPresentationGroup(selectedModel).key;
-  }, [selectedModel]);
-  const selectedGroupLabel = React.useMemo(() => {
-    if (!selectedModel) {
-      return "";
-    }
-    return resolveModelPresentationGroup(selectedModel).label;
-  }, [selectedModel]);
+  // Same grouping as the list, so a model on the user's own key opens its provider group.
+  const selectedPresentation = React.useMemo(
+    () => (selectedModel ? resolveModelGroupPresentation(selectedModel) : null),
+    [selectedModel],
+  );
+  const selectedGroupKey = selectedPresentation?.key ?? "";
+  const selectedGroupLabel = selectedPresentation?.label ?? "";
   const modelGroups = React.useMemo(() => resolveModelGroups(modelOptions), [modelOptions]);
   // Counts share one width, so the badges in front of them line up whatever the digit count.
   const groupCountStyle = React.useMemo<React.CSSProperties>(
@@ -1296,6 +1296,7 @@ export function ChatModelPicker({
         <Popover open={open} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>
             <InputGroupButton
+              ref={mobileShift.triggerRef}
               id="chat-model-menu-trigger"
               type="button"
               variant="ghost"
@@ -1319,9 +1320,15 @@ export function ChatModelPicker({
               )}
             </InputGroupButton>
           </PopoverTrigger>
+          {/* On a phone the menu keeps the composer's side, as the other composer menus do, and its
+              list shrinks to the room left there. Letting Radix flip it measured the unclamped list,
+              which never fits below the landing composer, so it always opened upwards. */}
           <PopoverContent
+            ref={isMobile ? mobileShift.contentRef : undefined}
             align="end"
-            side="bottom"
+            alignOffset={isMobile ? mobileShift.alignOffset : 0}
+            side={isMobile ? placementPreference : "bottom"}
+            avoidCollisions={!isMobile}
             sideOffset={DESKTOP_MODEL_MENU_SIDE_OFFSET}
             collisionPadding={24}
             onOpenAutoFocus={(event) => {
@@ -1336,7 +1343,7 @@ export function ChatModelPicker({
             className={cn(
               "relative overflow-visible rounded-xl",
               isMobile
-                ? "w-[min(20rem,calc(100vw-3rem))] p-1.5"
+                ? "w-[min(20rem,calc(100vw-3rem))] p-1.5 [--model-menu-scroll-max-height:max(7rem,calc(var(--radix-popover-content-available-height)-2.75rem))]"
                 : "w-[min(14rem,calc(100vw-3rem))] border-0 bg-transparent p-0 shadow-none",
             )}
           >

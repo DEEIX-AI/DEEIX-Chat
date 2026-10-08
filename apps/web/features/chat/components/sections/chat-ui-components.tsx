@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import type { UIComponentDTO } from "@/shared/api/ui-components-types";
 import { ComposerOptionRow } from "@/features/chat/components/shared/composer-option-row";
 import { uiComponentIcon } from "@/features/chat/model/ui-component-icons";
+import { useChatPopoverAlignOffset } from "@/features/chat/hooks/use-chat-popover-align-offset";
 
 // Builtin names and summaries are localised on the client; the catalog text
 // from the backend is the model-facing (Chinese) prompt. Custom components
@@ -46,6 +47,7 @@ export function ChatUIComponents({
   const t = useTranslations("chat.composer");
   const tLibrary = useTranslations("uiComponents");
   const [open, setOpen] = React.useState(false);
+  const popoverShift = useChatPopoverAlignOffset("start");
   const labelFor = (component: UIComponentDTO) =>
     component.scope === "builtin" && tLibrary.has(`builtin.${component.name}.title`)
       ? { title: tLibrary(`builtin.${component.name}.title`), summary: tLibrary(`builtin.${component.name}.summary`) }
@@ -66,6 +68,7 @@ export function ChatUIComponents({
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <InputGroupButton
+              ref={popoverShift.triggerRef}
               type="button"
               variant="ghost"
               size="icon-sm"
@@ -88,8 +91,10 @@ export function ChatUIComponents({
       </Tooltip>
 
       <PopoverContent
+        ref={popoverShift.contentRef}
         side={placementPreference}
         align="start"
+        alignOffset={popoverShift.alignOffset}
         sideOffset={8}
         avoidCollisions={false}
         collisionPadding={8}

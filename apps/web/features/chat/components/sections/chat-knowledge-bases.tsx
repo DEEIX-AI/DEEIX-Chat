@@ -15,6 +15,7 @@ import {
   useChatKnowledgeBaseCatalog,
 } from "@/features/chat/hooks/use-chat-knowledge-base-catalog";
 import { ComposerOptionRow } from "@/features/chat/components/shared/composer-option-row";
+import { useChatPopoverAlignOffset } from "@/features/chat/hooks/use-chat-popover-align-offset";
 import { cn } from "@/lib/utils";
 import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
 
@@ -42,6 +43,7 @@ export function ChatKnowledgeBases({
   const { knowledgeBaseEnabled } = useFeaturePolicy();
   const { open, handleOpenChange, query, setQuery, items, loading, loadingMore, hasMore, loadMore } =
     useChatKnowledgeBaseCatalog({ selectedIDs, onChange });
+  const popoverShift = useChatPopoverAlignOffset("start");
 
   React.useEffect(() => {
     if (available === false && selectedIDs.length > 0) {
@@ -81,6 +83,7 @@ export function ChatKnowledgeBases({
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <InputGroupButton
+              ref={popoverShift.triggerRef}
               type="button"
               variant="ghost"
               size="icon-sm"
@@ -110,8 +113,10 @@ export function ChatKnowledgeBases({
       </Tooltip>
 
       <PopoverContent
+        ref={popoverShift.contentRef}
         side={placementPreference}
         align="start"
+        alignOffset={popoverShift.alignOffset}
         sideOffset={8}
         avoidCollisions={false}
         collisionPadding={8}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronRight, Ellipsis, Lock, Minus, Pin, Plus, Settings2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Ellipsis, Lock, Minus, Pin, Plus, Settings2 } from "lucide-react";
 import { useMessages, useTranslations } from "next-intl";
 import * as React from "react";
 
@@ -20,8 +20,9 @@ import {
   splitComposerControlItems,
 } from "@/features/chat/model/chat-model-control-placements";
 import type { NativeToolVisualOption } from "@/features/chat/model/chat-native-tools";
-import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
+import { useChatPopoverAlignOffset } from "@/features/chat/hooks/use-chat-popover-align-offset";
+import { cn } from "@/lib/utils";
 import {
   isReasoningEffortLevel,
   localizedNativeToolText,
@@ -51,6 +52,8 @@ const ROW_MAIN_CLASSNAME = "flex min-w-0 flex-1 items-center gap-1.5 text-left o
 const PIN_BUTTON_CLASSNAME =
   "inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 outline-none transition-colors hover:text-foreground focus-visible:text-foreground disabled:pointer-events-none disabled:opacity-30";
 const HEADER_CLASSNAME = "flex h-7 shrink-0 items-center justify-between gap-3 px-2 text-[11px] font-medium text-foreground/70";
+const HEADER_BACK_CLASSNAME =
+  "-ml-1.5 flex h-7 min-w-0 items-center gap-0.5 rounded-md px-0.5 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground";
 const HEADER_ACTION_CLASSNAME =
   "text-[11px] leading-none text-foreground/55 outline-none transition-colors hover:text-foreground focus-visible:text-foreground";
 
@@ -70,8 +73,10 @@ export type ChatModelControlsProps = {
   onControlChange: (controlID: string, value: ModelControlValue | null) => void;
   onNativeToolChange: (tool: NativeToolVisualOption, enabled: boolean) => void;
   onPlacementsChange: (placements: ModelControlPlacements) => void;
-  // Administrator-only entry at the bottom of the popover (raw parameters JSON).
+  // Entry at the bottom of the popover that opens the parameter dialog (raw JSON).
   advancedOptions?: { label: string; onOpen: () => void };
+  // Popover title and trigger tooltip; chat wording by default, media tasks name their own.
+  labels?: { title: string; more: string };
 };
 
 /**
@@ -134,8 +139,11 @@ export function ChatModelControls({
   onNativeToolChange,
   onPlacementsChange,
   advancedOptions,
+  labels,
 }: ChatModelControlsProps) {
   const t = useTranslations("chat.modelControls");
+  const title = labels?.title ?? t("title");
+  const moreLabel = labels?.more ?? t("more");
   const tReasoning = useTranslations("chat.reasoningEffort");
   const tLevels = useTranslations("common.reasoningEffort.levels");
   const tOptionLabels = useTranslations("chat.optionLabels");
@@ -204,17 +212,19 @@ export function ChatModelControls({
 
   const [moreOpen, setMoreOpen] = React.useState(false);
   const moreTooltip = useMenuTriggerTooltip(moreOpen);
+  const moreShift = useChatPopoverAlignOffset("end");
+  // Phones have no room for a side panel: a value row swaps the list for its options, like the model picker.
+  const isMobile = useIsMobile();
+  const [drillID, setDrillID] = React.useState<string | null>(null);
 
   const togglePin = React.useCallback((item: ComposerItem) => {
     const next = nextModelControlPlacements(items, placements, item, !toolbarIDs.has(item.id));
     if (next) onPlacementsChange(next);
   }, [items, onPlacementsChange, placements, toolbarIDs]);
 
-  if (items.length === 0) {
-    return null;
-  }
-
   const changedControls = controls.filter((control) => isControlChanged(control, selections));
+  const drillTarget = isMobile ? items.find((item) => item.id === drillID) : undefined;
+  const drillItem = drillTarget?.source === "control" && drillTarget.control.type !== "toggle" ? drillTarget : null;
   const pinnedCount = toolbar.length;
 
   const itemTooltip = (item: ComposerItem) => {
@@ -287,30 +297,30 @@ export function ChatModelControls({
     const value = resolveControlValue(control, selections);
     const Icon = resolveModelControlIcon(control);
     const active = isItemActive(item);
+    const row = (
+      <button
+        type="button"
+        className={ROW_MAIN_CLASSNAME}
+        disabled={disabled || control.locked}
+        title={control.description || undefined}
+        aria-label={itemTooltip(item)}
+        onClick={isMobile ? () => setDrillID(item.id) : undefined}
+      >
+        <Icon className={cn("size-3.5 shrink-0", active ? "text-primary" : "text-muted-foreground")} strokeWidth={1.6} />
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-current">{item.label}</span>
+        <span className="max-w-24 shrink-0 truncate text-[11px] text-muted-foreground">{valueLabel(control, value)}</span>
+        {control.locked ? (
+          <Lock className="size-3 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+        ) : (
+          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+        )}
+      </button>
+    );
     return (
       <div key={item.id} className={ROW_CONTAINER_CLASSNAME}>
-        <ChatModelControlSubmenu
-          header={item.label}
-          trigger={
-            <button
-              type="button"
-              className={ROW_MAIN_CLASSNAME}
-              disabled={disabled || control.locked}
-              title={control.description || undefined}
-              aria-label={itemTooltip(item)}
-            >
-              <Icon className={cn("size-3.5 shrink-0", active ? "text-primary" : "text-muted-foreground")} strokeWidth={1.6} />
-              <span className="min-w-0 flex-1 truncate text-xs font-medium text-current">{item.label}</span>
-              <span className="max-w-24 shrink-0 truncate text-[11px] text-muted-foreground">{valueLabel(control, value)}</span>
-              {control.locked ? (
-                <Lock className="size-3 shrink-0 text-muted-foreground" strokeWidth={1.6} />
-              ) : (
-                <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
-              )}
-            </button>
-          }
-          renderContent={(close) => renderOptionRows(control, close)}
-        />
+        {isMobile ? row : (
+          <ChatModelControlSubmenu header={item.label} trigger={row} renderContent={(close) => renderOptionRows(control, close)} />
+        )}
         {renderPinButton(item)}
       </div>
     );
@@ -407,65 +417,97 @@ export function ChatModelControls({
           {renderToolbarItem(item)}
         </span>
       ))}
-      <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+      <Popover
+        open={moreOpen}
+        onOpenChange={(next) => {
+          // Reset on open, not on close, so the list does not flash back during the closing fade.
+          if (next) setDrillID(null);
+          setMoreOpen(next);
+        }}
+      >
         <Tooltip {...moreTooltip.tooltipProps}>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               <InputGroupButton
+                ref={moreShift.triggerRef}
                 type="button"
                 variant="ghost"
                 size="icon-sm"
                 className={cn(TRIGGER_CLASSNAME, changedControls.some((control) => !toolbarIDs.has(control.id)) && TRIGGER_ACTIVE_CLASSNAME)}
                 disabled={disabled}
-                aria-label={t("more")}
+                aria-label={moreLabel}
                 {...moreTooltip.triggerProps}
               >
                 <Ellipsis className="size-4" strokeWidth={1.6} />
               </InputGroupButton>
             </PopoverTrigger>
           </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">{t("more")}</TooltipContent>
+          <TooltipContent side="top" className="text-xs">{moreLabel}</TooltipContent>
         </Tooltip>
         {/* The trigger sits at the right end of the toolbar (next to the model picker), so the panel
-            grows leftwards over the composer instead of past its right edge. */}
+            grows leftwards over the composer instead of past its right edge. On a phone the trigger is
+            mid-screen and the panel is nearly as wide as the viewport: the offset keeps it on screen. */}
         <PopoverContent
+          ref={moreShift.contentRef}
           side={placementPreference}
           align="end"
+          alignOffset={moreShift.alignOffset}
           sideOffset={8}
           avoidCollisions={false}
           collisionPadding={8}
           className={cn(PANEL_CLASSNAME, "w-[min(19rem,calc(100vw-1rem))]")}
           {...stopPopoverPropagation()}
         >
-          <div className={HEADER_CLASSNAME}>
-            <span>{t("title")}</span>
-            {changedControls.length > 0 ? (
-              <button
-                type="button"
-                className={HEADER_ACTION_CLASSNAME}
-                onClick={() => {
-                  for (const control of changedControls) onControlChange(control.id, null);
-                }}
-              >
-                {t("resetAll")}
-              </button>
-            ) : null}
-          </div>
-          <div className="min-h-0 max-h-80 space-y-0.5 overflow-y-auto px-0.5">
-            {unpinnedItems.map(renderMenuItem)}
-            {pinnedItems.map(renderMenuItem)}
-          </div>
-          {/* Outside the scroll area so the entry stays at the bottom however long the list is. */}
-          {advancedOptions ? (
-            <div className="shrink-0 px-0.5">
-              <div className="my-1.5 border-t-[0.5px] border-border" />
-              <button type="button" className={OPTION_ROW_CLASSNAME} onClick={advancedOptions.onOpen}>
-                <Settings2 className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
-                <span className="min-w-0 flex-1 truncate text-xs font-medium text-current">{advancedOptions.label}</span>
-                <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
-              </button>
-            </div>
-          ) : null}
+          {drillItem ? (
+            <>
+              <div className={HEADER_CLASSNAME}>
+                <button type="button" className={HEADER_BACK_CLASSNAME} onClick={() => setDrillID(null)}>
+                  <ChevronLeft className="size-3.5" strokeWidth={1.8} />
+                  <span>{title}</span>
+                </button>
+                <span className="min-w-0 truncate text-right text-foreground/70">{drillItem.label}</span>
+              </div>
+              <div className="min-h-0 max-h-80 space-y-0.5 overflow-y-auto px-0.5">
+                {renderOptionRows(drillItem.control, () => setDrillID(null))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={HEADER_CLASSNAME}>
+                <span>{title}</span>
+                {changedControls.length > 0 ? (
+                  <button
+                    type="button"
+                    className={HEADER_ACTION_CLASSNAME}
+                    onClick={() => {
+                      for (const control of changedControls) onControlChange(control.id, null);
+                    }}
+                  >
+                    {t("resetAll")}
+                  </button>
+                ) : null}
+              </div>
+              {items.length > 0 ? (
+                <div className="min-h-0 max-h-80 space-y-0.5 overflow-y-auto px-0.5">
+                  {unpinnedItems.map(renderMenuItem)}
+                  {pinnedItems.map(renderMenuItem)}
+                </div>
+              ) : (
+                <p className="px-2.5 pb-1 text-[11px] leading-4 text-muted-foreground">{t("empty")}</p>
+              )}
+              {/* Outside the scroll area so the entry stays at the bottom however long the list is. */}
+              {advancedOptions ? (
+                <div className="shrink-0 px-0.5">
+                  <div className="my-1.5 border-t-[0.5px] border-border" />
+                  <button type="button" className={OPTION_ROW_CLASSNAME} onClick={advancedOptions.onOpen}>
+                    <Settings2 className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-current">{advancedOptions.label}</span>
+                    <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+                  </button>
+                </div>
+              ) : null}
+            </>
+          )}
         </PopoverContent>
       </Popover>
     </>
@@ -509,7 +551,7 @@ function ChatModelControlSubmenu({
   tooltip,
 }: {
   header: string;
-  trigger: React.ReactElement;
+  trigger: React.ReactElement<React.ComponentProps<"button">>;
   renderContent: (close: () => void) => React.ReactNode;
   side?: "left" | "right" | "top" | "bottom";
   align?: "start" | "end";
@@ -518,19 +560,24 @@ function ChatModelControlSubmenu({
 }) {
   const [open, setOpen] = React.useState(false);
   const menuTooltip = useMenuTriggerTooltip(open);
+  // Only fixed-side panels need this; the others let Radix shift them.
+  const shift = useChatPopoverAlignOffset(align);
+  const anchoredTrigger = avoidCollisions ? trigger : React.cloneElement(trigger, { ref: shift.triggerRef });
   return (
     <Popover open={open} onOpenChange={setOpen}>
       {tooltip ? (
         <Tooltip {...menuTooltip.tooltipProps}>
           <TooltipTrigger asChild>
-            <PopoverTrigger asChild>{React.cloneElement(trigger, menuTooltip.triggerProps)}</PopoverTrigger>
+            <PopoverTrigger asChild>{React.cloneElement(anchoredTrigger, menuTooltip.triggerProps)}</PopoverTrigger>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">{tooltip}</TooltipContent>
         </Tooltip>
-      ) : <PopoverTrigger asChild>{trigger}</PopoverTrigger>}
+      ) : <PopoverTrigger asChild>{anchoredTrigger}</PopoverTrigger>}
       <PopoverContent
+        ref={avoidCollisions ? undefined : shift.contentRef}
         side={side}
         align={align}
+        alignOffset={avoidCollisions ? 0 : shift.alignOffset}
         sideOffset={side === "top" || side === "bottom" ? 8 : 6}
         avoidCollisions={avoidCollisions}
         collisionPadding={8}
