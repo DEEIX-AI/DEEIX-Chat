@@ -18,4 +18,5 @@ export { AdminModelsPage } from "@/features/admin/components/sections/models/adm
 export { AdminStatisticsPage } from "@/features/admin/components/sections/statistics/admin-statistics";
 export { AdminToolsPage } from "@/features/admin/components/sections/tools/admin-tools";
 export { AdminUpstreamsPage } from "@/features/admin/components/sections/upstreams/admin-upstreams";
+export { AdminUserKeysPage } from "@/features/admin/components/sections/user-keys/admin-user-keys";
 export { AdminUsersPage } from "@/features/admin/components/sections/users/admin-users";

@@ -26,3 +26,10 @@ export {
 export type { CapabilityFlags, Feature } from "./capabilities/capabilities.ts";
 export { normalizeApiBaseUrl, resolveApiBaseUrl } from "./server/url.ts";
 export type { ResolveApiBaseUrlInput } from "./server/url.ts";
+export {
+  PROVIDER_IMPORT_PROTOCOLS,
+  formatProviderImportLink,
+  maskProviderApiKey,
+  parseProviderImportLink,
+} from "./providers/import-link.ts";
+export type { ProviderImportLinkInput, ProviderImportLinkResult, ProviderImportProtocol } from "./providers/import-link.ts";

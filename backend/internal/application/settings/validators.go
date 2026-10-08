@@ -201,6 +201,19 @@ func validateEmailDomainList(value string, key string) error {
 	return nil
 }
 
+// validateHostList 校验域名列表：每项必须是不含协议、路径与端口的主机名。
+func validateHostList(value string, key string) error {
+	if len([]rune(value)) > 4096 {
+		return settingRule("max_length", "4096")
+	}
+	for _, item := range splitList(value) {
+		if !security.IsValidHostname(strings.ToLower(strings.TrimPrefix(item, "*."))) {
+			return settingRule("domain", "")
+		}
+	}
+	return nil
+}
+
 func splitList(value string) []string {
 	return strings.FieldsFunc(value, func(r rune) bool {
 		return r == ',' || r == '\n' || r == '\r' || r == '\t' || r == ' '

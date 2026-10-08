@@ -401,6 +401,8 @@ func cleanupConfigEnv(t *testing.T) {
 		"SSRF_ALLOWED_HOSTS",
 		"SSRF_ALLOWED_CIDRS",
 		"POSTGRES_DSN",
+		"DATA_ENCRYPTION_KEY",
+		"DATA_ENCRYPTION_KEYS_PREVIOUS",
 	}
 	for _, key := range keys {
 		key := key

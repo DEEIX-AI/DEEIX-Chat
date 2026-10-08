@@ -5,13 +5,15 @@ import type { Feature } from "@deeix/core";
 export const SETTINGS_SECTIONS = [
   { id: "general", labelKey: "general", href: "/general" },
   { id: "chat", labelKey: "chat", href: "/chat" },
+  // Shown only when the admin lets this user bring their own keys; see usePersonalProviderAccess.
+  { id: "models", labelKey: "models", href: "/models", feature: "multiUser" },
   { id: "subscription", labelKey: "subscription", href: "/subscription", feature: "billingGating" },
   { id: "account", labelKey: "account", href: "/account" },
   { id: "about", labelKey: "about", href: "/about" },
 ] as const satisfies readonly { id: string; labelKey: string; href: string; feature?: Feature }[];
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]["id"];
-export type SettingsSectionEntry = (typeof SETTINGS_SECTIONS)[number];
+type SettingsSectionEntry = (typeof SETTINGS_SECTIONS)[number];
 
 export const DEFAULT_SETTINGS_SECTION: SettingsSection = "general";
 
@@ -24,8 +26,4 @@ export function resolveSettingsSectionFromPath(pathname: string, basePath: strin
       return pathname === href || pathname.startsWith(`${href}/`);
     }) ?? null
   );
-}
-
-export function resolveSettingsSection(section?: string | null): SettingsSection {
-  return SETTINGS_SECTIONS.find((item) => item.id === section)?.id ?? DEFAULT_SETTINGS_SECTION;
 }

@@ -58,7 +58,7 @@ func TestApplyEmbeddingDependentCascadesDisablesRAGAndSemanticFeatures(t *testin
 			{Key: "rag_model", Value: "embed-model"},
 		},
 	}}
-	service := NewService(repo, "test-data-encryption-key")
+	service := NewService(repo, testKeyring())
 
 	patches, err := service.applyEmbeddingDependentCascades(context.Background(), []PatchItem{
 		{Namespace: "file", Key: "embedding_host", Value: ""},
@@ -95,7 +95,7 @@ func TestValidateEmbeddingDependentSettingsRejectsRAGWithoutEmbedding(t *testing
 			{Key: "rag_model", Value: "embed-model"},
 		},
 	}}
-	service := NewService(repo, "test-data-encryption-key")
+	service := NewService(repo, testKeyring())
 
 	err := service.validateEmbeddingDependentSettings(context.Background(), []PatchItem{
 		{Namespace: "chat", Key: "rag_enabled", Value: "true"},
@@ -118,7 +118,7 @@ func TestValidateEmbeddingDependentSettingsRejectsEmbeddingWithoutVectorStore(t 
 			{Namespace: "file", Key: "rag_model", Value: "embed-model"},
 		},
 	}}
-	service := NewService(repo, "test-data-encryption-key")
+	service := NewService(repo, testKeyring())
 	service.SetVectorStoreAvailabilityService(testVectorStore{available: false})
 
 	err := service.validateEmbeddingDependentSettings(context.Background(), []PatchItem{
@@ -142,7 +142,7 @@ func TestValidateEmbeddingDependentSettingsAllowsEmbeddingWithVectorStore(t *tes
 			{Namespace: "file", Key: "rag_model", Value: "embed-model"},
 		},
 	}}
-	service := NewService(repo, "test-data-encryption-key")
+	service := NewService(repo, testKeyring())
 	service.SetVectorStoreAvailabilityService(testVectorStore{available: true})
 
 	err := service.validateEmbeddingDependentSettings(context.Background(), []PatchItem{
@@ -154,7 +154,7 @@ func TestValidateEmbeddingDependentSettingsAllowsEmbeddingWithVectorStore(t *tes
 }
 
 func TestRuntimeSettingsNormalizeConfigDisablesEmbeddingDependentFeatures(t *testing.T) {
-	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	runtimeSettings := NewRuntimeSettings(nil, nil, testKeyring())
 	cfg := config.Config{
 		EmbeddingEnabled:        false,
 		EmbeddingHost:           "",
@@ -181,7 +181,7 @@ func TestValidateTurnstileRegistrationSettings(t *testing.T) {
 			{Namespace: "auth", Key: "turnstile_secret_key", Value: ""},
 		},
 	}}
-	service := NewService(repo, "test-data-encryption-key")
+	service := NewService(repo, testKeyring())
 
 	if _, err := service.applyAuthSettingDependencies(context.Background(), []PatchItem{
 		{Namespace: "auth", Key: "turnstile_registration_enabled", Value: "true"},
@@ -214,7 +214,7 @@ func TestValidatePasswordResetRequiresEmailVerification(t *testing.T) {
 			{Namespace: "auth", Key: "password_reset_enabled", Value: "false"},
 		},
 	}}
-	service := NewService(repo, "test-data-encryption-key")
+	service := NewService(repo, testKeyring())
 
 	if _, err := service.applyAuthSettingDependencies(context.Background(), []PatchItem{
 		{Namespace: "auth", Key: "password_reset_enabled", Value: "true"},
@@ -224,7 +224,7 @@ func TestValidatePasswordResetRequiresEmailVerification(t *testing.T) {
 }
 
 func TestRuntimeSettingsNormalizeConfigDisablesPasswordReset(t *testing.T) {
-	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	runtimeSettings := NewRuntimeSettings(nil, nil, testKeyring())
 	cfg := config.Config{
 		UsernameLoginEnabled:     true,
 		EmailLoginEnabled:        true,
@@ -316,7 +316,7 @@ func TestValidateCustomPromptSettings(t *testing.T) {
 }
 
 func TestRuntimeSettingsAppliesCustomPromptSettings(t *testing.T) {
-	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	runtimeSettings := NewRuntimeSettings(nil, nil, testKeyring())
 	cfg := config.Config{}
 
 	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "mcp", Key: "mcp_tool_prompt", Value: "Use MCP tools carefully."})
@@ -331,7 +331,7 @@ func TestRuntimeSettingsAppliesCustomPromptSettings(t *testing.T) {
 }
 
 func TestRuntimeSettingsAppliesConversationDefaultModel(t *testing.T) {
-	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	runtimeSettings := NewRuntimeSettings(nil, nil, testKeyring())
 	cfg := config.Config{}
 
 	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "chat", Key: "conversation_default_model", Value: " gpt-5-mini "})
@@ -365,7 +365,7 @@ func TestContextBudgetSettingsValidationAndRuntimeApplication(t *testing.T) {
 		}
 	}
 
-	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	runtimeSettings := NewRuntimeSettings(nil, nil, testKeyring())
 	cfg := config.Config{}
 	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "chat", Key: "context_window_fallback_tokens", Value: "256000"})
 	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "chat", Key: "context_compact_trigger_percent", Value: "75"})
@@ -384,7 +384,7 @@ func TestValidateMinerUFileTypesSetting(t *testing.T) {
 }
 
 func TestRuntimeSettingsAppliesMinerUFileTypes(t *testing.T) {
-	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	runtimeSettings := NewRuntimeSettings(nil, nil, testKeyring())
 	cfg := config.Config{ExtractMinerUFileTypes: "pdf,word,presentation"}
 
 	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "extract", Key: "mineru_file_types", Value: "pdf,excel"})
@@ -408,7 +408,7 @@ func TestMistralOCRSettings(t *testing.T) {
 		t.Fatal("expected Mistral OCR timeout above maximum to fail")
 	}
 
-	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	runtimeSettings := NewRuntimeSettings(nil, nil, testKeyring())
 	cfg := config.Config{}
 	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "extract", Key: "mistral_ocr_base_url", Value: "https://mistral.example/v1/ocr"})
 	runtimeSettings.applyItem(&cfg, domainsettings.SystemSetting{Namespace: "extract", Key: "mistral_ocr_auth_token", Value: "test-api-key"})
@@ -429,7 +429,7 @@ func TestValidateFileProcessingSettingsRequiresMistralOCRConfiguration(t *testin
 		{Namespace: "extract", Key: "mistral_ocr_model", Value: "mistral-ocr-latest"},
 	}
 	repo := &testSettingsRepo{byNamespace: map[string][]domainsettings.SystemSetting{"extract": baseSettings, "file": {}}}
-	service := NewService(repo, "test-data-encryption-key")
+	service := NewService(repo, testKeyring())
 	if err := service.validateFileProcessingSettings(context.Background(), []PatchItem{{Namespace: "extract", Key: "mistral_ocr_auth_token", Value: ""}}); err != nil {
 		t.Fatalf("expected an empty sensitive patch to preserve configured Mistral token, got %v", err)
 	}
@@ -446,7 +446,7 @@ func TestValidateFileProcessingSettingsRequiresMistralOCRConfiguration(t *testin
 }
 
 func TestMistralOCRAuthTokenIsSensitive(t *testing.T) {
-	service := NewService(&testSettingsRepo{}, "test-data-encryption-key")
+	service := NewService(&testSettingsRepo{}, testKeyring())
 	item, err := service.encryptSettingForStorage(domainsettings.SystemSetting{Namespace: "extract", Key: "mistral_ocr_auth_token", Value: "test-api-key"})
 	if err != nil {
 		t.Fatalf("encrypt Mistral OCR token: %v", err)
@@ -531,7 +531,7 @@ func TestValidateFullContextLimitsEnforcesConfiguredRanges(t *testing.T) {
 }
 
 func TestRuntimeSettingsDisablesFullContextLimits(t *testing.T) {
-	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	runtimeSettings := NewRuntimeSettings(nil, nil, testKeyring())
 	cfg := config.Config{
 		FileFullContextLimitEnabled: true,
 		FileFullContextMaxBytes:     65536,
@@ -556,7 +556,7 @@ func TestRuntimeSettingsDisablesFullContextLimits(t *testing.T) {
 }
 
 func TestRuntimeSettingsTreatsEmptyFullContextLimitsAsUnlimited(t *testing.T) {
-	runtimeSettings := NewRuntimeSettings(nil, nil, "test-data-encryption-key")
+	runtimeSettings := NewRuntimeSettings(nil, nil, testKeyring())
 	cfg := config.Config{
 		FileFullContextLimitEnabled: true,
 		FileFullContextMaxBytes:     65536,

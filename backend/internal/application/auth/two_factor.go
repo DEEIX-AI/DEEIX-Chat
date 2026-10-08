@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/token"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/requestmeta"
@@ -281,7 +280,7 @@ func (s *Service) StartCurrentTwoFactorSetup(ctx context.Context, userID uint) (
 	}
 	if current != nil && strings.TrimSpace(current.TOTPSecretEncrypted) != "" &&
 		current.TOTPSetupExpiresAt != nil && time.Now().Before(*current.TOTPSetupExpiresAt) {
-		secret, decryptErr := secretbox.DecryptString(s.cfg.Snapshot().DataEncryptionKey, current.TOTPSecretEncrypted)
+		secret, decryptErr := s.decryptTOTPSecret(current.TOTPSecretEncrypted)
 		if decryptErr != nil {
 			return nil, decryptErr
 		}
@@ -296,7 +295,7 @@ func (s *Service) StartCurrentTwoFactorSetup(ctx context.Context, userID uint) (
 	if err != nil {
 		return nil, err
 	}
-	encrypted, err := secretbox.EncryptString(s.cfg.Snapshot().DataEncryptionKey, secret)
+	encrypted, err := s.encryptTOTPSecret(secret)
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +339,7 @@ func (s *Service) ConfirmCurrentTwoFactorSetup(ctx context.Context, userID uint,
 		_ = s.repo.DeleteUserTwoFactor(ctx, userID)
 		return nil, ErrTwoFactorSetupExpired
 	}
-	secret, err := secretbox.DecryptString(s.cfg.Snapshot().DataEncryptionKey, twoFactor.TOTPSecretEncrypted)
+	secret, err := s.decryptTOTPSecret(twoFactor.TOTPSecretEncrypted)
 	if err != nil {
 		return nil, err
 	}
@@ -441,7 +440,7 @@ func (s *Service) verifyCurrentTwoFactorCode(ctx context.Context, userID uint, c
 		return ErrInvalidCredentials
 	}
 	normalizedCode := normalizeTwoFactorCode(code)
-	secret, err := secretbox.DecryptString(s.cfg.Snapshot().DataEncryptionKey, twoFactor.TOTPSecretEncrypted)
+	secret, err := s.decryptTOTPSecret(twoFactor.TOTPSecretEncrypted)
 	if err != nil {
 		return err
 	}
@@ -608,4 +607,20 @@ func buildOTPAuthURL(issuer string, account string, secret string) string {
 	query.Set("digits", strconv.Itoa(totpDigits))
 	query.Set("period", strconv.FormatInt(totpStepSeconds, 10))
 	return "otpauth://totp/" + label + "?" + query.Encode()
+}
+
+func (s *Service) encryptTOTPSecret(secret string) (string, error) {
+	keyring, err := s.cfg.Snapshot().Keyring()
+	if err != nil {
+		return "", err
+	}
+	return keyring.EncryptString(secret)
+}
+
+func (s *Service) decryptTOTPSecret(encrypted string) (string, error) {
+	keyring, err := s.cfg.Snapshot().Keyring()
+	if err != nil {
+		return "", err
+	}
+	return keyring.DecryptString(encrypted)
 }

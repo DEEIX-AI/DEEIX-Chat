@@ -26,6 +26,8 @@ type OutboundPolicy struct {
 	enforce         bool
 	allowedHosts    map[string]struct{}
 	allowedPrefixes []netip.Prefix
+	// publicOnly 额外拒绝所有非公网单播地址（CGNAT、NAT64、6to4、保留与文档网段等），用于不受信任的用户自配端点。
+	publicOnly bool
 }
 
 // NewOutboundPolicy 创建并校验出站策略。allowedHosts 仅支持精确主机名，allowedCIDRs 使用标准 CIDR。
@@ -65,6 +67,12 @@ func NewOutboundPolicy(enforce bool, allowedHosts []string, allowedCIDRs []strin
 // NewStrictOutboundPolicy 创建不含私网白名单的策略。
 func NewStrictOutboundPolicy(enforce bool) OutboundPolicy {
 	return OutboundPolicy{enforce: enforce}
+}
+
+// NewPublicOnlyOutboundPolicy 创建只允许公网单播目标、始终强制执行的策略，用于普通用户配置的端点。
+// 它不接受任何白名单：除私网与回环外，还拒绝 CGNAT（如 Tailscale）、NAT64/6to4 等可能映射回内网的网段。
+func NewPublicOnlyOutboundPolicy() OutboundPolicy {
+	return OutboundPolicy{enforce: true, publicOnly: true}
 }
 
 // ValidateTrustedOutboundHTTPURL 校验管理员可显式授权的 HTTP(S) 端点格式。
@@ -181,7 +189,7 @@ func ValidateOutboundHTTPURL(raw string, policy OutboundPolicy) error {
 	if host == "" || strings.Contains(host, "%") || isNeverAllowedHostname(host) || (isUnsafeHostname(host) && !policy.allowsHost(host)) {
 		return fmt.Errorf("%w: unsafe host", ErrUnsafeOutboundURL)
 	}
-	if ip := net.ParseIP(host); ip != nil && (isNeverAllowedIP(ip) || (isPrivateOrLoopbackIP(ip) && !policy.allowsIP(ip))) {
+	if ip := net.ParseIP(host); ip != nil && (isNeverAllowedIP(ip) || (policy.isRestrictedLiteralIP(ip) && !policy.allowsIP(ip))) {
 		return fmt.Errorf("%w: unsafe ip", ErrUnsafeOutboundURL)
 	}
 	return nil
@@ -265,7 +273,7 @@ func resolveSafeDialAddresses(ctx context.Context, network string, address strin
 		return nil, fmt.Errorf("%w: unsafe host", ErrUnsafeOutboundURL)
 	}
 	if ip := net.ParseIP(host); ip != nil {
-		if isNeverAllowedIP(ip) || (isPrivateOrLoopbackIP(ip) && !policy.allowsIP(ip)) {
+		if isNeverAllowedIP(ip) || (policy.isRestrictedLiteralIP(ip) && !policy.allowsIP(ip)) {
 			return nil, fmt.Errorf("%w: unsafe ip", ErrUnsafeOutboundURL)
 		}
 		if !ipMatchesNetwork(ip, network) {
@@ -286,7 +294,7 @@ func resolveSafeDialAddresses(ctx context.Context, network string, address strin
 		if ip == nil {
 			continue
 		}
-		if isNeverAllowedIP(ip) || (isPrivateOrLoopbackIP(ip) && !hostAllowed && !policy.allowsIP(ip)) {
+		if isNeverAllowedIP(ip) || (policy.isRestrictedIP(ip) && !hostAllowed && !policy.allowsIP(ip)) {
 			return nil, fmt.Errorf("%w: unsafe resolved ip", ErrUnsafeOutboundURL)
 		}
 		if ipMatchesNetwork(ip, network) {
@@ -333,6 +341,11 @@ func (p OutboundPolicy) allowsIP(ip net.IP) bool {
 	return false
 }
 
+// IsValidHostname 报告 host 是否为合法的 DNS 主机名（不含协议、端口、路径，也不是 IP）。
+func IsValidHostname(host string) bool {
+	return isValidAllowlistedHostname(normalizeURLHostname(host))
+}
+
 func isValidAllowlistedHostname(host string) bool {
 	if host == "" || len(host) > 253 || net.ParseIP(host) != nil || strings.ContainsAny(host, "/:@?#[]%") {
 		return false
@@ -362,6 +375,72 @@ func isUnsafeHostname(host string) bool {
 	default:
 		return strings.HasSuffix(host, ".localhost")
 	}
+}
+
+// isRestrictedIP 报告 ip 是否需要显式授权才能访问：私网与回环始终如此，publicOnly 策略还包括所有非公网单播网段。
+func (p OutboundPolicy) isRestrictedIP(ip net.IP) bool {
+	return isPrivateOrLoopbackIP(ip) || (p.publicOnly && isNonPublicIP(ip))
+}
+
+// isRestrictedLiteralIP 用于直接填写的 IP：在 isRestrictedIP 之外，publicOnly 策略还拒绝 fake-IP 网段。
+func (p OutboundPolicy) isRestrictedLiteralIP(ip net.IP) bool {
+	return isPrivateOrLoopbackIP(ip) || (p.publicOnly && isLiteralNonPublicIP(ip))
+}
+
+// nonPublicPrefixes 是 IANA 特殊用途网段中不属于公网单播、或可能被转换回内网地址的部分。
+var nonPublicPrefixes = func() []netip.Prefix {
+	raw := []string{
+		"0.0.0.0/8",       // 本网络
+		"100.64.0.0/10",   // CGNAT，常见于 Tailscale 等内网
+		"192.0.0.0/24",    // IETF 协议分配
+		"192.0.2.0/24",    // 文档网段
+		"198.51.100.0/24", // 文档网段
+		"203.0.113.0/24",  // 文档网段
+		"240.0.0.0/4",     // 保留（含广播）
+		"64:ff9b::/96",    // NAT64，可映射到任意 IPv4（含内网）
+		"64:ff9b:1::/48",  // 本地 NAT64
+		"100::/64",        // 丢弃前缀
+		"2001::/23",       // IETF 协议分配（含 Teredo）
+		"2001:db8::/32",   // 文档网段
+		"2002::/16",       // 6to4，可嵌入任意 IPv4（含内网）
+		"fec0::/10",       // 已废弃的站点本地
+	}
+	prefixes := make([]netip.Prefix, 0, len(raw))
+	for _, value := range raw {
+		prefixes = append(prefixes, netip.MustParsePrefix(value))
+	}
+	return prefixes
+}()
+
+// fakeIPPrefix 是 RFC 2544 基准测试网段。Clash、Surge 等透明代理把它用作 fake-IP 池：
+// 开启后任何域名都解析到这里、由本机代理接管真实连接，屏蔽它会让这类部署完全无法访问外部服务。
+// 它不承载真实主机，因此只对“直接填写的 IP”拒绝，对域名解析结果放行。
+var fakeIPPrefix = netip.MustParsePrefix("198.18.0.0/15")
+
+// isLiteralNonPublicIP 在 isNonPublicIP 之外额外拒绝 fake-IP 网段，用于用户直接填写 IP 的场景。
+func isLiteralNonPublicIP(ip net.IP) bool {
+	if isNonPublicIP(ip) {
+		return true
+	}
+	address, ok := netip.AddrFromSlice(ip)
+	return ok && fakeIPPrefix.Contains(address.Unmap())
+}
+
+func isNonPublicIP(ip net.IP) bool {
+	address, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return true
+	}
+	address = address.Unmap()
+	if !address.IsGlobalUnicast() {
+		return true
+	}
+	for _, prefix := range nonPublicPrefixes {
+		if prefix.Contains(address) {
+			return true
+		}
+	}
+	return false
 }
 
 func isPrivateOrLoopbackIP(ip net.IP) bool {

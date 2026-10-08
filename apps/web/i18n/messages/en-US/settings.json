@@ -3,6 +3,7 @@
   "general": "General",
   "account": "Account",
   "chat": "Chat",
+  "models": "Models",
   "subscription": "Subscription",
   "about": "About",
   "navigation": "Settings navigation",
@@ -687,6 +688,162 @@
       "invalidRedemptionCode": "Enter a redemption code.",
       "redemptionSucceeded": "Redemption applied",
       "redemptionFailed": "Redemption failed"
+    }
+  },
+  "modelsPage": {
+    "title": "Custom providers",
+    "add": "Add provider",
+    "limitReached": "Limit reached ({max})",
+    "empty": "No providers",
+    "footnote": "API keys are stored encrypted on this site and only sent to their provider. Up to {max} providers.",
+    "columns": {
+      "name": "Name",
+      "baseURL": "Base URL",
+      "protocol": "Protocol",
+      "models": "Models",
+      "status": "Status"
+    },
+    "status": {
+      "active": "Active",
+      "disabled": "Disabled",
+      "suspended": "Blocked",
+      "error": "Connection error"
+    },
+    "suspendedHint": "Blocked by an administrator",
+    "actions": {
+      "more": "More actions",
+      "edit": "Edit",
+      "check": "Test connection",
+      "enable": "Enable",
+      "disable": "Disable",
+      "delete": "Delete"
+    },
+    "protocols": {
+      "openai_chat_completions": "Chat Completions (OpenAI)",
+      "openai_responses": "Responses (OpenAI)",
+      "anthropic_messages": "Messages (Anthropic)",
+      "google_generate_content": "Generate Content (Google)",
+      "gemini_interactions": "Interactions (Google)",
+      "xai_responses": "Responses (xAI)",
+      "openrouter_chat_completions": "Chat Completions (OpenRouter)",
+      "openrouter_responses": "Responses (OpenRouter)"
+    },
+    "toasts": {
+      "loadFailed": "Could not load",
+      "saveFailed": "Could not save",
+      "saved": "Saved",
+      "deleted": "Deleted",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "checkPassed": "{count, plural, one {Connected · # model} other {Connected · # models}}",
+      "checkFailed": "Connection failed",
+      "added": "Added"
+    },
+    "deleteDialog": {
+      "title": "Delete provider?",
+      "description": "“{name}” and its API key will be deleted. This can’t be undone."
+    },
+    "dialog": {
+      "title": "Add provider",
+      "importTitle": "Import provider",
+      "description": "Enter the base URL and API key, then fetch the model list.",
+      "name": "Name",
+      "namePlaceholder": "Defaults to the domain",
+      "baseURL": "Base URL",
+      "baseURLHint": "Public HTTPS only, usually ending in /v1.",
+      "protocol": "Protocol",
+      "apiKey": "API key",
+      "apiKeyPlaceholder": "Paste your API key",
+      "models": "Models",
+      "probeFailed": "Couldn’t fetch models",
+      "privacyNote": "API keys are stored encrypted on this site and not shown again.",
+      "saveFailed": "Could not save"
+    },
+    "editDialog": {
+      "title": "Edit provider",
+      "name": "Name",
+      "rotateKey": "Replace API key",
+      "rotateKeyPlaceholder": "Leave empty to keep the current key",
+      "baseURL": "Base URL",
+      "endpointLocked": "The base URL can’t be changed. Add a new provider to switch.",
+      "models": "Enabled models",
+      "loadFailed": "Couldn’t fetch models",
+      "loadFailedHint": "{reason} Only enabled models can be changed."
+    },
+    "iconPicker": {
+      "choose": "Choose icon",
+      "search": "Search icons",
+      "auto": "Automatic",
+      "empty": "No matching icons",
+      "refine": "Type to narrow the results"
+    },
+    "selectDialog": {
+      "title": "Choose models",
+      "description": "Selected models can be used in chats.",
+      "placeholder": "Choose models",
+      "all": "All",
+      "selected": "Selected",
+      "search": "Search models",
+      "column": "Model",
+      "selectVisible": "Select all listed",
+      "loading": "Fetching models",
+      "refresh": "Fetch again",
+      "empty": "No matching models",
+      "emptySelected": "No models selected"
+    },
+    "importLink": {
+      "open": "Import link",
+      "title": "Import link",
+      "description": "Users open the link and confirm to add the provider.",
+      "link": "Link",
+      "linkHint": "Fill in the table to build the link; empty fields keep the {address} and {key} placeholders.",
+      "copyLink": "Copy link",
+      "columns": {
+        "name": "Parameter",
+        "value": "Value"
+      },
+      "required": "Required",
+      "parameters": {
+        "url": "Base URL",
+        "key": "API key",
+        "protocol": "Protocol",
+        "name": "Name"
+      },
+      "protocolAuto": "Auto-detect",
+      "copied": "Copied"
+    }
+  },
+  "importPage": {
+    "title": "Import provider",
+    "loading": "Loading",
+    "backToChat": "Back to chat",
+    "fields": {
+      "key": "API key"
+    },
+    "warning": "Conversations will be sent to {host}. Only import links you trust.",
+    "duplicate": "Already added as “{name}”.",
+    "limitReached": "Limit of {max} reached. Delete one to import.",
+    "manage": "Manage custom providers",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "imported": "Imported",
+    "unavailable": {
+      "title": "Import unavailable",
+      "description": "Custom providers are not enabled for this account."
+    },
+    "invalid": {
+      "title": "Invalid link",
+      "empty": "The link is empty.",
+      "unsupported_version": "Unsupported link version.",
+      "unknown_parameter": "The link has an unknown parameter.",
+      "duplicate_parameter": "The link has a duplicate parameter.",
+      "missing_url": "Missing address.",
+      "invalid_url": "Invalid address.",
+      "insecure_url": "Only HTTPS addresses are supported.",
+      "missing_key": "Missing API key.",
+      "invalid_key": "Invalid API key format.",
+      "invalid_protocol": "Unsupported API protocol.",
+      "invalid_name": "Invalid name."
     }
   }
 }

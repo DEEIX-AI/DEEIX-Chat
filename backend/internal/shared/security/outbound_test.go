@@ -267,3 +267,67 @@ func assertDialAddress(t *testing.T, policy OutboundPolicy, address string, look
 		t.Fatalf("expected dial address %q, got %q", want, dialAddress)
 	}
 }
+
+func TestPublicOnlyPolicyRejectsNonPublicRanges(t *testing.T) {
+	policy := NewPublicOnlyOutboundPolicy()
+	for _, raw := range []string{
+		"https://127.0.0.1/v1",
+		"https://10.1.2.3/v1",
+		"https://192.168.1.1/v1",
+		"https://100.100.100.200/latest/meta-data",
+		"https://100.64.0.1/v1",
+		"https://[fd00::1]/v1",
+		"https://[64:ff9b::a00:1]/v1",
+		"https://[2002:a00:1::]/v1",
+		"https://[::ffff:10.0.0.1]/v1",
+		"https://198.18.0.1/v1",
+		"https://240.0.0.1/v1",
+		"https://localhost/v1",
+		"https://metadata.google.internal/v1",
+	} {
+		if err := ValidateOutboundHTTPURL(raw, policy); err == nil {
+			t.Errorf("expected %s to be rejected", raw)
+		}
+	}
+	for _, raw := range []string{
+		"https://api.openai.com/v1",
+		"https://1.1.1.1/v1",
+		"https://[2606:4700:4700::1111]/v1",
+	} {
+		if err := ValidateOutboundHTTPURL(raw, policy); err != nil {
+			t.Errorf("expected %s to be allowed: %v", raw, err)
+		}
+	}
+}
+
+func TestPublicOnlyDialRejectsHostnamesResolvingToNonPublicAddresses(t *testing.T) {
+	policy := NewPublicOnlyOutboundPolicy()
+	for _, resolved := range []string{"127.0.0.1", "10.0.0.8", "100.64.1.2", "64:ff9b::a00:1"} {
+		lookup := func(context.Context, string) ([]net.IPAddr, error) {
+			return []net.IPAddr{{IP: net.ParseIP(resolved)}}, nil
+		}
+		if _, err := resolveSafeDialAddresses(context.Background(), "tcp", "rebind.example.com:443", policy, lookup); err == nil {
+			t.Errorf("expected a hostname resolving to %s to be rejected", resolved)
+		}
+	}
+	for _, resolved := range []string{"104.18.0.1", "198.18.2.122"} {
+		lookup := func(context.Context, string) ([]net.IPAddr, error) {
+			return []net.IPAddr{{IP: net.ParseIP(resolved)}}, nil
+		}
+		// 198.18.0.0/15 是 Clash/Surge 等透明代理的 fake-IP 池，域名解析到这里必须放行。
+		if _, err := resolveSafeDialAddresses(context.Background(), "tcp", "api.example.com:443", policy, lookup); err != nil {
+			t.Fatalf("hostname resolving to %s rejected: %v", resolved, err)
+		}
+	}
+	// 直接填写 fake-IP 网段的地址仍然拒绝。
+	if _, err := resolveSafeDialAddresses(context.Background(), "tcp", "198.18.2.122:443", policy, nil); err == nil {
+		t.Fatal("literal fake-IP address must be rejected")
+	}
+}
+
+func TestStrictPolicyKeepsItsPreviousCGNATBehavior(t *testing.T) {
+	// 部署级严格策略不受 publicOnly 影响，避免改变管理员已有端点的可达性。
+	if err := ValidateOutboundHTTPURL("https://100.64.0.1/v1", NewStrictOutboundPolicy(true)); err != nil {
+		t.Fatalf("strict policy changed behavior for CGNAT: %v", err)
+	}
+}

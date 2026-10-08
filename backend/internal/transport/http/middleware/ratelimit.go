@@ -239,3 +239,28 @@ func atLeast(value int, minimum int) int {
 	}
 	return value
 }
+
+// UpstreamProbeRateLimit 保护会让服务器替用户请求外部地址的接口（检测或保存自带 Key）。
+// 与全局限流开关无关、对管理员同样生效：这类接口可被用来批量验证窃取的 Key 或探测网络，必须始终限速。
+// 存储失败时放行，与其它限流保持一致的可用性取舍。
+func UpstreamProbeRateLimit(limiter RateLimiter, perMinute int) gin.HandlerFunc {
+	policy := newRateLimitPolicy("upstream_probe", perMinute, errRateLimitExceeded)
+	return func(c *gin.Context) {
+		if limiter == nil {
+			c.Next()
+			return
+		}
+		userID, exists := c.Get(ContextKeyUserID)
+		if !exists {
+			c.Next()
+			return
+		}
+		key := fmt.Sprintf("ratelimit:user:%v:upstream_probe", userID)
+		allowed, err := limiter.AllowSlidingWindow(c.Request.Context(), key, policy.Limit, policy.Window, policy.TTL)
+		if err != nil || allowed {
+			c.Next()
+			return
+		}
+		writeRateLimitError(c, policy)
+	}
+}

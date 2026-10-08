@@ -153,7 +153,7 @@ func TestEphemeralCoordinatorBlockDoesNotMutateConversationRun(t *testing.T) {
 
 func TestKnownHitRemainsBlockedWhenDurableApplyFails(t *testing.T) {
 	repo := &coordinatorTestRepo{applyErr: errors.New("database unavailable")}
-	service := NewService(nil, repo, "", nil)
+	service := NewService(nil, repo, nil, nil)
 	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_known_hit"}, runtimeConfig{Timeout: time.Second})
 	coord.blocked = true
 	coord.blockInfo = BlockInfo{EventID: "cme_hit", Direction: domaincm.DirectionOutput, Categories: []string{"violence"}}
@@ -184,7 +184,7 @@ func TestKnownHitRemainsBlockedWhenDurableApplyFails(t *testing.T) {
 
 func TestLateHitRunsFullBlockCompensation(t *testing.T) {
 	repo := &coordinatorTestRepo{}
-	service := NewService(nil, repo, "", nil)
+	service := NewService(nil, repo, nil, nil)
 	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_late_hit"}, runtimeConfig{})
 	coord.pending = 1
 	coord.outputEnqueued = true
@@ -214,7 +214,7 @@ func TestLateHitRunsFullBlockCompensation(t *testing.T) {
 
 func TestInputHitTakesPrecedenceOverOutputHit(t *testing.T) {
 	repo := &coordinatorTestRepo{}
-	service := NewService(nil, repo, "", nil)
+	service := NewService(nil, repo, nil, nil)
 	cancelCalls := 0
 	service.SetCancelRun(func(context.Context, string) { cancelCalls++ })
 	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_input_priority"}, runtimeConfig{})
@@ -237,7 +237,7 @@ func TestInputHitTakesPrecedenceOverOutputHit(t *testing.T) {
 
 func TestLateInputHitUpgradesHandledOutputBlock(t *testing.T) {
 	repo := &coordinatorTestRepo{}
-	service := NewService(nil, repo, "", nil)
+	service := NewService(nil, repo, nil, nil)
 	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_late_input"}, runtimeConfig{})
 	coord.pending = 1
 	coord.outputEnqueued = true
@@ -262,7 +262,7 @@ func TestLateInputHitUpgradesHandledOutputBlock(t *testing.T) {
 
 func TestWorkerPrefetchDoesNotBypassQueueCapacity(t *testing.T) {
 	repo := &coordinatorTestRepo{}
-	service := NewService(nil, repo, "", nil)
+	service := NewService(nil, repo, nil, nil)
 	service.maxConcurrency = 1
 	service.queueCapacity = 1
 	service.activeWorkers = 1 // 让 worker 持续等待逻辑并发槽位
@@ -294,7 +294,7 @@ func TestWorkerPrefetchDoesNotBypassQueueCapacity(t *testing.T) {
 
 func TestOutputImageLoadFailureIsAuditedAsFailedOpen(t *testing.T) {
 	repo := &coordinatorTestRepo{}
-	service := NewService(nil, repo, "", nil)
+	service := NewService(nil, repo, nil, nil)
 	cfg := runtimeConfig{
 		Policy: Policy{OutputImageCategories: []string{"violence"}},
 	}
@@ -322,7 +322,7 @@ func TestOutputImageLoadFailureIsAuditedAsFailedOpen(t *testing.T) {
 
 func TestInputImageModerationSkipsNonImageAttachments(t *testing.T) {
 	repo := &coordinatorTestRepo{}
-	service := NewService(nil, repo, "", nil)
+	service := NewService(nil, repo, nil, nil)
 	service.SetImageLoader(func(context.Context, uint, string) (PreparedImage, error) {
 		return PreparedImage{}, ErrNonImageAttachment
 	})
@@ -344,7 +344,7 @@ func TestInputImageModerationSkipsNonImageAttachments(t *testing.T) {
 }
 
 func TestEphemeralInputImageModerationQueuesRequestScopedBytes(t *testing.T) {
-	service := NewService(nil, &coordinatorTestRepo{}, "", nil)
+	service := NewService(nil, &coordinatorTestRepo{}, nil, nil)
 	cfg := runtimeConfig{Policy: Policy{InputImageCategories: []string{"violence"}}}
 	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_ephemeral_image", Ephemeral: true}, cfg)
 
@@ -369,7 +369,7 @@ func TestEphemeralInputImageModerationQueuesRequestScopedBytes(t *testing.T) {
 func TestRecordHitRollsBackIsolatedImagesWhenEventCreateFails(t *testing.T) {
 	repo := &coordinatorTestRepo{createErr: errors.New("database unavailable")}
 	store := &coordinatorTestObjectStore{}
-	service := NewService(nil, repo, "test-encryption-key", nil)
+	service := NewService(nil, repo, testKeyring(), nil)
 	service.SetObjectStore(store)
 	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "run_rollback", UserID: 42}, runtimeConfig{})
 	task := &moderationTask{

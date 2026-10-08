@@ -70,7 +70,7 @@ func TestSeedMigratesLegacyDefaultAllowedMIMETypes(t *testing.T) {
 			Value:     legacy,
 			ValueType: "string",
 		})
-		service := NewService(repo, "")
+		service := NewService(repo, nil)
 
 		if err := service.Seed(context.Background()); err != nil {
 			t.Fatalf("seed settings: %v", err)
@@ -90,7 +90,7 @@ func TestSeedKeepsCustomAllowedMIMETypes(t *testing.T) {
 		Value:     custom,
 		ValueType: "string",
 	})
-	service := NewService(repo, "")
+	service := NewService(repo, nil)
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -103,7 +103,7 @@ func TestSeedKeepsCustomAllowedMIMETypes(t *testing.T) {
 
 func TestSeedUsesDefaultFullContextMaxBytesForMissingSetting(t *testing.T) {
 	repo := newSettingsSeedRepo()
-	service := NewService(repo, "")
+	service := NewService(repo, nil)
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -129,7 +129,7 @@ func TestSeedReplacesLegacyCompactTokenThresholdWithModelAwareDefaults(t *testin
 			ValueType: "int",
 		},
 	)
-	service := NewService(repo, "")
+	service := NewService(repo, nil)
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -150,7 +150,7 @@ func TestSeedReplacesLegacyCompactTokenThresholdWithModelAwareDefaults(t *testin
 
 func TestSeedAddsMistralOCRDefaults(t *testing.T) {
 	repo := newSettingsSeedRepo()
-	service := NewService(repo, "test-data-encryption-key")
+	service := NewService(repo, testKeyring())
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -178,7 +178,7 @@ func TestSeedKeepsExistingFullContextMaxBytes(t *testing.T) {
 		Value:     existingValue,
 		ValueType: "int",
 	})
-	service := NewService(repo, "")
+	service := NewService(repo, nil)
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -205,7 +205,7 @@ func TestSeedMigratesLegacyDefaultModelOptionAllowedPaths(t *testing.T) {
 		Value:     string(legacyJSON),
 		ValueType: "json",
 	})
-	service := NewService(repo, "")
+	service := NewService(repo, nil)
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -232,7 +232,7 @@ func TestSeedAddsXAIVideoToPreviousDefaultModelOptionAllowedPaths(t *testing.T) 
 		Value:     string(previousJSON),
 		ValueType: "json",
 	})
-	service := NewService(repo, "")
+	service := NewService(repo, nil)
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -258,7 +258,7 @@ func TestSeedAddsXAIVideoExtensionsToPreviousDefaultModelOptionAllowedPaths(t *t
 		Value:     string(previousJSON),
 		ValueType: "json",
 	})
-	service := NewService(repo, "")
+	service := NewService(repo, nil)
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -287,7 +287,7 @@ func TestSeedAddsGeminiThinkingSummariesToPreviousDefaultModelOptionAllowedPaths
 		Value:     string(previousJSON),
 		ValueType: "json",
 	})
-	service := NewService(repo, "")
+	service := NewService(repo, nil)
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -320,7 +320,7 @@ func TestSeedReplacesLegacyGeminiInteractionsOptionPaths(t *testing.T) {
 		Value:     string(previousJSON),
 		ValueType: "json",
 	})
-	service := NewService(repo, "")
+	service := NewService(repo, nil)
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -352,7 +352,7 @@ func TestSeedAddsGeminiGenerateContentThinkingPathsToPreviousDefaultModelOptionA
 		Value:     string(previousJSON),
 		ValueType: "json",
 	})
-	service := NewService(repo, "")
+	service := NewService(repo, nil)
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -370,7 +370,7 @@ func TestSeedKeepsCustomModelOptionAllowedPaths(t *testing.T) {
 		Value:     custom,
 		ValueType: "json",
 	})
-	service := NewService(repo, "")
+	service := NewService(repo, nil)
 
 	if err := service.Seed(context.Background()); err != nil {
 		t.Fatalf("seed settings: %v", err)

@@ -26,6 +26,7 @@ import (
 	mcphttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/mcp"
 	memoryhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
+	personalproviderhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/personalprovider"
 	promptpresethttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/promptpreset"
 	settingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/settings"
 	skillhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/skill"
@@ -70,6 +71,7 @@ type Modules struct {
 	Settings          *settingshttp.Module
 	User              *userhttp.Module
 	UserSettings      *usersettingshttp.Module
+	PersonalProvider  *personalproviderhttp.Module
 	StartupLog        func(*zap.Logger)
 	// Shutdown 是进程关停排空信号；排空期间就绪探针返回 503，引导负载均衡摘除流量。
 	Shutdown *lifecycle.Shutdown
@@ -88,7 +90,8 @@ func (m Modules) hasAdminRoutes() bool {
 		m.Skill != nil ||
 		m.UIComponent != nil ||
 		m.KnowledgeBase != nil ||
-		m.ContentModeration != nil
+		m.ContentModeration != nil ||
+		m.PersonalProvider != nil
 }
 
 // NewEngine 创建并注册 API 路由。
@@ -212,6 +215,9 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	if modules.UserSettings != nil {
 		modules.UserSettings.RegisterRoutes(authRequired)
 	}
+	if modules.PersonalProvider != nil {
+		modules.PersonalProvider.RegisterRoutes(authRequired)
+	}
 	if modules.Settings != nil {
 		modules.Settings.RegisterRoutes(authRequired)
 	}
@@ -256,6 +262,9 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		}
 		if modules.KnowledgeBase != nil {
 			modules.KnowledgeBase.RegisterAdminRoutes(adminGroup)
+		}
+		if modules.PersonalProvider != nil {
+			modules.PersonalProvider.RegisterAdminRoutes(adminGroup)
 		}
 	}
 

@@ -31,6 +31,10 @@ security:
   # Required only when an MCP Server uses ${DEEIX_SIGNED_USER_CONTEXT}.
   mcp_user_context_secret: ""
   data_encryption_key: "change-me-dev-data-encryption-key-32-bytes-min"
+  # Optional. Previous data_encryption_key values, kept so data encrypted with them stays readable.
+  # To change the key, set data_encryption_key to the new value, move the old one here and restart. Stored data is
+  # re-encrypted in the background; remove the old key once the log reports data_encryption_key_rotation_completed.
+  data_encryption_keys_previous: []
   # Optional. Enable in production to block outbound requests to private or metadata networks.
   ssrf_protection_enabled: false
   # Optional. Exact trusted integration hostnames, comma-separated (for example: new-api,host.docker.internal). Configure only for hostname targets; do not include schemes, ports, paths, IPs, or wildcards.

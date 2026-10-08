@@ -11,7 +11,6 @@ import (
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/mcpauth"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	portmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
@@ -599,12 +598,27 @@ func normalizeToolStatus(status string) (string, error) {
 	}
 }
 
+// encryptToken 加密 MCP 认证令牌；未配置令牌的服务不需要主密钥。
 func (s *Service) encryptToken(token string) (string, error) {
-	return secretbox.EncryptString(s.cfg.Snapshot().DataEncryptionKey, token)
+	if strings.TrimSpace(token) == "" {
+		return "", nil
+	}
+	keyring, err := s.cfg.Snapshot().Keyring()
+	if err != nil {
+		return "", err
+	}
+	return keyring.EncryptString(token)
 }
 
 func (s *Service) decryptToken(encrypted string) (string, error) {
-	return secretbox.DecryptString(s.cfg.Snapshot().DataEncryptionKey, encrypted)
+	if strings.TrimSpace(encrypted) == "" {
+		return "", nil
+	}
+	keyring, err := s.cfg.Snapshot().Keyring()
+	if err != nil {
+		return "", err
+	}
+	return keyring.DecryptString(encrypted)
 }
 
 func parseHeadersJSON(raw string) (map[string]string, error) {

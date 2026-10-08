@@ -74,7 +74,8 @@
       "upstreamName": "Upstream",
       "upstreamModel": "Actual model",
       "bindingCode": "Binding code",
-      "protocol": "Protocol"
+      "protocol": "Protocol",
+      "personalKey": "BYOK"
     },
     "tokens": {
       "inputShort": "In",

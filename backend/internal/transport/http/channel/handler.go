@@ -1,12 +1,14 @@
 package channel
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
 	"strconv"
 
 	appchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
+	apppersonalprovider "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/personalprovider"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
@@ -15,7 +17,18 @@ import (
 
 // Handler 封装上游与模型管理 HTTP 处理。
 type Handler struct {
-	service *appchannel.Service
+	service        *appchannel.Service
+	personalModels personalModelSource
+}
+
+// personalModelSource 提供用户自带 Key 的模型；功能关闭时返回空列表。
+type personalModelSource interface {
+	ListActiveModels(ctx context.Context, userID uint) ([]apppersonalprovider.ModelEntry, error)
+}
+
+// SetPersonalModelSource 注入用户自带 Key 的模型来源，使其出现在用户模型目录中。
+func (h *Handler) SetPersonalModelSource(source personalModelSource) {
+	h.personalModels = source
 }
 
 func bindModelProbeRequest(c *gin.Context) (ModelProbeRequest, bool) {
@@ -53,7 +66,8 @@ func NewHandler(service *appchannel.Service) *Handler {
 // @Failure 500 {object} ErrorDoc
 // @Router /models [get]
 func (h *Handler) ListPublicModels(c *gin.Context) {
-	items, err := h.service.ListActiveModels(c.Request.Context(), middleware.MustUserID(c))
+	userID := middleware.MustUserID(c)
+	items, err := h.service.ListActiveModels(c.Request.Context(), userID)
 	if err != nil {
 		response.InternalError(c)
 		return
@@ -63,6 +77,14 @@ func (h *Handler) ListPublicModels(c *gin.Context) {
 	views := make([]PublicModelResponse, 0, len(items))
 	for _, item := range items {
 		views = append(views, toPublicModelResponse(item, resolver))
+	}
+	if h.personalModels != nil {
+		// 个人模型读取失败不影响平台模型目录。
+		if entries, err := h.personalModels.ListActiveModels(c.Request.Context(), userID); err == nil {
+			for _, entry := range entries {
+				views = append(views, toPersonalModelResponse(h.service, entry, resolver))
+			}
+		}
 	}
 	response.Success(c, views)
 }

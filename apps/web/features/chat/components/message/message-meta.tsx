@@ -69,12 +69,12 @@ import {
   formatBillingDisplayPreciseAmountFromUSD,
   formatBillingDisplayUnitPriceFromUSD,
 } from "@/entities/billing";
-import type { ReasoningEffortLevel } from "@/entities/model";
+import { type ReasoningEffortLevel, resolveModelOptionLabel } from "@/entities/model";
 
 const META_ACTION_BUTTON_CLASSNAME =
   "text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
 
-export type ChatMetaMessage = {
+type ChatMetaMessage = {
   publicID: string;
   parentPublicID?: string | null;
   status?: string;
@@ -1184,7 +1184,7 @@ export function AssistantMessageMeta({
       <div className="flex min-w-0 max-w-full flex-col items-start gap-1.5 pt-0.5">
         {hasDetailBadges ? (
           <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
-            {showModelInfo ? <ModelBadge label={item.platformModelName?.trim() || ""} /> : null}
+            {showModelInfo ? <ModelBadge label={resolveModelOptionLabel(item.platformModelName ?? "")} /> : null}
             {showTokenUsage ? (
               <TokenBadge
                 inputTokens={item.inputTokens}

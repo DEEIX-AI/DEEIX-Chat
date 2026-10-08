@@ -22,6 +22,10 @@ export type ChatModelOption = {
   displayGroupID: number | null;
   displayGroupName: string;
   displayGroupIcon: string;
+  // Set for models served by the user's own key (named after their provider); null for platform models.
+  personalProviderName: string | null;
+  // Icon slug resolved on the client: the user's own pick, else the preset matched by address.
+  personalProviderIcon: string;
   kinds: string[];
   protocols: string[];
   defaultOptions: ConversationOptions;
@@ -48,7 +52,7 @@ export const MODEL_MODALITIES = ["text", "image", "pdf", "audio", "video"] as co
 
 export type ModelModality = (typeof MODEL_MODALITIES)[number];
 
-export type ModelMediaTaskConfig = {
+type ModelMediaTaskConfig = {
   enabled: boolean;
   defaultOptions: ConversationOptions;
   optionControls: ModelOptionControl[];

@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
@@ -133,7 +133,7 @@ func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint
 		if len(schema) == 0 {
 			schema = json.RawMessage(`{"type":"object","properties":{}}`)
 		}
-		token, err := secretbox.DecryptString(cfg.DataEncryptionKey, server.AuthTokenEnc)
+		token, err := openMCPAuthToken(cfg, server.AuthTokenEnc)
 		if err != nil {
 			if isAttachmentProcessor {
 				return selectedToolRuntime{}, fmt.Errorf("%w: processor credentials are unavailable", ErrImageAttachmentProcessingFailed)
@@ -264,4 +264,16 @@ func parseMCPHeaders(raw string) map[string]string {
 		result[headerKey] = strings.TrimSpace(item)
 	}
 	return result
+}
+
+// openMCPAuthToken 解密 MCP 服务的认证令牌；未配置令牌时不需要主密钥。
+func openMCPAuthToken(cfg config.Config, encrypted string) (string, error) {
+	if strings.TrimSpace(encrypted) == "" {
+		return "", nil
+	}
+	keyring, err := cfg.Keyring()
+	if err != nil {
+		return "", err
+	}
+	return keyring.DecryptString(encrypted)
 }

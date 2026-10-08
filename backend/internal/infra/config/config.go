@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/url"
@@ -8,8 +9,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	sharedsecurity "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	"gopkg.in/yaml.v3"
 )
@@ -38,6 +41,10 @@ const (
 	defaultHTTPShutdownTimeoutSeconds = 10
 	// DefaultDesktopDownloadURL 是桌面端下载页的默认地址。
 	DefaultDesktopDownloadURL = "https://deeix.com/download"
+	// DefaultPersonalProvidersMaxPerUser 是每个用户可添加的个人模型服务默认上限。
+	DefaultPersonalProvidersMaxPerUser = 10
+	// MaxPersonalProvidersMaxPerUser 是管理员可配置的上限。
+	MaxPersonalProvidersMaxPerUser = 50
 	// DefaultFileFullContextMaxBytes 是全文注入的默认提取文本大小上限（2 MiB）。
 	DefaultFileFullContextMaxBytes int64 = 2 * 1024 * 1024
 
@@ -279,13 +286,15 @@ type yamlConfig struct {
 		ShutdownTimeoutSeconds   int    `yaml:"shutdown_timeout_seconds"`
 	} `yaml:"server"`
 	Security struct {
-		JWTSecret              string `yaml:"jwt_secret"`
-		MCPUserContextSecret   string `yaml:"mcp_user_context_secret"`
-		DataEncryptionKey      string `yaml:"data_encryption_key"`
-		SSRFProtectionEnabled  *bool  `yaml:"ssrf_protection_enabled"`
-		SSRFAllowedHosts       string `yaml:"ssrf_allowed_hosts"`
-		SSRFAllowedCIDRs       string `yaml:"ssrf_allowed_cidrs"`
-		TurnstileSiteverifyURL string `yaml:"turnstile_siteverify_url"`
+		JWTSecret            string `yaml:"jwt_secret"`
+		MCPUserContextSecret string `yaml:"mcp_user_context_secret"`
+		DataEncryptionKey    string `yaml:"data_encryption_key"`
+		// DataEncryptionKeysPrevious 是轮换前的旧主密钥，只用于解密存量数据。
+		DataEncryptionKeysPrevious []string `yaml:"data_encryption_keys_previous"`
+		SSRFProtectionEnabled      *bool    `yaml:"ssrf_protection_enabled"`
+		SSRFAllowedHosts           string   `yaml:"ssrf_allowed_hosts"`
+		SSRFAllowedCIDRs           string   `yaml:"ssrf_allowed_cidrs"`
+		TurnstileSiteverifyURL     string   `yaml:"turnstile_siteverify_url"`
 	} `yaml:"security"`
 	Database struct {
 		Driver   string `yaml:"driver"`
@@ -389,6 +398,7 @@ type Config struct {
 	JWTSecret                    string
 	MCPUserContextSecret         string
 	DataEncryptionKey            string
+	DataEncryptionKeysPrevious   []string // 轮换前的旧主密钥，只用于解密
 	SSRFProtectionEnabled        bool
 	SSRFAllowedHosts             string
 	SSRFAllowedCIDRs             string
@@ -485,6 +495,10 @@ type Config struct {
 	ModelOptionDeniedPaths       string
 	// 知识库配置
 	KnowledgeBaseEnabled bool
+	// 用户自带 Key（个人模型服务）配置
+	PersonalProvidersEnabled      bool   // 是否允许用户添加自己的模型服务
+	PersonalProvidersMaxPerUser   int    // 每个用户最多可添加的服务数
+	PersonalProvidersBlockedHosts string // 禁止接入的域名（逗号或换行分隔，匹配域名本身及其子域名）
 	// 桌面端下载入口配置
 	DesktopDownloadEnabled bool   // 是否在网页端用户菜单展示「下载桌面端」入口
 	DesktopDownloadURL     string // 桌面端下载页地址
@@ -636,6 +650,7 @@ func Load() Config {
 		JWTSecret:                    envOr("JWT_SECRET", yc.Security.JWTSecret, defaultJWTSecret),
 		MCPUserContextSecret:         envOr("MCP_USER_CONTEXT_SECRET", yc.Security.MCPUserContextSecret, ""),
 		DataEncryptionKey:            envOr("DATA_ENCRYPTION_KEY", yc.Security.DataEncryptionKey, defaultDataEncryptionKey),
+		DataEncryptionKeysPrevious:   envOrList("DATA_ENCRYPTION_KEYS_PREVIOUS", yc.Security.DataEncryptionKeysPrevious),
 		SSRFProtectionEnabled:        envOrBoolPtr("SSRF_PROTECTION_ENABLED", yc.Security.SSRFProtectionEnabled, false),
 		SSRFAllowedHosts:             envOr("SSRF_ALLOWED_HOSTS", yc.Security.SSRFAllowedHosts, ""),
 		SSRFAllowedCIDRs:             envOr("SSRF_ALLOWED_CIDRS", yc.Security.SSRFAllowedCIDRs, ""),
@@ -729,6 +744,7 @@ func Load() Config {
 		ModelOptionAllowedPaths:           DefaultModelOptionAllowedPathsJSON(),
 		ModelOptionDeniedPaths:            DefaultModelOptionDeniedPathsJSON(),
 		KnowledgeBaseEnabled:              true,
+		PersonalProvidersMaxPerUser:       DefaultPersonalProvidersMaxPerUser,
 		DesktopDownloadEnabled:            true,
 		DesktopDownloadURL:                DefaultDesktopDownloadURL,
 		UserStorageQuotaBytes:             104857600,
@@ -854,6 +870,9 @@ func (c Config) Validate() error {
 	}
 	if err := validateHTTPIntegrationURL(c.TurnstileSiteverifyURL, "TURNSTILE_SITEVERIFY_URL"); err != nil {
 		return err
+	}
+	if _, err := c.Keyring(); err != nil {
+		return fmt.Errorf("invalid config: DATA_ENCRYPTION_KEY: %w", err)
 	}
 	if env != "prod" {
 		return nil
@@ -1245,6 +1264,68 @@ func (c Config) StrictOutboundPolicy() sharedsecurity.OutboundPolicy {
 
 func (c Config) ssrfProtectionEnforced() bool {
 	return c.IsProduction() && c.SSRFProtectionEnabled
+}
+
+// envOrList 读取逗号分隔的环境变量；未设置时使用 YAML 列表。
+func envOrList(envKey string, yamlVal []string) []string {
+	if raw, ok := os.LookupEnv(envKey); ok {
+		return splitCommaSeparated(raw)
+	}
+	result := make([]string, 0, len(yamlVal))
+	for _, item := range yamlVal {
+		if value := strings.TrimSpace(item); value != "" {
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
+// isPlaceholderSecret 判断密钥是否为内置默认值或示例配置里的占位值（change-me-…）。
+// 这些值随源码公开，用它们加密等于没有加密。
+func isPlaceholderSecret(value string) bool {
+	value = strings.TrimSpace(value)
+	return value == "" || value == defaultDataEncryptionKey || value == defaultJWTSecret || strings.HasPrefix(strings.ToLower(value), "change-me")
+}
+
+var keyrings sync.Map // 主密钥组合的 SHA-256 -> *secretbox.Keyring
+
+// Keyring 返回由当前主密钥与旧主密钥构建的密钥环。同一组密钥只构建一次。
+func (c Config) Keyring() (*secretbox.Keyring, error) {
+	digest := sha256.New()
+	for _, key := range append([]string{c.DataEncryptionKey}, c.DataEncryptionKeysPrevious...) {
+		digest.Write([]byte(strings.TrimSpace(key)))
+		digest.Write([]byte{0})
+	}
+	cacheKey := string(digest.Sum(nil))
+	if cached, ok := keyrings.Load(cacheKey); ok {
+		return cached.(*secretbox.Keyring), nil
+	}
+	ring, err := secretbox.NewKeyring(c.DataEncryptionKey, c.DataEncryptionKeysPrevious...)
+	if err != nil {
+		return nil, err
+	}
+	actual, _ := keyrings.LoadOrStore(cacheKey, ring)
+	return actual.(*secretbox.Keyring), nil
+}
+
+// SecurityWarnings 返回不阻止启动、但应在日志里提醒运维的配置问题。
+// 示例配置里的 change-me-… 占位值长度合规，生产校验不会拦下；已用它加密的数据只能先把它
+// 移到 DATA_ENCRYPTION_KEYS_PREVIOUS 再换新密钥，所以这里只提醒、不阻止启动。
+func (c Config) SecurityWarnings() []string {
+	var warnings []string
+	if isPlaceholderSecret(c.DataEncryptionKey) {
+		warnings = append(warnings, "DATA_ENCRYPTION_KEY uses a built-in or example placeholder value, so anyone with the source code can decrypt stored credentials. Set DATA_ENCRYPTION_KEY to a random value of at least 32 characters and move the current value to DATA_ENCRYPTION_KEYS_PREVIOUS; existing data is re-encrypted automatically at startup.")
+	}
+	for _, previous := range c.DataEncryptionKeysPrevious {
+		if isPlaceholderSecret(previous) {
+			warnings = append(warnings, "DATA_ENCRYPTION_KEYS_PREVIOUS contains a built-in or example placeholder value. Data encrypted with it stays readable to anyone with the source code until it is re-encrypted; remove the value once key rotation reports completion.")
+			break
+		}
+	}
+	if isPlaceholderSecret(c.JWTSecret) {
+		warnings = append(warnings, "JWT_SECRET uses a built-in or example placeholder value, so anyone with the source code can forge session tokens. Set it to a random value of at least 32 characters; existing sessions will be signed out.")
+	}
+	return warnings
 }
 
 func splitCommaSeparated(raw string) []string {

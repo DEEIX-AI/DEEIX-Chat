@@ -583,19 +583,7 @@ func (s *Service) callConversationMetadataLLM(ctx context.Context, input convers
 		if route == nil || strings.TrimSpace(route.PlatformModelName) == "" {
 			continue
 		}
-		routeConfig := llm.RouteConfig{
-			Protocol:            route.Protocol,
-			BaseURL:             route.BaseURL,
-			APIKey:              route.APIKey,
-			HeadersJSON:         route.HeadersJSON,
-			ConnectTimeoutMS:    route.ConnectTimeoutMS,
-			ReadTimeoutMS:       route.ReadTimeoutMS,
-			StreamIdleTimeoutMS: route.StreamIdleTimeoutMS,
-			Endpoint:            llm.DefaultEndpointForAdapter(route.Protocol),
-			UpstreamModel:       route.UpstreamModel,
-			AttributionReferer:  attributionReferer,
-			AttributionTitle:    attributionTitle,
-		}
+		routeConfig := routeConfigFromResolved(route, llm.DefaultEndpointForAdapter(route.Protocol), attributionReferer, attributionTitle)
 		startedAt := time.Now()
 		generateInput := buildTextTaskGenerateInput(route, s.cfg.Snapshot(), messages)
 		authorization, authorizeErr := s.authorizeBasicServiceUsage(ctx, input.UserID, route.PlatformModelName, input.ServiceCode)

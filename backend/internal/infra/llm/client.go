@@ -38,7 +38,9 @@ const upstreamRequestIDHeaderTemplate = "${DEEIX_UPSTREAM_REQUEST_ID}"
 // Client 负责跨厂商共享的 HTTP client、adapter 路由和上游调试能力。
 type Client struct {
 	httpClients *outboundhttp.Pool
-	adapters    map[string]transportAdapter
+	// untrustedClients 只服务用户自配端点：始终强制 SSRF 防护、不授予端点信任、不跟随重定向。
+	untrustedClients *outboundhttp.Pool
+	adapters         map[string]transportAdapter
 }
 
 func normalizeConnectTimeoutMS(ms int) int {
@@ -506,10 +508,18 @@ func doGenerationRequest(do func(*http.Request) (*http.Response, error), req *ht
 var errStreamDone = errors.New("llm stream done")
 
 // NewClient 创建带出站安全策略的上游调用客户端。
+// 用户自配端点（RouteConfig.UntrustedEndpoint）不受部署级白名单影响，始终只允许公网目标。
 func NewClient(outboundPolicy security.OutboundPolicy) *Client {
+	return newClientWithUntrustedPolicy(outboundPolicy, security.NewPublicOnlyOutboundPolicy())
+}
+
+func newClientWithUntrustedPolicy(outboundPolicy security.OutboundPolicy, untrustedPolicy security.OutboundPolicy) *Client {
 	client := &Client{}
 	client.httpClients = outboundhttp.NewPool(outboundPolicy, outboundhttp.DefaultCacheLimit, func(policy security.OutboundPolicy, trustedOrigin string, variant string) (outboundhttp.ManagedClient, error) {
 		return newRouteHTTPClient(policy, outboundPolicy, trustedOrigin, variant)
+	})
+	client.untrustedClients = outboundhttp.NewPool(untrustedPolicy, outboundhttp.DefaultCacheLimit, func(policy security.OutboundPolicy, _ string, variant string) (outboundhttp.ManagedClient, error) {
+		return newUntrustedRouteHTTPClient(policy, variant)
 	})
 	client.adapters = map[string]transportAdapter{
 		portllm.AdapterOpenAIResponses:        &openAIResponsesAdapter{client: client},
@@ -570,6 +580,9 @@ func (c *Client) doRouteRequest(route portllm.RouteConfig, request *http.Request
 		return nil, fmt.Errorf("model provider request is nil")
 	}
 	connectTimeoutMS := normalizeConnectTimeoutMS(route.ConnectTimeoutMS)
+	if route.UntrustedEndpoint {
+		return c.doUntrustedRequest(route, request, strconv.Itoa(connectTimeoutMS))
+	}
 	return c.httpClients.Do(request, route.BaseURL, strconv.Itoa(connectTimeoutMS))
 }
 
@@ -579,14 +592,55 @@ func (c *Client) doRouteGenerationRequest(route portllm.RouteConfig, request *ht
 	}
 	connectTimeoutMS := normalizeConnectTimeoutMS(route.ConnectTimeoutMS)
 	return doGenerationRequest(func(tracedRequest *http.Request) (*http.Response, error) {
+		if route.UntrustedEndpoint {
+			return c.doUntrustedRequest(route, tracedRequest, strconv.Itoa(connectTimeoutMS))
+		}
 		return c.httpClients.Do(tracedRequest, route.BaseURL, strconv.Itoa(connectTimeoutMS))
 	}, request)
 }
+
+// doUntrustedRequest 发送用户自配端点的请求：只走始终启用 SSRF 防护且不授予端点局部信任的客户端池，
+// 并要求实际目标与配置的 origin 完全一致，避免适配器跟随上游响应里的地址访问其它主机。
+func (c *Client) doUntrustedRequest(route portllm.RouteConfig, request *http.Request, variant string) (*http.Response, error) {
+	if c.untrustedClients == nil {
+		return nil, fmt.Errorf("untrusted model provider client is not configured")
+	}
+	configuredOrigin, err := security.HTTPOrigin(route.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("validate model provider endpoint: %w", err)
+	}
+	targetOrigin, err := security.HTTPOrigin(request.URL.String())
+	if err != nil {
+		return nil, fmt.Errorf("validate model provider request target: %w", err)
+	}
+	if targetOrigin != configuredOrigin {
+		return nil, fmt.Errorf("model provider request target changed configured origin")
+	}
+	return c.untrustedClients.Do(request, "", variant)
+}
+
+// newUntrustedRouteHTTPClient 创建用户自配端点使用的客户端：策略不含任何私网授权，且拒绝所有重定向。
+func newUntrustedRouteHTTPClient(policy security.OutboundPolicy, variant string) (outboundhttp.ManagedClient, error) {
+	managed, err := newRouteHTTPClient(policy, policy, "", variant)
+	if err != nil {
+		return managed, err
+	}
+	managed.Client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return errUntrustedRedirect
+	}
+	return managed, nil
+}
+
+// errUntrustedRedirect 表示用户自配端点返回了重定向；模型 API 不需要重定向，跟随它会绕过地址校验。
+var errUntrustedRedirect = errors.New("model provider redirects are not allowed for user-configured endpoints")
 
 // CloseIdleConnections 释放所有模型 origin 客户端的空闲连接。
 func (c *Client) CloseIdleConnections() {
 	if c != nil && c.httpClients != nil {
 		c.httpClients.CloseIdleConnections()
+	}
+	if c != nil && c.untrustedClients != nil {
+		c.untrustedClients.CloseIdleConnections()
 	}
 }
 

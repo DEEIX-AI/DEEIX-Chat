@@ -1,0 +1,72 @@
+{
+  "policy": {
+    "title": "用户模型服务",
+    "securityLabel": "安全说明",
+    "enabled": {
+      "label": "允许接入",
+      "description": "用户可使用自己的 API Key 接入模型服务，费用由服务商直接结算。关闭后立即停用全部用户服务商。"
+    },
+    "maxPerUser": {
+      "label": "服务商上限",
+      "description": "每位用户可添加的服务商数量，范围 1–50。"
+    },
+    "blockedHosts": {
+      "label": "域名黑名单",
+      "description": "每行一个，包含子域名；对已有服务商立即生效。"
+    },
+    "importLink": {
+      "label": "导入链接",
+      "description": "New API、One API 等站点可配置聊天链接，用户点击即可导入。",
+      "action": "查看格式"
+    },
+    "securityNote": "仅允许 HTTPS 公网地址，始终拒绝内网、本机及云元数据地址，且不跟随重定向。API Key 加密存储，管理员不可见。"
+  },
+  "list": {
+    "title": "服务商列表",
+    "searchPlaceholder": "搜索服务商、域名或用户",
+    "allStatus": "全部状态",
+    "columns": {
+      "name": "名称",
+      "baseURL": "服务地址",
+      "models": "模型数",
+      "owner": "所属用户",
+      "status": "状态",
+      "created": "添加时间"
+    },
+    "selectedCount": "所选的 {count} 个服务商",
+    "selectAll": "全选",
+    "selectOne": "选择 {name}",
+    "moreActions": "更多操作",
+    "empty": "暂无服务商",
+    "searchEmpty": "无匹配结果",
+    "unknownUser": "已注销用户"
+  },
+  "status": {
+    "active": "正常",
+    "disabled": "已停用",
+    "suspended": "已禁用",
+    "error": "连接异常"
+  },
+  "actions": {
+    "filterOwner": "只看该用户",
+    "suspend": "禁用",
+    "resume": "解除禁用",
+    "suspendHost": "禁用域名 {host}",
+    "delete": "删除"
+  },
+  "confirm": {
+    "suspendTitle": "禁用服务商？",
+    "suspendDescription": "{name}将立即停用，用户无法自行恢复。",
+    "suspendHostTitle": "禁用整个域名？",
+    "suspendHostDescription": "{host} 下的全部服务商将被禁用。如需禁止新增，请同时将其加入域名黑名单。",
+    "deleteTitle": "删除服务商？",
+    "deleteDescription": "{name}及其 API Key 将被删除，且无法恢复。"
+  },
+  "toasts": {
+    "loadFailed": "加载失败",
+    "saveFailed": "保存失败",
+    "saved": "已保存",
+    "actionFailed": "操作失败",
+    "affected": "已处理 {count} 个"
+  }
+}

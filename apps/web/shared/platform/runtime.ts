@@ -15,3 +15,14 @@ export function isDesktopApp(): boolean {
 export function resolveClientPlatform(): "" | "desktop" {
   return isDesktopApp() ? "desktop" : "";
 }
+
+/**
+ * Public address of the web client, for links meant to be opened elsewhere.
+ * The browser is already on it; the desktop shell runs a bundled copy whose
+ * own origin is useless to others, while the server it talks to also serves
+ * the web client. Empty outside the browser.
+ */
+export function resolvePublicWebOrigin(apiBaseURL: string): string {
+  if (typeof window === "undefined") return "";
+  return isDesktopApp() ? apiBaseURL : window.location.origin;
+}

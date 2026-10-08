@@ -74,7 +74,8 @@
       "upstreamName": "上游名",
       "upstreamModel": "真实模型",
       "bindingCode": "绑定编码",
-      "protocol": "协议"
+      "protocol": "协议",
+      "personalKey": "自有"
     },
     "tokens": {
       "inputShort": "入",

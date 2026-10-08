@@ -21,6 +21,7 @@ import type {
   AdminUsageStatisticsUserRankDTO,
 } from "@/features/admin/api";
 import { formatBillingDisplayAmountFromUSD, type BillingDisplayOptions } from "@/entities/billing";
+import { isPersonalModelRef, resolveModelOptionLabel } from "@/entities/model";
 
 const STACK_COLORS = [
   "#2563eb",
@@ -604,8 +605,10 @@ export const StatisticsModelRankingChart = React.memo(function StatisticsModelRa
       items.map((item, index) => ({
         id: item.platformModelName.trim() || `unknown-model-${index}`,
         key: `model_${index}`,
-        label: item.platformModelName.trim() || t("unknownModel"),
-        fullLabel: item.platformModelName.trim() || t("unknownModel"),
+        label: resolveModelOptionLabel(item.platformModelName) || t("unknownModel"),
+        fullLabel: isPersonalModelRef(item.platformModelName)
+          ? `${resolveModelOptionLabel(item.platformModelName)} · ${t("personalKey")}`
+          : item.platformModelName.trim() || t("unknownModel"),
         color: STACK_COLORS[index % STACK_COLORS.length],
         trend: item.trend ?? [],
       })),

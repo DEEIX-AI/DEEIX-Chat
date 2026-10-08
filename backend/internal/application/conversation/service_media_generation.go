@@ -340,19 +340,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 
 	cfg := s.cfg.Snapshot()
 	attributionReferer, attributionTitle := s.llmAttribution()
-	routeConfig := llm.RouteConfig{
-		Protocol:            route.Protocol,
-		BaseURL:             route.BaseURL,
-		APIKey:              route.APIKey,
-		HeadersJSON:         route.HeadersJSON,
-		ConnectTimeoutMS:    route.ConnectTimeoutMS,
-		ReadTimeoutMS:       route.ReadTimeoutMS,
-		StreamIdleTimeoutMS: route.StreamIdleTimeoutMS,
-		Endpoint:            endpoint,
-		UpstreamModel:       route.UpstreamModel,
-		AttributionReferer:  attributionReferer,
-		AttributionTitle:    attributionTitle,
-	}
+	routeConfig := routeConfigFromResolved(route, endpoint, attributionReferer, attributionTitle)
 	filteredOptions := filterModelOptions(input.Options, route.Protocol, modelOptionPolicyConfig{
 		Mode:                  cfg.ModelOptionPolicyMode,
 		AllowedPathsJSON:      cfg.ModelOptionAllowedPaths,

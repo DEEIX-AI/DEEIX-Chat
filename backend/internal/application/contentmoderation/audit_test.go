@@ -34,7 +34,7 @@ func (writer *reviewAuditWriter) Write(
 
 func TestRecordReviewAuditIdentifiesActorAndEvent(t *testing.T) {
 	writer := &reviewAuditWriter{}
-	service := NewService(nil, nil, "", nil)
+	service := NewService(nil, nil, nil, nil)
 	service.SetAuditWriter(writer)
 	service.RecordReviewAudit(context.Background(), ReviewAuditInput{
 		ActorUserID: 42,

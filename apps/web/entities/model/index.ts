@@ -11,10 +11,12 @@ export {
 } from "@/entities/model/lib/lobehub-icons";
 export { resolveModelIconURL, resolveModelIdentity } from "@/entities/model/lib/model-identity";
 export {
+  isPersonalModelRef,
   isRoutableChatPlatformModel,
   resolveModelOptionIconUrl,
   resolveModelOptionLabel,
 } from "@/entities/model/lib/model-option-display";
+export { findModelProviderPreset, resolveModelProviderIcon } from "@/entities/model/lib/model-provider-presets";
 export {
   HARD_DENIED_MODEL_OPTION_PATHS,
   MODEL_OPTION_POLICY_PROTOCOLS,

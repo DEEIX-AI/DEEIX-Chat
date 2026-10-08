@@ -18,14 +18,14 @@ const (
 
 // RuntimeSettings 负责把数据库中的动态配置应用到运行时配置，并维护配置缓存。
 type RuntimeSettings struct {
-	repo              repository.SettingsRepository
-	cache             repository.SettingsCacheRepository
-	dataEncryptionKey string
+	repo    repository.SettingsRepository
+	cache   repository.SettingsCacheRepository
+	keyring *secretbox.Keyring
 }
 
 // NewRuntimeSettings 创建运行时配置应用器。
-func NewRuntimeSettings(repo repository.SettingsRepository, cache repository.SettingsCacheRepository, dataEncryptionKey string) *RuntimeSettings {
-	return &RuntimeSettings{repo: repo, cache: cache, dataEncryptionKey: strings.TrimSpace(dataEncryptionKey)}
+func NewRuntimeSettings(repo repository.SettingsRepository, cache repository.SettingsCacheRepository, keyring *secretbox.Keyring) *RuntimeSettings {
+	return &RuntimeSettings{repo: repo, cache: cache, keyring: keyring}
 }
 
 // ApplyTo 从 DB 加载动态配置并覆盖到 cfg，同时写入 Redis 缓存。
@@ -54,7 +54,7 @@ func (r *RuntimeSettings) runtimeValue(item domainsettings.SystemSetting) (strin
 	if !isSensitiveSetting(item.Namespace, item.Key) || strings.TrimSpace(item.Value) == "" {
 		return item.Value, nil
 	}
-	return secretbox.DecryptString(r.dataEncryptionKey, item.Value)
+	return r.keyring.DecryptString(item.Value)
 }
 
 // InvalidateCache 删除指定配置项的缓存。
