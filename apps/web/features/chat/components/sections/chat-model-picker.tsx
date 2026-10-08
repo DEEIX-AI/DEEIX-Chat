@@ -2,7 +2,7 @@
 
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import * as React from "react";
-import { ArrowRight, AudioLines, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, FileText, Image as ImageIcon, TicketSlash, Type, Video } from "lucide-react";
+import { ArrowRight, AudioLines, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, FileText, Image as ImageIcon, KeyRound, TicketSlash, Type, Video } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,7 @@ import {
   ModelIcon,
   resolveModelIconURL,
   resolveModelOptionIconUrl,
+  resolveModelOptionLabel,
   resolveModelPresentationGroup,
 } from "@/entities/model";
 import {
@@ -43,6 +44,8 @@ type ChatModelPickerProps = {
   modelOptions: ChatModelOption[];
   billingDisplayCurrency: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate: number | null;
+  /** False in self-hosted mode, where no model shows a price. */
+  billingEnabled: boolean;
   selectedPlatformModelName: string;
   loading: boolean;
   disabled: boolean;
@@ -65,10 +68,18 @@ const DESKTOP_GROUP_MENU_VERTICAL_CHROME = 40;
 /** Model submenu non-list chrome: p-1.5 × 2. */
 const DESKTOP_SUBMENU_VERTICAL_CHROME = 12;
 
+/** Models on the user's own key are grouped by provider, after the platform groups. */
+function resolveModelGroupPresentation(item: ChatModelOption) {
+  if (item.personalProviderName !== null) {
+    return { key: `personal:${item.personalProviderName}`, label: item.personalProviderName, icon: item.personalProviderIcon };
+  }
+  return resolveModelPresentationGroup(item);
+}
+
 function resolveModelGroups(modelOptions: ChatModelOption[]) {
-  const groupMap = new Map<string, { label: string; icon: string; items: ChatModelOption[] }>();
+  const groupMap = new Map<string, { label: string; icon: string; personal: boolean; items: ChatModelOption[] }>();
   for (const item of modelOptions) {
-    const presentation = resolveModelPresentationGroup(item);
+    const presentation = resolveModelGroupPresentation(item);
     const group = groupMap.get(presentation.key);
     if (group) {
       group.items.push(item);
@@ -77,6 +88,7 @@ function resolveModelGroups(modelOptions: ChatModelOption[]) {
     groupMap.set(presentation.key, {
       label: presentation.label,
       icon: presentation.icon,
+      personal: item.personalProviderName !== null,
       items: [item],
     });
   }
@@ -84,8 +96,26 @@ function resolveModelGroups(modelOptions: ChatModelOption[]) {
   return Array.from(groupMap.entries()).map(([key, group]) => ({ key, ...group }));
 }
 
+/** Fallback mark for a group served by the user's own key when it has no icon. */
+function PersonalGroupIcon() {
+  return (
+    <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground" aria-hidden="true">
+      <KeyRound className="size-3.5" strokeWidth={1.7} />
+    </span>
+  );
+}
+
+/** Tells a user-key group apart from a platform group of the same vendor. */
+function PersonalGroupBadge({ label }: { label: string }) {
+  return (
+    <Badge variant="secondary" className="h-4 shrink-0 px-1 font-normal">
+      {label}
+    </Badge>
+  );
+}
+
 function ChatModelIdentity({ model }: { model: ChatModelOption }) {
-  const platformModelName = model.platformModelName.trim();
+  const platformModelName = resolveModelOptionLabel(model.platformModelName);
   const iconURL = React.useMemo(() => resolveModelOptionIconUrl(model), [model]);
 
   return (
@@ -521,7 +551,7 @@ function ChatModelMenuItem({
   /** The row element, so the detail pane can be placed level with the row it describes. */
   rowRef?: (node: HTMLDivElement | null) => void;
 }) {
-  const platformModelName = model.platformModelName.trim();
+  const platformModelName = resolveModelOptionLabel(model.platformModelName);
   const iconURL = React.useMemo(() => resolveModelOptionIconUrl(model), [model]);
   const inputModalityDescription = describeInputModalities(model.inputModalities, inputModalityLabels);
 
@@ -689,11 +719,13 @@ function ChatModelDetailPanel({
   inputModalityLabels,
   pricingLabels,
   billingDisplay,
+  billingEnabled,
 }: {
   model: ChatModelOption;
   inputModalityLabels: InputModalityLabels;
   pricingLabels: React.ComponentProps<typeof ModelPricingTooltipContent>["labels"];
   billingDisplay: BillingDisplayOptions;
+  billingEnabled: boolean;
 }) {
   const t = useTranslations("chat.modelPicker.detail");
   const pricing = model.pricing;
@@ -710,7 +742,7 @@ function ChatModelDetailPanel({
       className="flex max-h-full min-h-0 flex-col overflow-y-auto p-1.5 text-[11px] leading-4"
     >
       <div className="flex h-7 shrink-0 items-center px-2">
-        <span className="min-w-0 truncate font-medium text-foreground">{model.platformModelName.trim()}</span>
+        <span className="min-w-0 truncate font-medium text-foreground">{resolveModelOptionLabel(model.platformModelName)}</span>
       </div>
       <dl className="shrink-0">
         <ModelDetailLine label={t("modalities")}>
@@ -735,6 +767,10 @@ function ChatModelDetailPanel({
             <span className="text-muted-foreground">{t("unknown")}</span>
           )}
         </ModelDetailLine>
+        {billingEnabled && model.personalProviderName !== null ? (
+          // Takes the price row: the platform does not charge for a user-key model, the provider does.
+          <ModelDetailLine label={t("price")}>{t("chargedByProvider")}</ModelDetailLine>
+        ) : null}
       </dl>
       {!table && !pricing?.isFree ? null : (
         <>
@@ -839,6 +875,7 @@ export function ChatModelPicker({
   modelOptions,
   billingDisplayCurrency,
   billingDisplayUsdToCnyRate,
+  billingEnabled,
   selectedPlatformModelName,
   loading,
   disabled,
@@ -900,6 +937,11 @@ export function ChatModelPicker({
     return resolveModelPresentationGroup(selectedModel).label;
   }, [selectedModel]);
   const modelGroups = React.useMemo(() => resolveModelGroups(modelOptions), [modelOptions]);
+  // Counts share one width, so the badges in front of them line up whatever the digit count.
+  const groupCountStyle = React.useMemo<React.CSSProperties>(
+    () => ({ minWidth: `${String(Math.max(0, ...modelGroups.map((group) => group.items.length))).length}ch` }),
+    [modelGroups],
+  );
   const activeDesktopGroupKey = activeGroupKey || selectedGroupKey || modelGroups[0]?.key || "";
   const activeDesktopGroup = React.useMemo(
     () => modelGroups.find((group) => group.key === activeDesktopGroupKey) ?? modelGroups[0] ?? null,
@@ -1268,7 +1310,7 @@ export function ChatModelPicker({
                 <ChatModelIdentity model={selectedModel} />
               ) : selectedPlatformModelName.trim() ? (
                 <span className="truncate text-[12px] font-medium text-foreground">
-                  {selectedPlatformModelName}
+                  {resolveModelOptionLabel(selectedPlatformModelName)}
                 </span>
               ) : (
                 <span className="truncate text-[12px] font-medium text-muted-foreground">
@@ -1360,9 +1402,10 @@ export function ChatModelPicker({
                                 setMobileGroupKey(group.key);
                               }}
                             >
-                              <ModelIcon iconUrl={groupIconURL} label={group.label} />
+                              {group.personal && !group.icon ? <PersonalGroupIcon /> : <ModelIcon iconUrl={groupIconURL} label={group.label} />}
                               <span className="min-w-0 flex-1 truncate font-medium">{group.label}</span>
-                              <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/80">
+                              {group.personal ? <PersonalGroupBadge label={t("personalBadge")} /> : null}
+                              <span className="shrink-0 text-right text-[10px] tabular-nums text-muted-foreground/80" style={groupCountStyle}>
                                 {group.items.length}
                               </span>
                             </button>
@@ -1476,6 +1519,7 @@ export function ChatModelPicker({
                           inputModalityLabels={inputModalityLabels}
                           pricingLabels={pricingLabels}
                           billingDisplay={billingDisplay}
+                          billingEnabled={billingEnabled}
                         />
                       </SlideSwitch>
                     </MorphingCard>
@@ -1524,9 +1568,10 @@ export function ChatModelPicker({
                                 onFocus={() => selectDesktopGroup(group.key)}
                                 onClick={() => selectDesktopGroup(group.key)}
                               >
-                                <ModelIcon iconUrl={groupIconURL} label={group.label} />
+                                {group.personal && !group.icon ? <PersonalGroupIcon /> : <ModelIcon iconUrl={groupIconURL} label={group.label} />}
                                 <span className="min-w-0 flex-1 truncate font-medium">{group.label}</span>
-                                <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/80">
+                                {group.personal ? <PersonalGroupBadge label={t("personalBadge")} /> : null}
+                                <span className="shrink-0 text-right text-[10px] tabular-nums text-muted-foreground/80" style={groupCountStyle}>
                                   {group.items.length}
                                 </span>
                                 <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65" strokeWidth={1.8} />

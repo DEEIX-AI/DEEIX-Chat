@@ -171,6 +171,17 @@ definitions:
     - data
     - errorMsg
     type: object
+  AdminDeletePersonalProvidersRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        maxItems: 500
+        minItems: 1
+        type: array
+    required:
+    - ids
+    type: object
   AdminErrorDoc:
     properties:
       data: {}
@@ -184,6 +195,123 @@ definitions:
     required:
     - data
     - errorMsg
+    type: object
+  AdminPersonalProviderPageResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/AdminPersonalProviderResponse'
+            type: array
+          total:
+            type: integer
+        required:
+        - results
+        - total
+        type: object
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  AdminPersonalProviderResponse:
+    properties:
+      baseURL:
+        type: string
+      createdAt:
+        type: string
+      host:
+        type: string
+      icon:
+        type: string
+      id:
+        type: string
+      keyHint:
+        type: string
+      lastCheckedAt:
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      lastError:
+        type: string
+      modelCount:
+        type: integer
+      name:
+        type: string
+      ownerAvatarURL:
+        description: 'OwnerAvatarURL 是所属用户头像的原始地址（可能是 file: 引用），由前端按头像规则解析。'
+        type: string
+      ownerDisplayName:
+        type: string
+      ownerEmail:
+        type: string
+      ownerLabel:
+        description: OwnerLabel 是所属用户的展示名（显示名，其次用户名）；无法解析时为空串。
+        type: string
+      ownerPublicID:
+        type: string
+      ownerUserID:
+        type: integer
+      ownerUsername:
+        type: string
+      protocol:
+        type: string
+      source:
+        enum:
+        - manual
+        - link
+        type: string
+      status:
+        enum:
+        - active
+        - disabled
+        - suspended
+        type: string
+    required:
+    - baseURL
+    - createdAt
+    - host
+    - icon
+    - id
+    - keyHint
+    - lastCheckedAt
+    - lastError
+    - modelCount
+    - name
+    - ownerAvatarURL
+    - ownerDisplayName
+    - ownerEmail
+    - ownerLabel
+    - ownerPublicID
+    - ownerUserID
+    - ownerUsername
+    - protocol
+    - source
+    - status
+    type: object
+  AdminSuspendPersonalProviderHostRequest:
+    properties:
+      host:
+        maxLength: 255
+        type: string
+    required:
+    - host
+    type: object
+  AdminSuspendPersonalProvidersRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        maxItems: 500
+        minItems: 1
+        type: array
+      suspended:
+        type: boolean
+    required:
+    - ids
+    - suspended
     type: object
   AdminUserIdentityProviderSummaryResponse:
     properties:
@@ -2974,6 +3102,41 @@ definitions:
         type: integer
     required:
     - name
+    type: object
+  CreatePersonalProviderRequest:
+    properties:
+      apiKey:
+        maxLength: 512
+        type: string
+      baseURL:
+        maxLength: 512
+        type: string
+      icon:
+        description: Icon 是内置图标 slug；省略表示按服务地址自动匹配。
+        maxLength: 64
+        type: string
+      models:
+        items:
+          type: string
+        maxItems: 200
+        type: array
+      name:
+        maxLength: 64
+        type: string
+      protocol:
+        maxLength: 64
+        type: string
+      source:
+        description: Source 为 link 表示来自一键导入链接，需要管理员开启链接导入。
+        enum:
+        - manual
+        - link
+        type: string
+    required:
+    - apiKey
+    - baseURL
+    - models
+    - protocol
     type: object
   CreateRedemptionCodeRequest:
     properties:
@@ -6865,6 +7028,206 @@ definitions:
     - updatedAt
     - userCount
     type: object
+  PersonalProviderAccessResponse:
+    properties:
+      enabled:
+        description: Enabled 为 false 表示管理员未开启，或当前用户不在允许的权限组内。
+        type: boolean
+      maxPerUser:
+        description: MaxPerUser 是每个用户最多可添加的服务数。
+        type: integer
+      protocols:
+        description: Protocols 是可选的调用协议。
+        items:
+          type: string
+        type: array
+    required:
+    - enabled
+    - maxPerUser
+    - protocols
+    type: object
+  PersonalProviderAccessResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/PersonalProviderAccessResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  PersonalProviderAffectedResponse:
+    properties:
+      affected:
+        type: integer
+    required:
+    - affected
+    type: object
+  PersonalProviderAffectedResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/PersonalProviderAffectedResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  PersonalProviderDataResponse:
+    properties:
+      provider:
+        $ref: '#/definitions/PersonalProviderResponse'
+    required:
+    - provider
+    type: object
+  PersonalProviderDeleteResponse:
+    properties:
+      deleted:
+        type: boolean
+    required:
+    - deleted
+    type: object
+  PersonalProviderDeleteResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/PersonalProviderDeleteResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  PersonalProviderListResponse:
+    properties:
+      providers:
+        items:
+          $ref: '#/definitions/PersonalProviderResponse'
+        type: array
+    required:
+    - providers
+    type: object
+  PersonalProviderListResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/PersonalProviderListResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  PersonalProviderModelsResponse:
+    properties:
+      models:
+        items:
+          type: string
+        type: array
+    required:
+    - models
+    type: object
+  PersonalProviderModelsResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/PersonalProviderModelsResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  PersonalProviderProbeRequest:
+    properties:
+      apiKey:
+        maxLength: 512
+        type: string
+      baseURL:
+        maxLength: 512
+        type: string
+      protocol:
+        maxLength: 64
+        type: string
+    required:
+    - apiKey
+    - baseURL
+    - protocol
+    type: object
+  PersonalProviderResponse:
+    properties:
+      baseURL:
+        type: string
+      createdAt:
+        type: string
+      host:
+        type: string
+      icon:
+        description: Icon 是内置图标 slug；空串表示按服务地址自动匹配。
+        type: string
+      id:
+        type: string
+      keyHint:
+        type: string
+      lastCheckedAt:
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      lastError:
+        description: LastError 是最近一次检测失败的错误码；为空表示最近一次检测成功。
+        type: string
+      models:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      protocol:
+        type: string
+      source:
+        enum:
+        - manual
+        - link
+        type: string
+      status:
+        description: 'Status: active 可用；disabled 用户已停用；suspended 被管理员停用，用户不能自行启用。'
+        enum:
+        - active
+        - disabled
+        - suspended
+        type: string
+      updatedAt:
+        type: string
+    required:
+    - baseURL
+    - createdAt
+    - host
+    - icon
+    - id
+    - keyHint
+    - lastCheckedAt
+    - lastError
+    - models
+    - name
+    - protocol
+    - source
+    - status
+    - updatedAt
+    type: object
+  PersonalProviderResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/PersonalProviderDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  PersonalproviderErrorDoc:
+    properties:
+      errorMsg:
+        type: string
+    required:
+    - errorMsg
+    type: object
   PlanListResponseDoc:
     properties:
       data:
@@ -7388,6 +7751,15 @@ definitions:
         x-omitempty: false
       protocolsJSON:
         type: string
+      providerHost:
+        description: ProviderHost 为个人模型所属服务的主机名；平台模型为空串。
+        type: string
+      providerIcon:
+        description: ProviderIcon 为个人模型所属服务的内置图标 slug；空串表示由前端按 ProviderHost 自动匹配。
+        type: string
+      providerName:
+        description: ProviderName 为个人模型所属服务的名称；平台模型为空串。
+        type: string
       reasoning:
         allOf:
         - $ref: '#/definitions/PublicModelReasoningResponse'
@@ -7396,6 +7768,12 @@ definitions:
         x-omitempty: false
       sortOrder:
         type: integer
+      source:
+        description: Source 区分平台模型与用户自带 Key 的模型；personal 模型不扣平台余额、只对本人可见。
+        enum:
+        - platform
+        - personal
+        type: string
       vendor:
         type: string
       vendorIcon:
@@ -7418,8 +7796,12 @@ definitions:
     - platformModelName
     - pricing
     - protocolsJSON
+    - providerHost
+    - providerIcon
+    - providerName
     - reasoning
     - sortOrder
+    - source
     - vendor
     - vendorIcon
     - vendorName
@@ -9585,6 +9967,26 @@ definitions:
         type: integer
     required:
     - name
+    type: object
+  UpdatePersonalProviderRequest:
+    properties:
+      apiKey:
+        maxLength: 512
+        type: string
+      enabled:
+        type: boolean
+      icon:
+        description: Icon 为空串表示恢复按服务地址自动匹配。
+        maxLength: 64
+        type: string
+      models:
+        items:
+          type: string
+        maxItems: 200
+        type: array
+      name:
+        maxLength: 64
+        type: string
     type: object
   UpdateServerToolsStatusRequest:
     properties:
@@ -15173,6 +15575,134 @@ paths:
       summary: 更新 MCP 工具
       tags:
       - admin-mcp
+  /admin/model-providers:
+    get:
+      description: 分页列出所有用户添加的模型服务；只有元数据与打码提示，不包含 API Key
+      parameters:
+      - description: 按名称、域名或所属用户（用户名、显示名、邮箱）搜索
+        in: query
+        name: q
+        type: string
+      - description: 状态：active/disabled/suspended
+        in: query
+        name: status
+        type: string
+      - description: 精确域名
+        in: query
+        name: host
+        type: string
+      - description: 所属用户 ID
+        in: query
+        name: owner_user_id
+        type: integer
+      - description: 页码（从 1 开始，默认 1）
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量（1-1000，默认 20）
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/AdminPersonalProviderPageResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询用户模型服务
+      tags:
+      - personal-providers
+  /admin/model-providers/batch-delete:
+    post:
+      consumes:
+      - application/json
+      description: 删除指定服务及其加密保存的 API Key
+      parameters:
+      - description: 服务 ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/AdminDeletePersonalProvidersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PersonalProviderAffectedResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员删除用户模型服务
+      tags:
+      - personal-providers
+  /admin/model-providers/suspend:
+    post:
+      consumes:
+      - application/json
+      description: 停用后用户不能自行启用，该服务的模型立即不可用
+      parameters:
+      - description: 服务 ID 与目标状态
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/AdminSuspendPersonalProvidersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PersonalProviderAffectedResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员停用或恢复用户模型服务
+      tags:
+      - personal-providers
+  /admin/model-providers/suspend-host:
+    post:
+      consumes:
+      - application/json
+      description: 停用指定域名下的全部用户模型服务；如需阻止今后再添加，请同时把域名加入禁止列表
+      parameters:
+      - description: 域名
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/AdminSuspendPersonalProviderHostRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PersonalProviderAffectedResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员按域名停用用户模型服务
+      tags:
+      - personal-providers
   /admin/models/{modelID}/permission-groups:
     get:
       consumes:
@@ -21070,6 +21600,249 @@ paths:
       summary: 兑换第三方身份绑定一次性授权凭证
       tags:
       - auth
+  /me/model-providers:
+    get:
+      description: 返回当前用户添加的模型服务；响应不包含 API Key
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PersonalProviderListResponseDoc'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询我的模型服务
+      tags:
+      - personal-providers
+    post:
+      consumes:
+      - application/json
+      description: 检测并保存模型服务。API Key 加密保存，之后任何接口都不会返回明文
+      parameters:
+      - description: 服务配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CreatePersonalProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PersonalProviderResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 添加模型服务
+      tags:
+      - personal-providers
+  /me/model-providers/{id}:
+    delete:
+      description: 删除服务及其加密保存的 API Key。功能被关闭后仍可删除
+      parameters:
+      - description: 服务 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PersonalProviderDeleteResponseDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 删除模型服务
+      tags:
+      - personal-providers
+    patch:
+      consumes:
+      - application/json
+      description: 修改名称、更换 API Key、调整启用的模型或启用/停用。更换 Key 或调整模型时会重新检测
+      parameters:
+      - description: 服务 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新字段
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/UpdatePersonalProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PersonalProviderResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 更新模型服务
+      tags:
+      - personal-providers
+  /me/model-providers/{id}/models:
+    get:
+      description: 使用已保存的 API Key 重新拉取上游模型列表
+      parameters:
+      - description: 服务 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PersonalProviderModelsResponseDoc'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 拉取模型服务的可用模型
+      tags:
+      - personal-providers
+  /me/model-providers/access:
+    get:
+      description: 返回当前用户能否添加自己的模型服务、能否通过链接导入、数量上限与可选协议
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PersonalProviderAccessResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询个人模型服务是否可用
+      tags:
+      - personal-providers
+  /me/model-providers/probe:
+    post:
+      consumes:
+      - application/json
+      description: 使用地址与 API Key 拉取上游模型列表，不保存任何内容。地址必须是 HTTPS 公网地址
+      parameters:
+      - description: 候选配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/PersonalProviderProbeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PersonalProviderModelsResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/PersonalproviderErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 检测模型服务
+      tags:
+      - personal-providers
   /me/onboarding/complete:
     post:
       consumes:

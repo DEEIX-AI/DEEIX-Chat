@@ -200,7 +200,7 @@ func TestListEventsReadsSnakeCasePagination(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &listEventsRepoStub{}
-			handler := NewHandler(appcm.NewService(nil, repo, "", nil))
+			handler := NewHandler(appcm.NewService(nil, repo, nil, nil))
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)
 			c.Request = httptest.NewRequest(http.MethodGet, "/admin/content-moderation/events?"+tc.query, nil)

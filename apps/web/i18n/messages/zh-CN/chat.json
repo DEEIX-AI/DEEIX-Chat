@@ -675,13 +675,15 @@
     },
     "viewPricing": "查看价格",
     "freeBadge": "免费",
+    "personalBadge": "自有",
     "detail": {
       "modalities": "模态",
       "context": "上下文",
       "price": "价格",
       "perMillion": "每 1M tokens",
       "schedule": "时段倍率",
-      "unknown": "未知"
+      "unknown": "未知",
+      "chargedByProvider": "由服务商收取"
     },
     "freeModel": "免费模型",
     "freeModelDescription": "不会扣除按量余额",

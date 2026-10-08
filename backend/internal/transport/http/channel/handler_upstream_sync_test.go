@@ -21,7 +21,11 @@ import (
 func TestUpstreamModelSyncEndpointsMapProtocolRequiredToBadRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	const encryptionKey = "test-data-encryption-key-32-bytes"
-	apiKeysEnc, err := secretbox.EncryptString(encryptionKey, `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
+	keyring, err := secretbox.NewKeyring(encryptionKey)
+	if err != nil {
+		t.Fatalf("keyring: %v", err)
+	}
+	apiKeysEnc, err := keyring.EncryptString(`{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
 	if err != nil {
 		t.Fatalf("encrypt api keys: %v", err)
 	}

@@ -114,8 +114,11 @@ type subscriptionResolver interface {
 // UserLabel 是后台日志里展示用户身份的轻量信息。
 type UserLabel struct {
 	ID          uint
+	PublicID    string
 	Username    string
 	DisplayName string
+	Email       string
+	AvatarURL   string
 	Label       string
 }
 
@@ -563,8 +566,11 @@ func (s *Service) ResolveUserLabels(ctx context.Context, userIDs []uint) map[uin
 		}
 		labels[userID] = UserLabel{
 			ID:          userID,
+			PublicID:    item.PublicID,
 			Username:    item.Username,
 			DisplayName: item.DisplayName,
+			Email:       item.Email,
+			AvatarURL:   item.AvatarURL,
 			Label:       label,
 		}
 	}

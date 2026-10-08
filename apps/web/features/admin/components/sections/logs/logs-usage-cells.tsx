@@ -22,7 +22,7 @@ import {
   usageBillableOutputTokens,
 } from "@/features/admin/model/usage-log-billing";
 import { cn } from "@/lib/utils";
-import { ModelSelect, type ModelSelectOption } from "@/entities/model";
+import { isPersonalModelRef, ModelSelect, type ModelSelectOption, resolveModelOptionLabel } from "@/entities/model";
 import type { BillingDisplayOptions } from "@/entities/billing";
 
 const ALL_MODELS_VALUE = "__all__";
@@ -69,7 +69,7 @@ export function useUsageBillingLabels(): UsageBillingLabels {
   );
 }
 
-export function UsageBillingTooltipLines({ lines, labels }: { lines: UsageBillingTooltipLine[]; labels: UsageBillingLabels }) {
+function UsageBillingTooltipLines({ lines, labels }: { lines: UsageBillingTooltipLine[]; labels: UsageBillingLabels }) {
   return (
     <div className="min-w-72 max-w-[min(92vw,44rem)] space-y-1 text-left text-xs leading-relaxed">
       {lines.map((line, index) =>
@@ -141,8 +141,11 @@ export function UsageLogModelCell({ item, labels }: { item: AdminUsageLogDTO; la
     <Tooltip>
       <TooltipTrigger asChild>
         <div className="grid min-w-0 cursor-default gap-px">
-          <div className="max-w-[15rem] truncate font-medium leading-4" title={item.platformModelName || "-"}>
-            {item.platformModelName || "-"}
+          <div className="flex min-w-0 items-center gap-1 leading-4" title={item.platformModelName || "-"}>
+            <span className="max-w-[15rem] truncate font-medium">{resolveModelOptionLabel(item.platformModelName ?? "") || "-"}</span>
+            {isPersonalModelRef(item.platformModelName ?? "") ? (
+              <span className="shrink-0 rounded-sm bg-muted px-1 text-[10px] leading-4 text-muted-foreground">{t("personalKey")}</span>
+            ) : null}
           </div>
           <div className="flex min-w-0 items-center gap-1 font-mono leading-4 text-muted-foreground">
             <CornerDownRight className="size-3 shrink-0 stroke-1" />

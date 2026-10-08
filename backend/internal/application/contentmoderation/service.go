@@ -73,18 +73,18 @@ type pendingBlock struct {
 
 // Service 编排配置、worker、事件与运行协调器。
 type Service struct {
-	settingsRepo      repository.SettingsRepository
-	repo              repository.ContentModerationRepository
-	dataEncryptionKey string
-	logger            *zap.Logger
-	objectStore       ObjectStore
-	fileAccess        FileAccessController
-	imageLoader       ImageLoader
-	emitEvent         EventEmitter
-	cancelRun         CancelRun
-	onBlocked         OnBlocked
-	provider          Provider
-	auditWriter       auditWriter
+	settingsRepo repository.SettingsRepository
+	repo         repository.ContentModerationRepository
+	keyring      *secretbox.Keyring
+	logger       *zap.Logger
+	objectStore  ObjectStore
+	fileAccess   FileAccessController
+	imageLoader  ImageLoader
+	emitEvent    EventEmitter
+	cancelRun    CancelRun
+	onBlocked    OnBlocked
+	provider     Provider
+	auditWriter  auditWriter
 
 	configMu     sync.RWMutex
 	cachedConfig *runtimeConfig
@@ -112,19 +112,19 @@ type Service struct {
 func NewService(
 	settingsRepo repository.SettingsRepository,
 	repo repository.ContentModerationRepository,
-	dataEncryptionKey string,
+	keyring *secretbox.Keyring,
 	logger *zap.Logger,
 ) *Service {
 	s := &Service{
-		settingsRepo:      settingsRepo,
-		repo:              repo,
-		dataEncryptionKey: dataEncryptionKey,
-		logger:            logger,
-		coordinators:      make(map[string]*RunCoordinator),
-		pendingBlocks:     make(map[string]pendingBlock),
-		stopCh:            make(chan struct{}),
-		maxConcurrency:    defaultMaxConcurrency,
-		queueCapacity:     defaultQueueCapacity,
+		settingsRepo:   settingsRepo,
+		repo:           repo,
+		keyring:        keyring,
+		logger:         logger,
+		coordinators:   make(map[string]*RunCoordinator),
+		pendingBlocks:  make(map[string]pendingBlock),
+		stopCh:         make(chan struct{}),
+		maxConcurrency: defaultMaxConcurrency,
+		queueCapacity:  defaultQueueCapacity,
 	}
 	s.taskQueue = make(chan *moderationTask, maxPhysicalQueueCapacity)
 	// 固定的物理并发上限；逻辑 maxConcurrency 通过 activeWorkers 约束。
@@ -364,21 +364,21 @@ func providerConfigFromRuntime(cfg runtimeConfig) ProviderConfig {
 }
 
 func (s *Service) encryptText(plaintext string) (string, error) {
-	return secretbox.EncryptString(s.dataEncryptionKey, plaintext)
+	return s.keyring.EncryptString(plaintext)
 }
 
 func (s *Service) decryptText(ciphertext string) (string, error) {
-	return secretbox.DecryptString(s.dataEncryptionKey, ciphertext)
+	return s.keyring.DecryptString(ciphertext)
 }
 
 // encryptBytes 将任意二进制数据（隔离图片）加密为 v1: base64 载荷字符串。
 func (s *Service) encryptBytes(plaintext []byte) (string, error) {
-	return secretbox.Encrypt(s.dataEncryptionKey, plaintext)
+	return s.keyring.Encrypt(plaintext)
 }
 
 // decryptBytes 解密由 encryptBytes 生成的载荷。
 func (s *Service) decryptBytes(ciphertext string) ([]byte, error) {
-	return secretbox.Decrypt(s.dataEncryptionKey, ciphertext)
+	return s.keyring.Decrypt(ciphertext)
 }
 
 func newPublicEventID() string {

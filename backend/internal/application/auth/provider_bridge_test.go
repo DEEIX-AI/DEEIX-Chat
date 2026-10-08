@@ -13,7 +13,6 @@ import (
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	memorycache "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/cache/memory"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/requestmeta"
 )
@@ -204,7 +203,7 @@ func newProviderAuthBridgeTestService() (*Service, *memorycache.Cache) {
 
 func TestProviderAuthBridgeBindsIdentityOnlyForTheStartingUser(t *testing.T) {
 	dataKey := "test-data-key"
-	clientSecret, err := secretbox.EncryptString(dataKey, "client-secret")
+	clientSecret, err := sealForTest(t, dataKey, "client-secret")
 	if err != nil {
 		t.Fatalf("encrypt client secret: %v", err)
 	}

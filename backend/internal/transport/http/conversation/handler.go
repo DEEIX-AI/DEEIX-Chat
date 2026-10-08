@@ -9,6 +9,7 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
+	apppersonalprovider "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/personalprovider"
 	appprocessing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/processing"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
@@ -117,6 +118,7 @@ var sendMessageErrorStatuses = []sendMessageErrorStatus{
 	{err: appconversation.ErrKnowledgeBaseNotReady, status: http.StatusConflict},
 	{err: appconversation.ErrModelRouteNotConfigured, status: http.StatusServiceUnavailable},
 	{err: appconversation.ErrModelAccessDenied, status: http.StatusForbidden},
+	{err: apppersonalprovider.ErrModelUnavailable, status: http.StatusServiceUnavailable},
 	{err: appconversation.ErrStorageQuotaExceeded, status: http.StatusConflict},
 	{err: appconversation.ErrGeneratedMediaArtifactUnavailable, status: http.StatusBadGateway},
 	{err: appconversation.ErrUpstreamEmptyResponse, status: http.StatusBadGateway},

@@ -550,5 +550,22 @@
       "contentModeration": "此服务器不提供内容审核。",
       "sharing": "此服务器不提供公开分享。"
     }
+  },
+  "personalProvider": {
+    "disabled": "当前账号未开启自定义服务商。",
+    "notFound": "服务商不存在。",
+    "limitReached": "已达服务商数量上限。",
+    "invalidName": "名称无效。",
+    "invalidProtocol": "不支持的接口协议。",
+    "invalidBaseUrl": "服务地址无效，仅支持 HTTPS。",
+    "blockedHost": "该地址不允许使用。",
+    "invalidApiKey": "API Key 格式无效。",
+    "invalidModels": "所选模型无效。",
+    "invalidIcon": "图标无效。",
+    "suspended": "服务商已被管理员禁用。",
+    "upstreamRejected": "服务商拒绝请求，请检查 API Key。",
+    "upstreamUnavailable": "无法连接服务商，请检查地址和协议。",
+    "modelUnavailable": "该模型暂不可用，请检查自定义服务商设置或更换模型。",
+    "duplicate": "该 API Key 已添加。"
   }
 }

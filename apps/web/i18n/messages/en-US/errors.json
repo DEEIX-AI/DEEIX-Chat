@@ -550,5 +550,22 @@
       "contentModeration": "Content moderation is not available on this server.",
       "sharing": "Public sharing is not available on this server."
     }
+  },
+  "personalProvider": {
+    "disabled": "Custom providers are not enabled for this account.",
+    "notFound": "Provider not found.",
+    "limitReached": "Provider limit reached.",
+    "invalidName": "Invalid name.",
+    "invalidProtocol": "Unsupported API protocol.",
+    "invalidBaseUrl": "Invalid address. Only HTTPS is supported.",
+    "blockedHost": "This address is not allowed.",
+    "invalidApiKey": "Invalid API key format.",
+    "invalidModels": "Invalid model selection.",
+    "invalidIcon": "Invalid icon.",
+    "suspended": "This provider is blocked by an administrator.",
+    "upstreamRejected": "The provider rejected the request. Check the API key.",
+    "upstreamUnavailable": "Couldn’t reach the provider. Check the address and protocol.",
+    "modelUnavailable": "This model is unavailable. Check your custom providers or choose another model.",
+    "duplicate": "This API key has already been added."
   }
 }

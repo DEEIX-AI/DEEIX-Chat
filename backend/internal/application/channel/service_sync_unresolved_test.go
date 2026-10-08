@@ -110,7 +110,7 @@ func TestBuildUpstreamModelSyncPlanToleratesManagedModelsWithoutResolvableProtoc
 
 func TestListRemoteModelsReportsUnresolvedProtocolModels(t *testing.T) {
 	const encryptionKey = "test-data-encryption-key-32-bytes"
-	apiKeysEnc, err := encryptAPIKeys(encryptionKey, `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
+	apiKeysEnc, err := encryptAPIKeys(testKeyring(t, encryptionKey), `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
 	if err != nil {
 		t.Fatalf("encrypt api keys: %v", err)
 	}

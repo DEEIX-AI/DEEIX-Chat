@@ -27,6 +27,7 @@ type redemptionRepositoryStub struct {
 	redeemInput  *repository.RedemptionApplyInput
 	redeemResult *repository.RedemptionApplyResult
 	redeemErr    error
+	redeemFunc   func(repository.RedemptionApplyInput) (*repository.RedemptionApplyResult, error)
 }
 
 func newRedemptionRepositoryStub(mode string) *redemptionRepositoryStub {
@@ -81,6 +82,9 @@ func (r *redemptionRepositoryStub) DeleteRedemptionCode(_ context.Context, id ui
 
 func (r *redemptionRepositoryStub) RedeemCode(_ context.Context, input repository.RedemptionApplyInput) (*repository.RedemptionApplyResult, error) {
 	r.redeemInput = &input
+	if r.redeemFunc != nil {
+		return r.redeemFunc(input)
+	}
 	if r.redeemErr != nil {
 		return nil, r.redeemErr
 	}
@@ -101,7 +105,7 @@ func (r *redemptionRepositoryStub) RedeemCode(_ context.Context, input repositor
 func TestCreateRedemptionCodesStoresHashAndReturnsPlaintextOnce(t *testing.T) {
 	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModeUsage)
 	service := NewService(repo)
-	service.SetRedemptionCodeSecret("test-secret")
+	service.SetRedemptionCodeKeyring(testRedemptionKeyring(t))
 
 	items, err := service.CreateRedemptionCodes(context.Background(), 7, RedemptionCodeInput{
 		Code:         " 2026 ",
@@ -127,7 +131,7 @@ func TestCreateRedemptionCodesStoresHashAndReturnsPlaintextOnce(t *testing.T) {
 	if got := repo.created[0].CodeHint; got != "****" {
 		t.Fatalf("stored hint = %q, want ****", got)
 	}
-	decrypted, err := secretbox.DecryptString("test-secret", repo.created[0].CodeEncrypted)
+	decrypted, err := testRedemptionKeyring(t).DecryptString(repo.created[0].CodeEncrypted)
 	if err != nil {
 		t.Fatalf("decrypt stored code = %v", err)
 	}
@@ -148,7 +152,7 @@ func TestRedemptionCodeHintUsesFourStarFourFormat(t *testing.T) {
 func TestListRedemptionCodesHidesPlaintextAndRevealDecryptsCode(t *testing.T) {
 	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModeUsage)
 	service := NewService(repo)
-	service.SetRedemptionCodeSecret("test-secret")
+	service.SetRedemptionCodeKeyring(testRedemptionKeyring(t))
 
 	_, err := service.CreateRedemptionCodes(context.Background(), 7, RedemptionCodeInput{
 		Code:         "copy-me",
@@ -302,7 +306,7 @@ func TestRevealRedemptionCodeRejectsLegacyCodeWithoutEncryptedPlaintext(t *testi
 	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModeUsage)
 	repo.created = []domainbilling.RedemptionCode{{ID: 1, CodeHint: "LEGACY***"}}
 	service := NewService(repo)
-	service.SetRedemptionCodeSecret("test-secret")
+	service.SetRedemptionCodeKeyring(testRedemptionKeyring(t))
 
 	_, err := service.RevealRedemptionCode(context.Background(), 1)
 	if !errors.Is(err, ErrRedemptionCodePlaintextUnavailable) {
@@ -313,7 +317,7 @@ func TestRevealRedemptionCodeRejectsLegacyCodeWithoutEncryptedPlaintext(t *testi
 func TestCreateRedemptionCodesRandomDefaultsToSingleUse(t *testing.T) {
 	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModeUsage)
 	service := NewService(repo)
-	service.SetRedemptionCodeSecret("test-secret")
+	service.SetRedemptionCodeKeyring(testRedemptionKeyring(t))
 
 	items, err := service.CreateRedemptionCodes(context.Background(), 7, RedemptionCodeInput{
 		Quantity:     2,
@@ -343,7 +347,7 @@ func TestCreateRedemptionCodesRandomDefaultsToSingleUse(t *testing.T) {
 func TestCreateRedemptionCodesRejectsPerUserLimitAboveTotal(t *testing.T) {
 	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModeUsage)
 	service := NewService(repo)
-	service.SetRedemptionCodeSecret("test-secret")
+	service.SetRedemptionCodeKeyring(testRedemptionKeyring(t))
 	maxRedemptions := 1
 
 	_, err := service.CreateRedemptionCodes(context.Background(), 7, RedemptionCodeInput{
@@ -370,7 +374,7 @@ func TestCreateRedemptionCodesRejectsPerUserLimitAboveTotal(t *testing.T) {
 func TestCreateRedemptionCodesReturnsValidationReason(t *testing.T) {
 	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModeUsage)
 	service := NewService(repo)
-	service.SetRedemptionCodeSecret("test-secret")
+	service.SetRedemptionCodeKeyring(testRedemptionKeyring(t))
 	expiredAt := time.Now().Add(-time.Minute)
 
 	_, err := service.CreateRedemptionCodes(context.Background(), 7, RedemptionCodeInput{
@@ -395,7 +399,7 @@ func TestCreateRedemptionCodesPeriodValidatesPlanAndDuration(t *testing.T) {
 	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModePeriod)
 	repo.plan = &domainbilling.Plan{ID: 11, Code: "pro", IsActive: true}
 	service := NewService(repo)
-	service.SetRedemptionCodeSecret("test-secret")
+	service.SetRedemptionCodeKeyring(testRedemptionKeyring(t))
 
 	items, err := service.CreateRedemptionCodes(context.Background(), 7, RedemptionCodeInput{
 		Code:         "PRO_30",
@@ -443,7 +447,7 @@ func TestCreateRedemptionCodesMapsDuplicateHash(t *testing.T) {
 	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModeUsage)
 	repo.createErr = repository.ErrDuplicate
 	service := NewService(repo)
-	service.SetRedemptionCodeSecret("test-secret")
+	service.SetRedemptionCodeKeyring(testRedemptionKeyring(t))
 
 	_, err := service.CreateRedemptionCodes(context.Background(), 7, RedemptionCodeInput{
 		Code:         "2026",
@@ -478,7 +482,7 @@ func TestBatchDeleteRedemptionCodesMapsResults(t *testing.T) {
 func TestRedeemCodeRejectsSelfModeBeforeRepositoryApply(t *testing.T) {
 	repo := newRedemptionRepositoryStub("self")
 	service := NewService(repo)
-	service.SetRedemptionCodeSecret("test-secret")
+	service.SetRedemptionCodeKeyring(testRedemptionKeyring(t))
 
 	_, err := service.RedeemCode(context.Background(), 9, "CODE2026")
 	if !errors.Is(err, ErrRedemptionCodeUnavailable) {
@@ -493,7 +497,7 @@ func TestRedeemCodeMapsRepositoryLimitErrors(t *testing.T) {
 	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModeUsage)
 	repo.redeemErr = repository.ErrRedemptionUserLimitExceeded
 	service := NewService(repo)
-	service.SetRedemptionCodeSecret("test-secret")
+	service.SetRedemptionCodeKeyring(testRedemptionKeyring(t))
 
 	_, err := service.RedeemCode(context.Background(), 9, "CODE2026")
 	if !errors.Is(err, ErrRedemptionUserLimitExceeded) {
@@ -536,4 +540,39 @@ func equalStringSlices(left []string, right []string) bool {
 		}
 	}
 	return true
+}
+
+func testRedemptionKeyring(t *testing.T, previous ...string) *secretbox.Keyring {
+	t.Helper()
+	keyring, err := secretbox.NewKeyring("test-secret", previous...)
+	if err != nil {
+		t.Fatalf("NewKeyring: %v", err)
+	}
+	return keyring
+}
+
+// 主密钥轮换后，用旧密钥创建的兑换码以旧索引存储，兑换时必须依次尝试旧密钥的索引。
+func TestRedeemCodeFindsCodesHashedWithPreviousKey(t *testing.T) {
+	repo := newRedemptionRepositoryStub(domainbilling.RedemptionCodeModeUsage)
+	mac := hmac.New(sha256.New, []byte("old-secret"))
+	mac.Write([]byte("CODE2026")) //nolint:errcheck
+	oldHash := hex.EncodeToString(mac.Sum(nil))
+	var tried []string
+	repo.redeemFunc = func(input repository.RedemptionApplyInput) (*repository.RedemptionApplyResult, error) {
+		tried = append(tried, input.CodeHash)
+		if input.CodeHash != oldHash {
+			return nil, repository.ErrRedemptionUnavailable
+		}
+		return &repository.RedemptionApplyResult{Code: domainbilling.RedemptionCode{ID: 7}}, nil
+	}
+	service := NewService(repo)
+	service.SetRedemptionCodeKeyring(testRedemptionKeyring(t, "old-secret"))
+
+	result, err := service.RedeemCode(context.Background(), 9, "CODE2026")
+	if err != nil {
+		t.Fatalf("RedeemCode() error = %v", err)
+	}
+	if result.Code.ID != 7 || len(tried) != 2 || tried[1] != oldHash {
+		t.Fatalf("expected the active-key hash then the previous-key hash, tried %v", tried)
+	}
 }

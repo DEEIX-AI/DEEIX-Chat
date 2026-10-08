@@ -40,6 +40,9 @@ type RouteConfig struct {
 	UpstreamModel       string
 	AttributionReferer  string
 	AttributionTitle    string
+	// UntrustedEndpoint 为 true 表示端点由普通用户配置（自带 Key）：
+	// 请求只走强制 SSRF 防护、不授予端点信任、不跟随重定向的客户端。
+	UntrustedEndpoint bool
 }
 
 // ContentPart 类型常量。

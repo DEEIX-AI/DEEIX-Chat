@@ -145,3 +145,28 @@ type LLMPlatformModelRoute struct {
 func (LLMPlatformModelRoute) TableName() string {
 	return "llm_model_routes"
 }
+
+// LLMUserProvider 存储用户自带 Key 的模型服务（个人供应商）。
+// 与平台上游完全隔离：不参与平台路由、熔断与定价，只对 OwnerUserID 本人可用。
+type LLMUserProvider struct {
+	ControlPlaneModel
+	PublicID      string     `gorm:"size:32;not null;default:'';uniqueIndex:idx_llm_user_providers_public_id;comment:对外公开ID"`
+	OwnerUserID   uint       `gorm:"not null;default:0;index:idx_llm_user_providers_owner;comment:所属用户ID"`
+	Name          string     `gorm:"size:64;not null;default:'';comment:服务名称"`
+	Icon          string     `gorm:"size:64;not null;default:'';comment:内置图标slug(空表示按地址自动匹配)"`
+	Protocol      string     `gorm:"size:64;not null;default:'';comment:调用协议"`
+	BaseURL       string     `gorm:"size:512;not null;default:'';comment:服务地址"`
+	Host          string     `gorm:"size:255;not null;default:'';index:idx_llm_user_providers_host;comment:服务地址主机名(用于检索与按域名停用)"`
+	APIKeyEnc     string     `gorm:"type:text;not null;default:'';comment:AES加密后的API Key"`
+	KeyHint       string     `gorm:"size:32;not null;default:'';comment:API Key 打码提示"`
+	ModelsJSON    string     `gorm:"type:text;not null;default:'[]';comment:用户启用的上游模型名JSON数组"`
+	Status        string     `gorm:"size:16;not null;default:'active';index:idx_llm_user_providers_status;comment:状态(active/disabled/suspended)"`
+	Source        string     `gorm:"size:16;not null;default:'manual';comment:来源(manual/link)"`
+	LastError     string     `gorm:"size:512;not null;default:'';comment:最近一次检测错误摘要"`
+	LastCheckedAt *time.Time `gorm:"comment:最近一次检测时间"`
+}
+
+// TableName 指定表名。
+func (LLMUserProvider) TableName() string {
+	return "llm_user_providers"
+}

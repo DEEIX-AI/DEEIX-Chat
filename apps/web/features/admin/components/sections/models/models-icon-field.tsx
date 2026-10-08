@@ -123,7 +123,7 @@ export function ModelIconField({
           className="h-9"
           onChange={(event) => onChange(event.target.value)}
         />
-        <InputGroupAddon align="inline-end" className="pr-1 pl-0 has-[>button]:mr-0">
+        <InputGroupAddon align="inline-end" className="pr-2 pl-0 has-[>button]:mr-0">
           <Popover
             modal
             open={pickerOpen}

@@ -6,6 +6,7 @@ import (
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
+	apppersonalprovider "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/personalprovider"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
@@ -687,6 +688,14 @@ type PublicModelResponse struct {
 	OutputModalities []string `json:"outputModalities"`
 	// ContextWindow 为上下文窗口（Token）：能力 JSON 显式配置优先，其次 models.dev 目录；未知时为 null。
 	ContextWindow *int `json:"contextWindow" extensions:"x-nullable,!x-omitempty"`
+	// Source 区分平台模型与用户自带 Key 的模型；personal 模型不扣平台余额、只对本人可见。
+	Source string `json:"source" enums:"platform,personal"`
+	// ProviderName 为个人模型所属服务的名称；平台模型为空串。
+	ProviderName string `json:"providerName"`
+	// ProviderIcon 为个人模型所属服务的内置图标 slug；空串表示由前端按 ProviderHost 自动匹配。
+	ProviderIcon string `json:"providerIcon"`
+	// ProviderHost 为个人模型所属服务的主机名；平台模型为空串。
+	ProviderHost string `json:"providerHost"`
 }
 
 // PublicModelControlResponse 是一个用户端模型控件。
@@ -1072,7 +1081,10 @@ func toLLMSettingResponse(v domainchannel.LLMSetting) LLMSettingResponse {
 
 // toPublicModelResponse 将模型视图转为面向前端的响应 DTO。
 func toPublicModelResponse(v appchannel.ModelView, resolver appchannel.ModelCapabilityResolver) PublicModelResponse {
-	reasoning := resolver.Resolve(v)
+	return publicModelResponseFromCapability(v, resolver.Resolve(v))
+}
+
+func publicModelResponseFromCapability(v appchannel.ModelView, reasoning appchannel.ModelCapabilityInfo) PublicModelResponse {
 	return PublicModelResponse{
 		PlatformModelName:     v.PlatformModelName,
 		Vendor:                v.Vendor,
@@ -1094,7 +1106,33 @@ func toPublicModelResponse(v appchannel.ModelView, resolver appchannel.ModelCapa
 		InputModalitiesSource: optionalTrimmedString(reasoning.InputModalities.Source),
 		OutputModalities:      append([]string{}, reasoning.OutputModalities...),
 		ContextWindow:         optionalPositiveInt(reasoning.ContextWindow),
+		Source:                modelSourcePlatform,
 	}
+}
+
+const (
+	modelSourcePlatform = "platform"
+	modelSourcePersonal = "personal"
+)
+
+// toPersonalModelResponse 构造个人模型的目录项：能力按上游真实模型名从内置目录推断，
+// 对外名称替换为 personal: 引用，并按服务名分组，价格恒为空（不扣平台余额）。
+func toPersonalModelResponse(service *appchannel.Service, entry apppersonalprovider.ModelEntry, resolver appchannel.ModelCapabilityResolver) PublicModelResponse {
+	view := service.ExternalModelView(appchannel.ExternalModel{
+		Ref:          entry.Ref,
+		Model:        entry.Model,
+		ProviderName: entry.ProviderName,
+		Protocol:     entry.Protocol,
+	})
+	result := publicModelResponseFromCapability(view, resolver.ResolveExternal(view))
+	result.PlatformModelName = entry.Ref
+	result.Description = entry.Model
+	result.Pricing = nil
+	result.Source = modelSourcePersonal
+	result.ProviderName = entry.ProviderName
+	result.ProviderIcon = entry.ProviderIcon
+	result.ProviderHost = entry.ProviderHost
+	return result
 }
 
 func toPublicModelReasoningResponse(v *appchannel.ModelReasoningView) *PublicModelReasoningResponse {

@@ -12,6 +12,7 @@ import {
   readMentionFileSearchCache,
   searchMentionFiles,
 } from "@/features/chat/model/mention-file-search";
+import { resolveModelOptionLabel } from "@/entities/model";
 import type { ChatModelOption, PendingAttachment } from "@/features/chat/types/chat-runtime";
 import type { FileObjectDTO } from "@/shared/api/file-types";
 import { listVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
@@ -363,13 +364,13 @@ function filterModels(
 ): ChatMentionModelMenuItem[] {
   return modelOptions
     .filter((model) =>
-      itemMatchesQuery([model.platformModelName, model.vendor], query),
+      itemMatchesQuery([model.platformModelName, model.vendor, model.personalProviderName ?? ""], query),
     )
     .map((model) => ({
       id: `model:${model.platformModelName}`,
       kind: "model" as const,
-      label: model.platformModelName,
-      description: model.vendor,
+      label: resolveModelOptionLabel(model.platformModelName),
+      description: model.personalProviderName ?? model.vendor,
       model,
       selected: model.platformModelName === selectedPlatformModelName,
     }));

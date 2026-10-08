@@ -2,9 +2,7 @@ package billing
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -14,7 +12,6 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
@@ -380,7 +377,7 @@ func (s *Service) RedeemCode(ctx context.Context, userID uint, code string) (*Re
 	if userID == 0 {
 		return nil, repository.ErrInvalidInput
 	}
-	codeHash, err := s.redemptionCodeHash(code)
+	codeHashes, err := s.redemptionCodeLookupHashes(code)
 	if err != nil {
 		return nil, err
 	}
@@ -392,13 +389,20 @@ func (s *Service) RedeemCode(ctx context.Context, userID uint, code string) (*Re
 		return nil, ErrRedemptionCodeUnavailable
 	}
 	now := time.Now()
-	result, err := s.repo.RedeemCode(ctx, repository.RedemptionApplyInput{
-		CodeHash:       codeHash,
-		UserID:         userID,
-		CurrentMode:    mode,
-		RefNo:          redemptionRefNo(now, userID),
-		SubscriptionAt: now,
-	})
+	var result *repository.RedemptionApplyResult
+	// 当前密钥的索引在前；主密钥轮换后，轮换前创建的兑换码仍以旧密钥的索引存储。
+	for _, codeHash := range codeHashes {
+		result, err = s.repo.RedeemCode(ctx, repository.RedemptionApplyInput{
+			CodeHash:       codeHash,
+			UserID:         userID,
+			CurrentMode:    mode,
+			RefNo:          redemptionRefNo(now, userID),
+			SubscriptionAt: now,
+		})
+		if !errors.Is(err, repository.ErrRedemptionUnavailable) {
+			break
+		}
+	}
 	if err != nil {
 		return nil, mapRedemptionRepositoryError(err)
 	}
@@ -521,16 +525,27 @@ func (s *Service) redemptionCodeHash(code string) (string, error) {
 	if normalized == "" || !validRedemptionCode(normalized) {
 		return "", ErrInvalidRedemptionCode
 	}
+	hashes, err := s.redemptionCodeLookupHashes(normalized)
+	if err != nil {
+		return "", err
+	}
+	return hashes[0], nil
+}
+
+// redemptionCodeLookupHashes 返回兑换码在每个主密钥下的查找索引，当前密钥在前。
+func (s *Service) redemptionCodeLookupHashes(code string) ([]string, error) {
+	normalized := normalizeRedemptionCode(code)
+	if normalized == "" || !validRedemptionCode(normalized) {
+		return nil, ErrInvalidRedemptionCode
+	}
 	if s == nil {
-		return "", ErrRedemptionCodeHashUnavailable
+		return nil, ErrRedemptionCodeHashUnavailable
 	}
-	secret := strings.TrimSpace(s.redemptionCodeSecret)
-	if secret == "" {
-		return "", ErrRedemptionCodeHashUnavailable
+	hashes := s.redemptionCodeKeyring.LookupHashes(normalized)
+	if len(hashes) == 0 {
+		return nil, ErrRedemptionCodeHashUnavailable
 	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(normalized)) //nolint:errcheck
-	return hex.EncodeToString(mac.Sum(nil)), nil
+	return hashes, nil
 }
 
 func (s *Service) redemptionCodeEncrypted(code string) (string, error) {
@@ -538,14 +553,10 @@ func (s *Service) redemptionCodeEncrypted(code string) (string, error) {
 	if normalized == "" || !validRedemptionCode(normalized) {
 		return "", ErrInvalidRedemptionCode
 	}
-	if s == nil {
+	if s == nil || s.redemptionCodeKeyring == nil {
 		return "", ErrRedemptionCodeHashUnavailable
 	}
-	secret := strings.TrimSpace(s.redemptionCodeSecret)
-	if secret == "" {
-		return "", ErrRedemptionCodeHashUnavailable
-	}
-	return secretbox.EncryptString(secret, normalized)
+	return s.redemptionCodeKeyring.EncryptString(normalized)
 }
 
 func (s *Service) redemptionCodePlaintext(encrypted string) (string, error) {
@@ -553,14 +564,10 @@ func (s *Service) redemptionCodePlaintext(encrypted string) (string, error) {
 	if encrypted == "" {
 		return "", nil
 	}
-	if s == nil {
+	if s == nil || s.redemptionCodeKeyring == nil {
 		return "", ErrRedemptionCodeHashUnavailable
 	}
-	secret := strings.TrimSpace(s.redemptionCodeSecret)
-	if secret == "" {
-		return "", ErrRedemptionCodeHashUnavailable
-	}
-	code, err := secretbox.DecryptString(secret, encrypted)
+	code, err := s.redemptionCodeKeyring.DecryptString(encrypted)
 	if err != nil {
 		return "", ErrRedemptionCodeHashUnavailable
 	}

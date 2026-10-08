@@ -9,6 +9,7 @@ import (
 
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
 const (
@@ -106,7 +107,7 @@ func (s *Service) readRuntimeConfig(ctx context.Context) (runtimeConfig, error) 
 
 	apiKey := ""
 	if encrypted := strings.TrimSpace(values[keyAPIKey]); encrypted != "" {
-		decrypted, decErr := secretbox.DecryptString(s.dataEncryptionKey, encrypted)
+		decrypted, decErr := s.keyring.DecryptString(encrypted)
 		if decErr != nil {
 			return runtimeConfig{}, decErr
 		}
@@ -252,7 +253,7 @@ func (s *Service) UpdateConfig(ctx context.Context, actorRole string, input Upda
 		}
 	}
 
-	items, err := buildSettingItems(next, s.dataEncryptionKey)
+	items, err := buildSettingItems(next, s.keyring)
 	if err != nil {
 		return nil, err
 	}
@@ -297,14 +298,19 @@ func toServiceConfig(cfg runtimeConfig) *ServiceConfig {
 	}
 }
 
-func buildSettingItems(cfg runtimeConfig, encryptionKey string) ([]domainsettings.SystemSetting, error) {
+// SensitiveSettingKeys 返回本模块加密存储的配置项（审核服务 API Key），供密文轮换使用。
+func SensitiveSettingKeys() []repository.SettingKey {
+	return []repository.SettingKey{{Namespace: settingsNamespace, Key: keyAPIKey}}
+}
+
+func buildSettingItems(cfg runtimeConfig, keyring *secretbox.Keyring) ([]domainsettings.SystemSetting, error) {
 	policyJSON, err := json.Marshal(newPolicyJSON(cfg.Policy))
 	if err != nil {
 		return nil, err
 	}
 	encryptedKey := ""
 	if strings.TrimSpace(cfg.APIKey) != "" {
-		encryptedKey, err = secretbox.EncryptString(encryptionKey, cfg.APIKey)
+		encryptedKey, err = keyring.EncryptString(cfg.APIKey)
 		if err != nil {
 			return nil, err
 		}

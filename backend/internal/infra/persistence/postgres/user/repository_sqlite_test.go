@@ -205,8 +205,34 @@ func TestDeleteAccountHardRemovesUserScopedAssociations(t *testing.T) {
 		t.Fatalf("seed project knowledge base association: %v", err)
 	}
 
+	if err = db.Create(&models.LLMUserProvider{
+		PublicID: "pp_delete_user", OwnerUserID: user.ID, Name: "Own key", Protocol: "openai_chat_completions",
+		BaseURL: "https://api.example.com/v1", Host: "api.example.com", APIKeyEnc: "v1:cipher", ModelsJSON: "[]", Status: "active",
+	}).Error; err != nil {
+		t.Fatalf("seed personal provider: %v", err)
+	}
+	if err = db.Create(&models.LLMUserProvider{
+		PublicID: "pp_other_user", OwnerUserID: user.ID + 1000, Name: "Other key", Protocol: "openai_chat_completions",
+		BaseURL: "https://api.example.com/v1", Host: "api.example.com", APIKeyEnc: "v1:cipher", ModelsJSON: "[]", Status: "active",
+	}).Error; err != nil {
+		t.Fatalf("seed other user's provider: %v", err)
+	}
+
 	if err = NewRepo(db).DeleteAccountHard(context.Background(), user.ID); err != nil {
 		t.Fatalf("DeleteAccountHard() error = %v", err)
+	}
+	var providerCount int64
+	if err = db.Model(&models.LLMUserProvider{}).Where("owner_user_id = ?", user.ID).Count(&providerCount).Error; err != nil {
+		t.Fatalf("count personal providers: %v", err)
+	}
+	if providerCount != 0 {
+		t.Fatalf("personal provider count = %d, want 0", providerCount)
+	}
+	if err = db.Model(&models.LLMUserProvider{}).Where("public_id = ?", "pp_other_user").Count(&providerCount).Error; err != nil {
+		t.Fatalf("count other user's providers: %v", err)
+	}
+	if providerCount != 1 {
+		t.Fatalf("another user's provider was deleted")
 	}
 
 	var count int64

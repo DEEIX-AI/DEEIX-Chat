@@ -20,6 +20,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const mountedRef = React.useRef(false);
 
   const redirectToLogin = React.useCallback(() => {
+    // The fragment is never carried into `next`: it may hold an import key, which belongs to the
+    // page that stashed it (see features/settings/utils/provider-import.ts), not to a URL.
     const nextPath = normalizeAuthNextPath(`${window.location.pathname}${window.location.search}`);
     router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
   }, [router]);

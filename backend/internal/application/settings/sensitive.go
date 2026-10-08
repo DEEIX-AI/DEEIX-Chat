@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 )
 
 func settingKey(namespace string, key string) string {
@@ -36,7 +35,7 @@ func (s *Service) encryptSettingForStorage(item domainsettings.SystemSetting) (d
 	if !isSensitiveSetting(item.Namespace, item.Key) || strings.TrimSpace(item.Value) == "" {
 		return item, nil
 	}
-	encrypted, err := secretbox.EncryptString(s.dataEncryptionKey, item.Value)
+	encrypted, err := s.keyring.EncryptString(item.Value)
 	if err != nil {
 		return item, err
 	}
@@ -48,7 +47,7 @@ func (s *Service) decryptSettingValue(item domainsettings.SystemSetting) (string
 	if !isSensitiveSetting(item.Namespace, item.Key) || strings.TrimSpace(item.Value) == "" {
 		return item.Value, nil
 	}
-	return secretbox.DecryptString(s.dataEncryptionKey, item.Value)
+	return s.keyring.DecryptString(item.Value)
 }
 
 func (s *Service) encryptSettingsForStorage(items []domainsettings.SystemSetting) ([]domainsettings.SystemSetting, error) {

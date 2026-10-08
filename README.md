@@ -414,7 +414,8 @@ Static configuration environment variables:
 | HTTP service | `HTTP_IDLE_TIMEOUT_SECONDS` | HTTP keep-alive idle timeout. |
 | HTTP service | `HTTP_MAX_HEADER_BYTES` | Maximum HTTP request header size. |
 | Security | `JWT_SECRET` | JWT signing secret. |
-| Security | `DATA_ENCRYPTION_KEY` | Key material for upstream API keys, SSO secrets, MCP tokens, sensitive settings, and TOTP secrets. |
+| Security | `DATA_ENCRYPTION_KEY` | Key material for upstream API keys, users' own provider keys, SSO secrets, MCP tokens, sensitive settings, and TOTP secrets. Do not replace it in place; see `DATA_ENCRYPTION_KEYS_PREVIOUS`. |
+| Security | `DATA_ENCRYPTION_KEYS_PREVIOUS` | Comma-separated keys used before the current `DATA_ENCRYPTION_KEY`. Data encrypted with them stays readable, and while this is set the server re-encrypts that data with the current key in the background after each startup. Remove it once the log reports `data_encryption_key_rotation_completed`. |
 | Security | `SSRF_PROTECTION_ENABLED` | Enables outbound SSRF protection. |
 | Security | `SSRF_ALLOWED_HOSTS` | Exact hostnames for deployment-level integrations or trusted private redirect targets, comma-separated. |
 | Security | `SSRF_ALLOWED_CIDRS` | Trusted deployment-level integration or private redirect CIDRs, comma-separated. |
@@ -489,7 +490,8 @@ Sign-in, registration, and account identity binding on Web, App, and Desktop all
 - User passwords are hashed with bcrypt.
 - Production mode rejects unsafe default secrets, weak encryption keys, wildcard CORS, and non-HTTPS public URLs.
 - Refresh tokens and recovery-style secrets are stored as hashes.
-- Upstream API keys, SSO client secrets, MCP auth tokens, sensitive settings, and TOTP secrets are encrypted with AES-GCM using `DATA_ENCRYPTION_KEY`.
+- Upstream API keys, users' own provider keys, SSO client secrets, MCP auth tokens, sensitive settings, and TOTP secrets are encrypted with AES-256-GCM using `DATA_ENCRYPTION_KEY`. The server must decrypt these values to call providers, so anyone holding both the database and `DATA_ENCRYPTION_KEY` can read them.
+- To change `DATA_ENCRYPTION_KEY`, set the new value, move the old one to `DATA_ENCRYPTION_KEYS_PREVIOUS`, and restart. The server re-encrypts stored secrets with the new key in the background and logs `data_encryption_key_rotation_completed` when nothing depends on the old key; then remove `DATA_ENCRYPTION_KEYS_PREVIOUS` and restart again. If it logs `data_encryption_key_rotation_incomplete` instead, keep the old key and follow the listed reasons. Replacing the key outright makes every stored secret unreadable. The server also warns at startup when a key is a built-in or example placeholder.
 - Access tokens are short-lived and held client-side in memory; refresh tokens are issued through HttpOnly cookies.
 - User-supplied model options are filtered before provider requests. System-generated fields such as model, messages, tools, system prompts, headers, and previous-response identifiers are not user-overridable.
 

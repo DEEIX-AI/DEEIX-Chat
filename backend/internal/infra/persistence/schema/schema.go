@@ -29,6 +29,7 @@ func Models() []any {
 		&models.LLMModelIconAsset{},
 		&models.LLMPlatformModel{},
 		&models.LLMPlatformModelRoute{},
+		&models.LLMUserProvider{},
 		&models.MCPServer{},
 		&models.MCPTool{},
 		&models.Conversation{},

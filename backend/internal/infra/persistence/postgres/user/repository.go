@@ -999,6 +999,13 @@ func (r *Repo) DeleteAccountHard(ctx context.Context, userID uint) error {
 				},
 			},
 			{
+				// 用户自带 Key 的模型服务含加密 Key，必须随账号一并删除。
+				label: "llm_user_providers",
+				run: func(db *gorm.DB) error {
+					return db.Where("owner_user_id = ?", userID).Delete(&models.LLMUserProvider{}).Error
+				},
+			},
+			{
 				label: "knowledge_base_files",
 				run: func(db *gorm.DB) error {
 					return db.Where("knowledge_base_id IN (?) OR file_object_id IN (?)", userKnowledgeBaseSubQuery, userFileSubQuery).

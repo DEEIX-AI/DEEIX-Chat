@@ -18,7 +18,7 @@ func lockedTestService(cfg config.Config) (*Service, *testSettingsRepo) {
 			{Namespace: "billing", Key: "display_currency", Value: "USD"},
 		},
 	}}
-	service := NewService(repo, "test-data-encryption-key")
+	service := NewService(repo, testKeyring())
 	service.SetRuntime(config.NewRuntime(cfg))
 	return service, repo
 }
