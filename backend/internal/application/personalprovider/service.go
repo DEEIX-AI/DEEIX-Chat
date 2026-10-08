@@ -727,7 +727,8 @@ func truncateRunes(value string, limit int) string {
 	return string(runes[:limit])
 }
 
-// audit 记录用户操作；只记录主机名、协议与 Key 提示，绝不记录 Key 本身。
+// audit 记录用户操作；只记录主机名与协议。不记录 Key 或其打码提示：审计会同时写入应用日志，
+// 日志的留存与可见范围都比数据库更广，Key 的任何片段都不应出现在其中。
 func (s *Service) audit(ctx context.Context, userID uint, meta RequestMeta, action string, item *domainpersonalprovider.Provider, extra map[string]any) {
 	if s.auditWriter == nil || item == nil {
 		return
@@ -735,7 +736,6 @@ func (s *Service) audit(ctx context.Context, userID uint, meta RequestMeta, acti
 	detail := map[string]any{
 		"host":     item.Host,
 		"protocol": item.Protocol,
-		"key_hint": item.KeyHint,
 	}
 	for key, value := range extra {
 		detail[key] = value

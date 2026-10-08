@@ -660,3 +660,33 @@ func TestReplacingTheKeyKeepsTheProviderUsable(t *testing.T) {
 		t.Fatalf("re-check after replacing the key: %v", err)
 	}
 }
+
+// 审计会同时写入应用日志，Key 的任何片段（包括打码提示里保留的首尾几位）都不应出现在其中。
+func TestAuditEntriesCarryNoPartOfTheKey(t *testing.T) {
+	fixture := newFixture(t, nil)
+	item, err := fixture.service.Create(context.Background(), 1, validCreate(), RequestMeta{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rotated := "sk-rotated-abcdefghijklmn5678"
+	if _, err := fixture.service.Update(context.Background(), 1, item.PublicID, UpdateInput{APIKey: &rotated}, RequestMeta{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.service.Delete(context.Background(), 1, item.PublicID, RequestMeta{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.audit.entries) != 3 {
+		t.Fatalf("expected create, update and delete entries, got %d", len(fixture.audit.entries))
+	}
+	// 两个 Key 的结尾 4 位、打码符号，以及提示字段本身。
+	for _, fragment := range []string{"1234", "5678", "••••", "key_hint", "sk-"} {
+		for _, entry := range fixture.audit.entries {
+			if strings.Contains(stringify(entry.Detail), fragment) {
+				t.Fatalf("audit entry %s contains %q: %#v", entry.Action, fragment, entry.Detail)
+			}
+		}
+	}
+	if detail := fixture.audit.entries[1].Detail.(map[string]any); detail["key_rotated"] != true || detail["host"] != "api.openai.com" {
+		t.Fatalf("the update entry must still say that the key changed and where: %#v", detail)
+	}
+}
