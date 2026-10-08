@@ -98,6 +98,20 @@ describe("formatProviderImportLink", () => {
     });
   });
 
+  it("trims whitespace and any number of trailing slashes from the origin", () => {
+    assert.equal(formatProviderImportLink("  https://chat.example.com///  "), "https://chat.example.com/import#v=1&url={address}&key={key}");
+  });
+
+  // CodeQL js/polynomial-redos: a regex like /\/+$/ is quadratic on a long run of slashes that does
+  // not reach the end. The loop is linear, so even a pathological origin returns at once.
+  it("stays linear on a long run of slashes", () => {
+    const origin = `https://chat.example.com${"/".repeat(100_000)}x`;
+    const started = performance.now();
+    const link = formatProviderImportLink(origin);
+    assert.equal(link.startsWith(origin), true);
+    assert.equal(performance.now() - started < 1000, true);
+  });
+
   it("omits optional parameters", () => {
     assert.equal(
       formatProviderImportLink("https://chat.example.com", { baseURL: "https://api.example.com", apiKey: "sk-x", name: " " }),

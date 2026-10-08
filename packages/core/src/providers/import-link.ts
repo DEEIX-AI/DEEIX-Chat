@@ -17,6 +17,7 @@
 import { normalizeApiBaseUrl } from "../server/url.ts";
 
 const PROVIDER_IMPORT_LINK_VERSION = "1";
+const SLASH = "/".charCodeAt(0);
 
 /** Route of the import page on the web client. */
 const PROVIDER_IMPORT_PATH = "/import";
@@ -169,8 +170,12 @@ export function formatProviderImportLink(origin: string, input: ProviderImportLi
   return `${trimOrigin(origin)}${PROVIDER_IMPORT_PATH}#${params.join("&")}`;
 }
 
+/** Drop trailing slashes in one pass. A regex like /\/+$/ backtracks quadratically on a long run of slashes. */
 function trimOrigin(origin: string): string {
-  return origin.trim().replace(/\/+$/, "");
+  const trimmed = origin.trim();
+  let end = trimmed.length;
+  while (end > 0 && trimmed.charCodeAt(end - 1) === SLASH) end -= 1;
+  return trimmed.slice(0, end);
 }
 
 /** Show only enough of a key to recognise it; never enough to reuse it. */
