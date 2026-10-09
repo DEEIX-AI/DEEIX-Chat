@@ -269,26 +269,50 @@ func normalizePublicIDs(publicIDs []string) []string {
 	return ids
 }
 
-func encodeModels(items []string) (string, error) {
-	if items == nil {
-		items = []string{}
+// storedModel 是 models_json 的条目。早期版本只保存模型名字符串，读取时按服务协议补齐。
+type storedModel struct {
+	Name      string   `json:"name"`
+	Protocols []string `json:"protocols"`
+}
+
+func encodeModels(items []domainpersonalprovider.Model) (string, error) {
+	stored := make([]storedModel, 0, len(items))
+	for _, item := range items {
+		protocols := item.Protocols
+		if protocols == nil {
+			protocols = []string{}
+		}
+		stored = append(stored, storedModel{Name: item.Name, Protocols: protocols})
 	}
-	raw, err := json.Marshal(items)
+	raw, err := json.Marshal(stored)
 	if err != nil {
 		return "", err
 	}
 	return string(raw), nil
 }
 
-func decodeModels(raw string) []string {
-	var items []string
-	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &items); err != nil {
-		return []string{}
+func decodeModels(raw string, providerProtocol string) []domainpersonalprovider.Model {
+	var entries []json.RawMessage
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &entries); err != nil {
+		return []domainpersonalprovider.Model{}
 	}
-	if items == nil {
-		return []string{}
+	models := make([]domainpersonalprovider.Model, 0, len(entries))
+	for _, entry := range entries {
+		var name string
+		if err := json.Unmarshal(entry, &name); err == nil {
+			models = append(models, domainpersonalprovider.Model{Name: name, Protocols: []string{providerProtocol}})
+			continue
+		}
+		var item storedModel
+		if err := json.Unmarshal(entry, &item); err != nil || item.Name == "" {
+			continue
+		}
+		if len(item.Protocols) == 0 {
+			item.Protocols = []string{providerProtocol}
+		}
+		models = append(models, domainpersonalprovider.Model{Name: item.Name, Protocols: item.Protocols})
 	}
-	return items
+	return models
 }
 
 func toDomainList(records []models.LLMUserProvider) []domainpersonalprovider.Provider {
@@ -311,7 +335,7 @@ func toDomain(record models.LLMUserProvider) domainpersonalprovider.Provider {
 		Host:          record.Host,
 		APIKeyEnc:     record.APIKeyEnc,
 		KeyHint:       record.KeyHint,
-		Models:        decodeModels(record.ModelsJSON),
+		Models:        decodeModels(record.ModelsJSON, record.Protocol),
 		Status:        record.Status,
 		Source:        record.Source,
 		LastError:     record.LastError,

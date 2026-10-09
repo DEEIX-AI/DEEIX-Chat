@@ -29,7 +29,7 @@ import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, Tab
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ModelIcon, resolveModelIconURL, resolveModelProviderIcon } from "@/entities/model";
 import { useSettingsModelProviders } from "@/features/settings/hooks/use-settings-model-providers";
-import { modelProviderProtocolLabel } from "@/features/settings/model/model-provider-protocols";
+import { modelProtocolLabel } from "@/features/settings/model/model-protocol-choices";
 import { toErrorMessagePath } from "@/i18n/resolve-error-message";
 import type { PersonalProviderDTO } from "@/shared/api/personal-providers-types";
 import { SettingsPage, SettingsSection } from "@/shared/components/settings-layout";
@@ -83,11 +83,10 @@ export function SettingsModels() {
           </>
         }
       >
-        <Table className="table-fixed" style={{ minWidth: 720 }}>
+        <Table className="table-fixed" style={{ minWidth: 560 }}>
           <colgroup>
-            <col style={{ width: 160 }} />
+            <col style={{ width: 200 }} />
             <col />
-            <col style={{ width: 208 }} />
             <col style={{ width: 64 }} />
             <col style={{ width: 80 }} />
             <col style={{ width: 48 }} />
@@ -96,15 +95,14 @@ export function SettingsModels() {
             <TableRow>
               <TableHead>{t("columns.name")}</TableHead>
               <TableHead>{t("columns.baseURL")}</TableHead>
-              <TableHead>{t("columns.protocol")}</TableHead>
               <TableHead className="text-center">{t("columns.models")}</TableHead>
               <TableHead>{t("columns.status")}</TableHead>
               <TableHead className="w-[48px]" stickyEnd />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && providers.length === 0 ? <TableLoadingRow colSpan={6} /> : null}
-            {!loading && providers.length === 0 ? <TableEmptyRow colSpan={6}>{t("empty")}</TableEmptyRow> : null}
+            {loading && providers.length === 0 ? <TableLoadingRow colSpan={5} /> : null}
+            {!loading && providers.length === 0 ? <TableEmptyRow colSpan={5}>{t("empty")}</TableEmptyRow> : null}
             {providers.map((provider) => (
               <ProviderRow
                 key={provider.id}
@@ -124,7 +122,7 @@ export function SettingsModels() {
       <ModelsProviderDialog
         open={addOpen}
         onOpenChange={setAddOpen}
-        protocols={access.protocols}
+        modelProtocols={access.modelProtocols}
         onProbe={probe}
         onCreate={async (payload) => {
           const created = await create(payload);
@@ -138,6 +136,7 @@ export function SettingsModels() {
       <ModelsEditDialog
         provider={editing}
         onOpenChange={(open) => !open && setEditing(null)}
+        modelProtocols={access.modelProtocols}
         onLoadModels={listModels}
         onSave={(id, payload) => update(id, payload, t("toasts.saved"))}
       />
@@ -185,7 +184,6 @@ function ProviderRow({
   const suspended = provider.status === "suspended";
   const iconSlug = resolveModelProviderIcon(provider.icon, provider.baseURL);
   const iconURL = iconSlug ? resolveModelIconURL(iconSlug) : null;
-  const protocolLabel = modelProviderProtocolLabel(provider.protocol, (key) => t(key));
 
   return (
     <TableRow tone={provider.status === "active" ? undefined : "muted"}>
@@ -202,11 +200,6 @@ function ProviderRow({
           {provider.baseURL}
         </span>
       </TableCell>
-      <TableCell className="max-w-0">
-        <span className="block truncate text-muted-foreground" title={protocolLabel}>
-          {protocolLabel}
-        </span>
-      </TableCell>
       <TableCell className="text-center tabular-nums text-muted-foreground">
         {provider.models.length === 0 ? (
           0
@@ -215,7 +208,9 @@ function ProviderRow({
             <TooltipTrigger asChild>
               <span className="cursor-default">{provider.models.length}</span>
             </TooltipTrigger>
-            <TooltipContent className="max-w-72 whitespace-pre-line">{provider.models.join("\n")}</TooltipContent>
+            <TooltipContent className="max-w-none p-0">
+              <ProviderModelsSummary models={provider.models} />
+            </TooltipContent>
           </Tooltip>
         )}
       </TableCell>
@@ -260,6 +255,34 @@ function ProviderRow({
         </div>
       </TableCell>
     </TableRow>
+  );
+}
+
+/** Enabled models grouped by protocol, one per line; long lists scroll inside the tooltip. */
+function ProviderModelsSummary({ models }: { models: PersonalProviderDTO["models"] }) {
+  const groups = new Map<string, string[]>();
+  for (const model of models) {
+    const label = modelProtocolLabel(model.protocols);
+    groups.set(label, [...(groups.get(label) ?? []), model.name]);
+  }
+  return (
+    <div className="max-h-[min(22rem,60svh)] w-max max-w-[min(22rem,80vw)] space-y-2.5 overflow-y-auto px-3 py-2.5 text-left">
+      {[...groups].map(([label, names]) => (
+        <div key={label} className="space-y-1">
+          <p className="flex items-baseline justify-between gap-4 text-[10px] leading-4 opacity-60">
+            <span className="min-w-0 truncate">{label}</span>
+            <span className="shrink-0 tabular-nums">{names.length}</span>
+          </p>
+          <ul className="space-y-0.5">
+            {names.map((name) => (
+              <li key={name} className="truncate font-mono text-[11px] leading-4" title={name}>
+                {name}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 

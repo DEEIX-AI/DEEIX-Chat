@@ -180,7 +180,7 @@ function ProviderImportScreen({ fragment }: { fragment: string }) {
       <ModelsProviderDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        protocols={access.protocols}
+        modelProtocols={access.modelProtocols}
         initialDraft={draft}
         source="link"
         lockEndpoint

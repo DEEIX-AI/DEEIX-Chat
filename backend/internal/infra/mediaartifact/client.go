@@ -54,10 +54,13 @@ type downloadResult struct {
 // Client 维护提供方返回媒体 URL 所使用的隔离出站客户端。
 // 仅当制品 URL 与管理员配置的模型 endpoint 同 origin 时继承局部信任；其他 URL 仍按不可信输入处理。
 type Client struct {
-	basePolicy   security.OutboundPolicy
-	httpClients  *outboundhttp.Pool
-	pollAttempts int
-	pollInterval time.Duration
+	basePolicy  security.OutboundPolicy
+	httpClients *outboundhttp.Pool
+	// untrustedEndpoints 为 true 时，模型 endpoint 由普通用户配置：同源制品仍可携带该 endpoint 的 Key，
+	// 但出站策略不因 endpoint 放宽，私网等受限目标始终拒绝。
+	untrustedEndpoints bool
+	pollAttempts       int
+	pollInterval       time.Duration
 }
 
 // New 使用注入的严格出站策略创建可复用的媒体制品客户端。
@@ -70,6 +73,14 @@ func New(policy security.OutboundPolicy) *Client {
 		pollAttempts: geminiFilePollAttempts,
 		pollInterval: geminiFilePollInterval,
 	}
+}
+
+// NewForUntrustedEndpoints 创建用于用户自配端点的制品客户端：policy 应为只允许公网目标的策略，
+// 且不会因为制品与 endpoint 同源而放宽。同源制品照常携带 Key（Key 本就属于该 endpoint），跨源与重定向不携带。
+func NewForUntrustedEndpoints(policy security.OutboundPolicy) *Client {
+	client := New(policy)
+	client.untrustedEndpoints = true
+	return client
 }
 
 func newMediaArtifactHTTPClient(policy security.OutboundPolicy, strictPolicy security.OutboundPolicy, trustedOrigin string) outboundhttp.ManagedClient {
@@ -171,9 +182,9 @@ func (c *Client) download(ctx context.Context, input downloadRequest) (downloadR
 	for key, value := range input.headers {
 		request.Header.Set(key, value)
 	}
-	// 仅在制品 URL 与管理员配置的提供方 endpoint 明确同源时携带 Key。
+	// 仅在制品 URL 与提供方 endpoint 明确同源时携带 Key。
 	// 跨 origin 制品和后续跨 origin 重定向都不得获得提供方凭据。
-	if trustedEndpoint != "" && sameArtifactOrigin(input.url, input.trustedEndpoint) && strings.TrimSpace(input.providerBearerToken) != "" {
+	if sameArtifactOrigin(input.url, input.trustedEndpoint) && strings.TrimSpace(input.providerBearerToken) != "" {
 		request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(input.providerBearerToken))
 	}
 	response, err := c.httpClients.Do(request, trustedEndpoint, "")
@@ -209,6 +220,10 @@ func (c *Client) artifactPolicy(sourceURL string, trustedProviderEndpoint string
 		}
 	}
 	policy := c.basePolicy
+	if c.untrustedEndpoints {
+		// 用户自配端点不获得局部信任：策略不放宽，客户端也不按 endpoint 分池（空串表示无信任 origin）。
+		return "", policy, nil
+	}
 	if trustedEndpoint != "" {
 		var err error
 		policy, err = c.basePolicy.WithTrustedHTTPURLs(trustedEndpoint)

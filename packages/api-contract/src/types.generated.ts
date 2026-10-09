@@ -1327,7 +1327,7 @@ export interface CreatePersonalProviderRequest {
    */
   icon?: string;
   /** @maxItems 200 */
-  models: string[];
+  models: PersonalProviderModelRequest[];
   /** @maxLength 64 */
   name?: string;
   /** @maxLength 64 */
@@ -3130,7 +3130,9 @@ export interface PersonalProviderAccessResponse {
   enabled: boolean;
   /** MaxPerUser 是每个用户最多可添加的服务数。 */
   maxPerUser: number;
-  /** Protocols 是可选的调用协议。 */
+  /** ModelProtocols 是单个模型可选的调用协议，包含图片与视频协议。 */
+  modelProtocols: string[];
+  /** Protocols 是服务可选的接口协议（用于拉取模型目录，也是对话模型的默认协议）。 */
   protocols: string[];
 }
 
@@ -3146,6 +3148,11 @@ export interface PersonalProviderAffectedResponse {
 export interface PersonalProviderAffectedResponseDoc {
   data: PersonalProviderAffectedResponse;
   errorMsg: string;
+}
+
+export interface PersonalProviderAvailableModelResponse {
+  name: string;
+  suggestedProtocols: string[];
 }
 
 export interface PersonalProviderDataResponse {
@@ -3170,8 +3177,21 @@ export interface PersonalProviderListResponseDoc {
   errorMsg: string;
 }
 
+export interface PersonalProviderModelRequest {
+  /** @maxLength 200 */
+  name: string;
+  /** @maxItems 2 */
+  protocols?: string[];
+}
+
+export interface PersonalProviderModelResponse {
+  name: string;
+  /** Protocols 是单个协议，或同一媒体模型配套的一组协议（如图片生成 + 图片编辑）。 */
+  protocols: string[];
+}
+
 export interface PersonalProviderModelsResponse {
-  models: string[];
+  models: PersonalProviderAvailableModelResponse[];
 }
 
 export interface PersonalProviderModelsResponseDoc {
@@ -3199,7 +3219,7 @@ export interface PersonalProviderResponse {
   lastCheckedAt: string | null;
   /** LastError 是最近一次检测失败的错误码；为空表示最近一次检测成功。 */
   lastError: string;
-  models: string[];
+  models: PersonalProviderModelResponse[];
   name: string;
   protocol: string;
   source: "manual" | "link";
@@ -4504,7 +4524,7 @@ export interface UpdatePersonalProviderRequest {
    */
   icon?: string;
   /** @maxItems 200 */
-  models?: string[];
+  models?: PersonalProviderModelRequest[];
   /** @maxLength 64 */
   name?: string;
 }

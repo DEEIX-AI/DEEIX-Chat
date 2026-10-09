@@ -30,6 +30,8 @@ import {
 } from "./sidebar-hover-transition"
 
 const SIDEBAR_STORAGE_KEY = "deeix.sidebar.open"
+const SIDEBAR_HOVER_EXPAND_DELAY_MS = 200
+const SIDEBAR_HOVER_EXPAND_IGNORE_SELECTOR = "[data-sidebar-hover-expand='off']"
 
 type SidebarState = "expanded" | "collapsed"
 
@@ -322,6 +324,7 @@ function Sidebar({
   children,
   onPointerEnter,
   onPointerLeave,
+  onPointerOver,
   onTransitionEnd,
   ...props
 }: React.ComponentProps<"div"> & {
@@ -336,6 +339,10 @@ function Sidebar({
   const { setOpenMobile } = useSidebarActions()
   const [hoverExpanded, setHoverExpanded] = React.useState(false)
   const hoverCollapseTimerRef = React.useRef<number | null>(null)
+  const hoverExpandTimerRef = React.useRef<number | null>(null)
+  // Set when the sidebar is collapsed under the pointer: it stays collapsed until the pointer leaves.
+  const hoverExpandSuppressedRef = React.useRef(false)
+  const wasOpenRef = React.useRef(open)
   const hoverExpansionLockCountRef = React.useRef(0)
   const pointerInsideRef = React.useRef(false)
   const visualState = open || hoverExpanded ? "expanded" : "collapsed"
@@ -358,6 +365,14 @@ function Sidebar({
     }
     window.clearTimeout(hoverCollapseTimerRef.current)
     hoverCollapseTimerRef.current = null
+  }, [])
+
+  const clearHoverExpandTimer = React.useCallback(() => {
+    if (hoverExpandTimerRef.current === null) {
+      return
+    }
+    window.clearTimeout(hoverExpandTimerRef.current)
+    hoverExpandTimerRef.current = null
   }, [])
 
   const clearTransitionTimer = React.useCallback(() => {
@@ -417,9 +432,17 @@ function Sidebar({
   React.useEffect(() => {
     if (isMobile || open || !expandOnHover || collapsible !== "icon") {
       clearHoverCollapseTimer()
+      clearHoverExpandTimer()
       setHoverExpanded(false)
     }
-  }, [clearHoverCollapseTimer, collapsible, expandOnHover, isMobile, open])
+  }, [clearHoverCollapseTimer, clearHoverExpandTimer, collapsible, expandOnHover, isMobile, open])
+
+  React.useEffect(() => {
+    if (wasOpenRef.current && !open && pointerInsideRef.current) {
+      hoverExpandSuppressedRef.current = true
+    }
+    wasOpenRef.current = open
+  }, [open])
 
   React.useLayoutEffect(() => {
     clearTransitionTimer()
@@ -445,32 +468,54 @@ function Sidebar({
   React.useEffect(
     () => () => {
       clearHoverCollapseTimer()
+      clearHoverExpandTimer()
       clearTransitionTimer()
     },
-    [clearHoverCollapseTimer, clearTransitionTimer]
+    [clearHoverCollapseTimer, clearHoverExpandTimer, clearTransitionTimer]
   )
 
   const handlePointerEnter = React.useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       onPointerEnter?.(event)
       pointerInsideRef.current = true
+      hoverExpandSuppressedRef.current = false
       clearHoverCollapseTimer()
-      if (
-        expandOnHover &&
-        collapsible === "icon" &&
-        event.pointerType === "mouse" &&
-        !open
-      ) {
-        setHoverExpanded(true)
-      }
     },
-    [clearHoverCollapseTimer, collapsible, expandOnHover, onPointerEnter, open]
+    [clearHoverCollapseTimer, onPointerEnter]
+  )
+
+  // Fires for every element the pointer moves onto, so the expand timer follows what is hovered:
+  // it starts on the rail and is dropped while the pointer rests on a control that opts out.
+  const handlePointerOver = React.useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      onPointerOver?.(event)
+      if (!expandOnHover || collapsible !== "icon" || event.pointerType !== "mouse" || open || hoverExpanded) {
+        return
+      }
+      if (hoverExpandSuppressedRef.current) {
+        return
+      }
+      if (event.target instanceof Element && event.target.closest(SIDEBAR_HOVER_EXPAND_IGNORE_SELECTOR)) {
+        clearHoverExpandTimer()
+        return
+      }
+      if (hoverExpandTimerRef.current !== null) {
+        return
+      }
+      hoverExpandTimerRef.current = window.setTimeout(() => {
+        hoverExpandTimerRef.current = null
+        setHoverExpanded(true)
+      }, SIDEBAR_HOVER_EXPAND_DELAY_MS)
+    },
+    [clearHoverExpandTimer, collapsible, expandOnHover, hoverExpanded, onPointerOver, open]
   )
 
   const handlePointerLeave = React.useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       onPointerLeave?.(event)
       pointerInsideRef.current = false
+      hoverExpandSuppressedRef.current = false
+      clearHoverExpandTimer()
       if (expandOnHover && collapsible === "icon" && event.pointerType === "mouse") {
         if (hoverExpansionLockCountRef.current > 0) {
           return
@@ -478,7 +523,7 @@ function Sidebar({
         scheduleHoverCollapse()
       }
     },
-    [collapsible, expandOnHover, onPointerLeave, scheduleHoverCollapse]
+    [clearHoverExpandTimer, collapsible, expandOnHover, onPointerLeave, scheduleHoverCollapse]
   )
 
   const handleContainerTransitionEnd = React.useCallback(
@@ -508,6 +553,7 @@ function Sidebar({
           )}
           onPointerEnter={onPointerEnter}
           onPointerLeave={onPointerLeave}
+          onPointerOver={onPointerOver}
           {...props}
         >
           {children}
@@ -533,6 +579,7 @@ function Sidebar({
             side={side}
             onPointerEnter={onPointerEnter}
             onPointerLeave={onPointerLeave}
+            onPointerOver={onPointerOver}
           >
             <SheetHeader className="sr-only">
               <SheetTitle>{t("sidebarTitle")}</SheetTitle>
@@ -595,6 +642,7 @@ function Sidebar({
         )}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
+        onPointerOver={handlePointerOver}
         onTransitionEnd={handleContainerTransitionEnd}
         {...props}
       >

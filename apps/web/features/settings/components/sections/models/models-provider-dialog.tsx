@@ -15,22 +15,29 @@ import {
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { findModelProviderPreset } from "@/entities/model";
-import { modelProviderProtocolLabel } from "@/features/settings/model/model-provider-protocols";
+import { modelSelectionPayload } from "@/features/settings/model/model-protocol-choices";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import type { CreatePersonalProviderPayload, PersonalProviderDTO } from "@/shared/api/personal-providers-types";
+import type {
+  CreatePersonalProviderPayload,
+  PersonalProviderAvailableModelDTO,
+  PersonalProviderDTO,
+} from "@/shared/api/personal-providers-types";
 import { ModelsIconPicker } from "./models-icon-picker";
-import { ModelsSelectDialog, ModelsSelectField } from "./models-select-dialog";
+import { type ModelOption, ModelsSelectDialog, ModelsSelectField } from "./models-select-dialog";
 
 export type ModelProviderDraft = {
   name: string;
   icon: string;
+  /** Set by an import link only; otherwise the protocol follows the address. */
   protocol: string;
   baseURL: string;
   apiKey: string;
 };
+
+/** How the model list is fetched when the address is not a known provider: the format relays speak. */
+const DEFAULT_PROVIDER_PROTOCOL = "openai_chat_completions";
 
 /** Small catalogs are preselected; large ones (aggregators list hundreds) start empty so the user picks deliberately. */
 const PRESELECT_ALL_MAX_MODELS = 12;
@@ -38,15 +45,16 @@ const PRESELECT_ALL_MAX_MODELS = 12;
 const FIELD_LABEL_CLASS = "text-xs font-normal text-muted-foreground";
 
 /**
- * Add a provider: address, protocol, key, then fetch the model list and pick
- * models. A recognised address fills in the protocol and icon once, as long as
- * the user has not chosen them. The import screen opens it with the confirmed
- * address locked and its own name.
+ * Add a provider: address and key, then fetch the model list and pick models,
+ * each with its own protocol. The provider's protocol only decides how the list
+ * is fetched, so it is not asked for: a known address brings its own, anything
+ * else is treated as OpenAI-compatible. The import screen opens the dialog with
+ * the confirmed address locked and its own name.
  */
 export function ModelsProviderDialog({
   open,
   onOpenChange,
-  protocols,
+  modelProtocols,
   initialDraft,
   source = "manual",
   lockEndpoint = false,
@@ -55,24 +63,22 @@ export function ModelsProviderDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  protocols: string[];
+  /** Protocols a single model may run on, image and video ones included. */
+  modelProtocols: string[];
   initialDraft?: Partial<ModelProviderDraft>;
   source?: "manual" | "link";
   /** Imported links fix the address so the host the user confirmed cannot change. */
   lockEndpoint?: boolean;
-  onProbe: (payload: { protocol: string; baseURL: string; apiKey: string }) => Promise<string[]>;
+  onProbe: (payload: { protocol: string; baseURL: string; apiKey: string }) => Promise<PersonalProviderAvailableModelDTO[]>;
   onCreate: (payload: CreatePersonalProviderPayload) => Promise<PersonalProviderDTO>;
 }) {
   const t = useTranslations("settings.modelsPage.dialog");
-  const pageT = useTranslations("settings.modelsPage");
   const commonT = useTranslations("common");
   const resolveErrorMessage = useLocalizedErrorMessage();
-  const [draft, setDraft] = React.useState<ModelProviderDraft>({ name: "", icon: "", protocol: "openai_chat_completions", baseURL: "", apiKey: "" });
-  // The protocol follows a recognised address until the user picks one. The icon is never
-  // auto-filled into the draft: empty means "automatic", so it keeps following the address.
-  const [protocolTouched, setProtocolTouched] = React.useState(false);
-  const [models, setModels] = React.useState<string[] | null>(null);
-  const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
+  // The icon is never auto-filled into the draft: empty means "automatic", so it keeps following the address.
+  const [draft, setDraft] = React.useState<ModelProviderDraft>({ name: "", icon: "", protocol: "", baseURL: "", apiKey: "" });
+  const [models, setModels] = React.useState<ModelOption[] | null>(null);
+  const [selected, setSelected] = React.useState<Map<string, string[]>>(() => new Map());
   const [selectOpen, setSelectOpen] = React.useState(false);
   const [probing, setProbing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -82,10 +88,9 @@ export function ModelsProviderDialog({
   React.useEffect(() => {
     if (!open) return;
     const first = initialDraft ?? {};
-    setDraft({ name: first.name ?? "", icon: first.icon ?? "", protocol: first.protocol ?? "openai_chat_completions", baseURL: first.baseURL ?? "", apiKey: first.apiKey ?? "" });
-    setProtocolTouched(Boolean(first.protocol));
+    setDraft({ name: first.name ?? "", icon: first.icon ?? "", protocol: first.protocol ?? "", baseURL: first.baseURL ?? "", apiKey: first.apiKey ?? "" });
     setModels(null);
-    setSelected(new Set());
+    setSelected(new Map());
     setSelectOpen(false);
     setProbeError("");
     setError("");
@@ -93,20 +98,16 @@ export function ModelsProviderDialog({
 
   const preset = findModelProviderPreset(draft.baseURL);
   const autoIcon = preset?.icon ?? "";
+  const protocol = draft.protocol || preset?.protocol || DEFAULT_PROVIDER_PROTOCOL;
 
   const resetProbe = () => {
     setModels(null);
-    setSelected(new Set());
+    setSelected(new Map());
     setProbeError("");
   };
 
   const setBaseURL = (value: string) => {
-    const matched = findModelProviderPreset(value);
-    setDraft((current) => ({
-      ...current,
-      baseURL: value,
-      protocol: protocolTouched ? current.protocol : (matched?.protocol ?? current.protocol),
-    }));
+    setDraft((current) => ({ ...current, baseURL: value }));
     resetProbe();
   };
 
@@ -117,15 +118,17 @@ export function ModelsProviderDialog({
   };
 
   const busy = probing || saving;
-  const canProbe = Boolean(draft.baseURL.trim() && draft.apiKey.trim() && draft.protocol) && !busy;
+  const canProbe = Boolean(draft.baseURL.trim() && draft.apiKey.trim()) && !busy;
 
   const handleProbe = async () => {
     setProbing(true);
     setProbeError("");
     try {
-      const fetched = await onProbe({ protocol: draft.protocol, baseURL: draft.baseURL.trim(), apiKey: draft.apiKey.trim() });
+      const fetched = await onProbe({ protocol, baseURL: draft.baseURL.trim(), apiKey: draft.apiKey.trim() });
       setModels(fetched);
-      setSelected(new Set(fetched.length <= PRESELECT_ALL_MAX_MODELS ? fetched : []));
+      setSelected(new Map(
+        (fetched.length <= PRESELECT_ALL_MAX_MODELS ? fetched : []).map((model) => [model.name, [...model.suggestedProtocols]]),
+      ));
     } catch (failure) {
       setModels(null);
       setProbeError(resolveErrorMessage(failure, t("probeFailed")));
@@ -148,10 +151,10 @@ export function ModelsProviderDialog({
       await onCreate({
         name: draft.name.trim() || preset?.name || undefined,
         icon: draft.icon || undefined,
-        protocol: draft.protocol,
+        protocol,
         baseURL: draft.baseURL.trim(),
         apiKey: draft.apiKey.trim(),
-        models: models.filter((model) => selected.has(model)),
+        models: modelSelectionPayload(models, selected, modelProtocols),
         source,
       });
       onOpenChange(false);
@@ -208,30 +211,6 @@ export function ModelsProviderDialog({
           </div>
 
           <div className="min-w-0 space-y-1">
-            <Label className={FIELD_LABEL_CLASS}>{t("protocol")}</Label>
-            <Select
-              value={draft.protocol}
-              disabled={busy}
-              onValueChange={(value) => {
-                setProtocolTouched(true);
-                setDraft((current) => ({ ...current, protocol: value }));
-                resetProbe();
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {protocols.map((protocol) => (
-                  <SelectItem key={protocol} value={protocol}>
-                    {modelProviderProtocolLabel(protocol, (key) => pageT(key))}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="min-w-0 space-y-1">
             <Label className={FIELD_LABEL_CLASS} htmlFor="model-provider-key">{t("apiKey")}</Label>
             <Input
               id="model-provider-key"
@@ -261,7 +240,6 @@ export function ModelsProviderDialog({
               {error}
             </p>
           ) : null}
-          <p className="text-[11px] leading-relaxed text-muted-foreground">{t("privacyNote")}</p>
         </div>
 
         <DialogFooter>
@@ -279,6 +257,7 @@ export function ModelsProviderDialog({
         onOpenChange={setSelectOpen}
         models={models ?? []}
         selected={selected}
+        protocols={modelProtocols}
         onConfirm={setSelected}
         loading={probing}
         error={probeError}

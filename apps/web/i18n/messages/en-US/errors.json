@@ -561,6 +561,7 @@
     "blockedHost": "This address is not allowed.",
     "invalidApiKey": "Invalid API key format.",
     "invalidModels": "Invalid model selection.",
+    "invalidModelProtocol": "This model does not support the selected protocol.",
     "invalidIcon": "Invalid icon.",
     "suspended": "This provider is blocked by an administrator.",
     "upstreamRejected": "The provider rejected the request. Check the API key.",

@@ -561,6 +561,7 @@
     "blockedHost": "该地址不允许使用。",
     "invalidApiKey": "API Key 格式无效。",
     "invalidModels": "所选模型无效。",
+    "invalidModelProtocol": "该模型不支持所选接口协议。",
     "invalidIcon": "图标无效。",
     "suspended": "服务商已被管理员禁用。",
     "upstreamRejected": "服务商拒绝请求，请检查 API Key。",

@@ -699,7 +699,6 @@
     "columns": {
       "name": "Name",
       "baseURL": "Base URL",
-      "protocol": "Protocol",
       "models": "Models",
       "status": "Status"
     },
@@ -751,12 +750,10 @@
       "namePlaceholder": "Defaults to the domain",
       "baseURL": "Base URL",
       "baseURLHint": "Public HTTPS only, usually ending in /v1.",
-      "protocol": "Protocol",
       "apiKey": "API key",
       "apiKeyPlaceholder": "Paste your API key",
       "models": "Models",
       "probeFailed": "Couldn’t fetch models",
-      "privacyNote": "API keys are stored encrypted on this site and not shown again.",
       "saveFailed": "Could not save"
     },
     "editDialog": {
@@ -779,7 +776,7 @@
     },
     "selectDialog": {
       "title": "Choose models",
-      "description": "Selected models can be used in chats.",
+      "description": "Choose the models to use. Protocols are detected from the model name.",
       "placeholder": "Choose models",
       "all": "All",
       "selected": "Selected",
@@ -789,7 +786,9 @@
       "loading": "Fetching models",
       "refresh": "Fetch again",
       "empty": "No matching models",
-      "emptySelected": "No models selected"
+      "emptySelected": "No models selected",
+      "protocolColumn": "Protocol",
+      "protocolFor": "Protocol for {model}"
     },
     "importLink": {
       "open": "Import link",

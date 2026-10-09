@@ -22250,7 +22250,7 @@ const docTemplate = `{
                     "type": "array",
                     "maxItems": 200,
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/PersonalProviderModelRequest"
                     }
                 },
                 "name": {
@@ -27799,6 +27799,7 @@ const docTemplate = `{
             "required": [
                 "enabled",
                 "maxPerUser",
+                "modelProtocols",
                 "protocols"
             ],
             "properties": {
@@ -27810,8 +27811,15 @@ const docTemplate = `{
                     "description": "MaxPerUser 是每个用户最多可添加的服务数。",
                     "type": "integer"
                 },
+                "modelProtocols": {
+                    "description": "ModelProtocols 是单个模型可选的调用协议，包含图片与视频协议。",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "protocols": {
-                    "description": "Protocols 是可选的调用协议。",
+                    "description": "Protocols 是服务可选的接口协议（用于拉取模型目录，也是对话模型的默认协议）。",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -27857,6 +27865,24 @@ const docTemplate = `{
                 },
                 "errorMsg": {
                     "type": "string"
+                }
+            }
+        },
+        "PersonalProviderAvailableModelResponse": {
+            "type": "object",
+            "required": [
+                "name",
+                "suggestedProtocols"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "suggestedProtocols": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -27926,6 +27952,44 @@ const docTemplate = `{
                 }
             }
         },
+        "PersonalProviderModelRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "protocols": {
+                    "type": "array",
+                    "maxItems": 2,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "PersonalProviderModelResponse": {
+            "type": "object",
+            "required": [
+                "name",
+                "protocols"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "protocols": {
+                    "description": "Protocols 是单个协议，或同一媒体模型配套的一组协议（如图片生成 + 图片编辑）。",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "PersonalProviderModelsResponse": {
             "type": "object",
             "required": [
@@ -27935,7 +27999,7 @@ const docTemplate = `{
                 "models": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/PersonalProviderAvailableModelResponse"
                     }
                 }
             }
@@ -28027,7 +28091,7 @@ const docTemplate = `{
                 "models": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/PersonalProviderModelResponse"
                     }
                 },
                 "name": {
@@ -31957,7 +32021,7 @@ const docTemplate = `{
                     "type": "array",
                     "maxItems": 200,
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/PersonalProviderModelRequest"
                     }
                 },
                 "name": {

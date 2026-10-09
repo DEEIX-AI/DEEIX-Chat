@@ -18,8 +18,8 @@ const (
 	maxModelsCount = 200
 )
 
-// allowedProtocols 是用户自带 Key 可选的协议：与平台对话模型可用的协议一致，顺序同后台。
-// 图片、视频等协议依赖平台侧的资产与计费链路，不对个人服务开放。
+// allowedProtocols 是服务的接口协议：用于拉取模型目录，也是对话模型的默认协议，与平台对话协议一致。
+// 图片、视频协议在单个模型上指定（见 modelProtocols）。
 var allowedProtocols = []string{
 	llm.AdapterOpenAIChatCompletions,
 	llm.AdapterOpenAIResponses,
@@ -29,6 +29,32 @@ var allowedProtocols = []string{
 	llm.AdapterXAIResponses,
 	llm.AdapterOpenRouterChat,
 	llm.AdapterOpenRouterResponses,
+}
+
+// modelProtocols 是单个模型可选的调用协议：对话协议之外，还有服务厂商的图片与视频协议，顺序同后台。
+// 一个模型可以是其中一个协议，或同一媒体模型的配套协议（规则见 channel.NormalizeExternalModelProtocols）。
+var modelProtocols = []string{
+	llm.AdapterOpenAIChatCompletions,
+	llm.AdapterOpenAIResponses,
+	llm.AdapterOpenAIImageGenerations,
+	llm.AdapterOpenAIImageEdits,
+	llm.AdapterAnthropicMessages,
+	llm.AdapterGoogleGenerateContent,
+	llm.AdapterGoogleImageGeneration,
+	llm.AdapterGeminiInteractions,
+	llm.AdapterXAIResponses,
+	llm.AdapterXAIImage,
+	llm.AdapterXAIImageEdits,
+	llm.AdapterXAIVideo,
+	llm.AdapterXAIVideoExtensions,
+	llm.AdapterOpenRouterChat,
+	llm.AdapterOpenRouterResponses,
+	llm.AdapterOpenRouterImages,
+}
+
+// ModelProtocols 返回单个模型可选的协议列表（副本）。
+func ModelProtocols() []string {
+	return append([]string(nil), modelProtocols...)
 }
 
 // AllowedProtocols 返回可选协议列表（副本）。
@@ -49,7 +75,13 @@ func isAllowedProtocol(protocol string) bool {
 type Policy struct {
 	Enabled      bool
 	MaxPerUser   int
-	BlockedHosts []string
+	BlockedHosts []blockedHost
+}
+
+// blockedHost 是一条黑名单：默认只匹配域名本身；"*.example.com" 匹配其任意层级的子域名，不含 example.com 本身。
+type blockedHost struct {
+	Host     string
+	Wildcard bool
 }
 
 // policyFromConfig 解析管理员配置；格式错误的条目在保存设置时已被拒绝，这里只做防御性跳过。
@@ -62,20 +94,24 @@ func policyFromConfig(cfg config.Config) Policy {
 		policy.MaxPerUser = config.DefaultPersonalProvidersMaxPerUser
 	}
 	for _, item := range splitList(cfg.PersonalProvidersBlockedHosts) {
-		host := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(item)), "*.")
-		host = strings.TrimSuffix(host, ".")
-		if host != "" {
-			policy.BlockedHosts = append(policy.BlockedHosts, host)
+		host := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(item)), ".")
+		trimmed := strings.TrimPrefix(host, "*.")
+		if trimmed != "" {
+			policy.BlockedHosts = append(policy.BlockedHosts, blockedHost{Host: trimmed, Wildcard: trimmed != host})
 		}
 	}
 	return policy
 }
 
-// isBlockedHost 报告 host 是否命中管理员黑名单：条目匹配域名本身及其所有子域名。
+// isBlockedHost 报告 host 是否命中管理员黑名单：普通条目精确匹配，通配条目匹配子域名。
 func (p Policy) isBlockedHost(host string) bool {
 	host = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
 	for _, blocked := range p.BlockedHosts {
-		if host == blocked || strings.HasSuffix(host, "."+blocked) {
+		if blocked.Wildcard {
+			if strings.HasSuffix(host, "."+blocked.Host) {
+				return true
+			}
+		} else if host == blocked.Host {
 			return true
 		}
 	}

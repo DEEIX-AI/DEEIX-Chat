@@ -10,6 +10,7 @@ const DISABLED_ACCESS: PersonalProviderAccessDTO = {
   enabled: false,
   maxPerUser: 0,
   protocols: [],
+  modelProtocols: [],
 };
 
 let cachedAccess: PersonalProviderAccessDTO | null = null;

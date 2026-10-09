@@ -52,9 +52,10 @@ func (h *Handler) GetAccess(c *gin.Context) {
 		return
 	}
 	response.Success(c, PersonalProviderAccessResponse{
-		Enabled:    access.Enabled,
-		MaxPerUser: access.MaxPerUser,
-		Protocols:  access.Protocols,
+		Enabled:        access.Enabled,
+		MaxPerUser:     access.MaxPerUser,
+		Protocols:      access.Protocols,
+		ModelProtocols: access.ModelProtocols,
 	})
 }
 
@@ -106,7 +107,7 @@ func (h *Handler) Probe(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	response.Success(c, PersonalProviderModelsResponse{Models: models})
+	response.Success(c, PersonalProviderModelsResponse{Models: toAvailableModelResponses(models)})
 }
 
 // Create godoc
@@ -136,7 +137,7 @@ func (h *Handler) Create(c *gin.Context) {
 		Protocol: req.Protocol,
 		BaseURL:  req.BaseURL,
 		APIKey:   req.APIKey,
-		Models:   req.Models,
+		Models:   toModelInputs(req.Models),
 		FromLink: req.Source == domainpersonalprovider.SourceLink,
 	}, requestMeta(c))
 	if err != nil {
@@ -169,11 +170,16 @@ func (h *Handler) Update(c *gin.Context) {
 		response.InvalidRequestBody(c, err)
 		return
 	}
+	var models *[]apppersonalprovider.ModelInput
+	if req.Models != nil {
+		inputs := toModelInputs(*req.Models)
+		models = &inputs
+	}
 	item, err := h.service.Update(c.Request.Context(), middleware.MustUserID(c), c.Param("id"), apppersonalprovider.UpdateInput{
 		Name:    req.Name,
 		Icon:    req.Icon,
 		APIKey:  req.APIKey,
-		Models:  req.Models,
+		Models:  models,
 		Enabled: req.Enabled,
 	}, requestMeta(c))
 	if err != nil {
@@ -221,7 +227,7 @@ func (h *Handler) ListModels(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	response.Success(c, PersonalProviderModelsResponse{Models: models})
+	response.Success(c, PersonalProviderModelsResponse{Models: toAvailableModelResponses(models)})
 }
 
 // AdminList godoc
@@ -372,6 +378,7 @@ var errorStatuses = []struct {
 	{apppersonalprovider.ErrBlockedHost, http.StatusBadRequest},
 	{apppersonalprovider.ErrInvalidAPIKey, http.StatusBadRequest},
 	{apppersonalprovider.ErrInvalidModels, http.StatusBadRequest},
+	{apppersonalprovider.ErrInvalidModelProtocol, http.StatusBadRequest},
 	{apppersonalprovider.ErrUpstreamRejected, http.StatusBadGateway},
 	{apppersonalprovider.ErrUpstreamUnavailable, http.StatusBadGateway},
 	{apppersonalprovider.ErrModelUnavailable, http.StatusServiceUnavailable},

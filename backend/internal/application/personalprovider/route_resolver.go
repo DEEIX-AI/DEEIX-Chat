@@ -14,7 +14,7 @@ type platformRouter interface {
 	MarkRouteFailure(ctx context.Context, route *channel.ResolvedRoute, cause error)
 	MarkRouteSuccess(ctx context.Context, route *channel.ResolvedRoute)
 	ListActiveModels(ctx context.Context, userID uint) ([]channel.ModelView, error)
-	BuildExternalRoute(input channel.ExternalRouteInput) *channel.ResolvedRoute
+	BuildExternalRoute(input channel.ExternalRouteInput) (*channel.ResolvedRoute, error)
 }
 
 // RouteResolver 在平台路由前加一层：personal: 引用由个人服务解析，其余全部交给平台。
@@ -34,10 +34,6 @@ func (r *RouteResolver) ResolveRoute(ctx context.Context, input channel.ResolveR
 	if !domainpersonalprovider.IsModelRef(input.PlatformModelName) {
 		return r.platform.ResolveRoute(ctx, input)
 	}
-	// 个人服务只开放对话协议；图片、视频等任务不能落到个人服务上。
-	if input.TaskType != channel.TaskTypeChat {
-		return nil, channel.ErrRouteNotFound
-	}
 	// 个人模型只有一条路由，故障后没有可切换的备选，也不能切到平台上游。
 	if len(input.ExcludedRouteIDs) > 0 {
 		return nil, channel.ErrAllRoutesUnavailable
@@ -54,11 +50,13 @@ func (r *RouteResolver) ResolveRoute(ctx context.Context, input channel.ResolveR
 			Ref:          resolved.Ref,
 			Model:        resolved.Model,
 			ProviderName: resolved.ProviderName,
-			Protocol:     resolved.Protocol,
+			Protocols:    resolved.Protocols,
 		},
-		BaseURL: resolved.BaseURL,
-		APIKey:  resolved.APIKey,
-	}), nil
+		// 任务类型决定用模型的哪个协议；模型的协议都不能执行该任务时返回 ErrRouteNotFound。
+		TaskType: input.TaskType,
+		BaseURL:  resolved.BaseURL,
+		APIKey:   resolved.APIKey,
+	})
 }
 
 // ResolveDefaultRoute 默认路由只来自平台。

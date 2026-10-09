@@ -58,6 +58,7 @@ export function NavControl() {
                 variant="ghost"
                 size="icon"
                 aria-label={t("toggleSidebar")}
+                data-sidebar-hover-expand="off"
                 onClick={toggleSidebar}
                 className={cn(
                   "shrink-0 text-sidebar-foreground transition-[background-color,color,margin-left] group-data-[resizing=true]:ml-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&_svg]:pointer-events-auto",

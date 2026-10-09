@@ -27,13 +27,14 @@ type Provider struct {
 	OwnerUserID uint
 	Name        string
 	// Icon 是用户选择的内置图标 slug；空串表示按服务地址自动匹配。
-	Icon          string
+	Icon string
+	// Protocol 是服务的接口协议，用于拉取模型目录，也是对话模型的默认协议。
 	Protocol      string
 	BaseURL       string
 	Host          string
 	APIKeyEnc     string
 	KeyHint       string
-	Models        []string
+	Models        []Model
 	Status        string
 	Source        string
 	LastError     string
@@ -42,18 +43,25 @@ type Provider struct {
 	UpdatedAt     time.Time
 }
 
-// HasModel 报告 model 是否在用户启用的模型列表中。
-func (p Provider) HasModel(model string) bool {
-	model = strings.TrimSpace(model)
-	if model == "" {
-		return false
+// Model 是用户启用的一个模型及其调用协议。Protocols 为单个协议，或同一媒体模型配套的一组协议
+// （如图片生成 + 图片编辑），规则与平台模型绑定一致。
+type Model struct {
+	Name      string
+	Protocols []string
+}
+
+// FindModel 返回用户启用的同名模型。
+func (p Provider) FindModel(name string) (Model, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Model{}, false
 	}
 	for _, item := range p.Models {
-		if item == model {
-			return true
+		if item.Name == name {
+			return item, true
 		}
 	}
-	return false
+	return Model{}, false
 }
 
 // KeyHint 返回只用于展示的 Key 提示，不足以还原或猜测完整 Key。

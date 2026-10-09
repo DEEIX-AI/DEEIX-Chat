@@ -455,7 +455,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 	generatedBytesByFileID := make(map[string][]byte, len(output.GeneratedImages))
 	now := time.Now()
 	for i, image := range output.GeneratedImages {
-		data, mimeType, readErr := s.readGeneratedImage(ctx, image, route.BaseURL)
+		data, mimeType, readErr := s.readGeneratedImage(ctx, image, mediaArtifactSourceFor(route))
 		if readErr != nil {
 			retErr = s.finalizeGeneratedMediaArtifactFailure(ctx, run, assistantMessage.ID, i+1, len(output.GeneratedImages), readErr)
 			return buildBillableFailure(retErr, output.Usage), retErr
@@ -768,9 +768,33 @@ func mediaImageStreamExplicitlyDisabled(capabilitiesJSON string) bool {
 	return caps.Image.Stream != nil && !*caps.Image.Stream
 }
 
+// mediaArtifactSource 描述生成制品来自哪条路由，决定下载时使用的客户端与凭据。
+type mediaArtifactSource struct {
+	// endpoint 是模型服务端点：制品与它同源时才携带 apiKey。
+	endpoint string
+	apiKey   string
+	// untrusted 表示端点由普通用户配置（自带 Key）：只走不授予端点信任、只允许公网目标的下载客户端。
+	untrusted bool
+}
+
+func mediaArtifactSourceFor(route *channel.ResolvedRoute) mediaArtifactSource {
+	if route == nil {
+		return mediaArtifactSource{}
+	}
+	return mediaArtifactSource{endpoint: route.BaseURL, apiKey: route.APIKey, untrusted: route.UntrustedEndpoint}
+}
+
+// mediaDownloaderFor 选出制品下载客户端；用户端点的制品缺少专用客户端时拒绝下载，不回退到平台客户端。
+func (s *Service) mediaDownloaderFor(source mediaArtifactSource) generatedMediaDownloader {
+	if source.untrusted {
+		return s.untrustedMediaDownloader
+	}
+	return s.mediaDownloader
+}
+
 // readGeneratedImage 读取上游图片结果，并统一校验为可保存的图片字节。
 // 上游临时 URL 只用于服务端下载，最终不会直接写入消息内容，避免长期依赖外部地址。
-func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedImage, trustedProviderEndpoint string) ([]byte, string, error) {
+func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedImage, source mediaArtifactSource) ([]byte, string, error) {
 	mimeType := strings.TrimSpace(image.MIMEType)
 	if mimeType == "" {
 		mimeType = "image/png"
@@ -790,7 +814,8 @@ func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedIma
 	if url == "" {
 		return nil, mimeType, ErrUpstreamEmptyResponse
 	}
-	if s.mediaDownloader == nil {
+	downloader := s.mediaDownloaderFor(source)
+	if downloader == nil {
 		return nil, mimeType, newGeneratedMediaArtifactError("image", "configuration", fmt.Errorf("generated media downloader is not configured"))
 	}
 	cfg := s.cfg.Snapshot()
@@ -798,7 +823,7 @@ func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedIma
 	if limit <= 0 {
 		limit = 20 * 1024 * 1024
 	}
-	data, downloadedMIME, err := s.mediaDownloader.DownloadImage(ctx, url, trustedProviderEndpoint, limit)
+	data, downloadedMIME, err := downloader.DownloadImage(ctx, url, source.endpoint, limit)
 	if err != nil {
 		if isMediaArtifactResponseTooLarge(err) {
 			return nil, mimeType, ErrFileTooLarge

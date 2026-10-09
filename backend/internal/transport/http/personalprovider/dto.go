@@ -1,9 +1,11 @@
 package personalprovider
 
 import (
+	"encoding/json"
 	"time"
 
 	appadmin "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/admin"
+	apppersonalprovider "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/personalprovider"
 	domainpersonalprovider "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/personalprovider"
 )
 
@@ -13,8 +15,46 @@ type PersonalProviderAccessResponse struct {
 	Enabled bool `json:"enabled"`
 	// MaxPerUser 是每个用户最多可添加的服务数。
 	MaxPerUser int `json:"maxPerUser"`
-	// Protocols 是可选的调用协议。
+	// Protocols 是服务可选的接口协议（用于拉取模型目录，也是对话模型的默认协议）。
 	Protocols []string `json:"protocols"`
+	// ModelProtocols 是单个模型可选的调用协议，包含图片与视频协议。
+	ModelProtocols []string `json:"modelProtocols"`
+}
+
+// PersonalProviderModelResponse 是启用的模型及其调用协议。
+type PersonalProviderModelResponse struct {
+	Name string `json:"name"`
+	// Protocols 是单个协议，或同一媒体模型配套的一组协议（如图片生成 + 图片编辑）。
+	Protocols []string `json:"protocols"`
+}
+
+// PersonalProviderAvailableModelResponse 是上游目录中的模型，附带按模型名推断的协议。
+type PersonalProviderAvailableModelResponse struct {
+	Name               string   `json:"name"`
+	SuggestedProtocols []string `json:"suggestedProtocols"`
+}
+
+// PersonalProviderModelRequest 是要启用的模型。protocols 省略时按模型名推断；
+// 为兼容旧客户端，也接受只有模型名的字符串。
+type PersonalProviderModelRequest struct {
+	Name      string   `json:"name" binding:"required,max=200"`
+	Protocols []string `json:"protocols,omitempty" binding:"omitempty,max=2,dive,max=64"`
+}
+
+// UnmarshalJSON 同时接受 "model" 与 {"name": "model", "protocols": [...]} 两种写法。
+func (m *PersonalProviderModelRequest) UnmarshalJSON(data []byte) error {
+	var name string
+	if err := json.Unmarshal(data, &name); err == nil {
+		*m = PersonalProviderModelRequest{Name: name}
+		return nil
+	}
+	type plain PersonalProviderModelRequest
+	var item plain
+	if err := json.Unmarshal(data, &item); err != nil {
+		return err
+	}
+	*m = PersonalProviderModelRequest(item)
+	return nil
 }
 
 // PersonalProviderResponse 是用户自己的模型服务。永远不包含 API Key，只有打码提示。
@@ -22,12 +62,12 @@ type PersonalProviderResponse struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	// Icon 是内置图标 slug；空串表示按服务地址自动匹配。
-	Icon     string   `json:"icon"`
-	Protocol string   `json:"protocol"`
-	BaseURL  string   `json:"baseURL"`
-	Host     string   `json:"host"`
-	KeyHint  string   `json:"keyHint"`
-	Models   []string `json:"models"`
+	Icon     string                          `json:"icon"`
+	Protocol string                          `json:"protocol"`
+	BaseURL  string                          `json:"baseURL"`
+	Host     string                          `json:"host"`
+	KeyHint  string                          `json:"keyHint"`
+	Models   []PersonalProviderModelResponse `json:"models"`
 	// Status: active 可用；disabled 用户已停用；suspended 被管理员停用，用户不能自行启用。
 	Status string `json:"status" enums:"active,disabled,suspended"`
 	Source string `json:"source" enums:"manual,link"`
@@ -48,9 +88,9 @@ type PersonalProviderListResponse struct {
 	Providers []PersonalProviderResponse `json:"providers"`
 }
 
-// PersonalProviderModelsResponse 是上游可用模型名列表。
+// PersonalProviderModelsResponse 是上游可用模型列表。
 type PersonalProviderModelsResponse struct {
-	Models []string `json:"models"`
+	Models []PersonalProviderAvailableModelResponse `json:"models"`
 }
 
 // PersonalProviderDeleteResponse 表示删除结果。
@@ -69,11 +109,11 @@ type PersonalProviderProbeRequest struct {
 type CreatePersonalProviderRequest struct {
 	Name string `json:"name,omitempty" binding:"max=64"`
 	// Icon 是内置图标 slug；省略表示按服务地址自动匹配。
-	Icon     string   `json:"icon,omitempty" binding:"max=64"`
-	Protocol string   `json:"protocol" binding:"required,max=64"`
-	BaseURL  string   `json:"baseURL" binding:"required,max=512"`
-	APIKey   string   `json:"apiKey" binding:"required,max=512"`
-	Models   []string `json:"models" binding:"max=200"`
+	Icon     string                         `json:"icon,omitempty" binding:"max=64"`
+	Protocol string                         `json:"protocol" binding:"required,max=64"`
+	BaseURL  string                         `json:"baseURL" binding:"required,max=512"`
+	APIKey   string                         `json:"apiKey" binding:"required,max=512"`
+	Models   []PersonalProviderModelRequest `json:"models" binding:"max=200,dive"`
 	// Source 为 link 表示来自一键导入链接，需要管理员开启链接导入。
 	Source string `json:"source,omitempty" binding:"omitempty,oneof=manual link" enums:"manual,link"`
 }
@@ -82,10 +122,10 @@ type CreatePersonalProviderRequest struct {
 type UpdatePersonalProviderRequest struct {
 	Name *string `json:"name,omitempty" binding:"omitempty,max=64"`
 	// Icon 为空串表示恢复按服务地址自动匹配。
-	Icon    *string   `json:"icon,omitempty" binding:"omitempty,max=64"`
-	APIKey  *string   `json:"apiKey,omitempty" binding:"omitempty,max=512"`
-	Models  *[]string `json:"models,omitempty" binding:"omitempty,max=200"`
-	Enabled *bool     `json:"enabled,omitempty"`
+	Icon    *string                         `json:"icon,omitempty" binding:"omitempty,max=64"`
+	APIKey  *string                         `json:"apiKey,omitempty" binding:"omitempty,max=512"`
+	Models  *[]PersonalProviderModelRequest `json:"models,omitempty" binding:"omitempty,max=200,dive"`
+	Enabled *bool                           `json:"enabled,omitempty"`
 }
 
 // AdminPersonalProviderResponse 是管理员视角的服务信息：只有元数据与打码提示，没有 Key。
@@ -194,9 +234,13 @@ func toProviderResponses(items []domainpersonalprovider.Provider) []PersonalProv
 }
 
 func toProviderResponse(item domainpersonalprovider.Provider) PersonalProviderResponse {
-	models := item.Models
-	if models == nil {
-		models = []string{}
+	models := make([]PersonalProviderModelResponse, 0, len(item.Models))
+	for _, model := range item.Models {
+		protocols := model.Protocols
+		if protocols == nil {
+			protocols = []string{}
+		}
+		models = append(models, PersonalProviderModelResponse{Name: model.Name, Protocols: protocols})
 	}
 	return PersonalProviderResponse{
 		ID:            item.PublicID,
@@ -244,4 +288,24 @@ func toAdminProviderResponses(items []domainpersonalprovider.Provider, labels ma
 		})
 	}
 	return results
+}
+
+func toAvailableModelResponses(items []apppersonalprovider.AvailableModel) []PersonalProviderAvailableModelResponse {
+	results := make([]PersonalProviderAvailableModelResponse, 0, len(items))
+	for _, item := range items {
+		protocols := item.SuggestedProtocols
+		if protocols == nil {
+			protocols = []string{}
+		}
+		results = append(results, PersonalProviderAvailableModelResponse{Name: item.Name, SuggestedProtocols: protocols})
+	}
+	return results
+}
+
+func toModelInputs(items []PersonalProviderModelRequest) []apppersonalprovider.ModelInput {
+	inputs := make([]apppersonalprovider.ModelInput, 0, len(items))
+	for _, item := range items {
+		inputs = append(inputs, apppersonalprovider.ModelInput{Name: item.Name, Protocols: item.Protocols})
+	}
+	return inputs
 }
