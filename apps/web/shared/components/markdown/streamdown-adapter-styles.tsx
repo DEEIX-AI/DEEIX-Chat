@@ -3,9 +3,10 @@
 import * as React from "react";
 
 /**
- * Streamdown does not currently expose class-name slots for its download menus
- * or fullscreen Mermaid toolbar. Keep the unavoidable upstream DOM adaptation
- * in one place so version upgrades have a single compatibility surface.
+ * Streamdown does not currently expose class-name slots for its download menus,
+ * fullscreen Mermaid toolbar or Mermaid loading placeholders. Keep the unavoidable
+ * upstream DOM adaptation in one place so version upgrades have a single
+ * compatibility surface.
  */
 export const StreamdownAdapterStyles = React.memo(function StreamdownAdapterStyles() {
   return (
@@ -97,6 +98,57 @@ export const StreamdownAdapterStyles = React.memo(function StreamdownAdapterStyl
         height: 0.75rem;
       }
 
+      /*
+       * Mermaid loading. Before a diagram exists Streamdown cycles through several
+       * placeholders (lazy-chunk skeleton, deferred-render spacer, "Loading diagram..."),
+       * and shows a parse error while a partial chart streams. They stay laid out (the
+       * deferred render waits on an IntersectionObserver) but are hidden behind
+       * MarkdownMermaidLoading until the diagram svg, the final error card or the
+       * plain-code fallback appears. Without :has() the upstream placeholders show instead.
+       */
+      [data-markdown-mermaid="pending"] > [data-markdown-mermaid-loading] {
+        display: flex;
+      }
+
+      @supports selector(:has(*)) {
+        [data-markdown-mermaid]:not(
+            :has(
+              [data-streamdown="mermaid"] [role="img"] > svg,
+              [data-markdown-mermaid-error],
+              [data-streamdown="code-block"]
+            )
+          )
+          > [data-markdown-mermaid-loading] {
+          display: flex;
+        }
+
+        [data-markdown-mermaid]:not(
+            :has(
+              [data-streamdown="mermaid"] [role="img"] > svg,
+              [data-markdown-mermaid-error],
+              [data-streamdown="code-block"]
+            )
+          )
+          > :not([data-markdown-mermaid-loading]) {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          visibility: hidden;
+          pointer-events: none;
+        }
+      }
+
+      [data-markdown-mermaid] [data-streamdown="mermaid"] [role="img"],
+      [data-markdown-mermaid-error] {
+        animation: markdown-mermaid-enter 180ms ease-out;
+      }
+
+      @keyframes markdown-mermaid-enter {
+        from {
+          opacity: 0;
+        }
+      }
+
       @keyframes streamdown-action-menu-enter {
         from {
           opacity: 0;
@@ -115,6 +167,11 @@ export const StreamdownAdapterStyles = React.memo(function StreamdownAdapterStyl
           )
           > div
           > div {
+          animation: none;
+        }
+
+        [data-markdown-mermaid] [data-streamdown="mermaid"] [role="img"],
+        [data-markdown-mermaid-error] {
           animation: none;
         }
       }

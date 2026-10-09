@@ -26,11 +26,14 @@ import {
 import { MarkdownTableStreamingContext } from "./adaptive-markdown-table";
 import { MarkdownFootnotesContext } from "./streamdown-html";
 import { StreamdownCheckIcon, StreamdownCopyIcon } from "./streamdown-icons";
+import { MarkdownMermaidLoading, MarkdownMermaidPendingContext } from "./streamdown-mermaid";
 import { sanitizeHTMLStyle } from "./streamdown-style";
 import { UI_BLOCK_FENCE_LANGUAGE, UIBlockHost } from "./ui-blocks";
 
 // Fences without a language are treated as plain text: the label shows text as-is, so content isn't wrongly highlighted as Markdown.
 const DEFAULT_CODE_BLOCK_LANGUAGE = "text";
+// remend (streamdown >= 2.7) rewrites a half-streamed image to this sentinel src instead of dropping it.
+const INCOMPLETE_IMAGE_SRC = "streamdown:incomplete-image";
 const CODE_BLOCK_ACTION_BUTTON_CLASSNAME =
   "size-5 cursor-pointer rounded-none p-1 text-muted-foreground transition-all outline-none hover:bg-foreground/[0.04] hover:text-foreground focus-visible:bg-foreground/[0.04] focus-visible:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -503,6 +506,7 @@ function isFootnoteBackrefElement(node: React.ReactNode): boolean {
 
 export function MarkdownCodePre({ children, node: _node, "data-markdown-source-line": sourceLine }: MarkdownCodePreProps) {
   const streaming = React.useContext(MarkdownTableStreamingContext);
+  const mermaidPending = React.useContext(MarkdownMermaidPendingContext);
   const childElement = React.isValidElement<StreamdownCodeChildProps>(children) ? ensureCodeBlockLanguage(children) : null;
   const codeContent = childElement ? getCodeTextFromChild(childElement) : "";
   const language = childElement ? getCodeLanguage(childElement.props.className) : "";
@@ -522,6 +526,20 @@ export function MarkdownCodePre({ children, node: _node, "data-markdown-source-l
   }
 
   const codeBlock = React.cloneElement(childElement, { "data-block": "true" });
+
+  // Only `mermaid` fences become diagrams in Streamdown; `mmd` stays a plain code block.
+  if (language === "mermaid") {
+    return (
+      <div
+        className="relative w-full"
+        data-markdown-mermaid={mermaidPending ? "pending" : ""}
+        data-markdown-source-line={sourceLine}
+      >
+        <MarkdownMermaidLoading />
+        {mermaidPending ? null : codeBlock}
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full" data-markdown-source-line={sourceLine}>
@@ -670,7 +688,8 @@ export function MarkdownSup({ children, className, node: _node, style, ...props 
 
 export function MarkdownImage({ alt, className, onError, onLoad, src: srcProp, ...props }: MarkdownImageProps) {
   // Markdown rendering only produces string src; Blob src is out of scope.
-  const src = typeof srcProp === "string" ? srcProp : undefined;
+  const incomplete = srcProp === INCOMPLETE_IMAGE_SRC;
+  const src = typeof srcProp === "string" && !incomplete ? srcProp : undefined;
   const t = useTranslations("chat.markdown");
   const insideLink = React.useContext(StreamdownLinkContext);
   const imageActions = React.useContext(MarkdownImageActionsContext);
@@ -762,6 +781,18 @@ export function MarkdownImage({ alt, className, onError, onLoad, src: srcProp, .
 
   const canUseImageActions = !insideLink && !failed && Boolean(displaySrc);
   const canEditImage = Boolean(src && imageActions?.onEditImage && (imageActions.canEditImage?.(src) ?? true));
+
+  if (incomplete) {
+    return (
+      <span
+        className={cn("group relative my-4 block w-fit max-w-full sm:max-w-[32rem]", className)}
+        data-incomplete="true"
+        data-streamdown="image-wrapper"
+      >
+        <span className="block min-h-28 min-w-48 animate-pulse rounded-xl border border-border/60 bg-muted/20 sm:min-w-80" />
+      </span>
+    );
+  }
 
   if (!src) {
     return null;
