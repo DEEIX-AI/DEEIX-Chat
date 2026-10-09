@@ -13,6 +13,7 @@ import (
 	"time"
 
 	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	domainpersonalprovider "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/personalprovider"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
@@ -80,12 +81,14 @@ type Access struct {
 	Enabled    bool
 	MaxPerUser int
 	Protocols  []string
+	// ModelProtocols 是单个模型可选的协议（含图片、视频协议）。
+	ModelProtocols []string
 }
 
 // GetAccess 返回当前用户的可用性；功能关闭时 Enabled 为 false。
 func (s *Service) GetAccess(ctx context.Context, userID uint) (Access, error) {
 	policy := s.policy()
-	access := Access{MaxPerUser: policy.MaxPerUser, Protocols: AllowedProtocols()}
+	access := Access{MaxPerUser: policy.MaxPerUser, Protocols: AllowedProtocols(), ModelProtocols: ModelProtocols()}
 	if err := s.requireEnabled(userID, policy); err != nil {
 		if errors.Is(err, ErrFeatureDisabled) {
 			return access, nil
@@ -111,8 +114,20 @@ type CandidateInput struct {
 	APIKey   string
 }
 
+// AvailableModel 是上游目录中的一个模型，附带按模型名推断的调用协议，供用户确认或修改。
+type AvailableModel struct {
+	Name               string
+	SuggestedProtocols []string
+}
+
+// ModelInput 是用户启用的模型及其协议；Protocols 为空时按模型名推断。
+type ModelInput struct {
+	Name      string
+	Protocols []string
+}
+
 // Probe 使用候选配置拉取模型列表，不落库；用于添加前确认 Key 与地址可用。
-func (s *Service) Probe(ctx context.Context, userID uint, input CandidateInput) ([]string, error) {
+func (s *Service) Probe(ctx context.Context, userID uint, input CandidateInput) ([]AvailableModel, error) {
 	if err := s.requireEnabled(userID, s.policy()); err != nil {
 		return nil, err
 	}
@@ -120,7 +135,19 @@ func (s *Service) Probe(ctx context.Context, userID uint, input CandidateInput) 
 	if err != nil {
 		return nil, err
 	}
-	return s.fetchModels(ctx, candidate.protocol, candidate.endpoint.BaseURL, candidate.apiKey)
+	names, err := s.fetchModels(ctx, candidate.protocol, candidate.endpoint.BaseURL, candidate.apiKey)
+	if err != nil {
+		return nil, err
+	}
+	return withSuggestedProtocols(candidate.protocol, names), nil
+}
+
+func withSuggestedProtocols(providerProtocol string, names []string) []AvailableModel {
+	models := make([]AvailableModel, 0, len(names))
+	for _, name := range names {
+		models = append(models, AvailableModel{Name: name, SuggestedProtocols: channel.SuggestExternalModelProtocols(providerProtocol, name)})
+	}
+	return models
 }
 
 // CreateInput 描述新建服务的输入。
@@ -130,7 +157,7 @@ type CreateInput struct {
 	Protocol string
 	BaseURL  string
 	APIKey   string
-	Models   []string
+	Models   []ModelInput
 	// FromLink 为 true 表示来自一键导入链接，只用于记录来源；功能开启即可导入。
 	FromLink bool
 }
@@ -167,7 +194,7 @@ func (s *Service) Create(ctx context.Context, userID uint, input CreateInput, me
 	if err != nil {
 		return nil, err
 	}
-	models, err := selectModels(input.Models, available)
+	models, err := selectModels(candidate.protocol, input.Models, available)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +238,7 @@ type UpdateInput struct {
 	Name    *string
 	Icon    *string
 	APIKey  *string
-	Models  *[]string
+	Models  *[]ModelInput
 	Enabled *bool
 }
 
@@ -273,11 +300,11 @@ func (s *Service) Update(ctx context.Context, userID uint, publicID string, inpu
 		if err != nil {
 			return nil, err
 		}
-		requested := current.Models
+		requested := modelInputs(current.Models)
 		if input.Models != nil {
 			requested = *input.Models
 		}
-		models, err := selectModels(requested, available)
+		models, err := selectModels(current.Protocol, requested, available)
 		if err != nil {
 			return nil, err
 		}
@@ -328,7 +355,7 @@ func (s *Service) Delete(ctx context.Context, userID uint, publicID string, meta
 }
 
 // ListAvailableModels 拉取服务当前可用的模型，用于用户调整启用的模型。
-func (s *Service) ListAvailableModels(ctx context.Context, userID uint, publicID string) ([]string, error) {
+func (s *Service) ListAvailableModels(ctx context.Context, userID uint, publicID string) ([]AvailableModel, error) {
 	if err := s.requireEnabled(userID, s.policy()); err != nil {
 		return nil, err
 	}
@@ -343,9 +370,12 @@ func (s *Service) ListAvailableModels(ctx context.Context, userID uint, publicID
 	if err != nil {
 		return nil, err
 	}
-	models, err := s.fetchModels(ctx, current.Protocol, current.BaseURL, apiKey)
+	names, err := s.fetchModels(ctx, current.Protocol, current.BaseURL, apiKey)
 	s.recordCheck(ctx, userID, publicID, err)
-	return models, err
+	if err != nil {
+		return nil, err
+	}
+	return withSuggestedProtocols(current.Protocol, names), nil
 }
 
 // ---------------------------------------------------------------------------
@@ -360,7 +390,7 @@ type ModelEntry struct {
 	ProviderName string
 	ProviderIcon string
 	ProviderHost string
-	Protocol     string
+	Protocols    []string
 }
 
 // ListActiveModels 返回当前用户可用的个人模型；功能关闭或无权限时返回空列表而不是错误，
@@ -384,13 +414,13 @@ func (s *Service) ListActiveModels(ctx context.Context, userID uint) ([]ModelEnt
 		}
 		for _, model := range provider.Models {
 			entries = append(entries, ModelEntry{
-				Ref:          domainpersonalprovider.FormatModelRef(provider.PublicID, model),
-				Model:        model,
+				Ref:          domainpersonalprovider.FormatModelRef(provider.PublicID, model.Name),
+				Model:        model.Name,
 				ProviderID:   provider.PublicID,
 				ProviderName: provider.Name,
 				ProviderIcon: provider.Icon,
 				ProviderHost: provider.Host,
-				Protocol:     provider.Protocol,
+				Protocols:    append([]string(nil), model.Protocols...),
 			})
 		}
 	}
@@ -403,7 +433,7 @@ type ResolvedRoute struct {
 	Model        string
 	ProviderID   string
 	ProviderName string
-	Protocol     string
+	Protocols    []string
 	BaseURL      string
 	APIKey       string
 }
@@ -429,7 +459,8 @@ func (s *Service) Resolve(ctx context.Context, userID uint, ref string) (*Resolv
 		}
 		return nil, err
 	}
-	if provider.Status != domainpersonalprovider.StatusActive || !provider.HasModel(model) {
+	enabled, ok := provider.FindModel(model)
+	if provider.Status != domainpersonalprovider.StatusActive || !ok {
 		return nil, ErrModelUnavailable
 	}
 	if _, err := normalizeBaseURL(provider.BaseURL, policy); err != nil {
@@ -444,7 +475,7 @@ func (s *Service) Resolve(ctx context.Context, userID uint, ref string) (*Resolv
 		Model:        model,
 		ProviderID:   provider.PublicID,
 		ProviderName: provider.Name,
-		Protocol:     provider.Protocol,
+		Protocols:    append([]string(nil), enabled.Protocols...),
 		BaseURL:      provider.BaseURL,
 		APIKey:       apiKey,
 	}, nil
@@ -691,8 +722,9 @@ func redactedError(err error) error {
 	return errors.New("request failed")
 }
 
-// selectModels 校验用户选择的模型都在上游目录中；未选择时默认不启用任何模型，由用户显式勾选。
-func selectModels(requested []string, available []string) ([]string, error) {
+// selectModels 校验用户选择的模型都在上游目录中，并校验每个模型的协议（未指定时按模型名推断）。
+// 未选择时默认不启用任何模型，由用户显式勾选。
+func selectModels(providerProtocol string, requested []ModelInput, available []string) ([]domainpersonalprovider.Model, error) {
 	if len(requested) > maxModelsCount {
 		return nil, ErrInvalidModels
 	}
@@ -701,22 +733,39 @@ func selectModels(requested []string, available []string) ([]string, error) {
 		availableSet[model] = struct{}{}
 	}
 	seen := make(map[string]struct{}, len(requested))
-	models := make([]string, 0, len(requested))
-	for _, raw := range requested {
-		model := strings.TrimSpace(raw)
-		if !domainpersonalprovider.IsValidModelName(model) {
+	models := make([]domainpersonalprovider.Model, 0, len(requested))
+	for _, item := range requested {
+		name := strings.TrimSpace(item.Name)
+		if !domainpersonalprovider.IsValidModelName(name) {
 			return nil, ErrInvalidModels
 		}
-		if _, ok := availableSet[model]; !ok {
+		if _, ok := availableSet[name]; !ok {
 			return nil, ErrInvalidModels
 		}
-		if _, exists := seen[model]; exists {
+		if _, exists := seen[name]; exists {
 			continue
 		}
-		seen[model] = struct{}{}
-		models = append(models, model)
+		requestedProtocols := item.Protocols
+		if len(requestedProtocols) == 0 {
+			requestedProtocols = channel.SuggestExternalModelProtocols(providerProtocol, name)
+		}
+		protocols, ok := channel.NormalizeExternalModelProtocols(requestedProtocols)
+		if !ok {
+			return nil, ErrInvalidModelProtocol
+		}
+		seen[name] = struct{}{}
+		models = append(models, domainpersonalprovider.Model{Name: name, Protocols: protocols})
 	}
 	return models, nil
+}
+
+// modelInputs 把已保存的模型转回输入，用于只更换 Key 时按原协议重新校验。
+func modelInputs(models []domainpersonalprovider.Model) []ModelInput {
+	inputs := make([]ModelInput, 0, len(models))
+	for _, model := range models {
+		inputs = append(inputs, ModelInput{Name: model.Name, Protocols: model.Protocols})
+	}
+	return inputs
 }
 
 func truncateRunes(value string, limit int) string {

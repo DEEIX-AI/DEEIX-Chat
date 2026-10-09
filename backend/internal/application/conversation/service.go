@@ -125,34 +125,36 @@ type llmGateway interface {
 
 // Service 封装会话业务能力。
 type Service struct {
-	cfg                   *config.Runtime
-	repo                  repository.ConversationRepository
-	cache                 repository.UserSettingCacheRepository
-	routeResolver         routeResolver
-	memoryRecorder        memoryRecorder
-	mcpRepo               mcpToolResolver
-	llmClient             llmGateway
-	mediaDownloader       generatedMediaDownloader
-	mcpClient             mcpToolCaller
-	uploadSvc             *appupload.Service
-	compactSvc            *appcompact.Service
-	embeddingSvc          *appembedding.Service
-	processingSvc         *appprocessing.Service
-	extractSvc            *extraction.Service
-	ragSvc                *apprag.Service
-	skillResolver         skillResolver
-	uiComponentResolver   uiComponentResolver
-	knowledgeBaseResolver knowledgeBaseResolver
-	billingSvc            *appbilling.Service
-	auditWriter           auditWriter
-	storeProvider         appstorage.Provider
-	logger                *zap.Logger
-	moderationSvc         *appcm.Service
-	toolLimiters          sync.Map
-	generationStreams     *generationStreamRegistry
-	snapshotCache         sync.Map // conversationID (uint) → *cachedSnapshot
-	userMemCache          sync.Map // userID (uint) → *cachedUserMemories
-	imageContextCache     *preparedConversationImageCache
+	cfg             *config.Runtime
+	repo            repository.ConversationRepository
+	cache           repository.UserSettingCacheRepository
+	routeResolver   routeResolver
+	memoryRecorder  memoryRecorder
+	mcpRepo         mcpToolResolver
+	llmClient       llmGateway
+	mediaDownloader generatedMediaDownloader
+	// untrustedMediaDownloader 下载用户自带 Key 端点返回的制品：始终只允许公网目标，端点不放宽出站策略。
+	untrustedMediaDownloader generatedMediaDownloader
+	mcpClient                mcpToolCaller
+	uploadSvc                *appupload.Service
+	compactSvc               *appcompact.Service
+	embeddingSvc             *appembedding.Service
+	processingSvc            *appprocessing.Service
+	extractSvc               *extraction.Service
+	ragSvc                   *apprag.Service
+	skillResolver            skillResolver
+	uiComponentResolver      uiComponentResolver
+	knowledgeBaseResolver    knowledgeBaseResolver
+	billingSvc               *appbilling.Service
+	auditWriter              auditWriter
+	storeProvider            appstorage.Provider
+	logger                   *zap.Logger
+	moderationSvc            *appcm.Service
+	toolLimiters             sync.Map
+	generationStreams        *generationStreamRegistry
+	snapshotCache            sync.Map // conversationID (uint) → *cachedSnapshot
+	userMemCache             sync.Map // userID (uint) → *cachedUserMemories
+	imageContextCache        *preparedConversationImageCache
 }
 
 func (s *Service) llmAttribution() (string, string) {
@@ -282,44 +284,47 @@ type MessageFeedbackResult struct {
 
 // Dependencies 描述会话服务运行所需的应用依赖。
 type Dependencies struct {
-	Config            *config.Runtime
-	Repository        repository.ConversationRepository
-	Cache             repository.ConversationCacheRepository
-	RouteResolver     routeResolver
-	MemoryRecorder    memoryRecorder
-	LLMClient         llmGateway
-	MediaDownloader   generatedMediaDownloader
-	MCPClient         mcpToolCaller
-	CompactService    *appcompact.Service
-	EmbeddingService  *appembedding.Service
-	ProcessingService *appprocessing.Service
-	UploadService     *appupload.Service
-	ExtractService    *extraction.Service
-	RAGService        *apprag.Service
-	Logger            *zap.Logger
+	Config          *config.Runtime
+	Repository      repository.ConversationRepository
+	Cache           repository.ConversationCacheRepository
+	RouteResolver   routeResolver
+	MemoryRecorder  memoryRecorder
+	LLMClient       llmGateway
+	MediaDownloader generatedMediaDownloader
+	// UntrustedMediaDownloader 用于用户自带 Key 的路由，必须使用只允许公网目标的出站策略。
+	UntrustedMediaDownloader generatedMediaDownloader
+	MCPClient                mcpToolCaller
+	CompactService           *appcompact.Service
+	EmbeddingService         *appembedding.Service
+	ProcessingService        *appprocessing.Service
+	UploadService            *appupload.Service
+	ExtractService           *extraction.Service
+	RAGService               *apprag.Service
+	Logger                   *zap.Logger
 }
 
 // NewServiceWithRuntime 创建使用运行时配置容器的服务。
 // 压缩、embedding、处理流水线、上传、抽取与 RAG 服务全部由组合根装配后注入。
 func NewServiceWithRuntime(deps Dependencies) *Service {
 	svc := &Service{
-		cfg:               deps.Config,
-		repo:              deps.Repository,
-		cache:             deps.Cache,
-		routeResolver:     deps.RouteResolver,
-		memoryRecorder:    deps.MemoryRecorder,
-		llmClient:         deps.LLMClient,
-		mediaDownloader:   deps.MediaDownloader,
-		mcpClient:         deps.MCPClient,
-		compactSvc:        deps.CompactService,
-		embeddingSvc:      deps.EmbeddingService,
-		processingSvc:     deps.ProcessingService,
-		uploadSvc:         deps.UploadService,
-		extractSvc:        deps.ExtractService,
-		ragSvc:            deps.RAGService,
-		logger:            deps.Logger,
-		generationStreams: newGenerationStreamRegistry(deps.Cache, defaultGenerationStreamOptions()),
-		imageContextCache: defaultPreparedConversationImageCache(),
+		cfg:                      deps.Config,
+		repo:                     deps.Repository,
+		cache:                    deps.Cache,
+		routeResolver:            deps.RouteResolver,
+		memoryRecorder:           deps.MemoryRecorder,
+		llmClient:                deps.LLMClient,
+		mediaDownloader:          deps.MediaDownloader,
+		untrustedMediaDownloader: deps.UntrustedMediaDownloader,
+		mcpClient:                deps.MCPClient,
+		compactSvc:               deps.CompactService,
+		embeddingSvc:             deps.EmbeddingService,
+		processingSvc:            deps.ProcessingService,
+		uploadSvc:                deps.UploadService,
+		extractSvc:               deps.ExtractService,
+		ragSvc:                   deps.RAGService,
+		logger:                   deps.Logger,
+		generationStreams:        newGenerationStreamRegistry(deps.Cache, defaultGenerationStreamOptions()),
+		imageContextCache:        defaultPreparedConversationImageCache(),
 	}
 	// 注入 LLM 语义压缩回调（在 svc 完全初始化后绑定）
 	svc.compactSvc.SetLLMSummarizer(svc.callCompactLLM)

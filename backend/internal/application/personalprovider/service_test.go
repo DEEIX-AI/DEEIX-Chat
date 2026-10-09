@@ -210,7 +210,7 @@ func validCreate() CreateInput {
 		Protocol: llm.AdapterOpenAIChatCompletions,
 		BaseURL:  "https://api.openai.com/v1/",
 		APIKey:   "sk-test-abcdefghijklmnop1234",
-		Models:   []string{"gpt-4o"},
+		Models:   []ModelInput{{Name: "gpt-4o"}},
 	}
 }
 
@@ -229,7 +229,7 @@ func TestCreateEncryptsKeyAndNeverStoresPlaintext(t *testing.T) {
 	if item.KeyHint != "sk-••••1234" {
 		t.Fatalf("key hint = %q", item.KeyHint)
 	}
-	if len(item.Models) != 1 || item.Models[0] != "gpt-4o" {
+	if len(item.Models) != 1 || item.Models[0].Name != "gpt-4o" || strings.Join(item.Models[0].Protocols, ",") != "openai_chat_completions" {
 		t.Fatalf("models = %#v", item.Models)
 	}
 	if call := fixture.lister.calls[0]; !call.UntrustedEndpoint {
@@ -260,9 +260,32 @@ func stringify(value any) string {
 	}
 }
 
+// 普通条目只匹配域名本身，"*." 前缀才匹配子域名（且不含域名本身）。
+func TestBlockedHostMatching(t *testing.T) {
+	cfg := config.Config{PersonalProvidersBlockedHosts: "example.com, *.relay.example.org\nEXACT.example.net."}
+	policy := policyFromConfig(cfg)
+	cases := map[string]bool{
+		"example.com":           true,
+		"Example.COM.":          true,
+		"api.example.com":       false,
+		"notexample.com":        false,
+		"relay.example.org":     false,
+		"a.relay.example.org":   true,
+		"a.b.relay.example.org": true,
+		"evilrelay.example.org": false,
+		"exact.example.net":     true,
+		"sub.exact.example.net": false,
+	}
+	for host, want := range cases {
+		if got := policy.isBlockedHost(host); got != want {
+			t.Errorf("isBlockedHost(%q) = %v, want %v", host, got, want)
+		}
+	}
+}
+
 func TestCreateRejectsUnsafeAddresses(t *testing.T) {
 	fixture := newFixture(t, func(cfg *config.Config) {
-		cfg.PersonalProvidersBlockedHosts = "evil.example.com"
+		cfg.PersonalProvidersBlockedHosts = "evil.example.com\n*.bad.example.net"
 	})
 	cases := map[string]error{
 		"http://api.openai.com/v1":            ErrInvalidBaseURL,
@@ -277,7 +300,9 @@ func TestCreateRejectsUnsafeAddresses(t *testing.T) {
 		"https://[::1]/v1":                    ErrBlockedHost,
 		"https://metadata.google.internal/":   ErrBlockedHost,
 		"https://evil.example.com/v1":         ErrBlockedHost,
-		"https://api.EVIL.example.com/v1":     ErrBlockedHost,
+		"https://EVIL.example.com./v1":        ErrBlockedHost,
+		"https://api.bad.example.net/v1":      ErrBlockedHost,
+		"https://a.b.bad.example.net/v1":      ErrBlockedHost,
 	}
 	for address, want := range cases {
 		input := validCreate()
@@ -303,7 +328,7 @@ func TestCreateRejectsHeaderInjectionInKey(t *testing.T) {
 func TestCreateOnlyAcceptsModelsTheUpstreamReports(t *testing.T) {
 	fixture := newFixture(t, nil)
 	input := validCreate()
-	input.Models = []string{"gpt-4o", "not-offered"}
+	input.Models = []ModelInput{{Name: "gpt-4o"}, {Name: "not-offered"}}
 	if _, err := fixture.service.Create(context.Background(), 1, input, RequestMeta{}); !errors.Is(err, ErrInvalidModels) {
 		t.Fatalf("err = %v, want ErrInvalidModels", err)
 	}
@@ -402,7 +427,7 @@ func TestResolveIsScopedToTheOwnerAndCurrentPolicy(t *testing.T) {
 
 	// 管理员事后把域名加入禁止列表，已保存的服务立即不可用。
 	cfg := fixture.runtime.Snapshot()
-	cfg.PersonalProvidersBlockedHosts = "openai.com"
+	cfg.PersonalProvidersBlockedHosts = "*.openai.com"
 	fixture.runtime.Store(cfg)
 	if _, err := fixture.service.Resolve(context.Background(), 1, ref); !errors.Is(err, ErrModelUnavailable) {
 		t.Fatalf("blocked host: err = %v", err)
@@ -511,15 +536,9 @@ func (f *fakePlatform) ListActiveModels(context.Context, uint) ([]channel.ModelV
 	return nil, nil
 }
 
-func (f *fakePlatform) BuildExternalRoute(input channel.ExternalRouteInput) *channel.ResolvedRoute {
-	return &channel.ResolvedRoute{
-		PlatformModelName: input.Ref,
-		Protocol:          input.Protocol,
-		BaseURL:           input.BaseURL,
-		APIKey:            input.APIKey,
-		UpstreamModel:     input.Model,
-		UntrustedEndpoint: true,
-	}
+// BuildExternalRoute 使用真实实现（零值服务没有内置目录），以覆盖按任务选协议的规则。
+func (f *fakePlatform) BuildExternalRoute(input channel.ExternalRouteInput) (*channel.ResolvedRoute, error) {
+	return (&channel.Service{}).BuildExternalRoute(input)
 }
 
 func TestRouteResolverNeverFallsBackToPlatformForPersonalRefs(t *testing.T) {
@@ -541,11 +560,11 @@ func TestRouteResolverNeverFallsBackToPlatformForPersonalRefs(t *testing.T) {
 	}
 
 	for name, input := range map[string]channel.ResolveRouteInput{
-		"other user":      {PlatformModelName: ref, TaskType: channel.TaskTypeChat, UserID: 2},
-		"image task":      {PlatformModelName: ref, TaskType: channel.TaskTypeImageGeneration, UserID: 1},
-		"failover":        {PlatformModelName: ref, TaskType: channel.TaskTypeChat, UserID: 1, ExcludedRouteIDs: []uint{1}},
-		"malformed ref":   {PlatformModelName: "personal:nope", TaskType: channel.TaskTypeChat, UserID: 1},
-		"internal no uid": {PlatformModelName: ref, TaskType: channel.TaskTypeChat, Scope: channel.RouteScopeInternal},
+		"other user":             {PlatformModelName: ref, TaskType: channel.TaskTypeChat, UserID: 2},
+		"chat model, image task": {PlatformModelName: ref, TaskType: channel.TaskTypeImageGeneration, UserID: 1},
+		"failover":               {PlatformModelName: ref, TaskType: channel.TaskTypeChat, UserID: 1, ExcludedRouteIDs: []uint{1}},
+		"malformed ref":          {PlatformModelName: "personal:nope", TaskType: channel.TaskTypeChat, UserID: 1},
+		"internal no uid":        {PlatformModelName: ref, TaskType: channel.TaskTypeChat, Scope: channel.RouteScopeInternal},
 	} {
 		if _, err := resolver.ResolveRoute(context.Background(), input); err == nil {
 			t.Errorf("%s: expected an error", name)
@@ -602,6 +621,77 @@ func TestIconIsOptionalAndOnlyAcceptsSlugs(t *testing.T) {
 	}
 }
 
+// 每个模型单独指定协议：图片模型按名称推断为图片协议，任务按模型协议路由，非法组合被拒绝。
+func TestModelsCarryTheirOwnProtocols(t *testing.T) {
+	fixture := newFixture(t, nil)
+	fixture.lister.models = []llm.ModelItem{{ID: "gpt-4o"}, {ID: "gpt-image-1"}, {ID: "relay-draw"}}
+	input := validCreate()
+	input.Models = []ModelInput{
+		{Name: "gpt-4o"},
+		{Name: "gpt-image-1"},
+		{Name: "relay-draw", Protocols: []string{llm.AdapterOpenAIImageGenerations}},
+	}
+	item, err := fixture.service.Create(context.Background(), 1, input, RequestMeta{})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	got := map[string]string{}
+	for _, model := range item.Models {
+		got[model.Name] = strings.Join(model.Protocols, ",")
+	}
+	want := map[string]string{
+		"gpt-4o":      llm.AdapterOpenAIChatCompletions,
+		"gpt-image-1": llm.AdapterOpenAIImageGenerations + "," + llm.AdapterOpenAIImageEdits,
+		"relay-draw":  llm.AdapterOpenAIImageGenerations,
+	}
+	for name, protocols := range want {
+		if got[name] != protocols {
+			t.Errorf("%s protocols = %q, want %q", name, got[name], protocols)
+		}
+	}
+
+	resolver := NewRouteResolver(&fakePlatform{}, fixture.service)
+	resolve := func(model string, task string) (*channel.ResolvedRoute, error) {
+		return resolver.ResolveRoute(context.Background(), channel.ResolveRouteInput{
+			PlatformModelName: domainpersonalprovider.FormatModelRef(item.PublicID, model), TaskType: task, UserID: 1,
+		})
+	}
+	for _, check := range []struct {
+		model, task, protocol string
+	}{
+		{"gpt-image-1", channel.TaskTypeImageGeneration, llm.AdapterOpenAIImageGenerations},
+		{"gpt-image-1", channel.TaskTypeImageEdit, llm.AdapterOpenAIImageEdits},
+		{"relay-draw", channel.TaskTypeImageGeneration, llm.AdapterOpenAIImageGenerations},
+		{"gpt-4o", channel.TaskTypeChat, llm.AdapterOpenAIChatCompletions},
+	} {
+		route, err := resolve(check.model, check.task)
+		if err != nil || route.Protocol != check.protocol || !route.UntrustedEndpoint {
+			t.Errorf("%s/%s: route = %#v, err = %v", check.model, check.task, route, err)
+		}
+	}
+	for _, check := range [][2]string{
+		{"gpt-image-1", channel.TaskTypeChat},
+		{"relay-draw", channel.TaskTypeImageEdit},
+		{"gpt-4o", channel.TaskTypeImageGeneration},
+	} {
+		if _, err := resolve(check[0], check[1]); !errors.Is(err, channel.ErrRouteNotFound) {
+			t.Errorf("%s/%s: err = %v, want ErrRouteNotFound", check[0], check[1], err)
+		}
+	}
+
+	for name, protocols := range map[string][]string{
+		"unknown":          {"made_up_protocol"},
+		"not implemented":  {"openai_video_generations"},
+		"bad combination":  {llm.AdapterOpenAIChatCompletions, llm.AdapterOpenAIImageGenerations},
+		"cross-vendor set": {llm.AdapterOpenAIImageGenerations, llm.AdapterXAIImageEdits},
+	} {
+		models := []ModelInput{{Name: "gpt-4o", Protocols: protocols}}
+		if _, err := fixture.service.Update(context.Background(), 1, item.PublicID, UpdateInput{Models: &models}, RequestMeta{}); !errors.Is(err, ErrInvalidModelProtocol) {
+			t.Errorf("%s: err = %v, want ErrInvalidModelProtocol", name, err)
+		}
+	}
+}
+
 func TestAllowedProtocolsAreTheStreamingChatProtocols(t *testing.T) {
 	want := []string{
 		llm.AdapterOpenAIChatCompletions,
@@ -622,9 +712,15 @@ func TestAllowedProtocolsAreTheStreamingChatProtocols(t *testing.T) {
 			t.Fatalf("%s must be an implemented streaming adapter", protocol)
 		}
 	}
+	// 服务协议用于拉取模型目录，只能是对话协议；图片、视频协议在单个模型上指定。
 	for _, media := range []string{llm.AdapterOpenAIImageGenerations, llm.AdapterOpenRouterImages, llm.AdapterGoogleImageGeneration, llm.AdapterXAIImage, llm.AdapterXAIVideo} {
 		if isAllowedProtocol(media) {
-			t.Fatalf("media protocol %s must stay platform-only", media)
+			t.Fatalf("media protocol %s must not be a provider protocol", media)
+		}
+	}
+	for _, protocol := range ModelProtocols() {
+		if !llm.IsImplementedAdapter(protocol) {
+			t.Fatalf("model protocol %s must be implemented", protocol)
 		}
 	}
 }

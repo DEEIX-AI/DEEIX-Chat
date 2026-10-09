@@ -35,7 +35,7 @@ func createProvider(t *testing.T, repo *Repo, owner uint, publicID string, host 
 		Host:        host,
 		APIKeyEnc:   "v1:cipher",
 		KeyHint:     "sk-••••1234",
-		Models:      []string{"gpt-4o"},
+		Models:      []domainpersonalprovider.Model{{Name: "gpt-4o", Protocols: []string{"openai_chat_completions"}}},
 		Status:      domainpersonalprovider.StatusActive,
 		Source:      domainpersonalprovider.SourceManual,
 	})
@@ -76,14 +76,36 @@ func TestUpdateByOwnerPersistsModelsAndCheckState(t *testing.T) {
 	ctx := context.Background()
 	createProvider(t, repo, 1, "aaaaaaaa1111", "api.one.com")
 
-	models := []string{"gpt-4o", "o4-mini"}
+	models := []domainpersonalprovider.Model{
+		{Name: "gpt-4o", Protocols: []string{"openai_chat_completions"}},
+		{Name: "gpt-image-1", Protocols: []string{"openai_image_generations", "openai_image_edits"}},
+	}
 	lastError := "upstream 401"
 	updated, err := repo.UpdateByOwner(ctx, 1, "aaaaaaaa1111", repository.PersonalProviderPatch{Models: &models, LastError: &lastError})
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
-	if len(updated.Models) != 2 || updated.Models[1] != "o4-mini" || updated.LastError != lastError {
+	if len(updated.Models) != 2 || updated.Models[1].Name != "gpt-image-1" || len(updated.Models[1].Protocols) != 2 || updated.LastError != lastError {
 		t.Fatalf("updated = %#v", updated)
+	}
+}
+
+// 早期版本的 models_json 只有模型名：读取时按服务协议补齐，无需迁移。
+func TestLegacyModelNamesTakeTheProviderProtocol(t *testing.T) {
+	db := openPersonalProviderTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	createProvider(t, repo, 1, "aaaaaaaa1111", "api.one.com")
+	if err := db.Model(&models.LLMUserProvider{}).Where("public_id = ?", "aaaaaaaa1111").
+		Update("models_json", `["gpt-4o","o4-mini"]`).Error; err != nil {
+		t.Fatal(err)
+	}
+	item, err := repo.GetByOwner(ctx, 1, "aaaaaaaa1111")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(item.Models) != 2 || item.Models[1].Name != "o4-mini" || len(item.Models[1].Protocols) != 1 || item.Models[1].Protocols[0] != "openai_chat_completions" {
+		t.Fatalf("models = %#v", item.Models)
 	}
 }
 

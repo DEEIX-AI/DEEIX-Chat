@@ -1,6 +1,6 @@
 {
   "policy": {
-    "title": "User model providers",
+    "title": "BYOK",
     "securityLabel": "Security details",
     "enabled": {
       "label": "Allow connections",
@@ -12,13 +12,9 @@
     },
     "blockedHosts": {
       "label": "Blocked domains",
-      "description": "One per line, subdomains included. Applies to existing providers immediately."
+      "description": "One per line, matched exactly; *.example.com matches all of its subdomains. Applies to existing providers immediately."
     },
-    "importLink": {
-      "label": "Import link",
-      "description": "New API and One API sites can add a chat link that imports the provider in one click.",
-      "action": "View format"
-    },
+    "importLink": "Import link",
     "securityNote": "Only public HTTPS addresses are allowed; private, local and cloud-metadata addresses are always refused, and redirects are not followed. API keys are encrypted and hidden from administrators."
   },
   "list": {

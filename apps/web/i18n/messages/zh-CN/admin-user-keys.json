@@ -1,6 +1,6 @@
 {
   "policy": {
-    "title": "用户模型服务",
+    "title": "BYOK",
     "securityLabel": "安全说明",
     "enabled": {
       "label": "允许接入",
@@ -12,13 +12,9 @@
     },
     "blockedHosts": {
       "label": "域名黑名单",
-      "description": "每行一个，包含子域名；对已有服务商立即生效。"
+      "description": "每行一个，精确匹配域名；*.example.com 匹配其所有子域名。对已有服务商立即生效。"
     },
-    "importLink": {
-      "label": "导入链接",
-      "description": "New API、One API 等站点可配置聊天链接，用户点击即可导入。",
-      "action": "查看格式"
-    },
+    "importLink": "导入链接",
     "securityNote": "仅允许 HTTPS 公网地址，始终拒绝内网、本机及云元数据地址，且不跟随重定向。API Key 加密存储，管理员不可见。"
   },
   "list": {

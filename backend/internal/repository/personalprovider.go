@@ -30,7 +30,7 @@ type PersonalProviderPatch struct {
 	Icon          *string
 	APIKeyEnc     *string
 	KeyHint       *string
-	Models        *[]string
+	Models        *[]domainpersonalprovider.Model
 	Status        *string
 	LastError     *string
 	LastCheckedAt *time.Time

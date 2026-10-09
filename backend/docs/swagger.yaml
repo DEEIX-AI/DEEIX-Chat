@@ -3117,7 +3117,7 @@ definitions:
         type: string
       models:
         items:
-          type: string
+          $ref: '#/definitions/PersonalProviderModelRequest'
         maxItems: 200
         type: array
       name:
@@ -7036,14 +7036,20 @@ definitions:
       maxPerUser:
         description: MaxPerUser 是每个用户最多可添加的服务数。
         type: integer
+      modelProtocols:
+        description: ModelProtocols 是单个模型可选的调用协议，包含图片与视频协议。
+        items:
+          type: string
+        type: array
       protocols:
-        description: Protocols 是可选的调用协议。
+        description: Protocols 是服务可选的接口协议（用于拉取模型目录，也是对话模型的默认协议）。
         items:
           type: string
         type: array
     required:
     - enabled
     - maxPerUser
+    - modelProtocols
     - protocols
     type: object
   PersonalProviderAccessResponseDoc:
@@ -7072,6 +7078,18 @@ definitions:
     required:
     - data
     - errorMsg
+    type: object
+  PersonalProviderAvailableModelResponse:
+    properties:
+      name:
+        type: string
+      suggestedProtocols:
+        items:
+          type: string
+        type: array
+    required:
+    - name
+    - suggestedProtocols
     type: object
   PersonalProviderDataResponse:
     properties:
@@ -7116,11 +7134,37 @@ definitions:
     - data
     - errorMsg
     type: object
+  PersonalProviderModelRequest:
+    properties:
+      name:
+        maxLength: 200
+        type: string
+      protocols:
+        items:
+          type: string
+        maxItems: 2
+        type: array
+    required:
+    - name
+    type: object
+  PersonalProviderModelResponse:
+    properties:
+      name:
+        type: string
+      protocols:
+        description: Protocols 是单个协议，或同一媒体模型配套的一组协议（如图片生成 + 图片编辑）。
+        items:
+          type: string
+        type: array
+    required:
+    - name
+    - protocols
+    type: object
   PersonalProviderModelsResponse:
     properties:
       models:
         items:
-          type: string
+          $ref: '#/definitions/PersonalProviderAvailableModelResponse'
         type: array
     required:
     - models
@@ -7175,7 +7219,7 @@ definitions:
         type: string
       models:
         items:
-          type: string
+          $ref: '#/definitions/PersonalProviderModelResponse'
         type: array
       name:
         type: string
@@ -9981,7 +10025,7 @@ definitions:
         type: string
       models:
         items:
-          type: string
+          $ref: '#/definitions/PersonalProviderModelRequest'
         maxItems: 200
         type: array
       name:

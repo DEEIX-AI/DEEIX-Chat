@@ -35,7 +35,7 @@ import { type UserKeysSettingKey, useAdminUserKeysPolicy } from "@/features/admi
 import { useAdminUserKeysProviders } from "@/features/admin/hooks/use-admin-user-keys-providers";
 import { ModelsImportLinkDialog } from "@/features/settings";
 import type { AdminPersonalProviderDTO } from "@/shared/api/personal-providers-types";
-import { SettingsFieldInset, SettingsFieldItem, SettingsFieldList, SettingsFieldRow, SettingsPage, SettingsSection } from "@/shared/components/settings-layout";
+import { SettingsFieldInset, SettingsFieldItem, SettingsFieldList, SettingsPage, SettingsSection } from "@/shared/components/settings-layout";
 import { resolveAvatarImageSrc } from "@/shared/lib/avatar";
 import { SettingsFieldEditor, type SettingsFieldDefinition } from "../../shared/settings-runtime-panel";
 
@@ -67,7 +67,7 @@ export function AdminUserKeysPage() {
       type: "textarea",
       label: t("policy.blockedHosts.label"),
       description: t("policy.blockedHosts.description"),
-      placeholder: "example.com\nrelay.example.org",
+      placeholder: "example.com\n*.relay.example.org",
     },
   ];
   const settingsDisabled = policy.loading || policy.saving;
@@ -102,12 +102,24 @@ export function AdminUserKeysPage() {
           </span>
         }
         actions={
-          policy.dirty ? (
-            <Button type="button" size="sm" disabled={policy.loading || policy.saving} onClick={() => void policy.save()}>
-              <Save className="size-3.5" />
-              {commonT("actions.save")}
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground"
+              onClick={() => setLinkOpen(true)}
+            >
+              <Link2 className="size-3.5 stroke-1" />
+              {t("policy.importLink")}
             </Button>
-          ) : null
+            {policy.dirty ? (
+              <Button type="button" size="sm" disabled={policy.loading || policy.saving} onClick={() => void policy.save()}>
+                <Save className="size-3.5" />
+                {commonT("actions.save")}
+              </Button>
+            ) : null}
+          </>
         }
       >
         <SettingsFieldList>
@@ -144,18 +156,6 @@ export function AdminUserKeysPage() {
                             onChange={(value) => policy.setValue(field.key, value)}
                           />
                         ))}
-                        <SettingsFieldRow title={t("policy.importLink.label")} description={t("policy.importLink.description")}>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 rounded-md border-border/50 px-2.5 text-[12px] font-normal shadow-none hover:bg-accent/40"
-                            onClick={() => setLinkOpen(true)}
-                          >
-                            <Link2 className="size-3.5 stroke-1" />
-                            {t("policy.importLink.action")}
-                          </Button>
-                        </SettingsFieldRow>
                       </SettingsFieldList>
                     </SettingsFieldInset>
                   </SettingsFieldItem>
@@ -227,10 +227,10 @@ export function AdminUserKeysPage() {
                     />
                   </div>
                 </TableHead>
-                <TableHead className="left-[44px] min-w-[120px]" stickyStart>{t("list.columns.name")}</TableHead>
+                <TableHead className="left-[44px] min-w-[112px]" stickyStart>{t("list.columns.owner")}</TableHead>
+                <TableHead className="min-w-[120px]">{t("list.columns.name")}</TableHead>
                 <TableHead>{t("list.columns.baseURL")}</TableHead>
                 <TableHead className="w-[64px] text-center">{t("list.columns.models")}</TableHead>
-                <TableHead className="min-w-[112px]">{t("list.columns.owner")}</TableHead>
                 <TableHead className="w-[80px] text-center">{t("list.columns.status")}</TableHead>
                 <TableHead className="w-[112px]">{t("list.columns.created")}</TableHead>
                 <TableHead stickyEnd className="w-[56px]" />
@@ -252,7 +252,10 @@ export function AdminUserKeysPage() {
                       />
                     </div>
                   </TableCell>
-                  <TableCell className="left-[44px] py-1.5" stickyStart>
+                  <TableCell className="left-[44px] max-w-[180px] py-1.5" stickyStart>
+                    <ProviderOwner item={item} />
+                  </TableCell>
+                  <TableCell className="py-1.5">
                     <div className="flex max-w-[14rem] min-w-0 items-center gap-2">
                       <ProviderIcon icon={item.icon} baseURL={item.baseURL} name={item.name} />
                       <span className="truncate font-medium text-foreground">{item.name}</span>
@@ -264,9 +267,6 @@ export function AdminUserKeysPage() {
                     </div>
                   </TableCell>
                   <TableCell className="py-1.5 text-center tabular-nums text-muted-foreground">{item.modelCount}</TableCell>
-                  <TableCell className="max-w-[180px] py-1.5">
-                    <ProviderOwner item={item} />
-                  </TableCell>
                   <TableCell className="py-1.5 text-center">
                     <ProviderStatusBadge item={item} />
                   </TableCell>

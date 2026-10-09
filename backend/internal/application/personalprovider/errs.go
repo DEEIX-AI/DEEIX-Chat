@@ -26,6 +26,8 @@ var (
 	ErrInvalidAPIKey = apperr.New("personal_provider.invalid_api_key", "invalid API key")
 	// ErrInvalidModels 表示模型选择不合法。
 	ErrInvalidModels = apperr.New("personal_provider.invalid_models", "invalid model selection")
+	// ErrInvalidModelProtocol 表示模型的协议不受支持，或不是平台允许的配套协议组合。
+	ErrInvalidModelProtocol = apperr.New("personal_provider.invalid_model_protocol", "unsupported protocol for this model")
 	// ErrSuspended 表示服务已被管理员停用，用户不能自行启用。
 	ErrSuspended = apperr.New("personal_provider.suspended", "this model provider was disabled by an administrator")
 	// ErrUpstreamRejected 表示上游拒绝了请求（通常是 Key 无效或无权限）。

@@ -498,7 +498,7 @@ type Config struct {
 	// 用户自带 Key（个人模型服务）配置
 	PersonalProvidersEnabled      bool   // 是否允许用户添加自己的模型服务
 	PersonalProvidersMaxPerUser   int    // 每个用户最多可添加的服务数
-	PersonalProvidersBlockedHosts string // 禁止接入的域名（逗号或换行分隔，匹配域名本身及其子域名）
+	PersonalProvidersBlockedHosts string // 禁止接入的域名（逗号或换行分隔；精确匹配，*.example.com 匹配子域名）
 	// 桌面端下载入口配置
 	DesktopDownloadEnabled bool   // 是否在网页端用户菜单展示「下载桌面端」入口
 	DesktopDownloadURL     string // 桌面端下载页地址

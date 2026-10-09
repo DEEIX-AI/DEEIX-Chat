@@ -17,10 +17,15 @@ import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { resolveModelProviderIcon } from "@/entities/model";
+import { modelSelectionPayload } from "@/features/settings/model/model-protocol-choices";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import type { PersonalProviderDTO, UpdatePersonalProviderPayload } from "@/shared/api/personal-providers-types";
+import type {
+  PersonalProviderAvailableModelDTO,
+  PersonalProviderDTO,
+  UpdatePersonalProviderPayload,
+} from "@/shared/api/personal-providers-types";
 import { ModelsIconPicker } from "./models-icon-picker";
-import { ModelsSelectDialog, ModelsSelectField } from "./models-select-dialog";
+import { type ModelOption, ModelsSelectDialog, ModelsSelectField } from "./models-select-dialog";
 
 const FIELD_LABEL_CLASS = "text-xs font-normal text-muted-foreground";
 
@@ -31,13 +36,16 @@ const FIELD_LABEL_CLASS = "text-xs font-normal text-muted-foreground";
  */
 export function ModelsEditDialog({
   provider,
+  modelProtocols,
   onOpenChange,
   onLoadModels,
   onSave,
 }: {
   provider: PersonalProviderDTO | null;
+  /** Protocols a single model may run on, image and video ones included. */
+  modelProtocols: string[];
   onOpenChange: (open: boolean) => void;
-  onLoadModels: (id: string) => Promise<string[]>;
+  onLoadModels: (id: string) => Promise<PersonalProviderAvailableModelDTO[]>;
   onSave: (id: string, payload: UpdatePersonalProviderPayload) => Promise<boolean>;
 }) {
   const t = useTranslations("settings.modelsPage.editDialog");
@@ -46,8 +54,8 @@ export function ModelsEditDialog({
   const [name, setName] = React.useState("");
   const [icon, setIcon] = React.useState("");
   const [apiKey, setApiKey] = React.useState("");
-  const [available, setAvailable] = React.useState<string[] | null>(null);
-  const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
+  const [available, setAvailable] = React.useState<ModelOption[] | null>(null);
+  const [selected, setSelected] = React.useState<Map<string, string[]>>(() => new Map());
   const [loadingModels, setLoadingModels] = React.useState(false);
   const [loadError, setLoadError] = React.useState("");
   const [selectOpen, setSelectOpen] = React.useState(false);
@@ -61,7 +69,7 @@ export function ModelsEditDialog({
     setIcon(provider.icon);
     setApiKey("");
     setAvailable(null);
-    setSelected(new Set(provider.models));
+    setSelected(new Map(provider.models.map((model) => [model.name, [...model.protocols]])));
     setLoadError("");
     setLoadingModels(true);
     onLoadModels(provider.id)
@@ -88,11 +96,12 @@ export function ModelsEditDialog({
   }, [providerID]);
 
   // Keep enabled models editable even if the provider stopped listing them, so they can be unticked.
-  const listed = React.useMemo(() => {
+  const listed = React.useMemo<ModelOption[]>(() => {
     if (!provider) return [];
-    if (!available) return provider.models;
-    const missing = provider.models.filter((model) => !available.includes(model));
-    return [...available, ...missing];
+    const saved = provider.models.map((model) => ({ name: model.name, suggestedProtocols: model.protocols }));
+    if (!available) return saved;
+    const names = new Set(available.map((model) => model.name));
+    return [...available, ...saved.filter((model) => !names.has(model.name))];
   }, [available, provider]);
 
   const handleSave = async () => {
@@ -101,8 +110,13 @@ export function ModelsEditDialog({
     if (name.trim() && name.trim() !== provider.name) payload.name = name.trim();
     if (icon !== provider.icon) payload.icon = icon;
     if (apiKey.trim()) payload.apiKey = apiKey.trim();
-    const models = listed.filter((model) => selected.has(model));
-    if (models.join("\n") !== provider.models.join("\n")) payload.models = models;
+    const signature = (items: ReadonlyArray<{ name: string; protocols: readonly string[] }>) =>
+      items.map((item) => `${item.name}=${item.protocols.join("+")}`).join("\n");
+    const chosen = listed.flatMap((model) => {
+      const protocols = selected.get(model.name);
+      return protocols ? [{ name: model.name, protocols }] : [];
+    });
+    if (signature(chosen) !== signature(provider.models)) payload.models = modelSelectionPayload(listed, selected, modelProtocols);
     if (Object.keys(payload).length === 0) {
       onOpenChange(false);
       return;
@@ -187,6 +201,7 @@ export function ModelsEditDialog({
         onOpenChange={setSelectOpen}
         models={listed}
         selected={selected}
+        protocols={modelProtocols}
         onConfirm={setSelected}
         loading={loadingModels}
       />

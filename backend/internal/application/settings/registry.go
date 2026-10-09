@@ -169,7 +169,7 @@ var settingSpecs = []settingSpec{
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.PersonalProvidersEnabled }, toBool)},
 	{Namespace: "personal_provider", Key: "max_per_user", ValueType: "int", Default: strconv.Itoa(config.DefaultPersonalProvidersMaxPerUser), Description: "每个用户最多可添加的模型服务数",
 		Validate: intRange(1, config.MaxPersonalProvidersMaxPerUser), Apply: applyField(func(c *config.Config) *int { return &c.PersonalProvidersMaxPerUser }, toInt)},
-	{Namespace: "personal_provider", Key: "blocked_hosts", ValueType: "string", Default: "", Description: "域名黑名单，逗号或换行分隔；同时匹配其子域名。内网、回环与云元数据地址始终禁止，无需在此配置",
+	{Namespace: "personal_provider", Key: "blocked_hosts", ValueType: "string", Default: "", Description: "域名黑名单，逗号或换行分隔；精确匹配域名，*.example.com 匹配其子域名。内网、回环与云元数据地址始终禁止，无需在此配置",
 		Validate: validateHostList, Apply: applyField(func(c *config.Config) *string { return &c.PersonalProvidersBlockedHosts }, trimmedText)},
 
 	// 桌面端下载入口配置：仅影响网页端用户菜单入口，桌面端内始终不展示。

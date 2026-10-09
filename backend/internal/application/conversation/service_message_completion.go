@@ -186,17 +186,13 @@ func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, inp
 	var normalized *assistantImageContentNormalization
 	var err error
 	if len(input.GeneratedImages) > 0 {
-		trustedProviderEndpoint := ""
-		if input.Route != nil {
-			trustedProviderEndpoint = input.Route.BaseURL
-		}
 		normalized, err = s.normalizeAssistantGeneratedImages(ctx, assistantGeneratedImagesInput{
-			UserID:                  input.SendInput.UserID,
-			ConversationID:          input.SendInput.ConversationID,
-			AssistantMessageID:      input.AssistantMessage.ID,
-			ModelName:               successfulMessageGenerationModelName(input),
-			TrustedProviderEndpoint: trustedProviderEndpoint,
-			GeneratedImages:         input.GeneratedImages,
+			UserID:             input.SendInput.UserID,
+			ConversationID:     input.SendInput.ConversationID,
+			AssistantMessageID: input.AssistantMessage.ID,
+			ModelName:          successfulMessageGenerationModelName(input),
+			ArtifactSource:     mediaArtifactSourceFor(input.Route),
+			GeneratedImages:    input.GeneratedImages,
 		})
 	} else {
 		normalized, err = s.normalizeAssistantImageContent(ctx, assistantImageContentInput{

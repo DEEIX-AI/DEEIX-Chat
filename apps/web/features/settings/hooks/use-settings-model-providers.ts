@@ -15,6 +15,7 @@ import {
 } from "@/shared/api/personal-providers";
 import type {
   CreatePersonalProviderPayload,
+  PersonalProviderAvailableModelDTO,
   PersonalProviderDTO,
   PersonalProviderProbePayload,
   UpdatePersonalProviderPayload,
@@ -59,7 +60,7 @@ export function useSettingsModelProviders(enabled: boolean) {
     void reload();
   }, [reload]);
 
-  const probe = React.useCallback(async (payload: PersonalProviderProbePayload): Promise<string[]> => {
+  const probe = React.useCallback(async (payload: PersonalProviderProbePayload): Promise<PersonalProviderAvailableModelDTO[]> => {
     const data = await probePersonalProvider(await requireToken(), payload);
     return data.models ?? [];
   }, []);
@@ -109,10 +110,11 @@ export function useSettingsModelProviders(enabled: boolean) {
     [runOnProvider, t],
   );
 
-  const listModels = React.useCallback(async (id: string): Promise<string[]> => {
-    const data = await listPersonalProviderModels(await requireToken(), id);
+  const listModels = React.useCallback(async (id: string): Promise<PersonalProviderAvailableModelDTO[]> => {
+    const protocol = providers.find((item) => item.id === id)?.protocol ?? "";
+    const data = await listPersonalProviderModels(await requireToken(), id, protocol);
     return data.models ?? [];
-  }, []);
+  }, [providers]);
 
   /** Test the saved key against the provider; the server records the result on the row either way. */
   const check = React.useCallback(

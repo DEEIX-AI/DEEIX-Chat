@@ -1122,7 +1122,7 @@ func toPersonalModelResponse(service *appchannel.Service, entry apppersonalprovi
 		Ref:          entry.Ref,
 		Model:        entry.Model,
 		ProviderName: entry.ProviderName,
-		Protocol:     entry.Protocol,
+		Protocols:    entry.Protocols,
 	})
 	result := publicModelResponseFromCapability(view, resolver.ResolveExternal(view))
 	result.PlatformModelName = entry.Ref

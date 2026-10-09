@@ -84,6 +84,7 @@ import (
 	platformruntime "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/runtime"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/lifecycle"
+	sharedsecurity "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	platformhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http"
 	adminhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/admin"
 	announcementhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/announcement"
@@ -368,6 +369,8 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	llmClient := llm.NewClient(trustedOutboundPolicy)
 	mcpClient := mcp.NewClient(trustedOutboundPolicy)
 	mediaArtifactClient := mediaartifact.New(strictOutboundPolicy)
+	// 用户自带 Key 的端点返回的制品与其 API 请求同样只允许公网目标，不受部署级白名单与环境影响。
+	untrustedMediaArtifactClient := mediaartifact.NewForUntrustedEndpoints(sharedsecurity.NewPublicOnlyOutboundPolicy())
 	channelService := channel.NewServiceWithRuntime(runtimeCfg, channelRepo, channelRepo, channelCache, llmClient)
 	channelService.SetLogger(log)
 	channelService.SetObjectStoreProvider(objectStoreProvider)
@@ -430,21 +433,22 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	personalRouteResolver := apppersonalprovider.NewRouteResolver(channelService, personalProviderService)
 	channelHandler.SetPersonalModelSource(personalProviderService)
 	conversationService := conversation.NewServiceWithRuntime(conversation.Dependencies{
-		Config:            runtimeCfg,
-		Repository:        conversationRepo,
-		Cache:             conversationCache,
-		RouteResolver:     personalRouteResolver,
-		MemoryRecorder:    memoryService,
-		LLMClient:         llmClient,
-		MediaDownloader:   mediaArtifactClient,
-		MCPClient:         mcpClient,
-		CompactService:    compactService,
-		EmbeddingService:  embeddingService,
-		ProcessingService: processingService,
-		UploadService:     uploadService,
-		ExtractService:    extractionService,
-		RAGService:        ragService,
-		Logger:            log,
+		Config:                   runtimeCfg,
+		Repository:               conversationRepo,
+		Cache:                    conversationCache,
+		RouteResolver:            personalRouteResolver,
+		MemoryRecorder:           memoryService,
+		LLMClient:                llmClient,
+		MediaDownloader:          mediaArtifactClient,
+		UntrustedMediaDownloader: untrustedMediaArtifactClient,
+		MCPClient:                mcpClient,
+		CompactService:           compactService,
+		EmbeddingService:         embeddingService,
+		ProcessingService:        processingService,
+		UploadService:            uploadService,
+		ExtractService:           extractionService,
+		RAGService:               ragService,
+		Logger:                   log,
 	})
 	conversationService.SetBillingService(billingService)
 	conversationService.SetAuditWriter(auditService)
