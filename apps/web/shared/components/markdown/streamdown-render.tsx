@@ -71,6 +71,7 @@ import {
   MarkdownHTMLSummary,
 } from "./streamdown-html";
 import { renderRawHTMLMathRehypePlugin } from "./streamdown-html-math";
+import { MarkdownMermaidPendingContext, STREAMDOWN_MERMAID_OPTIONS } from "./streamdown-mermaid";
 import {
   createStreamdownTooltipIcon,
   StreamdownCheckIcon,
@@ -290,8 +291,10 @@ const BASE_MARKDOWN_CLASSNAME = cn(
   "[&_[data-streamdown='mermaid-block']]:my-4 [&_[data-streamdown='mermaid-block']]:flex [&_[data-streamdown='mermaid-block']]:!w-full [&_[data-streamdown='mermaid-block']]:min-w-0 [&_[data-streamdown='mermaid-block']]:gap-2 [&_[data-streamdown='mermaid-block']]:rounded-none [&_[data-streamdown='mermaid-block']]:border-0 [&_[data-streamdown='mermaid-block']]:bg-transparent [&_[data-streamdown='mermaid-block']]:p-0 [&_[data-streamdown='mermaid-block']]:shadow-none",
   "[&_[data-streamdown='mermaid-block']>div:last-child]:!w-full [&_[data-streamdown='mermaid-block']>div:last-child]:min-w-0 [&_[data-streamdown='mermaid-block']>div:last-child]:rounded-none [&_[data-streamdown='mermaid-block']>div:last-child]:border-0 [&_[data-streamdown='mermaid-block']>div:last-child]:bg-transparent [&_[data-streamdown='mermaid-block']>div:last-child]:p-0 [&_[data-streamdown='mermaid-block']>div:last-child]:shadow-none",
   "[&_[data-streamdown='mermaid']]:my-0 [&_[data-streamdown='mermaid']]:block [&_[data-streamdown='mermaid']]:!w-full [&_[data-streamdown='mermaid']]:max-h-[280px] [&_[data-streamdown='mermaid']]:min-w-0 [&_[data-streamdown='mermaid']]:overflow-hidden [&_[data-streamdown='mermaid']]:rounded-none [&_[data-streamdown='mermaid']]:border-0 [&_[data-streamdown='mermaid']]:bg-transparent [&_[data-streamdown='mermaid']]:shadow-none",
-  "[&_[data-streamdown='mermaid']>div]:!w-full [&_[data-streamdown='mermaid']>div]:max-w-none [&_[data-streamdown='mermaid']>div]:min-w-0",
-  "[&_[data-streamdown='mermaid']_svg]:mx-auto [&_[data-streamdown='mermaid']_svg]:block [&_[data-streamdown='mermaid']_svg]:h-auto [&_[data-streamdown='mermaid']_svg]:max-h-[280px] [&_[data-streamdown='mermaid']_svg]:max-w-full [&_[data-streamdown='mermaid']_svg]:bg-transparent",
+  // Streamdown auto-fits the diagram from the pan-zoom viewport's computed max-height, so the
+  // height cap must sit on that viewport; capping the svg itself would shrink it a second time.
+  "[&_[data-streamdown='mermaid']>div]:!w-full [&_[data-streamdown='mermaid']>div]:max-h-[280px] [&_[data-streamdown='mermaid']>div]:max-w-none [&_[data-streamdown='mermaid']>div]:min-w-0",
+  "[&_[data-streamdown='mermaid']_svg]:mx-auto [&_[data-streamdown='mermaid']_svg]:block [&_[data-streamdown='mermaid']_svg]:bg-transparent",
   "[&_[data-streamdown='mermaid']>div>div:first-child]:!left-0 [&_[data-streamdown='mermaid']>div>div:first-child]:rounded-none [&_[data-streamdown='mermaid']>div>div:first-child]:border-0 [&_[data-streamdown='mermaid']>div>div:first-child]:bg-transparent [&_[data-streamdown='mermaid']>div>div:first-child]:p-0 [&_[data-streamdown='mermaid']>div>div:first-child]:shadow-none [&_[data-streamdown='mermaid']>div>div:first-child]:backdrop-blur-none",
   "[&_[data-streamdown='mermaid-block-actions']]:gap-2 [&_[data-streamdown='mermaid-block-actions']]:border-0 [&_[data-streamdown='mermaid-block-actions']]:rounded-none [&_[data-streamdown='mermaid-block-actions']]:bg-transparent [&_[data-streamdown='mermaid-block-actions']]:p-0 [&_[data-streamdown='mermaid-block-actions']]:shadow-none [&_[data-streamdown='mermaid-block-actions']]:backdrop-blur-none",
   "[&_[data-streamdown='mermaid-block-actions']>button]:border-0 [&_[data-streamdown='mermaid-block-actions']>button]:bg-transparent [&_[data-streamdown='mermaid-block-actions']>button]:shadow-none [&_[data-streamdown='mermaid-block-actions']>button:hover]:bg-foreground/[0.04] [&_[data-streamdown='mermaid-block-actions']>button:hover]:text-foreground",
@@ -525,10 +528,31 @@ async function loadStreamdownPlugins(features: StreamdownFeatureFlags): Promise<
   return promise;
 }
 
-function useStreamdownPlugins(content: string): PluginConfig {
+// While plugins for a new feature key load, keep the lazily loaded ones the content still needs.
+// Dropping them would unmount a rendered Mermaid diagram (and re-run its layout) every time a
+// streamed answer gains another feature, such as a code fence after the diagram.
+function getPendingStreamdownPlugins(current: PluginConfig, features: StreamdownFeatureFlags): PluginConfig {
+  const initial = getInitialStreamdownPlugins(features);
+  const code = features.code ? current.code : undefined;
+  const mermaid = features.mermaid ? current.mermaid : undefined;
+  if (!code && !mermaid) {
+    return initial;
+  }
+  if (current.code === code && current.mermaid === mermaid && current.math === initial.math && current.cjk === initial.cjk) {
+    return current;
+  }
+  return {
+    ...initial,
+    ...(code ? { code } : {}),
+    ...(mermaid ? { mermaid } : {}),
+  };
+}
+
+function useStreamdownPlugins(content: string): { plugins: PluginConfig; mermaidPending: boolean } {
   const features = React.useMemo(() => detectStreamdownFeatures(content), [content]);
   const pluginKey = React.useMemo(() => getStreamdownPluginKey(features), [features]);
   const [plugins, setPlugins] = React.useState<PluginConfig>(() => STREAMDOWN_PLUGIN_CACHE.get(pluginKey) ?? getInitialStreamdownPlugins(features));
+  const [failedPluginKey, setFailedPluginKey] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -539,7 +563,7 @@ function useStreamdownPlugins(content: string): PluginConfig {
       return;
     }
 
-    setPlugins(getInitialStreamdownPlugins(features));
+    setPlugins((current) => getPendingStreamdownPlugins(current, features));
 
     void loadStreamdownPlugins(features)
       .then((loadedPlugins) => {
@@ -549,7 +573,8 @@ function useStreamdownPlugins(content: string): PluginConfig {
       })
       .catch(() => {
         if (!cancelled) {
-          setPlugins(getInitialStreamdownPlugins(features));
+          setFailedPluginKey(pluginKey);
+          setPlugins((current) => getPendingStreamdownPlugins(current, features));
         }
       });
 
@@ -558,7 +583,9 @@ function useStreamdownPlugins(content: string): PluginConfig {
     };
   }, [features, pluginKey]);
 
-  return plugins;
+  // A failed import falls back to rendering the fence as source instead of loading forever.
+  const mermaidPending = features.mermaid && !plugins.mermaid && failedPluginKey !== pluginKey;
+  return { plugins, mermaidPending };
 }
 
 function ThinkingSegmentBlock({
@@ -632,6 +659,7 @@ function ThinkingSegmentBlock({
               plugins={plugins}
               rehypePlugins={STREAMDOWN_REHYPE_PLUGINS}
               remend={STREAMDOWN_REMEND}
+              mermaid={STREAMDOWN_MERMAID_OPTIONS}
               mode={active ? "streaming" : "static"}
               normalizeHtmlIndentation
               parseIncompleteMarkdown={active}
@@ -672,6 +700,7 @@ function HTMLInlineMarkdownProvider({
           plugins={plugins}
           rehypePlugins={STREAMDOWN_REHYPE_PLUGINS}
           remend={STREAMDOWN_REMEND}
+          mermaid={STREAMDOWN_MERMAID_OPTIONS}
           linkSafety={STREAMDOWN_LINK_SAFETY}
           mode="static"
           parseIncompleteMarkdown={false}
@@ -708,7 +737,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
     const normalized = normalizeStreamdownContent(content, sourcePositions, streaming);
     return variant === "user" ? normalizeUserLineBreaks(normalized) : normalized;
   }, [content, sourcePositions, streaming, variant]);
-  const plugins = useStreamdownPlugins(normalizedContent);
+  const { plugins, mermaidPending } = useStreamdownPlugins(normalizedContent);
   const segments = React.useMemo(
     () =>
       parseStreamdownSegments(normalizedContent, {
@@ -773,50 +802,53 @@ export const StreamdownRender = React.memo(function StreamdownRender({
       onPointerDownCapture={handleMarkdownCopyPointerDownCapture}
     >
       <StreamdownAdapterStyles />
-      <MarkdownTableStreamingContext.Provider value={streaming}>
-        {mergedThinkingContent ? (
-          <ThinkingSegmentBlock
-            content={mergedThinkingContent}
-            incomplete={hasIncompleteThinking}
-            plugins={plugins}
-            streaming={streaming}
-            autoExpand={autoExpandThinking}
-          />
-        ) : null}
-      {markdownSegments.map((segment, index) => (
-        <MarkdownArtifactActionsContext.Provider key={`markdown-${index}`} value={artifactActions ?? null}>
-          <MarkdownImageActionsContext.Provider value={imageActions ?? null}>
-            <HTMLInlineMarkdownProvider
-              className={activeMarkdownClassName}
-              components={components}
+      <MarkdownMermaidPendingContext.Provider value={mermaidPending}>
+        <MarkdownTableStreamingContext.Provider value={streaming}>
+          {mergedThinkingContent ? (
+            <ThinkingSegmentBlock
+              content={mergedThinkingContent}
+              incomplete={hasIncompleteThinking}
               plugins={plugins}
-            >
-              <Streamdown
-                className={activeMarkdownClassName}
-                codeBlockMaxHeight={STREAMDOWN_CODE_BLOCK_MAX_HEIGHT}
-                components={components}
-                controls={STREAMDOWN_CONTROLS}
-                icons={icons}
-                plugins={plugins}
-                rehypePlugins={rehypePlugins}
-                remend={STREAMDOWN_REMEND}
-                linkSafety={STREAMDOWN_LINK_SAFETY}
-                caret={streaming ? STREAMDOWN_CARET : undefined}
-                mode={streaming ? "streaming" : "static"}
-                normalizeHtmlIndentation
-                parseIncompleteMarkdown={streaming}
-                shikiTheme={["github-light", "github-dark"]}
-                animated={false}
-                isAnimating={streaming}
-                translations={translations}
-              >
-                {segment.content}
-              </Streamdown>
-            </HTMLInlineMarkdownProvider>
-          </MarkdownImageActionsContext.Provider>
-        </MarkdownArtifactActionsContext.Provider>
-        ))}
-      </MarkdownTableStreamingContext.Provider>
+              streaming={streaming}
+              autoExpand={autoExpandThinking}
+            />
+          ) : null}
+          {markdownSegments.map((segment, index) => (
+            <MarkdownArtifactActionsContext.Provider key={`markdown-${index}`} value={artifactActions ?? null}>
+              <MarkdownImageActionsContext.Provider value={imageActions ?? null}>
+                <HTMLInlineMarkdownProvider
+                  className={activeMarkdownClassName}
+                  components={components}
+                  plugins={plugins}
+                >
+                  <Streamdown
+                    className={activeMarkdownClassName}
+                    codeBlockMaxHeight={STREAMDOWN_CODE_BLOCK_MAX_HEIGHT}
+                    components={components}
+                    controls={STREAMDOWN_CONTROLS}
+                    icons={icons}
+                    plugins={plugins}
+                    rehypePlugins={rehypePlugins}
+                    remend={STREAMDOWN_REMEND}
+                    mermaid={STREAMDOWN_MERMAID_OPTIONS}
+                    linkSafety={STREAMDOWN_LINK_SAFETY}
+                    caret={streaming ? STREAMDOWN_CARET : undefined}
+                    mode={streaming ? "streaming" : "static"}
+                    normalizeHtmlIndentation
+                    parseIncompleteMarkdown={streaming}
+                    shikiTheme={["github-light", "github-dark"]}
+                    animated={false}
+                    isAnimating={streaming}
+                    translations={translations}
+                  >
+                    {segment.content}
+                  </Streamdown>
+                </HTMLInlineMarkdownProvider>
+              </MarkdownImageActionsContext.Provider>
+            </MarkdownArtifactActionsContext.Provider>
+          ))}
+        </MarkdownTableStreamingContext.Provider>
+      </MarkdownMermaidPendingContext.Provider>
     </div>
   );
 });

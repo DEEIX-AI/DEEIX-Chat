@@ -233,7 +233,10 @@
       "exitFullscreen": "Exit",
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
-      "resetView": "Reset view"
+      "resetView": "Reset view",
+      "rendering": "Rendering diagram…",
+      "renderFailed": "Couldn't render this diagram",
+      "viewSource": "View source"
     }
   },
   "artifacts": {
