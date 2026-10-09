@@ -1,0 +1,68 @@
+{
+  "policy": {
+    "title": "BYOK",
+    "securityLabel": "Security details",
+    "enabled": {
+      "label": "Allow connections",
+      "description": "Users can connect providers with their own API keys, billed by the provider. Turning this off disables every user provider immediately."
+    },
+    "maxPerUser": {
+      "label": "Provider limit",
+      "description": "Providers each user can add, from 1 to 50."
+    },
+    "blockedHosts": {
+      "label": "Blocked domains",
+      "description": "One per line, matched exactly; *.example.com matches all of its subdomains. Applies to existing providers immediately."
+    },
+    "importLink": "Import link",
+    "securityNote": "Only public HTTPS addresses are allowed; private, local and cloud-metadata addresses are always refused, and redirects are not followed. API keys are encrypted and hidden from administrators."
+  },
+  "list": {
+    "title": "Providers",
+    "searchPlaceholder": "Search providers, domains or users",
+    "allStatus": "All statuses",
+    "columns": {
+      "name": "Name",
+      "baseURL": "Base URL",
+      "models": "Models",
+      "owner": "Owner",
+      "status": "Status",
+      "created": "Added"
+    },
+    "selectedCount": "{count, plural, one {the selected provider} other {the # selected providers}}",
+    "selectAll": "Select all",
+    "selectOne": "Select {name}",
+    "moreActions": "More actions",
+    "empty": "No providers",
+    "searchEmpty": "No matches",
+    "unknownUser": "Deleted user"
+  },
+  "status": {
+    "active": "Active",
+    "disabled": "Disabled",
+    "suspended": "Blocked",
+    "error": "Connection error"
+  },
+  "actions": {
+    "filterOwner": "Show this user only",
+    "suspend": "Block",
+    "resume": "Unblock",
+    "suspendHost": "Block domain {host}",
+    "delete": "Delete"
+  },
+  "confirm": {
+    "suspendTitle": "Block provider?",
+    "suspendDescription": "{name} will stop working immediately and can’t be re-enabled by the user.",
+    "suspendHostTitle": "Block a whole domain?",
+    "suspendHostDescription": "All providers on {host} will be blocked. To prevent new ones, also add it to blocked domains.",
+    "deleteTitle": "Delete provider?",
+    "deleteDescription": "{name} and its API key will be deleted. This can’t be undone."
+  },
+  "toasts": {
+    "loadFailed": "Could not load",
+    "saveFailed": "Could not save",
+    "saved": "Saved",
+    "actionFailed": "Action failed",
+    "affected": "{count, plural, one {# provider updated} other {# providers updated}}"
+  }
+}

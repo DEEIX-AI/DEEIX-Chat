@@ -173,6 +173,45 @@ const OPENROUTER_IMAGE_OPTION_CONTROLS = [
   },
 ];
 
+// OpenAI Images API values for the gpt-image family; dall-e models take other sizes and qualities,
+// so no defaults are set and nothing is sent until a value is picked.
+const OPENAI_IMAGE_OPTION_CONTROLS = [
+  {
+    path: "size",
+    type: "select",
+    label: "Size",
+    options: ["auto", "1024x1024", "1536x1024", "1024x1536"],
+  },
+  {
+    path: "quality",
+    type: "select",
+    label: "Quality",
+    options: ["auto", "low", "medium", "high"],
+  },
+  {
+    path: "background",
+    type: "select",
+    label: "Background",
+    options: ["auto", "transparent", "opaque"],
+  },
+  {
+    path: "output_format",
+    type: "select",
+    label: "Output Format",
+    options: ["png", "jpeg", "webp"],
+  },
+  {
+    path: "n",
+    type: "number",
+    label: "Image Count",
+    description: "Number of images to generate, from 1 to 10.",
+  },
+];
+
+// Values the Gemini image adapter accepts (backend gemini_images.go); gemini-2.5-flash-image ignores imageSize.
+const GOOGLE_IMAGE_ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "1:4", "4:1", "1:8", "8:1"];
+const GOOGLE_IMAGE_SIZES = ["1K", "2K", "4K"];
+
 const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
   {
     id: "openai_chat_completions",
@@ -250,6 +289,36 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
           description: "OpenAI hosted code interpreter with an automatic container.",
         },
         OPENAI_WEB_SEARCH_NATIVE_TOOL,
+      ],
+    },
+  },
+  {
+    id: "openai_image_generations",
+    protocol: "openai_image_generations",
+    payload: {
+      optionControls: [
+        ...OPENAI_IMAGE_OPTION_CONTROLS,
+        {
+          path: "moderation",
+          type: "select",
+          label: "Moderation",
+          options: ["auto", "low"],
+        },
+      ],
+    },
+  },
+  {
+    id: "openai_image_edits",
+    protocol: "openai_image_edits",
+    payload: {
+      optionControls: [
+        ...OPENAI_IMAGE_OPTION_CONTROLS,
+        {
+          path: "input_fidelity",
+          type: "select",
+          label: "Input Fidelity",
+          options: ["low", "high"],
+        },
       ],
     },
   },
@@ -392,6 +461,26 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
           provider: "Google",
           type: "url_context",
           description: "Google hosted URL context tool.",
+        },
+      ],
+    },
+  },
+  {
+    id: "google_image_generation",
+    protocol: "google_image_generation",
+    payload: {
+      optionControls: [
+        {
+          path: "generationConfig.imageConfig.aspectRatio",
+          type: "select",
+          label: "Aspect Ratio",
+          options: GOOGLE_IMAGE_ASPECT_RATIOS,
+        },
+        {
+          path: "generationConfig.imageConfig.imageSize",
+          type: "select",
+          label: "Image Size",
+          options: GOOGLE_IMAGE_SIZES,
         },
       ],
     },

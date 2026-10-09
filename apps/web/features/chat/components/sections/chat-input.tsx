@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, CornerDownRight, Eye, EyeOff, Film, HatGlasses, Image, ImageOff, ImagePlus, LoaderCircle, PencilLine, TextQuote, Trash2 } from "lucide-react";
+import { Box, CircleAlert, CornerDownRight, Eye, EyeOff, HatGlasses, LoaderCircle, PencilLine, TextQuote, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
@@ -46,6 +46,12 @@ import { ChatModelControls } from "@/features/chat/components/sections/chat-mode
 import { useChatModelControlPlacements } from "@/features/chat/hooks/use-chat-model-control-placements";
 import type { ChatModelControlSelections } from "@/features/chat/model/chat-model-controls";
 import {
+  applyOptionControlValue,
+  inferOptionControls,
+  modelControlsFromOptionControls,
+  optionControlSelections,
+} from "@/features/chat/model/chat-option-controls";
+import {
   hasProviderTool,
   type NativeToolVisualOption,
   nativeToolVisualOptionsFromConfigs,
@@ -60,7 +66,6 @@ import {
   useChatSpeechInput,
 } from "@/features/chat/hooks/use-chat-speech-input";
 import { useChatPreviewSync } from "@/features/chat/hooks/use-chat-preview-sync";
-import type { ChatSubmitDecision } from "@/features/chat/model/chat-task";
 import { isMediaSubmitTask, resolveChatSubmitDecision } from "@/features/chat/model/chat-task";
 import type {
   ChatModelOption,
@@ -91,7 +96,7 @@ import {
   resolveFileIcon,
   resolveFileProcessingBadge,
 } from "@/entities/file";
-import type { ModelControlValue, ModelOptionPolicy } from "@/entities/model";
+import { isModelOptionPathFiltered, type ModelControlValue, type ModelOptionPolicy } from "@/entities/model";
 import { isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
 
 const TEMPORARY_NOTICE_TRANSITION = {
@@ -122,6 +127,7 @@ type ChatInputProps = {
   modelOptions: ChatModelOption[];
   billingDisplayCurrency: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate: number | null;
+  billingEnabled: boolean;
   selectedPlatformModelName: string;
   availableTools: MCPToolDTO[];
   selectedToolIDs: number[];
@@ -171,77 +177,6 @@ type ChatInputProps = {
   onGuideQueuedMessage: (id: string) => void;
 };
 
-type ComposerModeIndicator = {
-  label: string;
-  intro: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  tone: "default" | "warning";
-};
-
-function resolveComposerModeIndicator(
-  decision: ChatSubmitDecision,
-  t: (key: string) => string,
-): ComposerModeIndicator | null {
-  if (
-    decision.blockedReason === "image_task_rejects_non_image_attachments" ||
-    decision.blockedReason === "video_task_rejects_non_image_attachments"
-  ) {
-    return {
-      label: t("mediaMode.invalidFile"),
-      intro: t("mediaMode.invalidFileIntro"),
-      description: t(`mediaMode.blockedDescriptions.${decision.blockedReason}`),
-      icon: ImageOff,
-      tone: "warning",
-    };
-  }
-  if (decision.task === "image_generation") {
-    return {
-      label: t("mediaMode.imageGeneration"),
-      intro: t("mediaMode.imageGenerationIntro"),
-      description: decision.blockedReason
-        ? t(`mediaMode.blockedDescriptions.${decision.blockedReason}`)
-        : t("mediaMode.imageGenerationDescription"),
-      icon: Image,
-      tone: "default",
-    };
-  }
-  if (decision.task === "image_edit") {
-    return {
-      label: t("mediaMode.imageEdit"),
-      intro: t("mediaMode.imageEditIntro"),
-      description: decision.blockedReason
-        ? t(`mediaMode.blockedDescriptions.${decision.blockedReason}`)
-        : t("mediaMode.imageEditDescription"),
-      icon: ImagePlus,
-      tone: "default",
-    };
-  }
-  if (decision.task === "video_generation") {
-    return {
-      label: t("mediaMode.videoGeneration"),
-      intro: t("mediaMode.videoGenerationIntro"),
-      description: decision.blockedReason
-        ? t(`mediaMode.blockedDescriptions.${decision.blockedReason}`)
-        : t("mediaMode.videoGenerationDescription"),
-      icon: Film,
-      tone: "default",
-    };
-  }
-  if (decision.task === "video_extension") {
-    return {
-      label: t("mediaMode.videoExtension"),
-      intro: t("mediaMode.videoExtensionIntro"),
-      description: decision.blockedReason
-        ? t(`mediaMode.blockedDescriptions.${decision.blockedReason}`)
-        : t("mediaMode.videoExtensionDescription"),
-      icon: Film,
-      tone: decision.blockedReason ? "warning" : "default",
-    };
-  }
-  return null;
-}
-
 // Plain-text pastes at least this long (UTF-16 code units) become a .txt attachment instead of draft text.
 const PASTED_TEXT_TO_FILE_THRESHOLD = 2000;
 
@@ -290,6 +225,7 @@ function ChatInputComponent({
   modelOptions,
   billingDisplayCurrency,
   billingDisplayUsdToCnyRate,
+  billingEnabled,
   selectedPlatformModelName,
   availableTools,
   selectedToolIDs,
@@ -494,8 +430,15 @@ function ChatInputComponent({
   const submitDecision = resolveChatSubmitDecision(selectedModel, attachments, options);
   const submitTask = submitDecision.task;
   const isMediaMode = isMediaSubmitTask(submitTask);
-  const composerModeIndicator = resolveComposerModeIndicator(submitDecision, tComposer);
-  const ComposerModeIcon = composerModeIndicator?.icon;
+  // The mode a media model works in is named by the input placeholder and the parameters popover.
+  // What blocks sending is said in the same place until there are attachments to point at; after
+  // that it moves to a notice above them.
+  const blockedDescription = submitDecision.blockedReason
+    ? tComposer(`mediaMode.blockedDescriptions.${submitDecision.blockedReason}`)
+    : "";
+  const blockedNotice = submitDecision.attachmentCount > 0 ? blockedDescription : "";
+  const mediaPlaceholder = (blockedNotice ? "" : blockedDescription)
+    || (isMediaMode ? tComposer(`mediaMode.placeholders.${submitTask}`) : "");
   const taskOptionConfig = submitTask === "video_extension" ? selectedModel?.videoExtension : null;
   const modelConfigOptions = React.useMemo(() => {
     if (!taskOptionConfig) {
@@ -509,12 +452,42 @@ function ChatInputComponent({
   }, [options, taskOptionConfig]);
   const modelOptionPolicyDisabled = modelOptionPolicy?.mode?.trim() === "disabled";
   // Chat parameters: users pick values on the administrator's model controls; only administrators
-  // get the advanced JSON dialog. Media tasks keep their own option dialog.
+  // get the advanced JSON dialog. Media task parameters are plain request options, open to everyone.
   const authSession = useOptionalAuthSession();
   const viewerIsAdmin = authSession?.user?.role === "admin" || authSession?.user?.role === "superadmin";
   const showAdvancedOptions = isMediaMode ? !modelOptionPolicyDisabled : viewerIsAdmin;
-  // Chat-mode parameter dialog, opened from the controls popover ("more parameters" → advanced).
+  // Parameter dialog (raw JSON), opened from the bottom of the controls popover.
   const [advancedOptionsOpen, setAdvancedOptionsOpen] = React.useState(false);
+  // Media tasks have no server-side controls; their option controls are shown as composer controls
+  // and write straight into the request options.
+  const taskDefaultOptions = taskOptionConfig?.defaultOptions ?? defaultOptions;
+  const taskOptionControls = React.useMemo(
+    () => taskOptionConfig?.optionControls ?? selectedModel?.optionControls ?? [],
+    [selectedModel?.optionControls, taskOptionConfig?.optionControls],
+  );
+  const mediaControls = React.useMemo(() => {
+    if (!isMediaMode || modelOptionPolicyDisabled) return [];
+    // Parameters set without an option control (plain defaultOptions) are adjustable too, as they
+    // are in the parameter dialog. A task with its own parameter set takes nothing from the rest.
+    const inferred = inferOptionControls(
+      taskOptionConfig ? [taskDefaultOptions] : [taskDefaultOptions, modelConfigOptions],
+      taskOptionControls,
+    ).filter((control) =>
+      !modelOptionPolicy || selectedProtocols.length === 0 || selectedProtocols.some((protocol) =>
+        !isModelOptionPathFiltered({ policy: modelOptionPolicy, protocol, path: control.path })));
+    return modelControlsFromOptionControls([...taskOptionControls, ...inferred], taskDefaultOptions);
+  }, [isMediaMode, modelConfigOptions, modelOptionPolicy, modelOptionPolicyDisabled, selectedProtocols, taskDefaultOptions, taskOptionConfig, taskOptionControls]);
+  const mediaControlSelections = React.useMemo(
+    () => optionControlSelections(mediaControls, modelConfigOptions),
+    [mediaControls, modelConfigOptions],
+  );
+  const handleMediaControlChange = React.useCallback((controlID: string, value: ModelControlValue | null) => {
+    const control = mediaControls.find((item) => item.id === controlID);
+    if (control) {
+      onOptionsChange((current) => applyOptionControlValue(current, taskDefaultOptions, control, value));
+    }
+  }, [mediaControls, onOptionsChange, taskDefaultOptions]);
+  const mediaParametersLabel = isMediaMode ? tComposer(`mediaMode.parameters.${submitTask}`) : "";
   const { placements: controlPlacements, setPlacements: setControlPlacements } = useChatModelControlPlacements();
   const nativeToolOptions = React.useMemo(
     () => (isMediaMode || !selectedModel
@@ -870,6 +843,13 @@ function ChatInputComponent({
             </div>
           ) : null}
 
+          {blockedNotice ? (
+            <div className="flex w-full items-center gap-1.5 px-5 pt-3 text-[11px] leading-4 text-destructive">
+              <CircleAlert className="size-3.5 shrink-0" strokeWidth={1.7} />
+              <span className="min-w-0">{blockedNotice}</span>
+            </div>
+          ) : null}
+
           {hasComposerAttachments ? (
             <div className="w-full space-y-1 px-2.5 pt-1">
               {showRagWarn ? (
@@ -1039,7 +1019,7 @@ function ChatInputComponent({
             value={draft}
             disabled={loading}
             readOnly={speechInput.active}
-            placeholder={dropActive ? tChat("attachments.dropTitle") : speechInput.placeholder}
+            placeholder={dropActive ? tChat("attachments.dropTitle") : speechInput.active ? speechInput.placeholder : mediaPlaceholder || speechInput.placeholder}
             rows={1}
             aria-controls={showMentionMenu ? mentionMenuID : undefined}
             aria-expanded={showMentionMenu ? true : undefined}
@@ -1251,71 +1231,30 @@ function ChatInputComponent({
             </div>
 
             <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden sm:gap-1.5">
-              {composerModeIndicator && ComposerModeIcon ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span
-                      className={cn(
-                        "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium transition-colors",
-                        composerModeIndicator.tone === "warning"
-                          ? "bg-destructive/10 text-destructive"
-                          : "bg-muted/60 text-muted-foreground",
-                      )}
-                    >
-                      <ComposerModeIcon className="size-3.5" strokeWidth={1.7} />
-                      <span className="hidden sm:inline">{composerModeIndicator.label}</span>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" align="end" className="max-w-72 text-xs leading-5">
-                    {composerModeIndicator.intro} {composerModeIndicator.description}
-                  </TooltipContent>
-                </Tooltip>
-              ) : null}
-              {!isMediaMode && selectedModel ? (
+              {selectedModel ? (
                 <ChatModelControls
-                  controls={selectedModel.controls}
-                  selections={controlSelections}
+                  controls={isMediaMode ? mediaControls : selectedModel.controls}
+                  selections={isMediaMode ? mediaControlSelections : controlSelections}
                   nativeTools={nativeToolOptions}
                   isNativeToolEnabled={isNativeToolEnabled}
                   placements={controlPlacements}
                   disabled={loading || uploading || modelLoading}
                   placementPreference={isConversationMode ? "top" : "bottom"}
-                  onControlChange={onControlChange}
+                  onControlChange={isMediaMode ? handleMediaControlChange : onControlChange}
                   onNativeToolChange={handleNativeToolChange}
                   onPlacementsChange={(next) => void setControlPlacements(next)}
-                  advancedOptions={viewerIsAdmin ? { label: tComposer("advancedOptions"), onOpen: () => setAdvancedOptionsOpen(true) } : undefined}
+                  advancedOptions={showAdvancedOptions ? { label: tComposer("advancedOptions"), onOpen: () => setAdvancedOptionsOpen(true) } : undefined}
+                  labels={isMediaMode ? { title: mediaParametersLabel, more: mediaParametersLabel } : undefined}
                 />
               ) : null}
-              {/* Media tasks keep the task parameter dialog here; chat parameters live in the
-                  controls popover, so administrators open the same dialog from there. */}
-              {isMediaMode ? (
-                showAdvancedOptions ? (
-                  <ChatModelConfig
-                    disabled={loading || uploading || modelLoading}
-                    options={modelConfigOptions}
-                    defaultOptions={taskOptionConfig?.defaultOptions ?? defaultOptions}
-                    optionControls={taskOptionConfig?.optionControls ?? selectedModel?.optionControls ?? []}
-                    lockedOptionPaths={taskOptionConfig ? [] : selectedModel?.lockedOptionPaths ?? []}
-                    nativeToolKeys={selectedModel?.nativeToolKeys ?? []}
-                    nativeTools={selectedModel?.nativeTools ?? []}
-                    modelOptionPolicy={modelOptionPolicy}
-                    selectedProtocols={selectedProtocols}
-                    selectedModelName={selectedModelName}
-                    onOptionsChange={onOptionsChange}
-                    onOptionsReset={onOptionsReset}
-                    onDefaultOptionsRestore={onOptionsDefaultRestore}
-                  />
-                ) : null
-              ) : showAdvancedOptions ? (
+              {showAdvancedOptions ? (
                 <ChatModelConfig
-                  hideTrigger
                   open={advancedOptionsOpen}
                   onOpenChange={setAdvancedOptionsOpen}
-                  disabled={loading || uploading || modelLoading}
                   options={modelConfigOptions}
-                  defaultOptions={defaultOptions}
-                  optionControls={selectedModel?.optionControls ?? []}
-                  lockedOptionPaths={selectedModel?.lockedOptionPaths ?? []}
+                  defaultOptions={taskDefaultOptions}
+                  optionControls={taskOptionControls}
+                  lockedOptionPaths={taskOptionConfig ? [] : selectedModel?.lockedOptionPaths ?? []}
                   nativeToolKeys={selectedModel?.nativeToolKeys ?? []}
                   nativeTools={selectedModel?.nativeTools ?? []}
                   modelOptionPolicy={modelOptionPolicy}
@@ -1330,11 +1269,13 @@ function ChatInputComponent({
                 modelOptions={modelOptions}
                 billingDisplayCurrency={billingDisplayCurrency}
                 billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
+                billingEnabled={billingEnabled}
                 selectedPlatformModelName={selectedPlatformModelName}
                 loading={modelLoading}
                 disabled={modelDisabled}
                 onModelCatalogRefresh={onModelCatalogRefresh}
                 onModelChange={onModelChange}
+                placementPreference={isConversationMode ? "top" : "bottom"}
               />
 
               <Tooltip>

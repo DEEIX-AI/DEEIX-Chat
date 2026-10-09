@@ -123,7 +123,7 @@ func (h *Handler) shouldUseSecureCookie(c *gin.Context) bool {
 func (h *Handler) LoginOptions(c *gin.Context) {
 	result, err := h.service.GetLoginOptions(c.Request.Context())
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toLoginOptionsResponse(result))
@@ -416,7 +416,7 @@ func (h *Handler) CompleteEmailBootstrap(c *gin.Context) {
 	}
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, MeResponse{User: toUserResponse(view)})
@@ -479,7 +479,7 @@ func (h *Handler) CompleteCurrentEmailVerification(c *gin.Context) {
 	}
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, MeResponse{User: toUserResponse(view)})
@@ -593,7 +593,7 @@ func (h *Handler) CompleteEmailChange(c *gin.Context) {
 	}
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, MeResponse{User: toUserResponse(view)})
@@ -618,7 +618,7 @@ func (h *Handler) ListCurrentUserIdentities(c *gin.Context) {
 	}
 	items, err := h.service.ListCurrentUserIdentities(c.Request.Context(), userID)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, UserIdentityListResponse{Results: toUserIdentityResponses(items)})
@@ -916,7 +916,7 @@ func (h *Handler) Login(c *gin.Context) {
 			writeAccountLockedResponse(c, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -979,7 +979,7 @@ func (h *Handler) VerifyTwoFactorLogin(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidTwoFactorCode)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	h.respondWithSession(c, result)
@@ -1041,7 +1041,7 @@ func (h *Handler) CurrentTwoFactorStatus(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	result, err := h.service.GetCurrentTwoFactorStatus(c.Request.Context(), userID)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toTwoFactorStatusResponse(result))
@@ -1106,10 +1106,10 @@ func (h *Handler) ConfirmCurrentTwoFactorSetup(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, appauth.ErrTwoFactorSetupNotPersisted) {
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, TwoFactorRecoveryCodesResponse{
@@ -1133,7 +1133,7 @@ func (h *Handler) ConfirmCurrentTwoFactorSetup(c *gin.Context) {
 func (h *Handler) CancelCurrentTwoFactorSetup(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if err := h.service.CancelCurrentTwoFactorSetup(c.Request.Context(), userID); err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, TwoFactorSetupCancelResponse{Canceled: true})
@@ -1166,7 +1166,7 @@ func (h *Handler) DisableCurrentTwoFactor(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidTwoFactorCode)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, TwoFactorDisableResponse{Disabled: true})
@@ -1200,7 +1200,7 @@ func (h *Handler) RegenerateCurrentTwoFactorRecoveryCodes(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidTwoFactorCode)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, TwoFactorRecoveryCodesResponse{
@@ -1221,7 +1221,7 @@ func (h *Handler) RegenerateCurrentTwoFactorRecoveryCodes(c *gin.Context) {
 func (h *Handler) ListIdentityProviders(c *gin.Context) {
 	items, err := h.service.ListIdentityProviders(c.Request.Context())
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, IdentityProviderListResponse{Results: toIdentityProviderResponses(items), Total: len(items)})
@@ -1378,7 +1378,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidRefreshToken)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1406,12 +1406,12 @@ func (h *Handler) Me(c *gin.Context) {
 
 	item, err := h.service.GetProfile(c.Request.Context(), userID)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1439,7 +1439,7 @@ func (h *Handler) CurrentSessions(c *gin.Context) {
 
 	results, err := h.service.ListCurrentActiveSessions(c.Request.Context(), userID, sessionID)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1494,7 +1494,7 @@ func (h *Handler) UpdateCurrentSessionLocation(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusUnauthorized, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1549,7 +1549,7 @@ func (h *Handler) PatchMe(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1583,7 +1583,7 @@ func (h *Handler) PatchMe(c *gin.Context) {
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1629,7 +1629,7 @@ func (h *Handler) PatchUsername(c *gin.Context) {
 		case errors.Is(err, appauth.ErrUsernameChangeUsed):
 			response.ErrorFrom(c, http.StatusConflict, err)
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 		}
 		return
 	}
@@ -1645,7 +1645,7 @@ func (h *Handler) PatchUsername(c *gin.Context) {
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1692,7 +1692,7 @@ func (h *Handler) CompleteOnboarding(c *gin.Context) {
 	}
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	if passwordChanged {
@@ -1796,7 +1796,7 @@ func (h *Handler) DeleteMe(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1839,7 +1839,7 @@ func (h *Handler) Logout(c *gin.Context) {
 		middleware.MustRequestID(c),
 		middleware.ResolveSessionAuditContext(c),
 	); err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1871,7 +1871,7 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 		middleware.MustRequestID(c),
 		middleware.ResolveSessionAuditContext(c),
 	); err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1906,7 +1906,7 @@ func (h *Handler) LogoutSession(c *gin.Context) {
 		middleware.MustRequestID(c),
 		middleware.ResolveSessionAuditContext(c),
 	); err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 

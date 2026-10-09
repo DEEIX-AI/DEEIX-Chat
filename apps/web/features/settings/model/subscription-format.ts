@@ -1,3 +1,4 @@
+import { resolveModelOptionLabel } from "@/entities/model";
 import type { UserDTO } from "@/shared/api/auth-types";
 import type { BillingPlanDTO, BillingPlanPriceDTO } from "@/shared/api/billing-types";
 import {
@@ -54,7 +55,7 @@ function formatCurrencyAmount(amount: number, currency: "USD" | "CNY"): string {
   }).format(Math.max(0, amount));
 }
 
-export function billingDisplayInputCurrency(billingDisplay: BillingDisplayOptions = DEFAULT_BILLING_DISPLAY): "USD" | "CNY" {
+function billingDisplayInputCurrency(billingDisplay: BillingDisplayOptions = DEFAULT_BILLING_DISPLAY): "USD" | "CNY" {
   const rate = Number(billingDisplay.usdToCnyRate);
   return billingDisplay.currency === "CNY" && Number.isFinite(rate) && rate > 0 ? "CNY" : "USD";
 }
@@ -222,7 +223,7 @@ export function formatUsageLogTime(value: string | null | undefined, locale: str
 }
 
 export function modelDisplayLabel(model: { platformModelName?: string }): string {
-  return model.platformModelName?.trim() || "-";
+  return resolveModelOptionLabel(model.platformModelName ?? "") || "-";
 }
 
 export function isFreePlan(plan: BillingPlanDTO | null | undefined): boolean {
@@ -249,7 +250,7 @@ export function planRank(plan: BillingPlanDTO | null | undefined): number {
   return plan.periodCreditUSD;
 }
 
-export type PlanActionKind = "current" | "renew" | "upgrade" | "subscribe" | "switch" | "freeBlocked" | "unavailable";
+type PlanActionKind = "current" | "renew" | "upgrade" | "subscribe" | "switch" | "freeBlocked" | "unavailable";
 
 export type PlanActionLabels = {
   current: string;

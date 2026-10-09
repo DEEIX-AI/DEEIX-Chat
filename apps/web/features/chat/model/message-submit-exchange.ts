@@ -14,7 +14,7 @@ import {
 } from "@/features/chat/model/upstream-think-store";
 import type { PendingExchange, PendingExchangeMap } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage } from "@/features/chat/types/messages";
-import { resolveErrorMessage } from "@/features/chat/utils/chat-runtime";
+import { resolveErrorReason, resolveGenerationErrorId } from "@/features/chat/utils/chat-runtime";
 import type {
   SendMessageResult,
   StreamMessageEvent,
@@ -70,19 +70,23 @@ export function settleCompletedExchange(
   const assistantMessageBlocked =
     assistantMessageStatus.trim().toLowerCase() === "blocked" ||
     completed.assistantMessage.errorCode === "content_moderation.blocked";
-  const terminalErrorMessage = terminalStreamError
-    ? resolveErrorMessage(
-        streamEventErrorToApiError(terminalStreamError, t("retryLater")),
-        terminalStreamError.message || t("retryLater"),
-      )
-    : "";
+  const terminalError = terminalStreamError ? streamEventErrorToApiError(terminalStreamError, t("retryLater")) : undefined;
+  // The alert renders the error ID in its own row, so the message text itself stays free of it. The
+  // persisted message's errorRequestID is authoritative; the terminal event covers older servers.
+  const generationErrorId =
+    completed.assistantMessage.errorRequestID?.trim() || resolveGenerationErrorId(terminalError);
+  const terminalErrorMessage =
+    terminalStreamError && terminalError
+      ? resolveErrorReason(terminalError, terminalStreamError.message || t("retryLater"))
+      : "";
   const completedErrorMessage = completed.assistantMessage.errorCode
-    ? resolveErrorMessage(
+    ? resolveErrorReason(
         new ApiError(
           completed.assistantMessage.errorMessage || t("retryLater"),
           502,
           terminalStreamError?.debug,
           completed.assistantMessage.errorCode,
+          terminalStreamError?.requestId,
         ),
         completed.assistantMessage.errorMessage || t("retryLater"),
       )
@@ -145,6 +149,7 @@ export function settleCompletedExchange(
         ? {
             title: t("generationInterrupted"),
             message: terminalErrorMessage || completedErrorMessage || t("retryLater"),
+            errorId: generationErrorId,
             details: terminalStreamError?.debug,
           }
         : undefined,
@@ -174,6 +179,7 @@ export function failPendingExchange(
     clientRunID: string;
     title: string;
     errorMessage: string;
+    errorId?: string;
     errorDetails: UpstreamDebugInfo | undefined;
   },
 ): PendingExchange {
@@ -189,6 +195,7 @@ export function failPendingExchange(
     assistantInlineAlert: {
       title: params.title,
       message: params.errorMessage,
+      errorId: params.errorId,
       details: params.errorDetails,
     },
   };

@@ -1415,8 +1415,37 @@ func openBillingSQLiteTestDB(t *testing.T) *gorm.DB {
 		_ = sqlDB.Close()
 	})
 
-	if err := db.AutoMigrate(&models.UsageLedger{}, &models.BillingAccount{}, &models.BalanceTransaction{}, &models.UsageReservation{}, &models.Redemption{}); err != nil {
+	if err := db.AutoMigrate(&models.UsageLedger{}, &models.BillingAccount{}, &models.BalanceTransaction{}, &models.UsageReservation{}, &models.Redemption{}, &models.ConversationRun{}); err != nil {
 		t.Fatalf("migrate billing tables: %v", err)
 	}
 	return db
+}
+
+func TestListUsageLogsMatchesRunAndOriginatingRequestID(t *testing.T) {
+	db := openBillingSQLiteTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	usageDate := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
+	if err := db.Create(&models.ConversationRun{RunID: "run_req_target", RequestID: "req-usage-target", UserID: 7, Status: "error"}).Error; err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	for _, ledger := range []models.UsageLedger{
+		{UserID: 7, RefNo: "run_req_target", PlatformModelName: "model-a", UsageDate: usageDate, BillingAt: usageDate},
+		{UserID: 7, RefNo: "run_req_other", PlatformModelName: "model-b", UsageDate: usageDate, BillingAt: usageDate},
+	} {
+		ledger := ledger
+		if err := db.Create(&ledger).Error; err != nil {
+			t.Fatalf("create ledger: %v", err)
+		}
+	}
+
+	for _, query := range []string{"req-usage-target", "run_req_target"} {
+		logs, total, err := repo.ListUsageLogs(ctx, repository.UsageLogListFilter{Query: query, UserID: 7}, 0, 20)
+		if err != nil {
+			t.Fatalf("list usage logs by %q: %v", query, err)
+		}
+		if total != 1 || len(logs) != 1 || logs[0].PlatformModelName != "model-a" {
+			t.Fatalf("query %q: expected the target run ledger only, got total=%d %#v", query, total, logs)
+		}
+	}
 }

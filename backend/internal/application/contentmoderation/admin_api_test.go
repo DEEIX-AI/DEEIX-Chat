@@ -38,7 +38,7 @@ func TestGetEventDetailOnlyMapsRepositoryNotFound(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			service := NewService(nil, test.repo, "test-key", nil)
+			service := NewService(nil, test.repo, testKeyring(), nil)
 			detail, err := service.GetEventDetail(context.Background(), "superadmin", "cme_1")
 			if test.wantError != nil {
 				if !errors.Is(err, test.wantError) {
@@ -55,7 +55,7 @@ func TestGetEventDetailOnlyMapsRepositoryNotFound(t *testing.T) {
 
 func TestOpenEventImagePreservesRepositoryFailure(t *testing.T) {
 	storageErr := errors.New("database unavailable")
-	service := NewService(nil, &coordinatorTestRepo{getEventErr: storageErr}, "test-key", nil)
+	service := NewService(nil, &coordinatorTestRepo{getEventErr: storageErr}, testKeyring(), nil)
 	_, _, err := service.OpenEventImage(context.Background(), "superadmin", "cme_1", 0)
 	if !errors.Is(err, storageErr) {
 		t.Fatalf("error = %v, want storage error", err)
@@ -63,7 +63,7 @@ func TestOpenEventImagePreservesRepositoryFailure(t *testing.T) {
 }
 
 func TestListEventsRejectsInvalidFilters(t *testing.T) {
-	service := NewService(nil, &coordinatorTestRepo{}, "test-key", nil)
+	service := NewService(nil, &coordinatorTestRepo{}, testKeyring(), nil)
 	tests := []EventListInput{
 		{Direction: "sideways"},
 		{Modality: "video"},

@@ -259,6 +259,14 @@
   "messages": {
     "debugRequest": "请求",
     "debugResponse": "响应",
+    "debugFormatted": "格式化",
+    "debugRaw": "原始",
+    "debugViewMode": "显示方式",
+    "debugSide": "请求或响应",
+    "debugCopy": "复制内容",
+    "debugCopied": "已复制",
+    "debugCopyFailed": "复制失败",
+    "debugEmpty": "无内容",
     "copied": "已复制消息内容",
     "copyFailed": "复制失败",
     "copyFailedDescription": "请稍后重试。",
@@ -511,6 +519,11 @@
     "defaultModelUnavailable": "当前模型不可用，请重新选择模型。",
     "sessionExpired": "登录状态已失效，请重新登录。",
     "retryLater": "请稍后重试。",
+    "errorId": "错误 ID",
+    "errorIdHint": "反馈问题时请提供此 ID，管理员可据此查询原因。",
+    "copyErrorId": "复制错误 ID",
+    "errorIdCopied": "已复制错误 ID",
+    "errorIdCopyFailed": "复制失败",
     "streamResponseParseFailed": "上游返回 HTTP {statusCode}，但流式响应格式与当前协议不兼容。",
     "jsonMustBeObject": "JSON 必须是对象",
     "currentModel": "当前模型",
@@ -624,20 +637,18 @@
       }
     },
     "mediaMode": {
-      "imageGeneration": "图像生成",
-      "imageGenerationIntro": "当前为图像生成模式。",
-      "imageGenerationDescription": "将根据文字提示创建新图像；上传图片后会自动切换为图像编辑。",
-      "imageEdit": "图像编辑",
-      "imageEditIntro": "当前为图像编辑模式。",
-      "imageEditDescription": "将基于已上传图片和文字提示进行编辑。",
-      "videoGeneration": "视频生成",
-      "videoGenerationIntro": "当前为视频生成模式。",
-      "videoGenerationDescription": "将根据文字提示生成视频；上传一张图片后会作为视频参考输入。",
-      "videoExtension": "视频扩展",
-      "videoExtensionIntro": "当前为视频扩展模式。",
-      "videoExtensionDescription": "将根据文字提示扩展已上传的 MP4 视频，仅需设置扩展时长。",
-      "invalidFile": "监测到无效文件",
-      "invalidFileIntro": "当前文件无法用于媒体任务。",
+      "placeholders": {
+        "image_generation": "描述要生成的图像",
+        "image_edit": "描述要如何修改这张图片",
+        "video_generation": "描述要生成的视频",
+        "video_extension": "描述视频接下来的内容"
+      },
+      "parameters": {
+        "image_generation": "图像生成参数",
+        "image_edit": "图像编辑参数",
+        "video_generation": "视频生成参数",
+        "video_extension": "视频扩展参数"
+      },
       "blockedDescriptions": {
         "image_edit_input_required": "请先上传需要编辑的图片。",
         "image_edit_unsupported": "当前模型不支持图像编辑，请移除图片或切换模型。",
@@ -675,13 +686,15 @@
     },
     "viewPricing": "查看价格",
     "freeBadge": "免费",
+    "personalBadge": "自有",
     "detail": {
       "modalities": "模态",
       "context": "上下文",
       "price": "价格",
       "perMillion": "每 1M tokens",
       "schedule": "时段倍率",
-      "unknown": "未知"
+      "unknown": "未知",
+      "chargedByProvider": "由服务商收取"
     },
     "freeModel": "免费模型",
     "freeModelDescription": "不会扣除按量余额",
@@ -1136,6 +1149,7 @@
     "numberInvalid": "请输入有效的数值",
     "numberInvalidRange": "请输入 {min} – {max} 之间的有效数值",
     "increase": "增加",
-    "decrease": "减少"
+    "decrease": "减少",
+    "empty": "该模型没有可调参数。"
   }
 }

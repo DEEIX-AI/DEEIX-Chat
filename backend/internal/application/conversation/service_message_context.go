@@ -432,11 +432,36 @@ func isStreamingResponseFormatFailure(err *llm.UpstreamError) bool {
 	return isStreamUnsupportedError(err)
 }
 
+// upstreamRequestError 在错误链上仍是 ErrUpstreamRequestFailed（保留 errors.Is 判定），
+// 文案与原先的 "%w: %w" 一致，只在上游错误本身已带同样前缀时不再重复。
+type upstreamRequestError struct {
+	cause error
+}
+
+func (e *upstreamRequestError) Error() string {
+	prefix := ErrUpstreamRequestFailed.Error()
+	if e == nil || e.cause == nil {
+		return prefix
+	}
+	message := e.cause.Error()
+	if strings.HasPrefix(message, prefix) {
+		return message
+	}
+	return prefix + ": " + message
+}
+
+func (e *upstreamRequestError) Unwrap() []error {
+	if e == nil || e.cause == nil {
+		return nil
+	}
+	return []error{ErrUpstreamRequestFailed, e.cause}
+}
+
 func wrapUpstreamRequestError(cause error) error {
 	if cause == nil {
 		return ErrUpstreamRequestFailed
 	}
-	return fmt.Errorf("%w: %w", ErrUpstreamRequestFailed, cause)
+	return &upstreamRequestError{cause: cause}
 }
 
 func mapRouteResolutionError(err error) error {

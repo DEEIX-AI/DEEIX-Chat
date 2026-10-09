@@ -191,6 +191,9 @@ type ResolvedRoute struct {
 	ModelCbWindowMin                int
 	UpstreamProbeGranted            bool
 	ModelProbeGranted               bool
+	// UntrustedEndpoint 为 true 表示端点由普通用户配置（自带 Key）：调用方必须把它原样传入
+	// llm.RouteConfig，使请求只走强制 SSRF 防护、不跟随重定向的客户端。
+	UntrustedEndpoint bool
 }
 
 // ResolveRouteInput 路由解析输入。

@@ -14,6 +14,7 @@ import (
 	auditapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
+	apperrorlog "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/errorlog"
 	applogcleanup "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/logcleanup"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
@@ -79,7 +80,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 		IdentityProvider:   c.Query("identity_provider"),
 	})
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	views := make([]UserResponse, 0, len(items))
@@ -145,7 +146,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -161,7 +162,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -216,10 +217,10 @@ func (h *Handler) ImportOpenWebUIUsers(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusForbidden, err)
 			return
 		case errors.Is(err, appadmin.ErrOpenWebUIImportFailed):
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -298,18 +299,80 @@ func (h *Handler) PatchUser(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusConflict, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
 	response.Success(c, UserDataResponse{User: toUserResponse(view)})
+}
+
+// ListErrorLogs godoc
+// @Summary 管理员查询错误日志
+// @Description 分页查看失败请求（5xx 与以错误结束的流式请求）的原始原因；按错误 ID（request_id）精确检索
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
+// @Param request_id query string false "错误 ID（请求 ID），精确匹配"
+// @Param query query string false "搜索关键词：错误 ID / 追踪 ID 精确匹配，路由、路径、错误码、原因模糊匹配"
+// @Param error_code query string false "对外错误码"
+// @Param status_class query string false "状态分类" Enums(5xx, stream)
+// @Param user_id query int false "用户ID"
+// @Param created_from query string false "创建时间起点(RFC3339)"
+// @Param created_to query string false "创建时间终点(RFC3339)"
+// @Param sort query string false "排序方式" Enums(created_desc, created_asc)
+// @Success 200 {object} ErrorLogListResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/error-logs [get]
+// ListErrorLogs 查询错误日志。
+func (h *Handler) ListErrorLogs(c *gin.Context) {
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
+	userID, ok := parseOptionalUintQuery(c, "user_id")
+	if !ok {
+		return
+	}
+	createdFrom, ok := parseOptionalTimeQuery(c, "created_from")
+	if !ok {
+		return
+	}
+	createdTo, ok := parseOptionalTimeQuery(c, "created_to")
+	if !ok {
+		return
+	}
+	items, total, err := h.service.ListErrorLogs(c.Request.Context(), page, pageSize, apperrorlog.ListFilter{
+		RequestID:   c.Query("request_id"),
+		Query:       c.Query("query"),
+		ErrorCode:   c.Query("error_code"),
+		StatusClass: c.Query("status_class"),
+		UserID:      userID,
+		CreatedFrom: createdFrom,
+		CreatedTo:   createdTo,
+		Sort:        c.Query("sort"),
+	})
+	if err != nil {
+		response.InternalError(c, err)
+		return
+	}
+	userIDs := make([]uint, 0, len(items))
+	for _, item := range items {
+		userIDs = append(userIDs, item.UserID)
+	}
+	userLabels := h.service.ResolveUserLabels(c.Request.Context(), userIDs)
+	results := make([]ErrorLogResponse, 0, len(items))
+	for _, item := range items {
+		results = append(results, toErrorLogResponse(item, userLabels[item.UserID]))
+	}
+	response.SuccessPage(c, total, results)
 }
 
 // ListAuditLogs godoc
@@ -356,7 +419,7 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 		Sort:        c.Query("sort"),
 	})
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	userIDs := make([]uint, 0, len(items))
@@ -411,7 +474,7 @@ func (h *Handler) CleanupLogs(c *gin.Context) {
 			errors.Is(err, applogcleanup.ErrFutureBefore):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 		}
 		return
 	}
@@ -468,7 +531,7 @@ func (h *Handler) ListUsageLogs(c *gin.Context) {
 		Sort:              c.Query("sort"),
 	})
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	userIDs := make([]uint, 0, len(items))
@@ -590,7 +653,7 @@ func (h *Handler) GetUsageStatistics(c *gin.Context) {
 		case errors.Is(err, appadmin.ErrPermissionGroupNotFound):
 			response.ErrorFrom(c, http.StatusNotFound, err)
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 		}
 		return
 	}
@@ -649,7 +712,7 @@ func (h *Handler) ListPaymentOrders(c *gin.Context) {
 		Sort:        c.Query("sort"),
 	})
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	userIDs := make([]uint, 0, len(items))
@@ -713,7 +776,7 @@ func (h *Handler) ListRedemptions(c *gin.Context) {
 		Sort:        c.Query("sort"),
 	})
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	userIDs := make([]uint, 0, len(items))
@@ -781,7 +844,7 @@ func (h *Handler) ListConversationEvents(c *gin.Context) {
 		Sort:           c.Query("sort"),
 	})
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	userIDs := make([]uint, 0, len(items))
@@ -822,7 +885,7 @@ func (h *Handler) GetConversationEvent(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	label := h.service.ResolveUserLabels(c.Request.Context(), []uint{item.UserID})[item.UserID]
@@ -894,7 +957,7 @@ func (h *Handler) RevokeUserSessions(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusForbidden, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -958,13 +1021,13 @@ func (h *Handler) UpdateUserStatus(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusForbidden, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1032,7 +1095,7 @@ func (h *Handler) ResetUserPassword(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1081,7 +1144,7 @@ func (h *Handler) ResetUserTwoFactor(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusForbidden, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, ResetUserTwoFactorResponse{Reset: true})
@@ -1135,7 +1198,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 			response.ErrorWithCode(c, http.StatusConflict, "knowledge_base.owner_file_reference")
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -1179,7 +1242,7 @@ func (h *Handler) ListUserAuthEvents(c *gin.Context) {
 		PageSize:  pageSize,
 	})
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -1207,7 +1270,7 @@ func (h *Handler) ListUserAuthEvents(c *gin.Context) {
 // ExportConversations 流式导出全量对话。
 func (h *Handler) ExportConversations(c *gin.Context) {
 	if h.conversationExport == nil {
-		response.InternalError(c)
+		response.InternalError(c, errors.New("conversation export service is not configured"))
 		return
 	}
 

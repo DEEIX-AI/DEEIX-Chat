@@ -56,6 +56,12 @@ func (s *Service) reasoningContentPassbackEnabled(ctx context.Context, userID ui
 }
 
 func messageRouteConfig(route *channel.ResolvedRoute, attributionReferer string, attributionTitle string) llm.RouteConfig {
+	return routeConfigFromResolved(route, llm.DefaultEndpointForAdapter(route.Protocol), attributionReferer, attributionTitle)
+}
+
+// routeConfigFromResolved 是把解析后的路由转换为上游调用配置的唯一入口。
+// UntrustedEndpoint 必须原样传递：用户自带 Key 的端点只能走强制 SSRF 防护的客户端。
+func routeConfigFromResolved(route *channel.ResolvedRoute, endpoint string, attributionReferer string, attributionTitle string) llm.RouteConfig {
 	return llm.RouteConfig{
 		Protocol:            route.Protocol,
 		BaseURL:             route.BaseURL,
@@ -64,10 +70,11 @@ func messageRouteConfig(route *channel.ResolvedRoute, attributionReferer string,
 		ConnectTimeoutMS:    route.ConnectTimeoutMS,
 		ReadTimeoutMS:       route.ReadTimeoutMS,
 		StreamIdleTimeoutMS: route.StreamIdleTimeoutMS,
-		Endpoint:            llm.DefaultEndpointForAdapter(route.Protocol),
+		Endpoint:            endpoint,
 		UpstreamModel:       route.UpstreamModel,
 		AttributionReferer:  attributionReferer,
 		AttributionTitle:    attributionTitle,
+		UntrustedEndpoint:   route.UntrustedEndpoint,
 	}
 }
 

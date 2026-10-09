@@ -147,7 +147,7 @@ func (s *Service) CreateUpstream(ctx context.Context, input CreateUpstreamInput)
 	if err := validateAPIKeys(input.APIKeys); err != nil {
 		return nil, ErrInvalidAPIKeysConfig
 	}
-	apiKeysEnc, err := encryptAPIKeys(s.cfg.Snapshot().DataEncryptionKey, input.APIKeys)
+	apiKeysEnc, err := s.encryptAPIKeys(input.APIKeys)
 	if err != nil {
 		return nil, ErrInvalidAPIKeysConfig
 	}
@@ -233,7 +233,7 @@ func (s *Service) UpdateUpstream(ctx context.Context, upstreamID uint, input Upd
 		if err := validateAPIKeys(*input.APIKeys); err != nil {
 			return nil, ErrInvalidAPIKeysConfig
 		}
-		apiKeysEnc, err := encryptAPIKeys(s.cfg.Snapshot().DataEncryptionKey, *input.APIKeys)
+		apiKeysEnc, err := s.encryptAPIKeys(*input.APIKeys)
 		if err != nil {
 			return nil, ErrInvalidAPIKeysConfig
 		}
@@ -251,7 +251,7 @@ func (s *Service) UpdateUpstream(ctx context.Context, upstreamID uint, input Upd
 		if err != nil {
 			return nil, ErrInvalidAPIKeysConfig
 		}
-		apiKeysEnc, err := encryptAPIKeys(s.cfg.Snapshot().DataEncryptionKey, nextAPIKeys)
+		apiKeysEnc, err := s.encryptAPIKeys(nextAPIKeys)
 		if err != nil {
 			return nil, ErrInvalidAPIKeysConfig
 		}
@@ -414,12 +414,24 @@ func (s *Service) ResetUpstreamCircuit(ctx context.Context, upstreamID uint) err
 // API Key 配置工具
 // ---------------------------------------------------------------------------
 
-func encryptAPIKeys(secret string, raw string) (string, error) {
-	return secretbox.EncryptString(secret, raw)
+func encryptAPIKeys(keyring *secretbox.Keyring, raw string) (string, error) {
+	return keyring.EncryptString(raw)
+}
+
+func (s *Service) encryptAPIKeys(raw string) (string, error) {
+	keyring, err := s.cfg.Snapshot().Keyring()
+	if err != nil {
+		return "", err
+	}
+	return encryptAPIKeys(keyring, raw)
 }
 
 func (s *Service) decryptAPIKeys(encrypted string) (string, error) {
-	return secretbox.DecryptString(s.cfg.Snapshot().DataEncryptionKey, encrypted)
+	keyring, err := s.cfg.Snapshot().Keyring()
+	if err != nil {
+		return "", err
+	}
+	return keyring.DecryptString(encrypted)
 }
 
 func (s *Service) maskAPIKeysEnc(encrypted string) string {

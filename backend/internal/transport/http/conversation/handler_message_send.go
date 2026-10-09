@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -117,7 +118,7 @@ func (h *Handler) parseSendMessageInput(c *gin.Context) (appconversation.SendMes
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return appconversation.SendMessageInput{}, nil, nil, err
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return appconversation.SendMessageInput{}, nil, nil, err
 	}
 
@@ -229,8 +230,25 @@ func (h *Handler) recordSendMessageAuditCtx(ctx context.Context, input appconver
 	h.service.RecordSendMessageAudit(ctx, input)
 }
 
+// streamResumeInterruptedPayload 构造续传流发现生成已失联时的终态错误。
+// 续传是新的 HTTP 请求：事件里的错误 ID 改为引用发起生成的原始请求（根因记录在它的访问日志里），
+// 本次续传请求的访问日志则记录两者的关联，管理员从任一 ID 都能找到对方。
+func streamResumeInterruptedPayload(c *gin.Context, runID string, originalRequestID string) map[string]any {
+	cause := appconversation.ErrMessageGenerationInterrupted
+	payload := streamErrorPayload(c, cause)
+	if originalRequestID = strings.TrimSpace(originalRequestID); originalRequestID != "" {
+		payload["requestId"] = originalRequestID
+		response.RecordError(c, fmt.Errorf("resume run %s: generation lost, original request %s: %w", runID, originalRequestID, cause))
+	}
+	return payload
+}
+
+// errGenerationLifecycleUnavailable 是生成租约拿不到时（进程排空关停中）记入访问日志的内部原因，不对外暴露。
+var errGenerationLifecycleUnavailable = errors.New("message generation lifecycle unavailable: server is draining")
+
 // handleSendMessageError 把消息发送 / 生成 / 计费路径上的错误写成 HTTP 错误响应，映射规则见 describeSendMessageError。
 func handleSendMessageError(c *gin.Context, err error) {
+	response.RecordError(c, err)
 	response.ErrorDescribed(c, describeSendMessageError(err))
 }
 
@@ -278,7 +296,7 @@ func (h *Handler) SendMessage(c *gin.Context) {
 		return
 	}
 	h.recordSendMessageAudit(c, conversation, req, result, "send_message")
-	response.Success(c, toSendMessageResponse(result))
+	response.Success(c, toSendMessageResponse(result, middleware.MustRequestID(c)))
 }
 
 // StreamMessage godoc
@@ -316,6 +334,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	)
 	if !ok {
 		_ = session.Finish(c.Request.Context(), nil)
+		response.RecordError(c, errGenerationLifecycleUnavailable)
 		response.ErrorWithCode(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable)
 		return
 	}
@@ -383,14 +402,14 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 		return
 	}
 	if billingErr := session.Finish(c.Request.Context(), result); billingErr != nil {
-		payload := streamErrorPayloadWithResult(billingErr, result)
+		payload := streamErrorPayloadWithResult(c, billingErr, result)
 		if owned, _ := flushStreamEvent(payload); !owned {
 			_ = writeStreamEvent(payload)
 		}
 		return
 	}
 	if err != nil {
-		payload := streamErrorPayloadWithResult(err, result)
+		payload := streamErrorPayloadWithResult(c, err, result)
 		if owned, _ := flushStreamEvent(payload); !owned {
 			_ = writeStreamEvent(payload)
 		}
@@ -401,7 +420,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	}
 	_, _ = flushStreamEvent(map[string]any{
 		"type": "completed",
-		"data": toSendMessageResponse(result),
+		"data": toSendMessageResponse(result, middleware.MustRequestID(c)),
 	})
 	h.recordStreamSendMessageAuditAsync(c, conversation, req, result, "stream_message")
 }
@@ -442,7 +461,7 @@ func (h *Handler) StreamActiveMessageGenerations(c *gin.Context) {
 		userID,
 	)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	defer unsubscribe()
@@ -599,9 +618,13 @@ func (h *Handler) ResumeMessageGenerationStream(c *gin.Context) {
 	isActive := func() bool {
 		return h.service.HasActiveMessageGeneration(c.Request.Context(), runID)
 	}
+	resumeInterruptedPayload := func() map[string]any {
+		originalRequestID := h.service.MessageGenerationRequestID(c.Request.Context(), userID, runID)
+		return streamResumeInterruptedPayload(c, runID, originalRequestID)
+	}
 	if !isActive() {
 		h.service.MarkMessageGenerationInterrupted(c.Request.Context(), userID, runID)
-		_ = writeEvent(streamErrorPayload(appconversation.ErrMessageGenerationInterrupted))
+		_ = writeEvent(resumeInterruptedPayload())
 		return
 	}
 	activeTicker := time.NewTicker(resumeActiveCheckInterval)
@@ -619,14 +642,14 @@ func (h *Handler) ResumeMessageGenerationStream(c *gin.Context) {
 		case <-activeTicker.C:
 			if !isActive() {
 				h.service.MarkMessageGenerationInterrupted(c.Request.Context(), userID, runID)
-				_ = writeEvent(streamErrorPayload(appconversation.ErrMessageGenerationInterrupted))
+				_ = writeEvent(resumeInterruptedPayload())
 				return
 			}
 		case event, ok := <-events:
 			if !ok {
 				if !terminalWritten && !isActive() {
 					h.service.MarkMessageGenerationInterrupted(c.Request.Context(), userID, runID)
-					_ = writeEvent(streamErrorPayload(appconversation.ErrMessageGenerationInterrupted))
+					_ = writeEvent(resumeInterruptedPayload())
 				}
 				return
 			}

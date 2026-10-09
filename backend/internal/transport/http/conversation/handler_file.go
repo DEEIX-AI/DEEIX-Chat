@@ -81,7 +81,7 @@ func (h *Handler) UploadFile(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, errInvalidFile)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -149,7 +149,7 @@ func (h *Handler) ListFiles(c *gin.Context) {
 		SortBy:      sortBy,
 	})
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]FileObjectResponse, 0, len(result.Items))
@@ -190,7 +190,7 @@ func (h *Handler) GetFileProcessingStatus(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toFileProcessingStatusResponse(result))
@@ -221,7 +221,7 @@ func (h *Handler) GetFileProcessingStatuses(c *gin.Context) {
 		req.FileIDs,
 	)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	statuses := make([]FileProcessingStatusResponse, 0, len(result))
@@ -252,6 +252,7 @@ func (h *Handler) SubmitFileEmbeddings(c *gin.Context) {
 	}
 	result, err := h.processing.SubmitFileEmbeddings(c.Request.Context(), middleware.MustUserID(c), req.FileIDs)
 	if err != nil {
+		response.RecordError(c, err)
 		switch {
 		case errors.Is(err, appembedding.ErrTooManyTargetedFiles):
 			response.ErrorWithCode(c, http.StatusBadRequest, "embedding.too_many_files")
@@ -306,7 +307,7 @@ func (h *Handler) GetFileExtract(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusConflict, errFileExtractNotReady)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -327,7 +328,7 @@ func (h *Handler) GetChatFilePolicy(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	result, err := h.service.GetChatFilePolicy(c.Request.Context(), userID)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toChatFilePolicyResponse(result))
@@ -381,7 +382,7 @@ func (h *Handler) UpdateFile(c *gin.Context) {
 			case errors.Is(err, appconversation.ErrFileNotFound):
 				response.ErrorFrom(c, http.StatusNotFound, appconversation.ErrFileNotFound)
 			default:
-				response.InternalError(c)
+				response.InternalError(c, err)
 			}
 			return
 		}
@@ -396,7 +397,7 @@ func (h *Handler) UpdateFile(c *gin.Context) {
 			case errors.Is(err, appconversation.ErrFileNotFound):
 				response.ErrorFrom(c, http.StatusNotFound, appconversation.ErrFileNotFound)
 			default:
-				response.InternalError(c)
+				response.InternalError(c, err)
 			}
 			return
 		}
@@ -457,7 +458,7 @@ func (h *Handler) DeleteFile(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusConflict, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -503,7 +504,7 @@ func (h *Handler) GetFileContent(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, appconversation.ErrFileNotFound)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}

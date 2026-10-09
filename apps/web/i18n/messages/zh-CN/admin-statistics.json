@@ -72,5 +72,6 @@
       "hitRate": "命中率",
       "latency": "平均耗时"
     }
-  }
+  },
+  "personalKey": "自有"
 }

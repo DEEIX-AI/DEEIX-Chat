@@ -50,6 +50,7 @@ import { isAdminLogCleanupType } from "@/features/admin/model/admin-unions";
 import { AdminDateRangeFilter } from "@/features/admin/components/shared/date-range-filter";
 import { AdminDateTimePicker } from "@/features/admin/components/shared/date-time-picker";
 import { LogDetailSheet } from "@/features/admin/components/sections/logs/logs-detail-sheet";
+import { ErrorLogTable } from "@/features/admin/components/sections/logs/logs-error-logs";
 import { ModerationEventTable } from "@/features/admin/components/sections/logs/logs-moderation-events";
 import { RedemptionRecordTable } from "@/features/admin/components/sections/logs/logs-redemption-records";
 import {
@@ -785,6 +786,7 @@ const LOG_TABS = [
   { id: "redemptions", feature: "billingGating" },
   { id: "conversation", cleanup: "conversation" },
   { id: "moderation", cleanup: "moderation", feature: "contentModeration", superAdminOnly: true },
+  { id: "errors", cleanup: "errors" },
 ] as const satisfies readonly {
   id: string;
   cleanup?: AdminLogCleanupType;
@@ -993,6 +995,9 @@ export function AdminLogsPage() {
             <ModerationEventTable key={cleanupRevisions.moderation} />
           </TabsContent>
         ) : null}
+        <TabsContent value="errors">
+          <ErrorLogTable key={cleanupRevisions.errors} />
+        </TabsContent>
       </Tabs>
 
       <LogDetailSheet

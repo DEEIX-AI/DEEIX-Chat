@@ -10,17 +10,18 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
 // Service 封装 settings 业务逻辑。
 type Service struct {
-	repo              repository.SettingsRepository
-	dataEncryptionKey string
-	authSafety        authSafetyService
-	vectorStore       vectorStoreAvailabilityService
-	auditWriter       auditWriter
-	runtime           *config.Runtime
+	repo        repository.SettingsRepository
+	keyring     *secretbox.Keyring
+	authSafety  authSafetyService
+	vectorStore vectorStoreAvailabilityService
+	auditWriter auditWriter
+	runtime     *config.Runtime
 }
 
 type authSafetyService interface {
@@ -36,8 +37,8 @@ type auditWriter interface {
 }
 
 // NewService 创建服务。
-func NewService(repo repository.SettingsRepository, dataEncryptionKey string) *Service {
-	return &Service{repo: repo, dataEncryptionKey: strings.TrimSpace(dataEncryptionKey)}
+func NewService(repo repository.SettingsRepository, keyring *secretbox.Keyring) *Service {
+	return &Service{repo: repo, keyring: keyring}
 }
 
 func (s *Service) SetAuthSafetyService(service authSafetyService) {

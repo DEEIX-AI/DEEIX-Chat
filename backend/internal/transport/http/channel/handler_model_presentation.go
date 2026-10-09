@@ -56,7 +56,7 @@ func (h *Handler) UploadModelIconAsset(c *gin.Context) {
 		case errors.Is(err, appchannel.ErrInvalidModelIconFile):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 		}
 		return
 	}
@@ -78,7 +78,7 @@ func (h *Handler) ListModelIconAssets(c *gin.Context) {
 	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelIconAssets(c.Request.Context(), page, pageSize)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]ModelIconAssetListItemResponse, 0, len(items))
@@ -118,7 +118,7 @@ func (h *Handler) DeleteModelIconAsset(c *gin.Context) {
 		response.ErrorFrom(c, http.StatusNotFound, err)
 		return
 	}
-	response.InternalError(c)
+	response.InternalError(c, err)
 }
 
 // GetModelIconAsset godoc
@@ -137,7 +137,7 @@ func (h *Handler) GetModelIconAsset(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -147,7 +147,7 @@ func (h *Handler) GetModelIconAsset(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	defer item.Reader.Close()
@@ -187,7 +187,7 @@ func (h *Handler) ListModelVendors(c *gin.Context) {
 	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelVendors(c.Request.Context(), page, pageSize, c.Query("q"))
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]ModelVendorResponse, 0, len(items))
@@ -308,7 +308,7 @@ func (h *Handler) ListModelDisplayGroups(c *gin.Context) {
 	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelDisplayGroups(c.Request.Context(), page, pageSize, c.Query("q"))
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]ModelDisplayGroupResponse, 0, len(items))
@@ -442,7 +442,7 @@ func writeModelVendorError(c *gin.Context, err error) {
 	case errors.Is(err, appchannel.ErrInvalidModelIconReference):
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 	default:
-		response.InternalError(c)
+		response.InternalError(c, err)
 	}
 }
 
@@ -459,6 +459,6 @@ func writeModelDisplayGroupError(c *gin.Context, err error) {
 	case errors.Is(err, appchannel.ErrInvalidModelIconReference):
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 	default:
-		response.InternalError(c)
+		response.InternalError(c, err)
 	}
 }

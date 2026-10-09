@@ -29,6 +29,7 @@ import {
   parseModelControls,
   parseModelReasoningCapability,
   parseProtocolsJSON,
+  resolveModelProviderIcon,
 } from "@/entities/model";
 import { type ChatContentWidth, parseChatContentWidth, useUserSettings } from "@/entities/user-settings";
 import { resolveConversationDefaultModel } from "@/entities/conversation";
@@ -361,6 +362,9 @@ function toChatModelOption(
     displayGroupID: item.displayGroupID,
     displayGroupName: item.displayGroupName,
     displayGroupIcon: item.displayGroupIcon,
+    // Older servers omit the field; anything not marked personal is a platform model.
+    personalProviderName: item.source === "personal" ? item.providerName || "" : null,
+    personalProviderIcon: item.source === "personal" ? resolveModelProviderIcon(item.providerIcon, item.providerHost) : "",
     kinds: parseKindsJSON(item.kindsJSON),
     protocols,
     defaultOptions: resolveDefaultOptions(item.capabilitiesJSON, nativeTools, nativeToolCatalog, protocols),
@@ -672,6 +676,7 @@ export function useChatModelOptions({
     showProcessTrace,
     billingDisplayCurrency,
     billingDisplayUsdToCnyRate,
+    billingEnabled: billingCostAvailable,
     modelOptionPolicy,
     mcpMaxSelectedTools,
     selectedPlatformModelName,

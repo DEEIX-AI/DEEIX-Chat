@@ -442,6 +442,23 @@ func (s *Service) ModelCapabilityResolver() ModelCapabilityResolver {
 	return ModelCapabilityResolver{catalog: s.activeModelCatalog(), modalities: s.activeModalityCatalog()}
 }
 
+// ResolveExternal 解析外部模型（用户自带 Key）的能力：与 Resolve 相同，但输入模态与上下文窗口
+// 改用 MatchExternal，使中转站常用的 OpenRouter 式 id 也能识别，与 BuildExternalRoute 的发送判断一致。
+func (r ModelCapabilityResolver) ResolveExternal(view ModelView) ModelCapabilityInfo {
+	info := r.Resolve(view)
+	if r.modalities == nil {
+		return info
+	}
+	entry := r.modalities.MatchExternal(view.PlatformModelName, view.Vendor, modelReasoningProtocolKeys(view.ProtocolsJSON))
+	if entry == nil {
+		return info
+	}
+	info.InputModalities = domainchannel.ResolveInputModalities(view.CapabilitiesJSON, entry.InputModalities)
+	info.OutputModalities = domainchannel.NormalizeOutputModalities(entry.OutputModalities)
+	info.ContextWindow = domainchannel.ResolveDisplayContextWindow(view.CapabilitiesJSON, entry.ContextWindow)
+	return info
+}
+
 // Resolve 解析模型的生效推理能力与用户控件；目录能力只在没有显式声明与原生参数推断时兜底。
 func (r ModelCapabilityResolver) Resolve(view ModelView) ModelCapabilityInfo {
 	protocolKeys := modelReasoningProtocolKeys(view.ProtocolsJSON)

@@ -258,6 +258,42 @@ func (c *ModelCatalog) Match(name string, vendor string, protocolKeys []string) 
 	return nil
 }
 
+// MatchExternal 为用户自带 Key 的外部模型查找目录条目：先按 Match 的固定顺序，
+// 未命中时再按 OpenRouter 的 id 查 openrouter provider（中转站普遍沿用「厂商/模型」与点号版本，
+// 如 anthropic/claude-sonnet-4.5），不受协议限制。只用于输入模态与上下文窗口，
+// 推理能力仍走 Match，避免把 OpenRouter 的推理参数形态套到其它协议上。
+func (c *ModelCatalog) MatchExternal(name string, vendor string, protocolKeys []string) *ModelCatalogEntry {
+	if entry := c.Match(name, vendor, protocolKeys); entry != nil {
+		return entry
+	}
+	if c.Len() == 0 {
+		return nil
+	}
+	fullName := normalizeModelCatalogKey(name)
+	if fullName == "" {
+		return nil
+	}
+	bareName, namePrefix := fullName, ""
+	if slash := strings.Index(fullName, "/"); slash >= 0 {
+		namePrefix = fullName[:slash]
+		bareName = fullName[strings.LastIndex(fullName, "/")+1:]
+		if bareName == "" {
+			return nil
+		}
+	}
+	_, canonicalPrefixes := modelCatalogVendorTargets(normalizeModelCatalogKey(vendor), namePrefix)
+	candidates := []string{fullName}
+	for _, prefix := range canonicalPrefixes {
+		candidates = append(candidates, prefix+"/"+bareName)
+	}
+	for _, modelID := range uniqueModelCatalogKeys(candidates...) {
+		if entry := c.lookup("openrouter", modelID); entry != nil {
+			return entry
+		}
+	}
+	return nil
+}
+
 func (c *ModelCatalog) lookup(provider string, modelID string) *ModelCatalogEntry {
 	index, ok := c.byProviderModel[provider+"\x00"+modelID]
 	if !ok {

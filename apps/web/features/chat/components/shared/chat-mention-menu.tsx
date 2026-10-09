@@ -13,7 +13,7 @@ import type {
   ChatMentionMenuTabInfo,
 } from "@/features/chat/hooks/use-chat-mention-menu";
 import { cn } from "@/lib/utils";
-import { ModelIcon, resolveModelIconURL, resolveModelIdentity } from "@/entities/model";
+import { ModelIcon, resolveModelIconURL, resolveModelIdentity, resolveModelOptionLabel } from "@/entities/model";
 
 type ChatMentionMenuTranslator = (key: string, values?: Record<string, string | number>) => string;
 
@@ -26,7 +26,7 @@ function ChatMentionMenuItemButton({
   active: boolean;
   onSelect: () => void;
 }) {
-  const platformModelName = item.kind === "model" ? item.model.platformModelName.trim() : "";
+  const platformModelName = item.kind === "model" ? resolveModelOptionLabel(item.model.platformModelName) : "";
   const identity = React.useMemo(() => {
     if (item.kind !== "model") {
       return null;
@@ -230,7 +230,7 @@ function ChatMentionMenuTabBar({
   );
 }
 
-export function resolveMentionMenuMotionStyle(layout: ChatMentionMenuLayout | null): React.CSSProperties | undefined {
+function resolveMentionMenuMotionStyle(layout: ChatMentionMenuLayout | null): React.CSSProperties | undefined {
   if (!layout) {
     return undefined;
   }

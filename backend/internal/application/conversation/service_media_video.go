@@ -300,19 +300,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 
 	cfg := s.cfg.Snapshot()
 	attributionReferer, attributionTitle := s.llmAttribution()
-	routeConfig := llm.RouteConfig{
-		Protocol:            route.Protocol,
-		BaseURL:             route.BaseURL,
-		APIKey:              route.APIKey,
-		HeadersJSON:         route.HeadersJSON,
-		ConnectTimeoutMS:    route.ConnectTimeoutMS,
-		ReadTimeoutMS:       route.ReadTimeoutMS,
-		StreamIdleTimeoutMS: route.StreamIdleTimeoutMS,
-		Endpoint:            videoEndpoint,
-		UpstreamModel:       route.UpstreamModel,
-		AttributionReferer:  attributionReferer,
-		AttributionTitle:    attributionTitle,
-	}
+	routeConfig := routeConfigFromResolved(route, videoEndpoint, attributionReferer, attributionTitle)
 	filteredOptions := filterModelOptions(input.Options, route.Protocol, modelOptionPolicyConfig{
 		Mode:                  cfg.ModelOptionPolicyMode,
 		AllowedPathsJSON:      cfg.ModelOptionAllowedPaths,
@@ -409,7 +397,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	attachmentRows := make([]model.Attachment, 0, len(output.GeneratedVideos))
 	now := time.Now()
 	for i, video := range output.GeneratedVideos {
-		data, mimeType, readErr := s.readGeneratedVideo(ctx, video, route.BaseURL, route.APIKey)
+		data, mimeType, readErr := s.readGeneratedVideo(ctx, video, mediaArtifactSourceFor(route))
 		if readErr != nil {
 			retErr = s.finalizeGeneratedMediaArtifactFailure(ctx, run, assistantMessage.ID, i+1, len(output.GeneratedVideos), readErr)
 			return buildFailureResult(retErr, output.Usage), retErr
@@ -650,7 +638,7 @@ func mediaInputAttachmentRows(conversationID uint, userID uint, attachments []At
 	return rows
 }
 
-func (s *Service) readGeneratedVideo(ctx context.Context, video llm.GeneratedVideo, trustedProviderEndpoint string, apiKey string) ([]byte, string, error) {
+func (s *Service) readGeneratedVideo(ctx context.Context, video llm.GeneratedVideo, source mediaArtifactSource) ([]byte, string, error) {
 	mimeType := strings.TrimSpace(video.MIMEType)
 	if mimeType == "" {
 		mimeType = "video/mp4"
@@ -670,7 +658,8 @@ func (s *Service) readGeneratedVideo(ctx context.Context, video llm.GeneratedVid
 	if url == "" {
 		return nil, mimeType, ErrUpstreamEmptyResponse
 	}
-	if s.mediaDownloader == nil {
+	downloader := s.mediaDownloaderFor(source)
+	if downloader == nil {
 		return nil, mimeType, newGeneratedMediaArtifactError("video", "configuration", fmt.Errorf("generated media downloader is not configured"))
 	}
 	cfg := s.cfg.Snapshot()
@@ -678,7 +667,7 @@ func (s *Service) readGeneratedVideo(ctx context.Context, video llm.GeneratedVid
 	if limit <= 0 {
 		limit = 20 * 1024 * 1024
 	}
-	data, downloadedMIME, err := s.mediaDownloader.DownloadVideo(ctx, url, trustedProviderEndpoint, apiKey, limit)
+	data, downloadedMIME, err := downloader.DownloadVideo(ctx, url, source.endpoint, source.apiKey, limit)
 	if err != nil {
 		if isMediaArtifactResponseTooLarge(err) {
 			return nil, mimeType, ErrFileTooLarge

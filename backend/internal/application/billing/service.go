@@ -16,6 +16,8 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	domainpersonalprovider "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/personalprovider"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
@@ -64,7 +66,7 @@ type Service struct {
 	groupRateResolver             groupRateMultiplierResolver
 	permissionGroupLookup         permissionGroupLookup
 	permissionGroupPlanCounter    permissionGroupPlanCounter
-	redemptionCodeSecret          string
+	redemptionCodeKeyring         *secretbox.Keyring
 }
 
 // groupRateMultiplierResolver 提供用户权限组计费倍率查询能力。
@@ -414,12 +416,12 @@ func (s *Service) SetNativeToolCatalogProvider(provider nativeToolCatalogProvide
 	s.nativeToolCatalog = provider
 }
 
-// SetRedemptionCodeSecret 注入兑换码 HMAC 与密文存储密钥。
-func (s *Service) SetRedemptionCodeSecret(secret string) {
+// SetRedemptionCodeKeyring 注入兑换码查找索引（HMAC）与密文存储所用的密钥环。
+func (s *Service) SetRedemptionCodeKeyring(keyring *secretbox.Keyring) {
 	if s == nil {
 		return
 	}
-	s.redemptionCodeSecret = strings.TrimSpace(secret)
+	s.redemptionCodeKeyring = keyring
 }
 
 func (s *Service) invalidatePublicModelPricingCache() {
@@ -1257,26 +1259,14 @@ func (s *Service) AuthorizeUsage(ctx context.Context, userID uint, platformModel
 	if mode != "usage" && mode != "period" {
 		return authorization, nil
 	}
-	pricing, err := s.getResolvedModelPricing(ctx, platformModelName)
-	if err != nil && !errors.Is(err, repository.ErrNotFound) {
-		return nil, err
-	}
-	if pricing == nil {
-		return nil, ErrModelPricingRequired
-	}
-	if pricing.IsFree {
-		return authorization, nil
-	}
-	if domainbilling.NormalizePricingMode(pricing.PricingMode) == domainbilling.PricingModeDuration {
-		if s.modelPricingCatalog == nil {
-			return nil, ErrModelPricingRequired
-		}
-		supported, supportErr := s.modelPricingCatalog.SupportsVideoGeneration(ctx, platformModelName)
-		if supportErr != nil {
-			return nil, supportErr
-		}
-		if !supported {
-			return nil, ErrModelPricingRequired
+	// 用户自带 Key 的模型由用户自己向上游付费：不查平台价格，但仍按常规预留预算，
+	// 让同一请求里由平台付费的服务（如收费 MCP 工具）照常受余额约束。
+	if !domainpersonalprovider.IsModelRef(platformModelName) {
+		if err := s.ensureModelPricingAuthorizable(ctx, platformModelName); err != nil {
+			if errors.Is(err, errModelPricingFree) {
+				return authorization, nil
+			}
+			return nil, err
 		}
 	}
 	reservationNanousd, err := s.repo.GetBillingPrepaidAmountNanousd(ctx)
@@ -1314,6 +1304,36 @@ func (s *Service) AuthorizeUsage(ctx context.Context, userID uint, platformModel
 	}
 	authorization.Reservation = reservation
 	return authorization, nil
+}
+
+// errModelPricingFree 是 ensureModelPricingAuthorizable 的内部信号：模型免费，无需预留预算。
+var errModelPricingFree = errors.New("model pricing is free")
+
+// ensureModelPricingAuthorizable 校验平台模型具备可执行的价格配置。
+func (s *Service) ensureModelPricingAuthorizable(ctx context.Context, platformModelName string) error {
+	pricing, err := s.getResolvedModelPricing(ctx, platformModelName)
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
+		return err
+	}
+	if pricing == nil {
+		return ErrModelPricingRequired
+	}
+	if pricing.IsFree {
+		return errModelPricingFree
+	}
+	if domainbilling.NormalizePricingMode(pricing.PricingMode) == domainbilling.PricingModeDuration {
+		if s.modelPricingCatalog == nil {
+			return ErrModelPricingRequired
+		}
+		supported, supportErr := s.modelPricingCatalog.SupportsVideoGeneration(ctx, platformModelName)
+		if supportErr != nil {
+			return supportErr
+		}
+		if !supported {
+			return ErrModelPricingRequired
+		}
+	}
+	return nil
 }
 
 // UsageEstimateInput 描述请求形状确定后可预估的成本要素。尚未发生的输入按非缓存单价估算
@@ -1704,6 +1724,10 @@ func subscriptionEndSortTime(subscription domainbilling.Subscription) time.Time 
 // BuildUsageLedger 根据模型单价与用量构建账本记录。
 func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput) (*domainbilling.UsageLedger, error) {
 	platformModelName := strings.TrimSpace(input.PlatformModelName)
+	// 用户自带 Key 的模型 Token 由用户自己向上游付费，只计平台侧服务费（如收费 MCP 工具），用量照常入账。
+	if domainpersonalprovider.IsModelRef(platformModelName) {
+		input.ServiceOnly = true
+	}
 	providerProtocol := strings.TrimSpace(input.ProviderProtocol)
 	usageSpeed := normalizeUsageSpeed(input.UsageSpeed)
 	requestSpeed := normalizeUsageSpeed(input.RequestSpeed)
@@ -2465,6 +2489,10 @@ func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageI
 	}
 	if item.CallCount <= 0 {
 		item.CallCount = 1
+	}
+	// 用户自带 Key 的模型执行的内部任务（如跟随会话模型生成标题）由用户自己向上游付费，只记用量不计费。
+	if domainpersonalprovider.IsModelRef(item.PlatformModelName) {
+		return item, nil
 	}
 	identity, err := s.resolvePlatformModelIdentity(ctx, item.PlatformModelName)
 	if err != nil && !errors.Is(err, repository.ErrNotFound) {

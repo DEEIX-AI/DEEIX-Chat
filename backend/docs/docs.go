@@ -1974,6 +1974,116 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/error-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "分页查看失败请求（5xx 与以错误结束的流式请求）的原始原因；按错误 ID（request_id）精确检索",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "管理员查询错误日志",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码（从 1 开始，默认 1）",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量（1-1000，默认 20）",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "错误 ID（请求 ID），精确匹配",
+                        "name": "request_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词：错误 ID / 追踪 ID 精确匹配，路由、路径、错误码、原因模糊匹配",
+                        "name": "query",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "对外错误码",
+                        "name": "error_code",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "5xx",
+                            "stream"
+                        ],
+                        "type": "string",
+                        "description": "状态分类",
+                        "name": "status_class",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "用户ID",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "创建时间起点(RFC3339)",
+                        "name": "created_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "创建时间终点(RFC3339)",
+                        "name": "created_to",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "created_desc",
+                            "created_asc"
+                        ],
+                        "type": "string",
+                        "description": "排序方式",
+                        "name": "sort",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorLogListResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/knowledge-bases": {
             "get": {
                 "security": [
@@ -6093,6 +6203,210 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/McpErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/model-providers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "分页列出所有用户添加的模型服务；只有元数据与打码提示，不包含 API Key",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "personal-providers"
+                ],
+                "summary": "管理员查询用户模型服务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "按名称、域名或所属用户（用户名、显示名、邮箱）搜索",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "状态：active/disabled/suspended",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "精确域名",
+                        "name": "host",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "所属用户 ID",
+                        "name": "owner_user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码（从 1 开始，默认 1）",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量（1-1000，默认 20）",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/AdminPersonalProviderPageResponseDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/model-providers/batch-delete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除指定服务及其加密保存的 API Key",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "personal-providers"
+                ],
+                "summary": "管理员删除用户模型服务",
+                "parameters": [
+                    {
+                        "description": "服务 ID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/AdminDeletePersonalProvidersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalProviderAffectedResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/model-providers/suspend": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "停用后用户不能自行启用，该服务的模型立即不可用",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "personal-providers"
+                ],
+                "summary": "管理员停用或恢复用户模型服务",
+                "parameters": [
+                    {
+                        "description": "服务 ID 与目标状态",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/AdminSuspendPersonalProvidersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalProviderAffectedResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/model-providers/suspend-host": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "停用指定域名下的全部用户模型服务；如需阻止今后再添加，请同时把域名加入禁止列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "personal-providers"
+                ],
+                "summary": "管理员按域名停用用户模型服务",
+                "parameters": [
+                    {
+                        "description": "域名",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/AdminSuspendPersonalProviderHostRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalProviderAffectedResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
                 }
@@ -15462,6 +15776,388 @@ const docTemplate = `{
                 }
             }
         },
+        "/me/model-providers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "返回当前用户添加的模型服务；响应不包含 API Key",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "personal-providers"
+                ],
+                "summary": "查询我的模型服务",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalProviderListResponseDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "检测并保存模型服务。API Key 加密保存，之后任何接口都不会返回明文",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "personal-providers"
+                ],
+                "summary": "添加模型服务",
+                "parameters": [
+                    {
+                        "description": "服务配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreatePersonalProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalProviderResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/model-providers/access": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "返回当前用户能否添加自己的模型服务、能否通过链接导入、数量上限与可选协议",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "personal-providers"
+                ],
+                "summary": "查询个人模型服务是否可用",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalProviderAccessResponseDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/model-providers/probe": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "使用地址与 API Key 拉取上游模型列表，不保存任何内容。地址必须是 HTTPS 公网地址",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "personal-providers"
+                ],
+                "summary": "检测模型服务",
+                "parameters": [
+                    {
+                        "description": "候选配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/PersonalProviderProbeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalProviderModelsResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/model-providers/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除服务及其加密保存的 API Key。功能被关闭后仍可删除",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "personal-providers"
+                ],
+                "summary": "删除模型服务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "服务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalProviderDeleteResponseDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "修改名称、更换 API Key、调整启用的模型或启用/停用。更换 Key 或调整模型时会重新检测",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "personal-providers"
+                ],
+                "summary": "更新模型服务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "服务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新字段",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdatePersonalProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalProviderResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/model-providers/{id}/models": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "使用已保存的 API Key 重新拉取上游模型列表",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "personal-providers"
+                ],
+                "summary": "拉取模型服务的可用模型",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "服务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalProviderModelsResponseDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/PersonalproviderErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/me/onboarding/complete": {
             "post": {
                 "security": [
@@ -17590,6 +18286,22 @@ const docTemplate = `{
                 }
             }
         },
+        "AdminDeletePersonalProvidersRequest": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "maxItems": 500,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "AdminErrorDoc": {
             "type": "object",
             "required": [
@@ -17607,6 +18319,168 @@ const docTemplate = `{
                 },
                 "requestId": {
                     "type": "string"
+                }
+            }
+        },
+        "AdminPersonalProviderPageResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
+                    "properties": {
+                        "results": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/AdminPersonalProviderResponse"
+                            }
+                        },
+                        "total": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "AdminPersonalProviderResponse": {
+            "type": "object",
+            "required": [
+                "baseURL",
+                "createdAt",
+                "host",
+                "icon",
+                "id",
+                "keyHint",
+                "lastCheckedAt",
+                "lastError",
+                "modelCount",
+                "name",
+                "ownerAvatarURL",
+                "ownerDisplayName",
+                "ownerEmail",
+                "ownerLabel",
+                "ownerPublicID",
+                "ownerUserID",
+                "ownerUsername",
+                "protocol",
+                "source",
+                "status"
+            ],
+            "properties": {
+                "baseURL": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "keyHint": {
+                    "type": "string"
+                },
+                "lastCheckedAt": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "lastError": {
+                    "type": "string"
+                },
+                "modelCount": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ownerAvatarURL": {
+                    "description": "OwnerAvatarURL 是所属用户头像的原始地址（可能是 file: 引用），由前端按头像规则解析。",
+                    "type": "string"
+                },
+                "ownerDisplayName": {
+                    "type": "string"
+                },
+                "ownerEmail": {
+                    "type": "string"
+                },
+                "ownerLabel": {
+                    "description": "OwnerLabel 是所属用户的展示名（显示名，其次用户名）；无法解析时为空串。",
+                    "type": "string"
+                },
+                "ownerPublicID": {
+                    "type": "string"
+                },
+                "ownerUserID": {
+                    "type": "integer"
+                },
+                "ownerUsername": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "manual",
+                        "link"
+                    ]
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "disabled",
+                        "suspended"
+                    ]
+                }
+            }
+        },
+        "AdminSuspendPersonalProviderHostRequest": {
+            "type": "object",
+            "required": [
+                "host"
+            ],
+            "properties": {
+                "host": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
+        "AdminSuspendPersonalProvidersRequest": {
+            "type": "object",
+            "required": [
+                "ids",
+                "suspended"
+            ],
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "maxItems": 500,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "suspended": {
+                    "type": "boolean"
                 }
             }
         },
@@ -21548,6 +22422,53 @@ const docTemplate = `{
                 }
             }
         },
+        "CreatePersonalProviderRequest": {
+            "type": "object",
+            "required": [
+                "apiKey",
+                "baseURL",
+                "models",
+                "protocol"
+            ],
+            "properties": {
+                "apiKey": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "baseURL": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "icon": {
+                    "description": "Icon 是内置图标 slug；省略表示按服务地址自动匹配。",
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "models": {
+                    "type": "array",
+                    "maxItems": 200,
+                    "items": {
+                        "$ref": "#/definitions/PersonalProviderModelRequest"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "protocol": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "source": {
+                    "description": "Source 为 link 表示来自一键导入链接，需要管理员开启链接导入。",
+                    "type": "string",
+                    "enum": [
+                        "manual",
+                        "link"
+                    ]
+                }
+            }
+        },
         "CreateRedemptionCodeRequest": {
             "type": "object",
             "required": [
@@ -22254,6 +23175,115 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "requestId": {
+                    "type": "string"
+                }
+            }
+        },
+        "ErrorLogListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
+                    "properties": {
+                        "results": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/ErrorLogResponse"
+                            }
+                        },
+                        "total": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ErrorLogResponse": {
+            "type": "object",
+            "required": [
+                "cause",
+                "clientIP",
+                "createdAt",
+                "detail",
+                "errorCode",
+                "id",
+                "latencyMS",
+                "method",
+                "path",
+                "requestID",
+                "route",
+                "statusCode",
+                "traceID",
+                "userAgent",
+                "userDisplayName",
+                "userID",
+                "userLabel",
+                "userUsername"
+            ],
+            "properties": {
+                "cause": {
+                    "type": "string"
+                },
+                "clientIP": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "errorCode": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "latencyMS": {
+                    "type": "integer"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "requestID": {
+                    "type": "string"
+                },
+                "route": {
+                    "type": "string"
+                },
+                "statusCode": {
+                    "type": "integer"
+                },
+                "traceID": {
+                    "type": "string"
+                },
+                "userAgent": {
+                    "type": "string"
+                },
+                "userDisplayName": {
+                    "type": "string"
+                },
+                "userID": {
+                    "type": "integer"
+                },
+                "userLabel": {
+                    "type": "string"
+                },
+                "userUsername": {
                     "type": "string"
                 }
             }
@@ -24477,6 +25507,7 @@ const docTemplate = `{
                 "editedAt",
                 "errorCode",
                 "errorMessage",
+                "errorRequestID",
                 "id",
                 "inputTokens",
                 "latencyMS",
@@ -24539,6 +25570,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "errorMessage": {
+                    "type": "string"
+                },
+                "errorRequestID": {
+                    "description": "ErrorRequestID 是失败助手消息（status 为 error / interrupted）对应生成请求的 requestId，\n即用户可见的“错误 ID”，管理员凭它检索访问日志；其他消息为空串。",
                     "type": "string"
                 },
                 "id": {
@@ -27137,6 +28172,359 @@ const docTemplate = `{
                 }
             }
         },
+        "PersonalProviderAccessResponse": {
+            "type": "object",
+            "required": [
+                "enabled",
+                "maxPerUser",
+                "modelProtocols",
+                "protocols"
+            ],
+            "properties": {
+                "enabled": {
+                    "description": "Enabled 为 false 表示管理员未开启，或当前用户不在允许的权限组内。",
+                    "type": "boolean"
+                },
+                "maxPerUser": {
+                    "description": "MaxPerUser 是每个用户最多可添加的服务数。",
+                    "type": "integer"
+                },
+                "modelProtocols": {
+                    "description": "ModelProtocols 是单个模型可选的调用协议，包含图片与视频协议。",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "protocols": {
+                    "description": "Protocols 是服务可选的接口协议（用于拉取模型目录，也是对话模型的默认协议）。",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "PersonalProviderAccessResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/PersonalProviderAccessResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "PersonalProviderAffectedResponse": {
+            "type": "object",
+            "required": [
+                "affected"
+            ],
+            "properties": {
+                "affected": {
+                    "type": "integer"
+                }
+            }
+        },
+        "PersonalProviderAffectedResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/PersonalProviderAffectedResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "PersonalProviderAvailableModelResponse": {
+            "type": "object",
+            "required": [
+                "name",
+                "suggestedProtocols"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "suggestedProtocols": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "PersonalProviderDataResponse": {
+            "type": "object",
+            "required": [
+                "provider"
+            ],
+            "properties": {
+                "provider": {
+                    "$ref": "#/definitions/PersonalProviderResponse"
+                }
+            }
+        },
+        "PersonalProviderDeleteResponse": {
+            "type": "object",
+            "required": [
+                "deleted"
+            ],
+            "properties": {
+                "deleted": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "PersonalProviderDeleteResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/PersonalProviderDeleteResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "PersonalProviderListResponse": {
+            "type": "object",
+            "required": [
+                "providers"
+            ],
+            "properties": {
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PersonalProviderResponse"
+                    }
+                }
+            }
+        },
+        "PersonalProviderListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/PersonalProviderListResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "PersonalProviderModelRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "protocols": {
+                    "type": "array",
+                    "maxItems": 2,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "PersonalProviderModelResponse": {
+            "type": "object",
+            "required": [
+                "name",
+                "protocols"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "protocols": {
+                    "description": "Protocols 是单个协议，或同一媒体模型配套的一组协议（如图片生成 + 图片编辑）。",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "PersonalProviderModelsResponse": {
+            "type": "object",
+            "required": [
+                "models"
+            ],
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PersonalProviderAvailableModelResponse"
+                    }
+                }
+            }
+        },
+        "PersonalProviderModelsResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/PersonalProviderModelsResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "PersonalProviderProbeRequest": {
+            "type": "object",
+            "required": [
+                "apiKey",
+                "baseURL",
+                "protocol"
+            ],
+            "properties": {
+                "apiKey": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "baseURL": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "protocol": {
+                    "type": "string",
+                    "maxLength": 64
+                }
+            }
+        },
+        "PersonalProviderResponse": {
+            "type": "object",
+            "required": [
+                "baseURL",
+                "createdAt",
+                "host",
+                "icon",
+                "id",
+                "keyHint",
+                "lastCheckedAt",
+                "lastError",
+                "models",
+                "name",
+                "protocol",
+                "source",
+                "status",
+                "updatedAt"
+            ],
+            "properties": {
+                "baseURL": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "icon": {
+                    "description": "Icon 是内置图标 slug；空串表示按服务地址自动匹配。",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "keyHint": {
+                    "type": "string"
+                },
+                "lastCheckedAt": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "lastError": {
+                    "description": "LastError 是最近一次检测失败的错误码；为空表示最近一次检测成功。",
+                    "type": "string"
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PersonalProviderModelResponse"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "manual",
+                        "link"
+                    ]
+                },
+                "status": {
+                    "description": "Status: active 可用；disabled 用户已停用；suspended 被管理员停用，用户不能自行启用。",
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "disabled",
+                        "suspended"
+                    ]
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "PersonalProviderResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/PersonalProviderDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "PersonalproviderErrorDoc": {
+            "type": "object",
+            "required": [
+                "errorMsg"
+            ],
+            "properties": {
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "PlanListResponseDoc": {
             "type": "object",
             "required": [
@@ -27792,8 +29180,12 @@ const docTemplate = `{
                 "platformModelName",
                 "pricing",
                 "protocolsJSON",
+                "providerHost",
+                "providerIcon",
+                "providerName",
                 "reasoning",
                 "sortOrder",
+                "source",
                 "vendor",
                 "vendorIcon",
                 "vendorName"
@@ -27874,6 +29266,18 @@ const docTemplate = `{
                 "protocolsJSON": {
                     "type": "string"
                 },
+                "providerHost": {
+                    "description": "ProviderHost 为个人模型所属服务的主机名；平台模型为空串。",
+                    "type": "string"
+                },
+                "providerIcon": {
+                    "description": "ProviderIcon 为个人模型所属服务的内置图标 slug；空串表示由前端按 ProviderHost 自动匹配。",
+                    "type": "string"
+                },
+                "providerName": {
+                    "description": "ProviderName 为个人模型所属服务的名称；平台模型为空串。",
+                    "type": "string"
+                },
                 "reasoning": {
                     "description": "Reasoning 是后端归一化的推理强度能力（显式声明或由旧版参数控件推断）；无能力时为 null。",
                     "allOf": [
@@ -27886,6 +29290,14 @@ const docTemplate = `{
                 },
                 "sortOrder": {
                     "type": "integer"
+                },
+                "source": {
+                    "description": "Source 区分平台模型与用户自带 Key 的模型；personal 模型不扣平台余额、只对本人可见。",
+                    "type": "string",
+                    "enum": [
+                        "platform",
+                        "personal"
+                    ]
                 },
                 "vendor": {
                     "type": "string"
@@ -30969,6 +32381,34 @@ const docTemplate = `{
                     "type": "integer",
                     "maximum": 10000,
                     "minimum": 0
+                }
+            }
+        },
+        "UpdatePersonalProviderRequest": {
+            "type": "object",
+            "properties": {
+                "apiKey": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "icon": {
+                    "description": "Icon 为空串表示恢复按服务地址自动匹配。",
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "models": {
+                    "type": "array",
+                    "maxItems": 200,
+                    "items": {
+                        "$ref": "#/definitions/PersonalProviderModelRequest"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64
                 }
             }
         },

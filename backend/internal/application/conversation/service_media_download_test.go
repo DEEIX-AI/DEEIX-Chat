@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
@@ -67,7 +68,7 @@ func TestReadGeneratedImageDelegatesURLDownloadAndValidatesBytes(t *testing.T) {
 	data, mimeType, err := service.readGeneratedImage(t.Context(), llm.GeneratedImage{
 		URL:      "https://cdn.example.test/image",
 		MIMEType: "application/octet-stream",
-	}, "http://model.internal:8080/v1")
+	}, mediaArtifactSource{endpoint: "http://model.internal:8080/v1"})
 	if err != nil {
 		t.Fatalf("read generated image: %v", err)
 	}
@@ -88,7 +89,7 @@ func TestReadGeneratedVideoMapsAdapterSizeLimit(t *testing.T) {
 
 	_, _, err := service.readGeneratedVideo(t.Context(), llm.GeneratedVideo{
 		URL: "https://cdn.example.test/video",
-	}, "", "")
+	}, mediaArtifactSource{})
 	if !errors.Is(err, ErrFileTooLarge) {
 		t.Fatalf("expected application file size error, got %v", err)
 	}
@@ -107,7 +108,7 @@ func TestReadGeneratedImageHidesAdapterSecurityDetails(t *testing.T) {
 
 	_, _, err := service.readGeneratedImage(t.Context(), llm.GeneratedImage{
 		URL: "https://cdn.example.test/image",
-	}, "")
+	}, mediaArtifactSource{})
 	if !errors.Is(err, ErrGeneratedMediaArtifactUnavailable) {
 		t.Fatalf("expected generated media artifact error, got %v", err)
 	}
@@ -205,5 +206,46 @@ func TestFinalizeGeneratedMediaArtifactFailurePreservesCancellation(t *testing.T
 	}
 	if repo.contextError != nil || repo.status != "canceled" || repo.errorCode != "conversation_run.canceled" {
 		t.Fatalf("unexpected persisted cancellation: status=%q code=%q contextErr=%v", repo.status, repo.errorCode, repo.contextError)
+	}
+}
+
+// 用户自带 Key 的制品只走专用下载客户端（由它保证端点不获得信任）；没有专用客户端时拒绝下载，不回退。
+func TestUntrustedRouteArtifactsUseTheUntrustedDownloader(t *testing.T) {
+	pngHeader := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+	route := &channel.ResolvedRoute{BaseURL: "https://relay.example.com/v1", APIKey: "sk-user", UntrustedEndpoint: true}
+	platformCalls := 0
+	service := &Service{
+		cfg: config.NewRuntime(config.Config{MaxUploadFileBytes: 1024}),
+		mediaDownloader: generatedMediaDownloaderStub{
+			downloadImage: func(context.Context, string, string, int64) ([]byte, string, error) {
+				platformCalls++
+				return pngHeader, "image/png", nil
+			},
+		},
+	}
+	image := llm.GeneratedImage{URL: "https://relay.example.com/files/1.png"}
+	if _, _, err := service.readGeneratedImage(t.Context(), image, mediaArtifactSourceFor(route)); !errors.Is(err, ErrGeneratedMediaArtifactUnavailable) {
+		t.Fatalf("without an untrusted downloader: err = %v", err)
+	}
+	service.untrustedMediaDownloader = generatedMediaDownloaderStub{
+		downloadImage: func(context.Context, string, string, int64) ([]byte, string, error) {
+			return pngHeader, "image/png", nil
+		},
+		downloadVideo: func(_ context.Context, _ string, endpoint string, apiKey string, _ int64) ([]byte, string, error) {
+			// 同源制品需要端点的 Key（如 Gemini Files、xAI 视频），由下载客户端决定是否携带。
+			if endpoint != route.BaseURL || apiKey != route.APIKey {
+				t.Fatalf("download input = %q %q", endpoint, apiKey)
+			}
+			return nil, "", generatedMediaTooLargeError{}
+		},
+	}
+	if _, _, err := service.readGeneratedImage(t.Context(), image, mediaArtifactSourceFor(route)); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if _, _, err := service.readGeneratedVideo(t.Context(), llm.GeneratedVideo{URL: "https://relay.example.com/v.mp4"}, mediaArtifactSourceFor(route)); !errors.Is(err, ErrFileTooLarge) {
+		t.Fatalf("video: err = %v", err)
+	}
+	if platformCalls != 0 {
+		t.Fatalf("platform downloader used for a user endpoint %d times", platformCalls)
 	}
 }

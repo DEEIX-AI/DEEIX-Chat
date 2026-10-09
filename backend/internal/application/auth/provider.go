@@ -18,7 +18,6 @@ import (
 	userapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/requestmeta"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
@@ -639,7 +638,11 @@ func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, curr
 		provider.ClientSecret = current.ClientSecret
 	}
 	if strings.TrimSpace(input.ClientSecret) != "" {
-		encrypted, err := secretbox.EncryptString(s.cfg.Snapshot().DataEncryptionKey, strings.TrimSpace(input.ClientSecret))
+		keyring, err := s.cfg.Snapshot().Keyring()
+		if err != nil {
+			return nil, err
+		}
+		encrypted, err := keyring.EncryptString(input.ClientSecret)
 		if err != nil {
 			return nil, err
 		}
@@ -831,7 +834,11 @@ func (s *Service) exchangeProviderCode(ctx context.Context, provider domainuser.
 	if err != nil {
 		return nil, err
 	}
-	clientSecret, err := secretbox.DecryptString(s.cfg.Snapshot().DataEncryptionKey, provider.ClientSecret)
+	keyring, err := s.cfg.Snapshot().Keyring()
+	if err != nil {
+		return nil, err
+	}
+	clientSecret, err := keyring.DecryptString(provider.ClientSecret)
 	if err != nil {
 		return nil, err
 	}

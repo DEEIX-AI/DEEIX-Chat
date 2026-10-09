@@ -414,10 +414,12 @@ Static configuration environment variables:
 | HTTP service | `HTTP_IDLE_TIMEOUT_SECONDS` | HTTP keep-alive idle timeout. |
 | HTTP service | `HTTP_MAX_HEADER_BYTES` | Maximum HTTP request header size. |
 | Security | `JWT_SECRET` | JWT signing secret. |
-| Security | `DATA_ENCRYPTION_KEY` | Key material for upstream API keys, SSO secrets, MCP tokens, sensitive settings, and TOTP secrets. |
+| Security | `DATA_ENCRYPTION_KEY` | Key material for upstream API keys, users' own provider keys, SSO secrets, MCP tokens, sensitive settings, and TOTP secrets. Do not replace it in place; see `DATA_ENCRYPTION_KEYS_PREVIOUS`. |
+| Security | `DATA_ENCRYPTION_KEYS_PREVIOUS` | Comma-separated keys used before the current `DATA_ENCRYPTION_KEY`. Data encrypted with them stays readable, and while this is set the server re-encrypts that data with the current key in the background after each startup. Remove it once the log reports `data_encryption_key_rotation_completed`. |
 | Security | `SSRF_PROTECTION_ENABLED` | Enables outbound SSRF protection. |
 | Security | `SSRF_ALLOWED_HOSTS` | Exact hostnames for deployment-level integrations or trusted private redirect targets, comma-separated. |
 | Security | `SSRF_ALLOWED_CIDRS` | Trusted deployment-level integration or private redirect CIDRs, comma-separated. |
+| Network | `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | Standard outbound proxy variables, honored with or without SSRF protection. `ALL_PROXY` is not supported. The startup log reports the active proxy (`outbound_proxy_enabled`). Changes require a restart. |
 | Security | `TURNSTILE_SITEVERIFY_URL` | Cloudflare Turnstile siteverify endpoint. |
 | Database | `DATABASE_DRIVER` | `postgres` or `sqlite`. |
 | PostgreSQL | `POSTGRES_DSN` | PostgreSQL DSN. |
@@ -468,6 +470,8 @@ Authentication, registration, conversation settings, model option policies, file
 
 When SSRF protection is enabled in production, administrator-saved model, MCP, Embedding, OIDC/OAuth2, and custom Turnstile endpoints are authorized locally by exact origin (`scheme + host + port`) and do not require entries in the global allowlist. Model, MCP, and Embedding redirects retain standard compatibility: public cross-origin targets are allowed, while private cross-origin targets must match `SSRF_ALLOWED_HOSTS` or `SSRF_ALLOWED_CIDRS`; OIDC/OAuth2 and Turnstile keep their stricter identity boundary. Generated media is downloaded, validated, and stored by the backend: a private artifact URL inherits trust only when it has the same origin as the selected model endpoint; public cross-origin artifact URLs remain subject to the strict public-network policy, and private cross-origin artifact URLs are blocked. The global allowlist also remains available for deployment-level integrations that cannot be tied to an administrator-saved endpoint, such as selected GeoIP or extraction deployments. Link-local, multicast, unspecified, and known metadata targets always remain blocked. Invalid allowlist entries stop backend startup, and global allowlist changes require a restart.
 
+Outbound requests honor the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables, including when SSRF protection is enabled. The proxy address itself is treated as deployment-authorized; target URLs are still validated against the SSRF policy before a proxy is selected, so metadata and other blocked targets remain rejected, and requests that bypass the proxy (via `NO_PROXY` or loopback) keep the full DNS-validated dial path. When a request is sent through the proxy, the proxy resolves the target hostname. Before handing it over, the backend rejects numeric hostnames such as `127.1` or `2130706433` and resolves the hostname locally once, rejecting it if any resolved address is blocked by the policy; if local resolution fails, the request is left to the proxy. This does not protect against DNS rebinding at the proxy, so DNS-level egress control remains the responsibility of your proxy. There is no proxy setting in `config.yaml`: proxy addresses and credentials stay in the deployment environment. Go does not read `ALL_PROXY`, so for a SOCKS proxy set `HTTP_PROXY` and `HTTPS_PROXY` to a `socks5://` URL; if only `ALL_PROXY` is set, the backend logs `outbound_proxy_ignored` at startup and connects directly. Proxy environment changes require a restart.
+
 ### OAuth callbacks for Web, App, and Desktop
 
 Third-party sign-in requires `PUBLIC_API_BASE_URL` to be the externally reachable API origin. For every OIDC/OAuth2 provider, register the single server callback shown in the admin provider dialog:
@@ -489,7 +493,8 @@ Sign-in, registration, and account identity binding on Web, App, and Desktop all
 - User passwords are hashed with bcrypt.
 - Production mode rejects unsafe default secrets, weak encryption keys, wildcard CORS, and non-HTTPS public URLs.
 - Refresh tokens and recovery-style secrets are stored as hashes.
-- Upstream API keys, SSO client secrets, MCP auth tokens, sensitive settings, and TOTP secrets are encrypted with AES-GCM using `DATA_ENCRYPTION_KEY`.
+- Upstream API keys, users' own provider keys, SSO client secrets, MCP auth tokens, sensitive settings, and TOTP secrets are encrypted with AES-256-GCM using `DATA_ENCRYPTION_KEY`. The server must decrypt these values to call providers, so anyone holding both the database and `DATA_ENCRYPTION_KEY` can read them.
+- To change `DATA_ENCRYPTION_KEY`, set the new value, move the old one to `DATA_ENCRYPTION_KEYS_PREVIOUS`, and restart. The server re-encrypts stored secrets with the new key in the background and logs `data_encryption_key_rotation_completed` when nothing depends on the old key; then remove `DATA_ENCRYPTION_KEYS_PREVIOUS` and restart again. If it logs `data_encryption_key_rotation_incomplete` instead, keep the old key and follow the listed reasons. Replacing the key outright makes every stored secret unreadable. The server also warns at startup when a key is a built-in or example placeholder.
 - Access tokens are short-lived and held client-side in memory; refresh tokens are issued through HttpOnly cookies.
 - User-supplied model options are filtered before provider requests. System-generated fields such as model, messages, tools, system prompts, headers, and previous-response identifiers are not user-overridable.
 

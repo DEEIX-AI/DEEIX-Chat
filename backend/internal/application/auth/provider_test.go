@@ -11,7 +11,6 @@ import (
 
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/requestmeta"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
@@ -23,7 +22,7 @@ func boolPtr(value bool) *bool {
 
 func TestResolveProviderUserLoginAutoRegistersWhenProviderRegistrationEnabled(t *testing.T) {
 	repo := &providerLoginRepo{}
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -60,7 +59,7 @@ func TestResolveProviderUserLoginAutoRegistersWhenProviderRegistrationEnabled(t 
 }
 
 func TestNormalizeProviderInputAllowsAdminDefaultRole(t *testing.T) {
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, &providerLoginRepo{}, nil)
 
 	provider, err := service.normalizeProviderInput(UpsertIdentityProviderInput{
 		ActorRole:           domainuser.RoleAdmin,
@@ -81,7 +80,7 @@ func TestNormalizeProviderInputAllowsAdminDefaultRole(t *testing.T) {
 }
 
 func TestNormalizeProviderInputProtectsSuperAdminDefaultRole(t *testing.T) {
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, &providerLoginRepo{}, nil)
 
 	_, err := service.normalizeProviderInput(UpsertIdentityProviderInput{
 		ActorRole:           domainuser.RoleAdmin,
@@ -99,7 +98,7 @@ func TestNormalizeProviderInputProtectsSuperAdminDefaultRole(t *testing.T) {
 }
 
 func TestNormalizeProviderInputValidatesLogoURL(t *testing.T) {
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, &providerLoginRepo{}, nil)
 
 	cases := []struct {
 		name    string
@@ -141,7 +140,7 @@ func TestNormalizeProviderInputValidatesLogoURL(t *testing.T) {
 }
 
 func TestNormalizeProviderInputValidatesServerEndpoints(t *testing.T) {
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, &providerLoginRepo{}, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, &providerLoginRepo{}, nil)
 
 	for _, endpoint := range []string{
 		"file:///etc/passwd",
@@ -222,7 +221,7 @@ func TestExchangeProviderCodeRejectsUnconfiguredPrivateDiscoveryOrigin(t *testin
 	defer server.Close()
 
 	const dataKey = "test-data-key"
-	clientSecret, err := secretbox.EncryptString(dataKey, "client-secret")
+	clientSecret, err := sealForTest(t, dataKey, "client-secret")
 	if err != nil {
 		t.Fatalf("encrypt client secret: %v", err)
 	}
@@ -272,7 +271,7 @@ func serverURLFromRequest(request *http.Request) string {
 
 func TestResolveProviderUserAutoRegistrationAddsUsernameSuffixOnCollision(t *testing.T) {
 	repo := &providerLoginRepo{duplicateUsernameAttempts: 1}
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -304,7 +303,7 @@ func TestResolveProviderUserAutoRegistrationAddsUsernameSuffixOnCollision(t *tes
 
 func TestResolveProviderUserLoginRequiresRegistrationEnabledForNewAccount(t *testing.T) {
 	repo := &providerLoginRepo{}
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -446,7 +445,7 @@ func TestResolveProviderEmailVerifiedDoesNotUseGenericVerifiedField(t *testing.T
 
 func TestBindProviderIdentityAllowsSameAccountWithoutProviderEmailVerification(t *testing.T) {
 	dataKey := "test-data-key"
-	clientSecret, err := secretbox.EncryptString(dataKey, "client-secret")
+	clientSecret, err := sealForTest(t, dataKey, "client-secret")
 	if err != nil {
 		t.Fatalf("encrypt client secret: %v", err)
 	}
@@ -516,7 +515,7 @@ func TestBindProviderIdentityAllowsSameAccountWithoutProviderEmailVerification(t
 
 func TestResolveProviderLoginCodeAutoLinksGitHubVerifiedPrimaryEmail(t *testing.T) {
 	dataKey := "test-data-key"
-	clientSecret, err := secretbox.EncryptString(dataKey, "client-secret")
+	clientSecret, err := sealForTest(t, dataKey, "client-secret")
 	if err != nil {
 		t.Fatalf("encrypt client secret: %v", err)
 	}
@@ -607,7 +606,7 @@ func TestResolveProviderLoginCodeAutoLinksGitHubVerifiedPrimaryEmail(t *testing.
 
 func TestResolveProviderLoginCodeReturnsErrorWhenGitHubEmailsUnavailable(t *testing.T) {
 	dataKey := "test-data-key"
-	clientSecret, err := secretbox.EncryptString(dataKey, "client-secret")
+	clientSecret, err := sealForTest(t, dataKey, "client-secret")
 	if err != nil {
 		t.Fatalf("encrypt client secret: %v", err)
 	}
@@ -709,7 +708,7 @@ func TestResolveProviderUserRejectsInactiveBoundUserWithoutUpdatingIdentity(t *t
 			{ID: 7, UserID: 42, ProviderID: 10, ProviderSubject: "sub-1"},
 		},
 	}
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -774,7 +773,7 @@ func TestResolveProviderUserRejectsInactiveAutoLinkUserWithoutBinding(t *testing
 
 func TestResolveProviderUserReturnsIdentityCreateErrorWithoutCleanupCompensation(t *testing.T) {
 	repo := &providerLoginRepo{createIdentityErr: errors.New("duplicate identity")}
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, repo, nil)
 	provider := domainuser.IdentityProvider{
 		ID:                  10,
 		Type:                domainuser.IdentityProviderTypeOIDC,
@@ -813,7 +812,7 @@ func TestUnlinkCurrentUserIdentityRejectsLastPasswordlessLoginMethod(t *testing.
 			{ID: 7, UserID: 42, ProviderID: 10, ProviderSubject: "sub-1"},
 		},
 	}
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, repo, nil)
 
 	err := service.UnlinkCurrentUserIdentity(context.Background(), 42, 7)
 	if !errors.Is(err, ErrLastLoginMethodNotAllowed) {
@@ -833,7 +832,7 @@ func TestUnlinkCurrentUserIdentityAllowsLastIdentityWhenPasswordEnabled(t *testi
 			{ID: 7, UserID: 42, ProviderID: 10, ProviderSubject: "sub-1"},
 		},
 	}
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, repo, nil)
 
 	if err := service.UnlinkCurrentUserIdentity(context.Background(), 42, 7); err != nil {
 		t.Fatalf("expected unlink to succeed, got %v", err)
@@ -853,7 +852,7 @@ func TestUnlinkCurrentUserIdentityAllowsOneOfMultiplePasswordlessLoginMethods(t 
 			{ID: 8, UserID: 42, ProviderID: 11, ProviderSubject: "sub-2"},
 		},
 	}
-	service := newTestService(config.Config{JWTSecret: "test-secret"}, repo, nil)
+	service := newTestService(config.Config{JWTSecret: "test-secret", DataEncryptionKey: "test-data-encryption-key"}, repo, nil)
 
 	if err := service.UnlinkCurrentUserIdentity(context.Background(), 42, 7); err != nil {
 		t.Fatalf("expected unlink to succeed, got %v", err)

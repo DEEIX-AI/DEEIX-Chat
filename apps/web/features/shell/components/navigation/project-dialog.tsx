@@ -28,6 +28,7 @@ import {
   type ModelSelectOption,
   parseKindsJSON,
   resolveModelOptionIconUrl,
+  isPersonalModelRef,
   resolveModelOptionLabel,
 } from "@/entities/model";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
@@ -84,7 +85,8 @@ export function ProjectDialog({
     const options: ModelSelectOption[] = [
       { label: t("inheritGlobalModel"), value: PROJECT_DEFAULT_MODEL_INHERIT_VALUE, iconUrl: null },
       ...models
-        .filter((model) => model.platformModelName.trim() && parseKindsJSON(model.kindsJSON).includes("chat"))
+        // A project default is shared configuration, so it may only name a platform model.
+        .filter((model) => model.platformModelName.trim() && parseKindsJSON(model.kindsJSON).includes("chat") && !isPersonalModelRef(model.platformModelName))
         .map((model) => ({
           label: resolveModelOptionLabel(model.platformModelName),
           value: model.platformModelName,

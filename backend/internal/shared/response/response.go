@@ -1,6 +1,7 @@
 package response
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
@@ -72,7 +73,9 @@ func DescribeCode(status int, code string) Description {
 }
 
 // ErrorFrom 把类型化应用错误写成统一错误响应；普通错误按状态码安全退化。
+// 原始错误链只记入请求上下文，由访问日志按 request_id 记录，不进入响应体。
 func ErrorFrom(c *gin.Context, status int, err error) {
+	recordError(c, err)
 	ErrorDescribed(c, Describe(status, err))
 }
 
@@ -81,8 +84,10 @@ func ErrorDescribed(c *gin.Context, description Description) {
 	write(c, description.Status, description.Code, description.Message, nil)
 }
 
-// InternalError 返回通用内部错误响应（500 / internal.error）。失败原因只应进入日志。
-func InternalError(c *gin.Context) {
+// InternalError 返回通用内部错误响应（500 / internal.error）。
+// err 是失败原因，只进入日志；不得传 nil 掩盖原因，依赖未配置等场景也应构造说明性错误。
+func InternalError(c *gin.Context, err error) {
+	recordError(c, err)
 	ErrorDescribed(c, defaultDescription(http.StatusInternalServerError))
 }
 
@@ -103,6 +108,9 @@ func ErrorWithDetails(c *gin.Context, status int, code string, details any) {
 }
 
 func write(c *gin.Context, status int, code string, message string, details any) {
+	if c != nil && code != "" {
+		c.Set(contextKeyErrorCode, code)
+	}
 	c.JSON(status, Envelope{
 		ErrorMsg:  message,
 		ErrorCode: code,
@@ -110,6 +118,65 @@ func write(c *gin.Context, status int, code string, message string, details any)
 		RequestID: requestID(c),
 		Data:      nil,
 	})
+}
+
+const (
+	// contextKeyErrorCode 保存本次请求已写出的错误码，供访问日志与响应体保持一致。
+	contextKeyErrorCode = "ctx_error_code"
+	// contextKeyErrorCause 保存本次请求的原始失败原因，只供访问日志读取。
+	// 不使用 gin.Context.Error：otelgin 会把 c.Errors 一律标成 span Error，4xx 也会被误报。
+	contextKeyErrorCause = "ctx_error_cause"
+)
+
+// WrittenErrorCode 返回本次请求已写出的错误码；未写出错误响应时为空。
+func WrittenErrorCode(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	return c.GetString(contextKeyErrorCode)
+}
+
+// RecordedErrorCause 返回本次请求记录的原始失败原因；未记录时为 nil。
+func RecordedErrorCause(c *gin.Context) error {
+	if c == nil {
+		return nil
+	}
+	value, ok := c.Get(contextKeyErrorCause)
+	if !ok {
+		return nil
+	}
+	err, _ := value.(error)
+	return err
+}
+
+// RecordError 把不经过错误响应写出的失败原因（如流式终态错误）挂到请求上下文，供访问日志记录。
+func RecordError(c *gin.Context, err error) {
+	recordError(c, err)
+}
+
+// RecordErrorCode 记录不经过 write 写出的错误码（如 NDJSON 终态事件），与 WrittenErrorCode 共用同一来源。
+func RecordErrorCode(c *gin.Context, code string) {
+	if c != nil && code != "" {
+		c.Set(contextKeyErrorCode, code)
+	}
+}
+
+func recordError(c *gin.Context, err error) {
+	if c == nil || err == nil {
+		return
+	}
+	previous := RecordedErrorCause(c)
+	switch {
+	case previous == nil:
+	case errors.Is(previous, err):
+		// 错误映射 helper 入口已记录同一错误，后续 ErrorFrom 不再重复拼接。
+		return
+	case errors.Is(err, previous):
+		// 新错误包裹了已记录的错误并补充了上下文，用更完整的链替换。
+	default:
+		err = errors.Join(previous, err)
+	}
+	c.Set(contextKeyErrorCause, err)
 }
 
 func requestID(c *gin.Context) string {

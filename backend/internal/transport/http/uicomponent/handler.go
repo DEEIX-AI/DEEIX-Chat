@@ -334,6 +334,6 @@ func writeError(c *gin.Context, err error) {
 	case errors.Is(err, appuicomponent.ErrInvalidComponent), errors.Is(err, appuicomponent.ErrBuiltinProtected):
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 	default:
-		response.InternalError(c)
+		response.InternalError(c, err)
 	}
 }

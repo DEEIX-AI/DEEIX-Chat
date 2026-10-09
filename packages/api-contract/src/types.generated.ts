@@ -77,12 +77,67 @@ export interface AdminAnnouncementListResponseDoc {
   errorMsg: string;
 }
 
+export interface AdminDeletePersonalProvidersRequest {
+  /**
+   * @maxItems 500
+   * @minItems 1
+   */
+  ids: string[];
+}
+
 export interface AdminErrorDoc {
   data: any;
   details?: any;
   errorCode?: string;
   errorMsg: string;
   requestId?: string;
+}
+
+export interface AdminPersonalProviderPageResponseDoc {
+  data: {
+    results: AdminPersonalProviderResponse[];
+    total: number;
+  };
+  errorMsg: string;
+}
+
+export interface AdminPersonalProviderResponse {
+  baseURL: string;
+  createdAt: string;
+  host: string;
+  icon: string;
+  id: string;
+  keyHint: string;
+  lastCheckedAt: string | null;
+  lastError: string;
+  modelCount: number;
+  name: string;
+  /** OwnerAvatarURL 是所属用户头像的原始地址（可能是 file: 引用），由前端按头像规则解析。 */
+  ownerAvatarURL: string;
+  ownerDisplayName: string;
+  ownerEmail: string;
+  /** OwnerLabel 是所属用户的展示名（显示名，其次用户名）；无法解析时为空串。 */
+  ownerLabel: string;
+  ownerPublicID: string;
+  ownerUserID: number;
+  ownerUsername: string;
+  protocol: string;
+  source: "manual" | "link";
+  status: "active" | "disabled" | "suspended";
+}
+
+export interface AdminSuspendPersonalProviderHostRequest {
+  /** @maxLength 255 */
+  host: string;
+}
+
+export interface AdminSuspendPersonalProvidersRequest {
+  /**
+   * @maxItems 500
+   * @minItems 1
+   */
+  ids: string[];
+  suspended: boolean;
 }
 
 export interface AdminUserIdentityProviderSummaryResponse {
@@ -1261,6 +1316,26 @@ export interface CreatePermissionGroupRequest {
   rateMultiplierPercent?: number;
 }
 
+export interface CreatePersonalProviderRequest {
+  /** @maxLength 512 */
+  apiKey: string;
+  /** @maxLength 512 */
+  baseURL: string;
+  /**
+   * Icon 是内置图标 slug；省略表示按服务地址自动匹配。
+   * @maxLength 64
+   */
+  icon?: string;
+  /** @maxItems 200 */
+  models: PersonalProviderModelRequest[];
+  /** @maxLength 64 */
+  name?: string;
+  /** @maxLength 64 */
+  protocol: string;
+  /** Source 为 link 表示来自一键导入链接，需要管理员开启链接导入。 */
+  source?: "manual" | "link";
+}
+
 export interface CreateRedemptionCodeRequest {
   /**
    * @minLength 3
@@ -1547,6 +1622,35 @@ export interface Envelope {
   errorCode?: string;
   errorMsg: string;
   requestId?: string;
+}
+
+export interface ErrorLogListResponseDoc {
+  data: {
+    results: ErrorLogResponse[];
+    total: number;
+  };
+  errorMsg: string;
+}
+
+export interface ErrorLogResponse {
+  cause: string;
+  clientIP: string;
+  createdAt: string;
+  detail: string;
+  errorCode: string;
+  id: number;
+  latencyMS: number;
+  method: string;
+  path: string;
+  requestID: string;
+  route: string;
+  statusCode: number;
+  traceID: string;
+  userAgent: string;
+  userDisplayName: string;
+  userID: number;
+  userLabel: string;
+  userUsername: string;
 }
 
 export interface FeaturePolicyResponse {
@@ -2247,6 +2351,11 @@ export interface MessageResponse {
   editedAt: string | null;
   errorCode: string;
   errorMessage: string;
+  /**
+   * ErrorRequestID 是失败助手消息（status 为 error / interrupted）对应生成请求的 requestId，
+   * 即用户可见的“错误 ID”，管理员凭它检索访问日志；其他消息为空串。
+   */
+  errorRequestID: string;
   id: number;
   inputTokens: number;
   knowledgeSources?: MessageKnowledgeSourceResponse[];
@@ -3070,6 +3179,118 @@ export interface PermissionGroupResponse {
   userCount: number;
 }
 
+export interface PersonalProviderAccessResponse {
+  /** Enabled 为 false 表示管理员未开启，或当前用户不在允许的权限组内。 */
+  enabled: boolean;
+  /** MaxPerUser 是每个用户最多可添加的服务数。 */
+  maxPerUser: number;
+  /** ModelProtocols 是单个模型可选的调用协议，包含图片与视频协议。 */
+  modelProtocols: string[];
+  /** Protocols 是服务可选的接口协议（用于拉取模型目录，也是对话模型的默认协议）。 */
+  protocols: string[];
+}
+
+export interface PersonalProviderAccessResponseDoc {
+  data: PersonalProviderAccessResponse;
+  errorMsg: string;
+}
+
+export interface PersonalProviderAffectedResponse {
+  affected: number;
+}
+
+export interface PersonalProviderAffectedResponseDoc {
+  data: PersonalProviderAffectedResponse;
+  errorMsg: string;
+}
+
+export interface PersonalProviderAvailableModelResponse {
+  name: string;
+  suggestedProtocols: string[];
+}
+
+export interface PersonalProviderDataResponse {
+  provider: PersonalProviderResponse;
+}
+
+export interface PersonalProviderDeleteResponse {
+  deleted: boolean;
+}
+
+export interface PersonalProviderDeleteResponseDoc {
+  data: PersonalProviderDeleteResponse;
+  errorMsg: string;
+}
+
+export interface PersonalProviderListResponse {
+  providers: PersonalProviderResponse[];
+}
+
+export interface PersonalProviderListResponseDoc {
+  data: PersonalProviderListResponse;
+  errorMsg: string;
+}
+
+export interface PersonalProviderModelRequest {
+  /** @maxLength 200 */
+  name: string;
+  /** @maxItems 2 */
+  protocols?: string[];
+}
+
+export interface PersonalProviderModelResponse {
+  name: string;
+  /** Protocols 是单个协议，或同一媒体模型配套的一组协议（如图片生成 + 图片编辑）。 */
+  protocols: string[];
+}
+
+export interface PersonalProviderModelsResponse {
+  models: PersonalProviderAvailableModelResponse[];
+}
+
+export interface PersonalProviderModelsResponseDoc {
+  data: PersonalProviderModelsResponse;
+  errorMsg: string;
+}
+
+export interface PersonalProviderProbeRequest {
+  /** @maxLength 512 */
+  apiKey: string;
+  /** @maxLength 512 */
+  baseURL: string;
+  /** @maxLength 64 */
+  protocol: string;
+}
+
+export interface PersonalProviderResponse {
+  baseURL: string;
+  createdAt: string;
+  host: string;
+  /** Icon 是内置图标 slug；空串表示按服务地址自动匹配。 */
+  icon: string;
+  id: string;
+  keyHint: string;
+  lastCheckedAt: string | null;
+  /** LastError 是最近一次检测失败的错误码；为空表示最近一次检测成功。 */
+  lastError: string;
+  models: PersonalProviderModelResponse[];
+  name: string;
+  protocol: string;
+  source: "manual" | "link";
+  /** Status: active 可用；disabled 用户已停用；suspended 被管理员停用，用户不能自行启用。 */
+  status: "active" | "disabled" | "suspended";
+  updatedAt: string;
+}
+
+export interface PersonalProviderResponseDoc {
+  data: PersonalProviderDataResponse;
+  errorMsg: string;
+}
+
+export interface PersonalproviderErrorDoc {
+  errorMsg: string;
+}
+
 export interface PlanListResponseDoc {
   data: BillingPlanResponse[];
   errorMsg: string;
@@ -3300,9 +3521,17 @@ export interface PublicModelResponse {
   platformModelName: string;
   pricing: PublicModelPricingResponse | null;
   protocolsJSON: string;
+  /** ProviderHost 为个人模型所属服务的主机名；平台模型为空串。 */
+  providerHost: string;
+  /** ProviderIcon 为个人模型所属服务的内置图标 slug；空串表示由前端按 ProviderHost 自动匹配。 */
+  providerIcon: string;
+  /** ProviderName 为个人模型所属服务的名称；平台模型为空串。 */
+  providerName: string;
   /** Reasoning 是后端归一化的推理强度能力（显式声明或由旧版参数控件推断）；无能力时为 null。 */
   reasoning: PublicModelReasoningResponse | null;
   sortOrder: number;
+  /** Source 区分平台模型与用户自带 Key 的模型；personal 模型不扣平台余额、只对本人可见。 */
+  source: "platform" | "personal";
   vendor: string;
   vendorIcon: string;
   vendorName: string;
@@ -4338,6 +4567,21 @@ export interface UpdatePermissionGroupRequest {
    * @max 10000
    */
   rateMultiplierPercent?: number;
+}
+
+export interface UpdatePersonalProviderRequest {
+  /** @maxLength 512 */
+  apiKey?: string;
+  enabled?: boolean;
+  /**
+   * Icon 为空串表示恢复按服务地址自动匹配。
+   * @maxLength 64
+   */
+  icon?: string;
+  /** @maxItems 200 */
+  models?: PersonalProviderModelRequest[];
+  /** @maxLength 64 */
+  name?: string;
 }
 
 export interface UpdateServerToolsStatusRequest {
@@ -5788,6 +6032,43 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = string;
+  }
+
+  /**
+   * @description 分页查看失败请求（5xx 与以错误结束的流式请求）的原始原因；按错误 ID（request_id）精确检索
+   * @tags admin
+   * @name ErrorLogsList
+   * @summary 管理员查询错误日志
+   * @request GET:/admin/error-logs
+   * @secure
+   */
+  export namespace ErrorLogsList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 创建时间起点(RFC3339) */
+      created_from?: string;
+      /** 创建时间终点(RFC3339) */
+      created_to?: string;
+      /** 对外错误码 */
+      error_code?: string;
+      /** 页码（从 1 开始，默认 1） */
+      page?: number;
+      /** 每页数量（1-1000，默认 20） */
+      page_size?: number;
+      /** 搜索关键词：错误 ID / 追踪 ID 精确匹配，路由、路径、错误码、原因模糊匹配 */
+      query?: string;
+      /** 错误 ID（请求 ID），精确匹配 */
+      request_id?: string;
+      /** 排序方式 */
+      sort?: "created_desc" | "created_asc";
+      /** 状态分类 */
+      status_class?: "5xx" | "stream";
+      /** 用户ID */
+      user_id?: number;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ErrorLogListResponseDoc;
   }
 
   /**
@@ -7286,6 +7567,83 @@ export namespace Admin {
     export type RequestBody = UpdateToolRequest;
     export type RequestHeaders = {};
     export type ResponseBody = ToolResponseDoc;
+  }
+
+  /**
+   * @description 分页列出所有用户添加的模型服务；只有元数据与打码提示，不包含 API Key
+   * @tags personal-providers
+   * @name ModelProvidersList
+   * @summary 管理员查询用户模型服务
+   * @request GET:/admin/model-providers
+   * @secure
+   */
+  export namespace ModelProvidersList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 精确域名 */
+      host?: string;
+      /** 所属用户 ID */
+      owner_user_id?: number;
+      /** 页码（从 1 开始，默认 1） */
+      page?: number;
+      /** 每页数量（1-1000，默认 20） */
+      page_size?: number;
+      /** 按名称、域名或所属用户（用户名、显示名、邮箱）搜索 */
+      q?: string;
+      /** 状态：active/disabled/suspended */
+      status?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = AdminPersonalProviderPageResponseDoc;
+  }
+
+  /**
+   * @description 删除指定服务及其加密保存的 API Key
+   * @tags personal-providers
+   * @name ModelProvidersBatchDeleteCreate
+   * @summary 管理员删除用户模型服务
+   * @request POST:/admin/model-providers/batch-delete
+   * @secure
+   */
+  export namespace ModelProvidersBatchDeleteCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = AdminDeletePersonalProvidersRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = PersonalProviderAffectedResponseDoc;
+  }
+
+  /**
+   * @description 停用后用户不能自行启用，该服务的模型立即不可用
+   * @tags personal-providers
+   * @name ModelProvidersSuspendCreate
+   * @summary 管理员停用或恢复用户模型服务
+   * @request POST:/admin/model-providers/suspend
+   * @secure
+   */
+  export namespace ModelProvidersSuspendCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = AdminSuspendPersonalProvidersRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = PersonalProviderAffectedResponseDoc;
+  }
+
+  /**
+   * @description 停用指定域名下的全部用户模型服务；如需阻止今后再添加，请同时把域名加入禁止列表
+   * @tags personal-providers
+   * @name ModelProvidersSuspendHostCreate
+   * @summary 管理员按域名停用用户模型服务
+   * @request POST:/admin/model-providers/suspend-host
+   * @secure
+   */
+  export namespace ModelProvidersSuspendHostCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = AdminSuspendPersonalProviderHostRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = PersonalProviderAffectedResponseDoc;
   }
 
   /**
@@ -10623,6 +10981,127 @@ export namespace Me {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = DeleteUserIdentityResponseDoc;
+  }
+
+  /**
+   * @description 返回当前用户添加的模型服务；响应不包含 API Key
+   * @tags personal-providers
+   * @name ModelProvidersList
+   * @summary 查询我的模型服务
+   * @request GET:/me/model-providers
+   * @secure
+   */
+  export namespace ModelProvidersList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = PersonalProviderListResponseDoc;
+  }
+
+  /**
+   * @description 检测并保存模型服务。API Key 加密保存，之后任何接口都不会返回明文
+   * @tags personal-providers
+   * @name ModelProvidersCreate
+   * @summary 添加模型服务
+   * @request POST:/me/model-providers
+   * @secure
+   */
+  export namespace ModelProvidersCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = CreatePersonalProviderRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = PersonalProviderResponseDoc;
+  }
+
+  /**
+   * @description 返回当前用户能否添加自己的模型服务、能否通过链接导入、数量上限与可选协议
+   * @tags personal-providers
+   * @name ModelProvidersAccessList
+   * @summary 查询个人模型服务是否可用
+   * @request GET:/me/model-providers/access
+   * @secure
+   */
+  export namespace ModelProvidersAccessList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = PersonalProviderAccessResponseDoc;
+  }
+
+  /**
+   * @description 使用地址与 API Key 拉取上游模型列表，不保存任何内容。地址必须是 HTTPS 公网地址
+   * @tags personal-providers
+   * @name ModelProvidersProbeCreate
+   * @summary 检测模型服务
+   * @request POST:/me/model-providers/probe
+   * @secure
+   */
+  export namespace ModelProvidersProbeCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = PersonalProviderProbeRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = PersonalProviderModelsResponseDoc;
+  }
+
+  /**
+   * @description 删除服务及其加密保存的 API Key。功能被关闭后仍可删除
+   * @tags personal-providers
+   * @name ModelProvidersDelete
+   * @summary 删除模型服务
+   * @request DELETE:/me/model-providers/{id}
+   * @secure
+   */
+  export namespace ModelProvidersDelete {
+    export type RequestParams = {
+      /** 服务 ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = PersonalProviderDeleteResponseDoc;
+  }
+
+  /**
+   * @description 修改名称、更换 API Key、调整启用的模型或启用/停用。更换 Key 或调整模型时会重新检测
+   * @tags personal-providers
+   * @name ModelProvidersPartialUpdate
+   * @summary 更新模型服务
+   * @request PATCH:/me/model-providers/{id}
+   * @secure
+   */
+  export namespace ModelProvidersPartialUpdate {
+    export type RequestParams = {
+      /** 服务 ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = UpdatePersonalProviderRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = PersonalProviderResponseDoc;
+  }
+
+  /**
+   * @description 使用已保存的 API Key 重新拉取上游模型列表
+   * @tags personal-providers
+   * @name ModelProvidersModelsList
+   * @summary 拉取模型服务的可用模型
+   * @request GET:/me/model-providers/{id}/models
+   * @secure
+   */
+  export namespace ModelProvidersModelsList {
+    export type RequestParams = {
+      /** 服务 ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = PersonalProviderModelsResponseDoc;
   }
 
   /**

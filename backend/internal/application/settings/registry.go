@@ -9,6 +9,7 @@ import (
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	extractionport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extraction"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
 )
 
@@ -162,6 +163,14 @@ var settingSpecs = []settingSpec{
 	// 知识库配置
 	{Namespace: "knowledgebase", Key: "enabled", ValueType: "bool", Default: "true", Description: "是否启用知识库功能；关闭后隐藏用户侧入口并拒绝知识库请求",
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.KnowledgeBaseEnabled }, toBool)},
+
+	// 用户自带 Key：默认关闭。开启后符合条件的用户可添加自己的模型服务，只对本人生效、不扣平台余额。
+	{Namespace: "personal_provider", Key: "enabled", ValueType: "bool", Default: "false", Description: "是否允许用户接入自己的模型服务；关闭后已添加的服务立即停止使用",
+		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.PersonalProvidersEnabled }, toBool)},
+	{Namespace: "personal_provider", Key: "max_per_user", ValueType: "int", Default: strconv.Itoa(config.DefaultPersonalProvidersMaxPerUser), Description: "每个用户最多可添加的模型服务数",
+		Validate: intRange(1, config.MaxPersonalProvidersMaxPerUser), Apply: applyField(func(c *config.Config) *int { return &c.PersonalProvidersMaxPerUser }, toInt)},
+	{Namespace: "personal_provider", Key: "blocked_hosts", ValueType: "string", Default: "", Description: "域名黑名单，逗号或换行分隔；精确匹配域名，*.example.com 匹配其子域名。内网、回环与云元数据地址始终禁止，无需在此配置",
+		Validate: validateHostList, Apply: applyField(func(c *config.Config) *string { return &c.PersonalProvidersBlockedHosts }, trimmedText)},
 
 	// 桌面端下载入口配置：仅影响网页端用户菜单入口，桌面端内始终不展示。
 	{Namespace: "desktop", Key: "download_enabled", ValueType: "bool", Default: "true", Description: "是否在网页端用户菜单展示「下载桌面端」入口",
@@ -421,6 +430,17 @@ func IsValidNamespace(namespace string) bool {
 func IsSensitiveSetting(namespace string, key string) bool {
 	spec, ok := lookupSettingSpec(strings.TrimSpace(namespace), strings.TrimSpace(key))
 	return ok && spec.Sensitive
+}
+
+// SensitiveSettingKeys 返回所有加密存储的配置项，供更换主密钥后的密文轮换使用。
+func SensitiveSettingKeys() []repository.SettingKey {
+	var keys []repository.SettingKey
+	for _, spec := range settingSpecs {
+		if spec.Sensitive {
+			keys = append(keys, repository.SettingKey{Namespace: spec.Namespace, Key: spec.Key})
+		}
+	}
+	return keys
 }
 
 func isSensitiveSetting(namespace string, key string) bool {

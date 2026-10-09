@@ -1,4 +1,6 @@
+import enCommon from "@/i18n/messages/en-US/common.json";
 import enErrors from "@/i18n/messages/en-US/errors.json";
+import zhCommon from "@/i18n/messages/zh-CN/common.json";
 import zhErrors from "@/i18n/messages/zh-CN/errors.json";
 import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME, normalizeAppLocale, resolveBrowserLocale, type AppLocale } from "@/i18n/config";
 import { disabledFeatureOf } from "@deeix/core";
@@ -14,6 +16,30 @@ const FALLBACK_MESSAGES: Record<AppLocale, string> = {
   "en-US": "Request failed. Please try again later.",
   "zh-CN": "请求失败，请稍后重试。",
 };
+
+const ERROR_REFERENCE_TEMPLATES: Record<AppLocale, string> = {
+  "en-US": enCommon.errors.errorReference,
+  "zh-CN": zhCommon.errors.errorReference,
+};
+
+// Server-side failures carry a request ID so an administrator can find the raw cause in the backend
+// logs; 4xx validation errors are self-explanatory and stay clean. The reference text is localized
+// here rather than through next-intl so the non-React resolver and the hook stay identical.
+export function errorReferenceFor(error: unknown): string | undefined {
+  if (error instanceof ApiError && error.status >= 500) {
+    return error.requestId?.trim() || undefined;
+  }
+  return undefined;
+}
+
+// appendErrorReference appends the "reference this ID" suffix so users can quote it in a report.
+export function appendErrorReference(message: string, error: unknown): string {
+  const requestId = errorReferenceFor(error);
+  if (!requestId || message.includes(requestId)) {
+    return message;
+  }
+  return `${message} ${ERROR_REFERENCE_TEMPLATES[readClientLocale()].replace("{requestId}", requestId)}`;
+}
 
 type RequestBodyFieldError = {
   field?: unknown;
@@ -141,6 +167,8 @@ const SETTINGS_FIELD_LABELS: Record<AppLocale, Record<string, string>> = {
     "chat:model_option_policy_mode": "Model option policy",
     "desktop:download_enabled": "Desktop download entry",
     "desktop:download_url": "Download URL",
+    "personal_provider:blocked_hosts": "Blocked domains",
+    "personal_provider:max_per_user": "Provider limit",
     "file:embedding_enabled": "Embedding",
     "file:full_context_limit_enabled": "Full-text injection limits",
     "file:file_full_context_max_bytes": "Full-text size limit",
@@ -191,6 +219,8 @@ const SETTINGS_FIELD_LABELS: Record<AppLocale, Record<string, string>> = {
     "chat:model_option_policy_mode": "模型参数透传策略",
     "desktop:download_enabled": "桌面端下载入口",
     "desktop:download_url": "下载地址",
+    "personal_provider:blocked_hosts": "域名黑名单",
+    "personal_provider:max_per_user": "服务商上限",
     "file:embedding_enabled": "向量服务",
     "file:full_context_limit_enabled": "全文注入限制",
     "file:file_full_context_max_bytes": "全文大小上限",
@@ -541,6 +571,11 @@ function resolveFeatureDisabledMessage(error: ApiError, locale: AppLocale): stri
 }
 
 export function resolveLocalizedErrorMessage(error: unknown, fallback?: string): string {
+  return appendErrorReference(resolveLocalizedErrorMessageWithoutReference(error, fallback), error);
+}
+
+// resolveLocalizedErrorMessageWithoutReference is for surfaces that render the error ID separately.
+export function resolveLocalizedErrorMessageWithoutReference(error: unknown, fallback?: string): string {
   const locale = readClientLocale();
   if (error instanceof ApiError && error.errorCode) {
     const featureDisabledMessage = resolveFeatureDisabledMessage(error, locale);

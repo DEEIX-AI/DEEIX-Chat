@@ -413,3 +413,33 @@ func response(statusCode int, contentType string, body []byte) *http.Response {
 		Body:       io.NopCloser(strings.NewReader(string(body))),
 	}
 }
+
+// 用户自配端点：同源制品照常携带 Key，但 endpoint 不放宽出站策略，私网目标即使与 endpoint 同源也被拒绝。
+func TestUntrustedEndpointsKeepCredentialsButGainNoTrust(t *testing.T) {
+	calls := 0
+	client := testClient(roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		calls++
+		if got := request.Header.Get("Authorization"); got != "Bearer user-key" {
+			t.Fatalf("same-origin artifact must carry the endpoint key, got %q", got)
+		}
+		return response(http.StatusOK, "video/mp4", []byte("video-bytes")), nil
+	}))
+	client.basePolicy = security.NewPublicOnlyOutboundPolicy()
+	client.untrustedEndpoints = true
+
+	if _, _, err := client.DownloadVideo(t.Context(), "https://93.184.216.34/v1/files/video.mp4", "https://93.184.216.34/v1", "user-key", 1024); err != nil {
+		t.Fatalf("public same-origin artifact: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d, want 1", calls)
+	}
+
+	// 平台端点同源时会被放行的私网地址，对用户端点必须拒绝，且不发出请求。
+	_, _, err := client.DownloadImage(t.Context(), "https://10.0.0.5/files/1.png", "https://10.0.0.5/v1", 1024)
+	if !errors.Is(err, security.ErrUnsafeOutboundURL) {
+		t.Fatalf("private same-origin artifact: err = %v, want ErrUnsafeOutboundURL", err)
+	}
+	if calls != 1 {
+		t.Fatalf("a request was sent to a private target")
+	}
+}

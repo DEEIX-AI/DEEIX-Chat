@@ -49,7 +49,7 @@ func (h *Handler) GetAvatar(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -100,7 +100,7 @@ func (h *Handler) GetDailyActivity(c *gin.Context) {
 	}
 	items, err := h.service.GetDailyActivity(c.Request.Context(), middleware.MustUserID(c), days, time.Now())
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]UserDailyActivityItem, 0, len(items))

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useTranslations } from "next-intl";
 
-import { resolveLocalizedErrorMessage, toErrorMessagePath } from "@/i18n/resolve-error-message";
+import { errorReferenceFor, resolveLocalizedErrorMessage, toErrorMessagePath } from "@/i18n/resolve-error-message";
 import { ApiError } from "@/shared/api/http-client";
 
 function toMessageKey(errorCode: string): string {
@@ -25,7 +25,8 @@ export function useLocalizedErrorMessage() {
         if (errors.has(key)) {
           const translated = errors(key);
           if (translated && translated !== key && translated !== `errors.${key}`) {
-            return translated;
+            const requestId = errorReferenceFor(error);
+            return requestId ? `${translated} ${common("errorReference", { requestId })}` : translated;
           }
         }
       }

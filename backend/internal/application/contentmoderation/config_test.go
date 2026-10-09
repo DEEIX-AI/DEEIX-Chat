@@ -59,7 +59,7 @@ func (r *configTestSettingsRepo) ListByNamespace(_ context.Context, namespace st
 func TestBeginRunRecordsConfigurationFailureAsFailedOpen(t *testing.T) {
 	settingsRepo := &configTestSettingsRepo{err: errors.New("database unavailable: sensitive detail")}
 	moderationRepo := &coordinatorTestRepo{}
-	service := NewService(settingsRepo, moderationRepo, "test-data-encryption-key", zap.NewNop())
+	service := NewService(settingsRepo, moderationRepo, testKeyring(), zap.NewNop())
 
 	coordinator := service.BeginRun(context.Background(), RunMeta{RunID: "run_config_failure", UserID: 42})
 	if coordinator == nil {
@@ -123,7 +123,7 @@ func TestGetConfigRequiresExplicitEnabledState(t *testing.T) {
 		{Namespace: settingsNamespace, Key: keyPolicyJSON, Value: `{"inputTextCategories":["hate"]}`},
 		{Namespace: settingsNamespace, Key: keyPolicyVersion, Value: "3"},
 	}}
-	service := NewService(repo, nil, "test-data-encryption-key", zap.NewNop())
+	service := NewService(repo, nil, testKeyring(), zap.NewNop())
 
 	config, err := service.GetConfig(context.Background(), "superadmin")
 	if err != nil {
@@ -142,7 +142,7 @@ func TestGetConfigHonorsExplicitDisabledStateWithRetainedPolicy(t *testing.T) {
 		{Namespace: settingsNamespace, Key: keyEnabled, Value: "false"},
 		{Namespace: settingsNamespace, Key: keyPolicyJSON, Value: `{"inputTextCategories":["hate"]}`},
 	}}
-	service := NewService(repo, nil, "test-data-encryption-key", zap.NewNop())
+	service := NewService(repo, nil, testKeyring(), zap.NewNop())
 
 	config, err := service.GetConfig(context.Background(), "superadmin")
 	if err != nil {
@@ -161,7 +161,7 @@ func TestUpdateConfigDisablesWithoutClearingPolicy(t *testing.T) {
 		{Namespace: settingsNamespace, Key: keyEnabled, Value: "true"},
 		{Namespace: settingsNamespace, Key: keyPolicyJSON, Value: `{"inputTextCategories":["hate"]}`},
 	}}
-	service := NewService(repo, nil, "test-data-encryption-key", zap.NewNop())
+	service := NewService(repo, nil, testKeyring(), zap.NewNop())
 	enabled := false
 
 	config, err := service.UpdateConfig(context.Background(), "superadmin", UpdateConfigInput{Enabled: &enabled})
@@ -178,7 +178,7 @@ func TestUpdateConfigDisablesWithoutClearingPolicy(t *testing.T) {
 
 func TestUpdateConfigRequiresServiceAndPolicyWhenEnabled(t *testing.T) {
 	repo := &configTestSettingsRepo{}
-	service := NewService(repo, nil, "test-data-encryption-key", zap.NewNop())
+	service := NewService(repo, nil, testKeyring(), zap.NewNop())
 	service.SetProvider(configTestProvider{})
 	enabled := true
 

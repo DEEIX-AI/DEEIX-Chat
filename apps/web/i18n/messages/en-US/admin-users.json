@@ -5,6 +5,7 @@
     "accounts": "Accounts",
     "upstreams": "Upstreams",
     "models": "Models",
+    "userKeys": "BYOK",
     "groups": "Permission Groups",
     "toolSettings": "Tools",
     "billing": "Billing",

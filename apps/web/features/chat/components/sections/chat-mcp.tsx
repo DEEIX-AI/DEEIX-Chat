@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { MCPToolDTO } from "@/shared/api/mcp-types";
+import { useChatPopoverAlignOffset } from "@/features/chat/hooks/use-chat-popover-align-offset";
 
 const DEFAULT_MCP_TOOL_SELECTION_LIMIT = 32;
 const MAX_MCP_TOOL_SELECTION_LIMIT = 128;
@@ -162,6 +163,7 @@ export function ChatMCP({
   const [hoveredRowKey, setHoveredRowKey] = React.useState<string | null>(null);
   const [focusedRowKey, setFocusedRowKey] = React.useState<string | null>(null);
   const [open, setOpen] = React.useState(false);
+  const popoverShift = useChatPopoverAlignOffset("start");
   const [search, setSearch] = React.useState("");
   const [expandedServerKeys, setExpandedServerKeys] = React.useState<Set<string>>(() => new Set());
   const selectedToolIDSet = React.useMemo(() => new Set(selectedToolIDs), [selectedToolIDs]);
@@ -288,6 +290,7 @@ export function ChatMCP({
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <InputGroupButton
+              ref={popoverShift.triggerRef}
               type="button"
               variant="ghost"
               size="icon-sm"
@@ -317,8 +320,10 @@ export function ChatMCP({
         </TooltipContent>
       </Tooltip>
       <PopoverContent
+        ref={popoverShift.contentRef}
         side={placementPreference}
         align="start"
+        alignOffset={popoverShift.alignOffset}
         sideOffset={8}
         avoidCollisions={false}
         collisionPadding={8}

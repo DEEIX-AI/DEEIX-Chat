@@ -38,6 +38,8 @@ func (r *Repo) DeleteBefore(ctx context.Context, logType string, before time.Tim
 		result = query.Where("created_at < ?", before).Delete(&models.ChatRunEvent{})
 	case repository.LogCleanupTypeModeration:
 		result = query.Where("created_at < ?", before).Delete(&models.ContentModerationEvent{})
+	case repository.LogCleanupTypeErrors:
+		result = query.Where("created_at < ?", before).Delete(&models.ErrorLog{})
 	default:
 		return 0, fmt.Errorf("unsupported log cleanup type: %s", logType)
 	}

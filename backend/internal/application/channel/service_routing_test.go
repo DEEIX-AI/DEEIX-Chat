@@ -110,7 +110,7 @@ func expireBreakerDefaultsCache(service *Service) {
 
 func TestResolveRouteExcludesPreviouslyAttemptedRoutes(t *testing.T) {
 	const encryptionKey = "test-data-encryption-key-32-bytes"
-	apiKeysEnc, err := encryptAPIKeys(encryptionKey, `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
+	apiKeysEnc, err := encryptAPIKeys(testKeyring(t, encryptionKey), `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
 	if err != nil {
 		t.Fatalf("encryptAPIKeys() error = %v", err)
 	}
@@ -178,7 +178,7 @@ func TestResolveRouteExcludesPreviouslyAttemptedRoutes(t *testing.T) {
 
 func TestResolveRouteIgnoresCircuitStateWhenBreakerDisabled(t *testing.T) {
 	const encryptionKey = "test-data-encryption-key-32-bytes"
-	apiKeysEnc, err := encryptAPIKeys(encryptionKey, `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
+	apiKeysEnc, err := encryptAPIKeys(testKeyring(t, encryptionKey), `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
 	if err != nil {
 		t.Fatalf("encryptAPIKeys() error = %v", err)
 	}
@@ -209,7 +209,7 @@ func TestResolveRouteIgnoresCircuitStateWhenBreakerDisabled(t *testing.T) {
 
 func TestResolveRouteHonorsCircuitStateWhenBreakerEnabled(t *testing.T) {
 	const encryptionKey = "test-data-encryption-key-32-bytes"
-	apiKeysEnc, err := encryptAPIKeys(encryptionKey, `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
+	apiKeysEnc, err := encryptAPIKeys(testKeyring(t, encryptionKey), `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
 	if err != nil {
 		t.Fatalf("encryptAPIKeys() error = %v", err)
 	}
@@ -235,7 +235,7 @@ func TestResolveRouteHonorsCircuitStateWhenBreakerEnabled(t *testing.T) {
 
 func TestRateLimitBackoffOnlySkipsFailedRouteAndReportsCooldown(t *testing.T) {
 	const encryptionKey = "test-data-encryption-key-32-bytes"
-	apiKeysEnc, err := encryptAPIKeys(encryptionKey, `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
+	apiKeysEnc, err := encryptAPIKeys(testKeyring(t, encryptionKey), `{"strategy":"failover","keys":[{"key":"sk-test","status":"active"}]}`)
 	if err != nil {
 		t.Fatalf("encryptAPIKeys() error = %v", err)
 	}

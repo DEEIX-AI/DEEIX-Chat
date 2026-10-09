@@ -12,13 +12,11 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 func TestPreparePaymentCheckoutRejectsUnsafeEPayEndpoint(t *testing.T) {
 	handler := &Handler{
-		cfg:    config.NewRuntime(config.Config{Env: "dev"}),
-		logger: zap.NewNop(),
+		cfg: config.NewRuntime(config.Config{Env: "dev"}),
 	}
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Request = httptest.NewRequest("POST", "https://chat.example.com/api/v1/billing/payments/checkout", nil)
@@ -42,7 +40,6 @@ func TestPreparePaymentCheckoutAcceptsClassicEPayEndpoint(t *testing.T) {
 			PublicAPIBaseURL: "https://api.example.com",
 			PublicWebBaseURL: "https://chat.example.com",
 		}),
-		logger: zap.NewNop(),
 	}
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Request = httptest.NewRequest("POST", "https://api.example.com/api/v1/billing/payments/checkout", nil)
@@ -89,7 +86,7 @@ func TestSameOriginPublicURLReturnsTypedReturnURLErrors(t *testing.T) {
 }
 
 func TestRespondPaymentCheckoutErrorMapsReturnURLErrorsToBadRequest(t *testing.T) {
-	handler := &Handler{logger: zap.NewNop()}
+	handler := &Handler{}
 	cases := []struct {
 		err  error
 		code string

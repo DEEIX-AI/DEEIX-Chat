@@ -259,6 +259,14 @@
   "messages": {
     "debugRequest": "Request",
     "debugResponse": "Response",
+    "debugFormatted": "Formatted",
+    "debugRaw": "Raw",
+    "debugViewMode": "View mode",
+    "debugSide": "Request or response",
+    "debugCopy": "Copy content",
+    "debugCopied": "Copied",
+    "debugCopyFailed": "Copy failed",
+    "debugEmpty": "Empty",
     "copied": "Message copied",
     "copyFailed": "Copy failed",
     "copyFailedDescription": "Please try again later.",
@@ -511,6 +519,11 @@
     "defaultModelUnavailable": "The current model is unavailable. Select another model.",
     "sessionExpired": "Your session has expired. Please sign in again.",
     "retryLater": "Please try again later.",
+    "errorId": "Error ID",
+    "errorIdHint": "Include this ID when reporting the problem so an administrator can look up the cause.",
+    "copyErrorId": "Copy error ID",
+    "errorIdCopied": "Error ID copied",
+    "errorIdCopyFailed": "Copy failed",
     "streamResponseParseFailed": "The upstream returned HTTP {statusCode}, but the stream format is incompatible with the selected protocol.",
     "jsonMustBeObject": "JSON must be an object",
     "currentModel": "Current model",
@@ -624,20 +637,18 @@
       }
     },
     "mediaMode": {
-      "imageGeneration": "Image generation",
-      "imageGenerationIntro": "Image generation mode is active.",
-      "imageGenerationDescription": "Creates a new image from the text prompt. Upload an image to switch to image editing.",
-      "imageEdit": "Image editing",
-      "imageEditIntro": "Image editing mode is active.",
-      "imageEditDescription": "Edits the uploaded image using the text prompt.",
-      "videoGeneration": "Video generation",
-      "videoGenerationIntro": "Video generation mode is active.",
-      "videoGenerationDescription": "Creates a video from the text prompt. Upload one image to use it as a reference input.",
-      "videoExtension": "Video extension",
-      "videoExtensionIntro": "Video extension mode is active.",
-      "videoExtensionDescription": "Extends the uploaded MP4 video from your prompt. Only the extension duration is configurable.",
-      "invalidFile": "Invalid file detected",
-      "invalidFileIntro": "This file cannot be used for a media task.",
+      "placeholders": {
+        "image_generation": "Describe the image to generate",
+        "image_edit": "Describe how to change this image",
+        "video_generation": "Describe the video to generate",
+        "video_extension": "Describe what happens next in the video"
+      },
+      "parameters": {
+        "image_generation": "Image generation parameters",
+        "image_edit": "Image editing parameters",
+        "video_generation": "Video generation parameters",
+        "video_extension": "Video extension parameters"
+      },
       "blockedDescriptions": {
         "image_edit_input_required": "Upload an image to edit first.",
         "image_edit_unsupported": "The selected model does not support image editing. Remove the image or switch models.",
@@ -675,13 +686,15 @@
     },
     "viewPricing": "View pricing",
     "freeBadge": "Free",
+    "personalBadge": "BYOK",
     "detail": {
       "modalities": "Modalities",
       "context": "Context",
       "price": "Price",
       "perMillion": "per 1M tokens",
       "schedule": "Time-of-day rates",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "chargedByProvider": "Charged by provider"
     },
     "freeModel": "Free model",
     "freeModelDescription": "No usage balance will be deducted",
@@ -1136,6 +1149,7 @@
     "numberInvalid": "Enter a valid number",
     "numberInvalidRange": "Enter a valid number between {min} and {max}",
     "increase": "Increase",
-    "decrease": "Decrease"
+    "decrease": "Decrease",
+    "empty": "This model has no adjustable parameters."
   }
 }

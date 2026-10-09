@@ -135,7 +135,7 @@ func (h *Handler) streamMediaVideo(c *gin.Context, taskType appconversation.Medi
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	var req mediaVideoTransportRequest
@@ -180,6 +180,7 @@ func (h *Handler) streamMediaVideo(c *gin.Context, taskType appconversation.Medi
 	)
 	if !ok {
 		_ = session.Finish(c.Request.Context(), nil)
+		response.RecordError(c, errGenerationLifecycleUnavailable)
 		response.ErrorWithCode(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable)
 		return
 	}
@@ -225,7 +226,7 @@ func (h *Handler) streamMediaImage(c *gin.Context, taskType appconversation.Medi
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	var req MediaImageRequest
@@ -250,6 +251,7 @@ func (h *Handler) streamMediaImage(c *gin.Context, taskType appconversation.Medi
 	)
 	if !ok {
 		_ = session.Finish(c.Request.Context(), nil)
+		response.RecordError(c, errGenerationLifecycleUnavailable)
 		response.ErrorWithCode(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable)
 		return
 	}
@@ -338,14 +340,14 @@ func (h *Handler) streamMediaTask(
 		return
 	}
 	if billingErr := session.Finish(c.Request.Context(), result); billingErr != nil {
-		payload := streamErrorPayloadWithResult(billingErr, result)
+		payload := streamErrorPayloadWithResult(c, billingErr, result)
 		if owned, _ := flushStreamEvent(payload); !owned {
 			_ = writeStreamEvent(payload)
 		}
 		return
 	}
 	if err != nil {
-		payload := streamErrorPayloadWithResult(err, result)
+		payload := streamErrorPayloadWithResult(c, err, result)
 		if owned, _ := flushStreamEvent(payload); !owned {
 			_ = writeStreamEvent(payload)
 		}
@@ -355,11 +357,11 @@ func (h *Handler) streamMediaTask(
 		return
 	}
 	if result.AssistantMessage.Status == "canceled" {
-		_, _ = flushStreamEvent(streamErrorPayloadWithResult(appconversation.ErrMessageGenerationCanceled, result))
+		_, _ = flushStreamEvent(streamErrorPayloadWithResult(c, appconversation.ErrMessageGenerationCanceled, result))
 		return
 	}
 	_, _ = flushStreamEvent(map[string]any{
 		"type": "completed",
-		"data": toSendMessageResponse(result),
+		"data": toSendMessageResponse(result, middleware.MustRequestID(c)),
 	})
 }

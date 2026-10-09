@@ -66,7 +66,7 @@ func (h *Handler) SetNativeToolCatalogProvider(provider nativeToolCatalogProvide
 func (h *Handler) ListAll(c *gin.Context) {
 	data, err := h.service.ListAll(c.Request.Context())
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toSettingResponseMap(data))
@@ -90,7 +90,7 @@ func (h *Handler) ListByNamespace(c *gin.Context) {
 
 	data, err := h.service.ListByNamespace(c.Request.Context(), ns)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toSettingResponseList(data))
@@ -105,7 +105,7 @@ func (h *Handler) ListByNamespace(c *gin.Context) {
 func (h *Handler) GetLoginPageSettings(c *gin.Context) {
 	items, err := h.service.ListByNamespace(c.Request.Context(), "auth")
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	values := map[string]string{
@@ -208,7 +208,7 @@ func brandingResponse(cfg config.Config) BrandingResponse {
 func (h *Handler) GetModelOptionPolicy(c *gin.Context) {
 	items, err := h.service.RuntimeValuesByNamespace(c.Request.Context(), "chat")
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	mode := strings.TrimSpace(items["model_option_policy_mode"])
@@ -227,7 +227,7 @@ func (h *Handler) GetModelOptionPolicy(c *gin.Context) {
 	if h.nativeTools != nil {
 		items, err := h.nativeTools.ListNativeToolDefinitions(c.Request.Context())
 		if err != nil {
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 		nativeTools = items
@@ -355,7 +355,7 @@ func (h *Handler) Patch(c *gin.Context) {
 			writeSettingValidationError(c, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -367,7 +367,7 @@ func (h *Handler) Patch(c *gin.Context) {
 	// 就绪。基于签名的失效处理也会保留并发完成的
 	// 新空间文件。
 	if err = h.runtimeSettings.ApplyTo(c.Request.Context(), h.runtime); err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	// 只要提交了向量空间相关设置就执行对账，即使取值
@@ -375,7 +375,7 @@ func (h *Handler) Patch(c *gin.Context) {
 	// 安全重试，而无需重启。
 	if (embeddingSettingsTouched || signatureMissing) && h.embeddingSvc != nil {
 		if _, reconcileErr := h.embeddingSvc.ReconcileIndex(c.Request.Context()); reconcileErr != nil {
-			response.InternalError(c)
+			response.InternalError(c, reconcileErr)
 			return
 		}
 	}
@@ -633,7 +633,7 @@ func (h *Handler) handleTikaRuntimeAction(c *gin.Context, action func(ctx contex
 	defer cancel()
 	view, err := action(actionCtx)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toTikaRuntimeResponse(view))
@@ -648,7 +648,7 @@ func (h *Handler) handleRapidOCRRuntimeAction(c *gin.Context, action func(ctx co
 	defer cancel()
 	view, err := action(actionCtx)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toRapidOCRRuntimeResponse(view))

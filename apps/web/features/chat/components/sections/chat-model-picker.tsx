@@ -2,7 +2,7 @@
 
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import * as React from "react";
-import { ArrowRight, AudioLines, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, FileText, Image as ImageIcon, TicketSlash, Type, Video } from "lucide-react";
+import { ArrowRight, AudioLines, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, FileText, Image as ImageIcon, KeyRound, TicketSlash, Type, Video } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InputGroupButton } from "@/components/ui/input-group";
 import type { ChatModelOption, ModelModality } from "@/features/chat/types/chat-runtime";
+import { useChatPopoverAlignOffset } from "@/features/chat/hooks/use-chat-popover-align-offset";
 import {
   resolveDesktopMenuListMaxHeight,
   resolveDesktopModelMenuListMaxHeight,
@@ -24,6 +25,7 @@ import {
   ModelIcon,
   resolveModelIconURL,
   resolveModelOptionIconUrl,
+  resolveModelOptionLabel,
   resolveModelPresentationGroup,
 } from "@/entities/model";
 import {
@@ -43,11 +45,15 @@ type ChatModelPickerProps = {
   modelOptions: ChatModelOption[];
   billingDisplayCurrency: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate: number | null;
+  /** False in self-hosted mode, where no model shows a price. */
+  billingEnabled: boolean;
   selectedPlatformModelName: string;
   loading: boolean;
   disabled: boolean;
   onModelCatalogRefresh?: () => void | Promise<void>;
   onModelChange: (platformModelName: string) => void;
+  /** Side the phone menu opens on: below the composer on the landing page, above it in a conversation. */
+  placementPreference: "top" | "bottom";
 };
 
 const MODEL_MENU_COLLISION_PADDING = 24;
@@ -65,10 +71,18 @@ const DESKTOP_GROUP_MENU_VERTICAL_CHROME = 40;
 /** Model submenu non-list chrome: p-1.5 × 2. */
 const DESKTOP_SUBMENU_VERTICAL_CHROME = 12;
 
+/** Models on the user's own key are grouped by provider, after the platform groups. */
+function resolveModelGroupPresentation(item: ChatModelOption) {
+  if (item.personalProviderName !== null) {
+    return { key: `personal:${item.personalProviderName}`, label: item.personalProviderName, icon: item.personalProviderIcon };
+  }
+  return resolveModelPresentationGroup(item);
+}
+
 function resolveModelGroups(modelOptions: ChatModelOption[]) {
-  const groupMap = new Map<string, { label: string; icon: string; items: ChatModelOption[] }>();
+  const groupMap = new Map<string, { label: string; icon: string; personal: boolean; items: ChatModelOption[] }>();
   for (const item of modelOptions) {
-    const presentation = resolveModelPresentationGroup(item);
+    const presentation = resolveModelGroupPresentation(item);
     const group = groupMap.get(presentation.key);
     if (group) {
       group.items.push(item);
@@ -77,6 +91,7 @@ function resolveModelGroups(modelOptions: ChatModelOption[]) {
     groupMap.set(presentation.key, {
       label: presentation.label,
       icon: presentation.icon,
+      personal: item.personalProviderName !== null,
       items: [item],
     });
   }
@@ -84,8 +99,26 @@ function resolveModelGroups(modelOptions: ChatModelOption[]) {
   return Array.from(groupMap.entries()).map(([key, group]) => ({ key, ...group }));
 }
 
+/** Fallback mark for a group served by the user's own key when it has no icon. */
+function PersonalGroupIcon() {
+  return (
+    <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground" aria-hidden="true">
+      <KeyRound className="size-3.5" strokeWidth={1.7} />
+    </span>
+  );
+}
+
+/** Tells a user-key group apart from a platform group of the same vendor. */
+function PersonalGroupBadge({ label }: { label: string }) {
+  return (
+    <Badge variant="secondary" className="h-4 shrink-0 px-1 font-normal">
+      {label}
+    </Badge>
+  );
+}
+
 function ChatModelIdentity({ model }: { model: ChatModelOption }) {
-  const platformModelName = model.platformModelName.trim();
+  const platformModelName = resolveModelOptionLabel(model.platformModelName);
   const iconURL = React.useMemo(() => resolveModelOptionIconUrl(model), [model]);
 
   return (
@@ -521,7 +554,7 @@ function ChatModelMenuItem({
   /** The row element, so the detail pane can be placed level with the row it describes. */
   rowRef?: (node: HTMLDivElement | null) => void;
 }) {
-  const platformModelName = model.platformModelName.trim();
+  const platformModelName = resolveModelOptionLabel(model.platformModelName);
   const iconURL = React.useMemo(() => resolveModelOptionIconUrl(model), [model]);
   const inputModalityDescription = describeInputModalities(model.inputModalities, inputModalityLabels);
 
@@ -689,11 +722,13 @@ function ChatModelDetailPanel({
   inputModalityLabels,
   pricingLabels,
   billingDisplay,
+  billingEnabled,
 }: {
   model: ChatModelOption;
   inputModalityLabels: InputModalityLabels;
   pricingLabels: React.ComponentProps<typeof ModelPricingTooltipContent>["labels"];
   billingDisplay: BillingDisplayOptions;
+  billingEnabled: boolean;
 }) {
   const t = useTranslations("chat.modelPicker.detail");
   const pricing = model.pricing;
@@ -710,7 +745,7 @@ function ChatModelDetailPanel({
       className="flex max-h-full min-h-0 flex-col overflow-y-auto p-1.5 text-[11px] leading-4"
     >
       <div className="flex h-7 shrink-0 items-center px-2">
-        <span className="min-w-0 truncate font-medium text-foreground">{model.platformModelName.trim()}</span>
+        <span className="min-w-0 truncate font-medium text-foreground">{resolveModelOptionLabel(model.platformModelName)}</span>
       </div>
       <dl className="shrink-0">
         <ModelDetailLine label={t("modalities")}>
@@ -735,6 +770,10 @@ function ChatModelDetailPanel({
             <span className="text-muted-foreground">{t("unknown")}</span>
           )}
         </ModelDetailLine>
+        {billingEnabled && model.personalProviderName !== null ? (
+          // Takes the price row: the platform does not charge for a user-key model, the provider does.
+          <ModelDetailLine label={t("price")}>{t("chargedByProvider")}</ModelDetailLine>
+        ) : null}
       </dl>
       {!table && !pricing?.isFree ? null : (
         <>
@@ -839,14 +878,17 @@ export function ChatModelPicker({
   modelOptions,
   billingDisplayCurrency,
   billingDisplayUsdToCnyRate,
+  billingEnabled,
   selectedPlatformModelName,
   loading,
   disabled,
   onModelCatalogRefresh,
   onModelChange,
+  placementPreference,
 }: ChatModelPickerProps) {
   const t = useTranslations("chat.modelPicker");
   const isMobile = useIsMobile();
+  const mobileShift = useChatPopoverAlignOffset("end");
   const [open, setOpen] = React.useState(false);
   const [activeGroupKey, setActiveGroupKey] = React.useState("");
   const [mobileGroupKey, setMobileGroupKey] = React.useState<string | null>(null);
@@ -887,19 +929,19 @@ export function ChatModelPicker({
     () => modelOptions.find((item) => item.platformModelName === selectedPlatformModelName) ?? null,
     [modelOptions, selectedPlatformModelName],
   );
-  const selectedGroupKey = React.useMemo(() => {
-    if (!selectedModel) {
-      return "";
-    }
-    return resolveModelPresentationGroup(selectedModel).key;
-  }, [selectedModel]);
-  const selectedGroupLabel = React.useMemo(() => {
-    if (!selectedModel) {
-      return "";
-    }
-    return resolveModelPresentationGroup(selectedModel).label;
-  }, [selectedModel]);
+  // Same grouping as the list, so a model on the user's own key opens its provider group.
+  const selectedPresentation = React.useMemo(
+    () => (selectedModel ? resolveModelGroupPresentation(selectedModel) : null),
+    [selectedModel],
+  );
+  const selectedGroupKey = selectedPresentation?.key ?? "";
+  const selectedGroupLabel = selectedPresentation?.label ?? "";
   const modelGroups = React.useMemo(() => resolveModelGroups(modelOptions), [modelOptions]);
+  // Counts share one width, so the badges in front of them line up whatever the digit count.
+  const groupCountStyle = React.useMemo<React.CSSProperties>(
+    () => ({ minWidth: `${String(Math.max(0, ...modelGroups.map((group) => group.items.length))).length}ch` }),
+    [modelGroups],
+  );
   const activeDesktopGroupKey = activeGroupKey || selectedGroupKey || modelGroups[0]?.key || "";
   const activeDesktopGroup = React.useMemo(
     () => modelGroups.find((group) => group.key === activeDesktopGroupKey) ?? modelGroups[0] ?? null,
@@ -1254,6 +1296,7 @@ export function ChatModelPicker({
         <Popover open={open} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>
             <InputGroupButton
+              ref={mobileShift.triggerRef}
               id="chat-model-menu-trigger"
               type="button"
               variant="ghost"
@@ -1268,7 +1311,7 @@ export function ChatModelPicker({
                 <ChatModelIdentity model={selectedModel} />
               ) : selectedPlatformModelName.trim() ? (
                 <span className="truncate text-[12px] font-medium text-foreground">
-                  {selectedPlatformModelName}
+                  {resolveModelOptionLabel(selectedPlatformModelName)}
                 </span>
               ) : (
                 <span className="truncate text-[12px] font-medium text-muted-foreground">
@@ -1277,9 +1320,15 @@ export function ChatModelPicker({
               )}
             </InputGroupButton>
           </PopoverTrigger>
+          {/* On a phone the menu keeps the composer's side, as the other composer menus do, and its
+              list shrinks to the room left there. Letting Radix flip it measured the unclamped list,
+              which never fits below the landing composer, so it always opened upwards. */}
           <PopoverContent
+            ref={isMobile ? mobileShift.contentRef : undefined}
             align="end"
-            side="bottom"
+            alignOffset={isMobile ? mobileShift.alignOffset : 0}
+            side={isMobile ? placementPreference : "bottom"}
+            avoidCollisions={!isMobile}
             sideOffset={DESKTOP_MODEL_MENU_SIDE_OFFSET}
             collisionPadding={24}
             onOpenAutoFocus={(event) => {
@@ -1294,7 +1343,7 @@ export function ChatModelPicker({
             className={cn(
               "relative overflow-visible rounded-xl",
               isMobile
-                ? "w-[min(20rem,calc(100vw-3rem))] p-1.5"
+                ? "w-[min(20rem,calc(100vw-3rem))] p-1.5 [--model-menu-scroll-max-height:max(7rem,calc(var(--radix-popover-content-available-height)-2.75rem))]"
                 : "w-[min(14rem,calc(100vw-3rem))] border-0 bg-transparent p-0 shadow-none",
             )}
           >
@@ -1360,9 +1409,10 @@ export function ChatModelPicker({
                                 setMobileGroupKey(group.key);
                               }}
                             >
-                              <ModelIcon iconUrl={groupIconURL} label={group.label} />
+                              {group.personal && !group.icon ? <PersonalGroupIcon /> : <ModelIcon iconUrl={groupIconURL} label={group.label} />}
                               <span className="min-w-0 flex-1 truncate font-medium">{group.label}</span>
-                              <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/80">
+                              {group.personal ? <PersonalGroupBadge label={t("personalBadge")} /> : null}
+                              <span className="shrink-0 text-right text-[10px] tabular-nums text-muted-foreground/80" style={groupCountStyle}>
                                 {group.items.length}
                               </span>
                             </button>
@@ -1476,6 +1526,7 @@ export function ChatModelPicker({
                           inputModalityLabels={inputModalityLabels}
                           pricingLabels={pricingLabels}
                           billingDisplay={billingDisplay}
+                          billingEnabled={billingEnabled}
                         />
                       </SlideSwitch>
                     </MorphingCard>
@@ -1524,9 +1575,10 @@ export function ChatModelPicker({
                                 onFocus={() => selectDesktopGroup(group.key)}
                                 onClick={() => selectDesktopGroup(group.key)}
                               >
-                                <ModelIcon iconUrl={groupIconURL} label={group.label} />
+                                {group.personal && !group.icon ? <PersonalGroupIcon /> : <ModelIcon iconUrl={groupIconURL} label={group.label} />}
                                 <span className="min-w-0 flex-1 truncate font-medium">{group.label}</span>
-                                <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/80">
+                                {group.personal ? <PersonalGroupBadge label={t("personalBadge")} /> : null}
+                                <span className="shrink-0 text-right text-[10px] tabular-nums text-muted-foreground/80" style={groupCountStyle}>
                                   {group.items.length}
                                 </span>
                                 <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65" strokeWidth={1.8} />

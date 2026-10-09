@@ -204,7 +204,7 @@ export function AdminFilesPage() {
                           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                           style={{ display: "grid" }}
                         >
-                          <div className="overflow-hidden">
+                          <div className="-mx-px overflow-hidden px-px pb-px">
                             <SettingsFieldItem index={blockIndex}>
                               <SettingsFieldInset>
                                 <SettingsFieldList className="gap-3 md:gap-4">

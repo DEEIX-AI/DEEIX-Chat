@@ -2011,8 +2011,10 @@ func (r *Repo) ListConversationEventLogs(
 	}
 	if search := strings.TrimSpace(filter.Query); search != "" {
 		like := "%" + strings.ToLower(search) + "%"
+		// 用户反馈的错误 ID 是发起生成的请求 ID，经 run 精确关联到该次生成的全部事件。
+		runsByRequestID := r.db.WithContext(ctx).Model(&models.ConversationRun{}).Select("run_id").Where("request_id = ?", search)
 		query = query.Where(
-			"LOWER(run_id) LIKE ? OR LOWER(event_id) LIKE ? OR LOWER(event_type) LIKE ? OR LOWER(phase) LIKE ? OR LOWER(stage) LIKE ? OR LOWER(title) LIKE ? OR LOWER(summary) LIKE ? OR LOWER(tool_name) LIKE ?",
+			"LOWER(run_id) LIKE ? OR LOWER(event_id) LIKE ? OR LOWER(event_type) LIKE ? OR LOWER(phase) LIKE ? OR LOWER(stage) LIKE ? OR LOWER(title) LIKE ? OR LOWER(summary) LIKE ? OR LOWER(tool_name) LIKE ? OR run_id IN (?)",
 			like,
 			like,
 			like,
@@ -2021,6 +2023,7 @@ func (r *Repo) ListConversationEventLogs(
 			like,
 			like,
 			like,
+			runsByRequestID,
 		)
 	}
 	if eventScope := strings.TrimSpace(filter.EventScope); eventScope != "" {
@@ -2192,7 +2195,7 @@ func (r *Repo) ListConversationRunStatusesByRunIDs(
 	}
 	items := make([]domainconversation.RunStatus, 0, len(runIDs))
 	if err := r.db.WithContext(ctx).Model(&models.ConversationRun{}).
-		Select("run_id", "status").
+		Select("run_id", "status", "request_id").
 		Where("user_id = ? AND run_id IN ?", userID, runIDs).
 		Order("id ASC").
 		Scan(&items).Error; err != nil {

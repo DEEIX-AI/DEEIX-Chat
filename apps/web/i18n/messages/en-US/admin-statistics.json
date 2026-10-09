@@ -72,5 +72,6 @@
       "hitRate": "Hit rate",
       "latency": "Avg latency"
     }
-  }
+  },
+  "personalKey": "BYOK"
 }

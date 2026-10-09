@@ -43,12 +43,12 @@ type assistantImageContentInput struct {
 }
 
 type assistantGeneratedImagesInput struct {
-	UserID                  uint
-	ConversationID          uint
-	AssistantMessageID      uint
-	ModelName               string
-	TrustedProviderEndpoint string
-	GeneratedImages         []llm.GeneratedImage
+	UserID             uint
+	ConversationID     uint
+	AssistantMessageID uint
+	ModelName          string
+	ArtifactSource     mediaArtifactSource
+	GeneratedImages    []llm.GeneratedImage
 }
 
 type assistantImageSaveInput struct {
@@ -88,7 +88,7 @@ func (s *Service) normalizeAssistantImageContent(ctx context.Context, input assi
 func (s *Service) normalizeAssistantGeneratedImages(ctx context.Context, input assistantGeneratedImagesInput) (*assistantImageContentNormalization, error) {
 	images := make([]assistantImagePayload, 0, len(input.GeneratedImages))
 	for _, image := range input.GeneratedImages {
-		data, mimeType, err := s.readGeneratedImage(ctx, image, input.TrustedProviderEndpoint)
+		data, mimeType, err := s.readGeneratedImage(ctx, image, input.ArtifactSource)
 		if err != nil {
 			return nil, err
 		}

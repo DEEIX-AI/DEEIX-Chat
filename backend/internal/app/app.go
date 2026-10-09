@@ -23,16 +23,19 @@ import (
 	appcontentmoderation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
+	apperrorlog "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/errorlog"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	appknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/knowledgebase"
 	applogcleanup "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/logcleanup"
 	appmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/memory"
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
+	apppersonalprovider "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/personalprovider"
 	appprocessing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/processing"
 	apppromptpreset "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/promptpreset"
 	apprag "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/rag"
 	appruntime "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/runtime"
+	appsecretrotation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/secretrotation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/settings"
 	appskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/skill"
 	appuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/uicomponent"
@@ -67,11 +70,14 @@ import (
 	channelrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/channel"
 	contentmoderationrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/contentmoderation"
 	conversationrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/conversation"
+	errorlogrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/errorlog"
 	knowledgebaserepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/knowledgebase"
 	logcleanuprepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/logcleanup"
 	mcprepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/mcp"
 	memoryrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/memory"
+	personalproviderrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/personalprovider"
 	promptpresetrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/promptpreset"
+	secretrotationrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/secretrotation"
 	settingsrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/settings"
 	skillrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/skill"
 	uicomponentrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/uicomponent"
@@ -80,6 +86,7 @@ import (
 	platformruntime "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/runtime"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/lifecycle"
+	sharedsecurity "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	platformhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http"
 	adminhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/admin"
 	announcementhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/announcement"
@@ -91,6 +98,7 @@ import (
 	knowledgebasehttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/knowledgebase"
 	mcphttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/mcp"
 	memoryhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/memory"
+	personalproviderhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/personalprovider"
 	promptpresethttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/promptpreset"
 	settingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/settings"
 	skillhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/skill"
@@ -222,6 +230,15 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	if tracingUnavailable {
 		log.Warn("tracing is configured but this build has no OTLP exporter; tracing is disabled")
 	}
+	// Validate 已确认密钥环可构建；这里取出后注入各个加密存储数据的服务。
+	keyring, err := cfg.Keyring()
+	if err != nil {
+		return nil, err
+	}
+	for _, warning := range cfg.SecurityWarnings() {
+		log.Warn("security_config_warning", zap.String("detail", warning))
+	}
+	logOutboundProxy(log, sharedsecurity.DescribeOutboundProxy(), cfg.TrustedOutboundPolicy().Enforced())
 
 	db, err := persistence.Open(cfg)
 	if err != nil {
@@ -237,16 +254,17 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	auditService := audit.NewService(auditRepo, log)
 	logCleanupRepo := logcleanuprepo.NewRepo(db)
 	logCleanupService := applogcleanup.NewService(logCleanupRepo, auditService)
+	errorLogService := apperrorlog.NewService(errorlogrepo.NewRepo(db), log)
 
 	// 初始化 settings 模块：种子数据 + 动态配置覆盖
 	settingsRepo := settingsrepo.NewRepo(db)
-	settingsService := settings.NewService(settingsRepo, cfg.DataEncryptionKey)
+	settingsService := settings.NewService(settingsRepo, keyring)
 	settingsService.SetAuditWriter(auditService)
 	settingsService.SetRuntime(runtimeCfg)
 	runtimeService := appruntime.NewService(runtimeCfg, extractionprobe.Prober{})
 	runtimeService.SetDockerRunner(platformruntime.NewDockerRunner())
 	settingsCache := cacheBackend.Settings()
-	runtimeSettings := settings.NewRuntimeSettings(settingsRepo, settingsCache, cfg.DataEncryptionKey)
+	runtimeSettings := settings.NewRuntimeSettings(settingsRepo, settingsCache, keyring)
 	settingsHandler := settingshttp.NewHandler(settingsService, runtimeSettings, runtimeService, runtimeCfg)
 	settingsModule := settingshttp.NewModule(settingsHandler)
 	if err = settingsService.Seed(context.Background()); err != nil {
@@ -272,7 +290,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	billingRepo := billingrepo.NewRepo(db)
 	billingService := billing.NewService(billingRepo)
 	billingService.SetAuditWriter(auditService)
-	billingService.SetRedemptionCodeSecret(cfg.DataEncryptionKey)
+	billingService.SetRedemptionCodeKeyring(keyring)
 	officialPricingService := billing.NewOfficialPricingService(
 		openrouterpricing.New(cfg.StrictOutboundPolicy()),
 		filecache.NewOpenRouterPricingCache(runtimeCfg.Snapshot().StorageRootDir),
@@ -281,7 +299,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 		log.Warn("builtin openrouter pricing snapshot is invalid", zap.Error(err))
 	}
 	paymentCheckoutService := billing.NewPaymentCheckoutService(stripepayment.New(cfg.StrictOutboundPolicy()), epaypayment.New())
-	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg, officialPricingService, paymentCheckoutService, log)
+	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg, officialPricingService, paymentCheckoutService)
 	billingModule := billinghttp.NewModule(billingHandler)
 	// 对象存储工厂由组合根显式注入，避免服务实例依赖进程级可变状态。
 	objectStoreProvider := appstorage.NewRuntimeProvider(runtimeCfg, objectstorage.New)
@@ -355,6 +373,8 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	llmClient := llm.NewClient(trustedOutboundPolicy)
 	mcpClient := mcp.NewClient(trustedOutboundPolicy)
 	mediaArtifactClient := mediaartifact.New(strictOutboundPolicy)
+	// 用户自带 Key 的端点返回的制品与其 API 请求同样只允许公网目标，不受部署级白名单与环境影响。
+	untrustedMediaArtifactClient := mediaartifact.NewForUntrustedEndpoints(sharedsecurity.NewPublicOnlyOutboundPolicy())
 	channelService := channel.NewServiceWithRuntime(runtimeCfg, channelRepo, channelRepo, channelCache, llmClient)
 	channelService.SetLogger(log)
 	channelService.SetObjectStoreProvider(objectStoreProvider)
@@ -410,29 +430,36 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	)
 	uploadService.SetObjectStoreProvider(objectStoreProvider)
 	ragService := apprag.NewServiceWithRuntime(runtimeCfg, conversationRepo, conversationCache, embedClient)
+	// 用户自带 Key：组合路由在平台路由前识别 personal: 引用，其余原样交给平台。
+	personalProviderService := apppersonalprovider.NewService(runtimeCfg, personalproviderrepo.NewRepo(db), llmClient)
+	personalProviderService.SetAuditWriter(auditService)
+	personalProviderService.SetLogger(log)
+	personalRouteResolver := apppersonalprovider.NewRouteResolver(channelService, personalProviderService)
+	channelHandler.SetPersonalModelSource(personalProviderService)
 	conversationService := conversation.NewServiceWithRuntime(conversation.Dependencies{
-		Config:            runtimeCfg,
-		Repository:        conversationRepo,
-		Cache:             conversationCache,
-		RouteResolver:     channelService,
-		MemoryRecorder:    memoryService,
-		LLMClient:         llmClient,
-		MediaDownloader:   mediaArtifactClient,
-		MCPClient:         mcpClient,
-		CompactService:    compactService,
-		EmbeddingService:  embeddingService,
-		ProcessingService: processingService,
-		UploadService:     uploadService,
-		ExtractService:    extractionService,
-		RAGService:        ragService,
-		Logger:            log,
+		Config:                   runtimeCfg,
+		Repository:               conversationRepo,
+		Cache:                    conversationCache,
+		RouteResolver:            personalRouteResolver,
+		MemoryRecorder:           memoryService,
+		LLMClient:                llmClient,
+		MediaDownloader:          mediaArtifactClient,
+		UntrustedMediaDownloader: untrustedMediaArtifactClient,
+		MCPClient:                mcpClient,
+		CompactService:           compactService,
+		EmbeddingService:         embeddingService,
+		ProcessingService:        processingService,
+		UploadService:            uploadService,
+		ExtractService:           extractionService,
+		RAGService:               ragService,
+		Logger:                   log,
 	})
 	conversationService.SetBillingService(billingService)
 	conversationService.SetAuditWriter(auditService)
 	conversationService.SetObjectStoreProvider(objectStoreProvider)
 	conversationService.SetMCPRepository(mcpRepo)
 	contentModerationRepo := contentmoderationrepo.NewRepo(db)
-	contentModerationService := appcontentmoderation.NewService(settingsRepo, contentModerationRepo, cfg.DataEncryptionKey, log)
+	contentModerationService := appcontentmoderation.NewService(settingsRepo, contentModerationRepo, keyring, log)
 	moderationClient := moderationclient.New(trustedOutboundPolicy)
 	contentModerationService.SetProvider(moderationClient)
 	contentModerationService.SetAuditWriter(auditService)
@@ -463,6 +490,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	adminService.SetOrderLogService(billingService)
 	adminService.SetConversationEventService(conversationService)
 	adminService.SetLogCleanupService(logCleanupService)
+	adminService.SetErrorLogService(errorLogService)
 	adminService.SetSubscriptionResolver(billingService)
 	adminService.SetOpenWebUIRowLoader(openwebui.NewRowLoader())
 	adminService.SetPermissionGroupRepo(channelRepo)
@@ -511,6 +539,9 @@ func NewAppWithOptions(opts Options) (*App, error) {
 
 	hc := newHealthChecker(db, cacheBackend)
 	rateLimiter := cacheBackend.RateLimiter()
+	personalProviderHandler := personalproviderhttp.NewHandler(personalProviderService)
+	personalProviderHandler.SetUserLabelResolver(adminService)
+	personalProviderModule := personalproviderhttp.NewModule(personalProviderHandler, rateLimiter)
 	engine, err := platformhttp.NewEngine(runtimeCfg, log, platformhttp.Modules{
 		Auth:              authModule,
 		AuthService:       authService,
@@ -529,7 +560,9 @@ func NewAppWithOptions(opts Options) (*App, error) {
 		Settings:          settingsModule,
 		UserSettings:      userSettingsModule,
 		User:              userModule,
+		PersonalProvider:  personalProviderModule,
 		Shutdown:          shutdownSignal,
+		ErrorRecorder:     errorLogService,
 		StartupLog: func(log *zap.Logger) {
 			if log == nil || bootstrapSuperAdmin == nil {
 				return
@@ -554,6 +587,15 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	contentModerationService.StartBackgroundWorkers(backgroundCtx)
 	channelService.StartModelIconAssetCleanup(backgroundCtx)
 	channelService.LoadModelCatalog(backgroundCtx)
+
+	// 配置了 DATA_ENCRYPTION_KEYS_PREVIOUS 时，把仍由旧主密钥加密的存量数据改用当前主密钥重新加密。
+	secretRotation := appsecretrotation.NewService(secretrotationrepo.NewRepo(db), keyring, log)
+	secretRotation.SetSensitiveSettings(
+		append(settings.SensitiveSettingKeys(), appcontentmoderation.SensitiveSettingKeys()...),
+		// 缓存里保存的是密文；替换后清除，避免移除旧主密钥后读到旧密文。
+		runtimeSettings.InvalidateCache,
+	)
+	secretRotation.Start(backgroundCtx)
 
 	app := &App{
 		stopCh:                 make(chan struct{}),
@@ -696,6 +738,25 @@ func httpMaxHeaderBytes(value int) int {
 		return 1 << 20
 	}
 	return value
+}
+
+// logOutboundProxy 在启动时记录出站代理是否生效，便于排查“设置了代理却仍直连”或“代理被 SSRF 拦截”等问题。
+// 只设置 ALL_PROXY 时单独告警：Go 标准库不读取它，部署方往往误以为代理已生效。
+func logOutboundProxy(log *zap.Logger, status sharedsecurity.OutboundProxyStatus, ssrfEnforced bool) {
+	if status.IgnoredAllProxy {
+		log.Warn("outbound_proxy_ignored",
+			zap.String("detail", "ALL_PROXY is set but not supported; set HTTP_PROXY and HTTPS_PROXY instead. Outbound requests connect directly."))
+		return
+	}
+	if !status.Configured() {
+		log.Info("outbound_proxy_disabled", zap.Bool("ssrf_protection", ssrfEnforced))
+		return
+	}
+	log.Info("outbound_proxy_enabled",
+		zap.String("http_proxy", status.HTTPProxy),
+		zap.String("https_proxy", status.HTTPSProxy),
+		zap.String("no_proxy", status.NoProxy),
+		zap.Bool("ssrf_protection", ssrfEnforced))
 }
 
 // Close 关闭资源。

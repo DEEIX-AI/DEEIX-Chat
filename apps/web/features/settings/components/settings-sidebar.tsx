@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { DEFAULT_SETTINGS_SECTION, resolveSettingsSectionFromPath, SETTINGS_SECTIONS } from "@/features/settings/model/settings-sections";
 import { cn } from "@/lib/utils";
 import { isSectionAvailable, useCapabilities } from "@/shared/capabilities";
+import { usePersonalProviderAccess } from "@/shared/hooks/use-personal-provider-access";
 
 export function SettingsSidebar({
   basePath,
@@ -17,7 +18,10 @@ export function SettingsSidebar({
   const pathname = usePathname();
   const activeSection = resolveSettingsSectionFromPath(pathname, basePath)?.id ?? DEFAULT_SETTINGS_SECTION;
   const { flags } = useCapabilities();
-  const visibleItems = SETTINGS_SECTIONS.filter((item) => isSectionAvailable(item, flags));
+  const personalProviders = usePersonalProviderAccess();
+  const visibleItems = SETTINGS_SECTIONS.filter(
+    (item) => isSectionAvailable(item, flags) && (item.id !== "models" || personalProviders.enabled),
+  );
 
   return (
     <aside className="w-full shrink-0 xl:max-w-64">

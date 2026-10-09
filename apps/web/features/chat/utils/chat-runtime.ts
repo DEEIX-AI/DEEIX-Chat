@@ -1,5 +1,10 @@
 import type { UpstreamDebugInfo } from "@/shared/api/conversation-types";
-import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
+import {
+  appendErrorReference,
+  resolveLocalizedErrorMessage,
+  resolveLocalizedErrorMessageWithoutReference,
+} from "@/i18n/resolve-error-message";
+import { ApiError } from "@/shared/api/http-client";
 import { isRecord, parseJSON } from "@/shared/lib/type-guards";
 
 const DEFAULT_MAX_FILES_PER_MESSAGE = 10;
@@ -47,11 +52,19 @@ export function resolveErrorMessage(error: unknown, fallback: string): string {
   return resolveLocalizedErrorMessage(error, fallback);
 }
 
+// resolveErrorReason returns the localized message without the error ID suffix, for inline alerts
+// that show the ID in its own copyable row.
+export function resolveErrorReason(error: unknown, fallback: string): string {
+  return resolveLocalizedErrorMessageWithoutReference(error, fallback);
+}
+
 export function resolveErrorSummary(error: unknown, fallback: string): string {
   const message = resolveErrorMessage(error, fallback);
   const details = resolveErrorDetails(error);
   const { statusCode, reason } = summarizeUpstreamError(message, details, fallback);
-  return [statusCode ? `HTTP ${statusCode}` : "", reason].filter(Boolean).join(": ");
+  const summary = [statusCode ? `HTTP ${statusCode}` : "", reason].filter(Boolean).join(": ");
+  // summarizeUpstreamError rebuilds the text from parts, so the error ID has to be re-appended here.
+  return appendErrorReference(summary, error);
 }
 
 export function summarizeUpstreamError(
@@ -71,6 +84,13 @@ export function summarizeUpstreamError(
 export function isUpstreamStreamingDebugBody(value: string | null | undefined): boolean {
   const raw = value?.trim() || "";
   return raw.startsWith("data:") || /(^|\n)\s*data:\s*/.test(raw) || /^HTTP\s*2\d\d\s*,?\s*data:/i.test(raw);
+}
+
+// resolveGenerationErrorId returns the request ID of a failed generation, whatever the status.
+// Unlike generic toasts (5xx only), a failed generation is persisted as a run under this same ID and
+// the server returns it as errorRequestID after a reload, so the live alert must show it too.
+export function resolveGenerationErrorId(error: unknown): string | undefined {
+  return error instanceof ApiError ? error.requestId?.trim() || undefined : undefined;
 }
 
 export function resolveErrorDetails(error: unknown): UpstreamDebugInfo | undefined {

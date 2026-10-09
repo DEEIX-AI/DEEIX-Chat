@@ -1,6 +1,7 @@
 import type {
   AdminUserResponse,
   AuditLogResponse,
+  ErrorLogResponse,
   AuthEventResponse,
   ConversationEventResponse,
   CreateUserRequest,
@@ -62,6 +63,7 @@ export type ImportOpenWebUIUsersData = Omit<ImportOpenWebUIUsersResponse, "dedup
 export type AdminUserAuthEventDTO = AuthEventResponse;
 
 export type AdminAuditLogDTO = AuditLogResponse;
+export type AdminErrorLogDTO = ErrorLogResponse;
 
 
 export type AdminUsageLogDTO = Omit<UsageLogResponse, "billingAt">;
