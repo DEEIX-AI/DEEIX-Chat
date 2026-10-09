@@ -236,6 +236,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	for _, warning := range cfg.SecurityWarnings() {
 		log.Warn("security_config_warning", zap.String("detail", warning))
 	}
+	logOutboundProxy(log, sharedsecurity.DescribeOutboundProxy(), cfg.TrustedOutboundPolicy().Enforced())
 
 	db, err := persistence.Open(cfg)
 	if err != nil {
@@ -728,6 +729,25 @@ func httpMaxHeaderBytes(value int) int {
 		return 1 << 20
 	}
 	return value
+}
+
+// logOutboundProxy 在启动时记录出站代理是否生效，便于排查“设置了代理却仍直连”或“代理被 SSRF 拦截”等问题。
+// 只设置 ALL_PROXY 时单独告警：Go 标准库不读取它，部署方往往误以为代理已生效。
+func logOutboundProxy(log *zap.Logger, status sharedsecurity.OutboundProxyStatus, ssrfEnforced bool) {
+	if status.IgnoredAllProxy {
+		log.Warn("outbound_proxy_ignored",
+			zap.String("detail", "ALL_PROXY is set but not supported; set HTTP_PROXY and HTTPS_PROXY instead. Outbound requests connect directly."))
+		return
+	}
+	if !status.Configured() {
+		log.Info("outbound_proxy_disabled", zap.Bool("ssrf_protection", ssrfEnforced))
+		return
+	}
+	log.Info("outbound_proxy_enabled",
+		zap.String("http_proxy", status.HTTPProxy),
+		zap.String("https_proxy", status.HTTPSProxy),
+		zap.String("no_proxy", status.NoProxy),
+		zap.Bool("ssrf_protection", ssrfEnforced))
 }
 
 // Close 关闭资源。
