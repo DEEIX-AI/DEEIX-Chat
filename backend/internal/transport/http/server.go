@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	apperrorlog "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/errorlog"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/buildinfo"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/lifecycle"
@@ -75,6 +76,8 @@ type Modules struct {
 	StartupLog        func(*zap.Logger)
 	// Shutdown 是进程关停排空信号；排空期间就绪探针返回 503，引导负载均衡摘除流量。
 	Shutdown *lifecycle.Shutdown
+	// ErrorRecorder 持久化失败请求供管理员按错误 ID 检索；nil 时只写进程日志。
+	ErrorRecorder middleware.ErrorRecorder
 }
 
 // hasAdminRoutes 报告是否存在需要注册到 /admin 路由组的模块；新增管理端模块时须同步更新此处。
@@ -116,8 +119,34 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		return nil, fmt.Errorf("configure trusted proxy headers: %w", err)
 	}
 	engine.Use(gin.CustomRecovery(func(c *gin.Context, recovered any) {
+		// recovery 在 RequestID 外层注册，但 panic 发生时请求上下文里已有 ID，可与用户看到的错误 ID 对应。
+		requestID := middleware.MustRequestID(c)
+		traceID := middleware.MustTraceID(c)
 		if log != nil {
-			log.Error("http_panic_recovered", zap.Any("error", recovered), zap.ByteString("stack", debug.Stack()))
+			log.Error("http_panic_recovered",
+				zap.String("request_id", requestID),
+				zap.String("trace_id", traceID),
+				zap.String("method", c.Request.Method),
+				zap.String("route", c.FullPath()),
+				zap.Any("error", recovered),
+				zap.ByteString("stack", debug.Stack()),
+			)
+		}
+		// panic 越过了 AccessLog，这里单独写入错误日志；堆栈只留在进程日志里。
+		if modules.ErrorRecorder != nil {
+			modules.ErrorRecorder.Record(c.Request.Context(), apperrorlog.RecordInput{
+				RequestID:  requestID,
+				TraceID:    traceID,
+				UserID:     middleware.MustUserID(c),
+				Method:     c.Request.Method,
+				Route:      c.FullPath(),
+				Path:       c.Request.URL.Path,
+				StatusCode: http.StatusInternalServerError,
+				ErrorCode:  response.CodeInternal,
+				Cause:      fmt.Sprintf("panic: %v", recovered),
+				ClientIP:   c.ClientIP(),
+				UserAgent:  c.Request.UserAgent(),
+			})
 		}
 		response.ErrorWithCode(c, http.StatusInternalServerError, response.CodeInternal)
 		c.Abort()
@@ -125,9 +154,10 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	engine.Use(otelgin.Middleware(snapshot.AppName, otelgin.WithFilter(func(req *http.Request) bool {
 		return req.URL.Path != "/healthz"
 	})))
-	engine.Use(middleware.RequestID())
+	// 先判定是否来自受信代理：RequestID 只沿用受信代理透传的 X-Request-ID。
 	engine.Use(trustedProxyHeaders)
-	engine.Use(middleware.AccessLog(log))
+	engine.Use(middleware.RequestID())
+	engine.Use(middleware.AccessLog(log, modules.ErrorRecorder))
 	engine.Use(middleware.SecurityHeaders())
 	engine.Use(middleware.CORS(snapshot.CORSAllowOrigin))
 

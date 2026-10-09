@@ -27,7 +27,7 @@ function areInlineAlertsEqual(
 ) {
   if (previous === next) return true;
   if (!previous || !next) return false;
-  return previous.title === next.title && previous.message === next.message;
+  return previous.title === next.title && previous.message === next.message && previous.errorId === next.errorId;
 }
 
 function areProcessTracesEqual(

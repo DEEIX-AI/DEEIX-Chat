@@ -46,7 +46,7 @@ func (h *Handler) CreateConversation(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -97,7 +97,7 @@ func (h *Handler) ListConversations(c *gin.Context) {
 		SearchQuery:   searchQuery,
 	})
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]ConversationResponse, 0, len(items))
@@ -138,7 +138,7 @@ func (h *Handler) SearchConversations(c *gin.Context) {
 		searchQuery,
 	)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]ConversationSearchResultResponse, 0, len(items))
@@ -200,7 +200,7 @@ func (h *Handler) GetConversation(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -234,7 +234,7 @@ func (h *Handler) ExportConversation(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -363,7 +363,7 @@ func (h *Handler) RenameConversation(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -408,7 +408,7 @@ func (h *Handler) RegenerateConversationTitle(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -464,7 +464,7 @@ func (h *Handler) UpdateConversationLabels(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -512,7 +512,7 @@ func (h *Handler) SetConversationStar(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -559,7 +559,7 @@ func (h *Handler) SetConversationArchive(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -603,7 +603,7 @@ func (h *Handler) DeleteConversation(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -662,7 +662,7 @@ func (h *Handler) ForkConversationFromMessage(c *gin.Context) {
 		case errors.Is(err, appconversation.ErrMessageForkHistoryIncomplete):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 		}
 		return
 	}

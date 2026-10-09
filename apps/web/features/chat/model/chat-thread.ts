@@ -272,6 +272,8 @@ export function mapServerMessage(
       msg.inlineAlert = {
         title: labels.generationInterrupted,
         message: resolveAssistantErrorMessage(item, labels, details),
+        // The server sets errorRequestID only for failed assistant messages; it survives reloads.
+        errorId: item.errorRequestID?.trim() || undefined,
         details,
       };
     }

@@ -19,27 +19,27 @@ import (
 
 func TestStreamErrorPayloadWithResultPreservesPersistedResult(t *testing.T) {
 	result := &appconversation.SendMessageResult{}
-	payload := streamErrorPayloadWithResult(errors.New("store generated video"), result)
+	payload := streamErrorPayloadWithResult(nil, errors.New("store generated video"), result)
 	if payload["type"] != "error" {
 		t.Fatalf("payload type = %#v, want error", payload["type"])
 	}
 	if _, ok := payload["data"]; !ok {
 		t.Fatalf("stream error payload lost persisted result: %#v", payload)
 	}
-	if _, ok := streamErrorPayloadWithResult(errors.New("no result"), nil)["data"]; ok {
+	if _, ok := streamErrorPayloadWithResult(nil, errors.New("no result"), nil)["data"]; ok {
 		t.Fatal("stream error payload must not carry data without a result")
 	}
 }
 
 func TestBillingStreamErrorPayloadCarriesResultWhenPresent(t *testing.T) {
-	withResult := streamErrorPayloadWithResult(appbilling.ErrUsageBalanceInsufficient, &appconversation.SendMessageResult{})
+	withResult := streamErrorPayloadWithResult(nil, appbilling.ErrUsageBalanceInsufficient, &appconversation.SendMessageResult{})
 	if withResult["type"] != "error" || withResult["errorCode"] != "billing.insufficient_funds" {
 		t.Fatalf("billing error payload = %#v", withResult)
 	}
 	if _, ok := withResult["data"]; !ok {
 		t.Fatalf("billing error payload lost persisted result: %#v", withResult)
 	}
-	if _, ok := streamErrorPayloadWithResult(appbilling.ErrUsageBalanceInsufficient, nil)["data"]; ok {
+	if _, ok := streamErrorPayloadWithResult(nil, appbilling.ErrUsageBalanceInsufficient, nil)["data"]; ok {
 		t.Fatal("billing error payload must not carry data without a result")
 	}
 }
@@ -88,7 +88,7 @@ func TestStreamErrorPayloadIncludesUpstreamDebug(t *testing.T) {
 		},
 	})
 
-	payload := streamErrorPayload(err)
+	payload := streamErrorPayload(nil, err)
 	debug, ok := payload["debug"].(*llm.UpstreamDebugSnapshot)
 	if !ok || debug == nil {
 		t.Fatalf("expected upstream debug payload, got %#v", payload["debug"])
@@ -129,7 +129,7 @@ func TestDescribeSendMessageErrorPreservesUpstreamRateLimit(t *testing.T) {
 	if mapped.Code != appconversation.MessageErrorCodeUpstreamRateLimited {
 		t.Fatalf("code = %q, want %q", mapped.Code, appconversation.MessageErrorCodeUpstreamRateLimited)
 	}
-	payload := streamErrorPayload(err)
+	payload := streamErrorPayload(nil, err)
 	if payload["status"] != http.StatusTooManyRequests {
 		t.Fatalf("payload status = %#v, want %d", payload["status"], http.StatusTooManyRequests)
 	}
@@ -305,7 +305,7 @@ func TestStreamAndHTTPErrorContractsAgree(t *testing.T) {
 		errors.Join(appconversation.ErrUpstreamRequestFailed, &llm.UpstreamError{StatusCode: http.StatusTooManyRequests}),
 	} {
 		described := describeSendMessageError(err)
-		payload := streamErrorPayload(err)
+		payload := streamErrorPayload(nil, err)
 		if payload["errorCode"] != described.Code || payload["message"] != described.Message || payload["status"] != described.Status {
 			t.Fatalf("stream payload %#v disagrees with description %#v", payload, described)
 		}
@@ -329,8 +329,72 @@ func TestStreamErrorPayloadClassifiesImageStreamConfigurationFailure(t *testing.
 		},
 	})
 
-	payload := streamErrorPayload(err)
+	payload := streamErrorPayload(nil, err)
 	if got := payload["errorCode"]; got != appconversation.MessageErrorCodeMediaImageStreamUnsupported {
 		t.Fatalf("errorCode = %#v, want %q", got, appconversation.MessageErrorCodeMediaImageStreamUnsupported)
+	}
+}
+
+func TestStreamErrorPayloadRecordsCauseForAccessLog(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/conversations/1/messages/stream", nil)
+	c.Set(middleware.ContextKeyRequestID, "req-stream-1")
+
+	cause := fmt.Errorf("persist assistant message: %w", errors.New("database is locked"))
+	payload := streamErrorPayload(c, cause)
+
+	if payload["requestId"] != "req-stream-1" {
+		t.Fatalf("expected requestId in stream error event, got %#v", payload["requestId"])
+	}
+	if strings.Contains(fmt.Sprint(payload), "database is locked") {
+		t.Fatalf("raw cause must not reach the client: %#v", payload)
+	}
+	if got := response.WrittenErrorCode(c); got != payload["errorCode"] {
+		t.Fatalf("expected recorded error code %v, got %q", payload["errorCode"], got)
+	}
+	if got := response.RecordedErrorCause(c); !errors.Is(got, cause) {
+		t.Fatalf("expected raw cause recorded for access log, got %v", got)
+	}
+}
+
+func TestStreamErrorPayloadDoesNotRecordUserCancelAsFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/conversations/1/messages/stream", nil)
+	c.Set(middleware.ContextKeyRequestID, "req-stop-1")
+
+	payload := streamErrorPayload(c, fmt.Errorf("media stream: %w", appconversation.ErrMessageGenerationCanceled))
+
+	if payload["errorCode"] == "" || payload["requestId"] != "req-stop-1" {
+		t.Fatalf("client still needs the terminal event: %#v", payload)
+	}
+	if code, cause := response.WrittenErrorCode(c), response.RecordedErrorCause(c); code != "" || cause != nil {
+		t.Fatalf("a user stop must not be recorded as a failure, got code=%q cause=%v", code, cause)
+	}
+}
+
+func TestStreamResumeInterruptedPayloadReferencesOriginalRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/conversation-runs/run_1/stream", nil)
+	c.Set(middleware.ContextKeyRequestID, "req-resume-2")
+
+	payload := streamResumeInterruptedPayload(c, "run_1", "req-origin-1")
+	if payload["requestId"] != "req-origin-1" {
+		t.Fatalf("resume error must reference the original generation request, got %#v", payload["requestId"])
+	}
+	cause := response.RecordedErrorCause(c)
+	if !errors.Is(cause, appconversation.ErrMessageGenerationInterrupted) ||
+		!strings.Contains(cause.Error(), "run_1") || !strings.Contains(cause.Error(), "req-origin-1") {
+		t.Fatalf("resume access log must link run and original request, got %v", cause)
+	}
+
+	// 查不到原始请求时退回续传请求自身的 ID，不能输出空 ID。
+	c2, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c2.Request = httptest.NewRequest(http.MethodGet, "/api/v1/conversation-runs/run_1/stream", nil)
+	c2.Set(middleware.ContextKeyRequestID, "req-resume-3")
+	if got := streamResumeInterruptedPayload(c2, "run_1", "")["requestId"]; got != "req-resume-3" {
+		t.Fatalf("expected fallback to the resume request id, got %#v", got)
 	}
 }

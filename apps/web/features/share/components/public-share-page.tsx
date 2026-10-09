@@ -96,6 +96,8 @@ function toReadOnlyMessageDTO(item: PublicSharedMessageDTO): MessageDTO {
     status: item.status || "success",
     errorCode: item.errorCode || "",
     errorMessage: item.errorMessage || "",
+    // Public shares never expose the owner's request IDs.
+    errorRequestID: "",
     attachments: item.attachments || "[]",
 		processTrace: item.processTrace,
     myFeedback: "",

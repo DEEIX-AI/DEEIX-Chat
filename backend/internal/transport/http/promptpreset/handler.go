@@ -331,5 +331,5 @@ func writePromptPresetError(c *gin.Context, err error) {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
-	response.InternalError(c)
+	response.InternalError(c, err)
 }

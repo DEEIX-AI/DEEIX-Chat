@@ -23,6 +23,7 @@ import (
 	appcontentmoderation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
+	apperrorlog "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/errorlog"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	appknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/knowledgebase"
 	applogcleanup "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/logcleanup"
@@ -69,6 +70,7 @@ import (
 	channelrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/channel"
 	contentmoderationrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/contentmoderation"
 	conversationrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/conversation"
+	errorlogrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/errorlog"
 	knowledgebaserepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/knowledgebase"
 	logcleanuprepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/logcleanup"
 	mcprepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/mcp"
@@ -252,6 +254,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	auditService := audit.NewService(auditRepo, log)
 	logCleanupRepo := logcleanuprepo.NewRepo(db)
 	logCleanupService := applogcleanup.NewService(logCleanupRepo, auditService)
+	errorLogService := apperrorlog.NewService(errorlogrepo.NewRepo(db), log)
 
 	// 初始化 settings 模块：种子数据 + 动态配置覆盖
 	settingsRepo := settingsrepo.NewRepo(db)
@@ -296,7 +299,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 		log.Warn("builtin openrouter pricing snapshot is invalid", zap.Error(err))
 	}
 	paymentCheckoutService := billing.NewPaymentCheckoutService(stripepayment.New(cfg.StrictOutboundPolicy()), epaypayment.New())
-	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg, officialPricingService, paymentCheckoutService, log)
+	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg, officialPricingService, paymentCheckoutService)
 	billingModule := billinghttp.NewModule(billingHandler)
 	// 对象存储工厂由组合根显式注入，避免服务实例依赖进程级可变状态。
 	objectStoreProvider := appstorage.NewRuntimeProvider(runtimeCfg, objectstorage.New)
@@ -484,6 +487,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	adminService.SetOrderLogService(billingService)
 	adminService.SetConversationEventService(conversationService)
 	adminService.SetLogCleanupService(logCleanupService)
+	adminService.SetErrorLogService(errorLogService)
 	adminService.SetSubscriptionResolver(billingService)
 	adminService.SetOpenWebUIRowLoader(openwebui.NewRowLoader())
 	adminService.SetPermissionGroupRepo(channelRepo)
@@ -555,6 +559,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 		User:              userModule,
 		PersonalProvider:  personalProviderModule,
 		Shutdown:          shutdownSignal,
+		ErrorRecorder:     errorLogService,
 		StartupLog: func(log *zap.Logger) {
 			if log == nil || bootstrapSuperAdmin == nil {
 				return

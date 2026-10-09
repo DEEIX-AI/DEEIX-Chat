@@ -359,6 +359,7 @@ export type StreamMessageEvent =
       status?: number;
       message: string;
       errorCode?: string;
+      requestId?: string;
       debug?: UpstreamDebugInfo;
       data?: SendMessageResult;
     };

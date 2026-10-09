@@ -47,6 +47,28 @@ func TestAttachmentDurationSecondsFromMetaJSON(t *testing.T) {
 	}
 }
 
+func TestListConversationRunStatusesIncludesRequestIDScopedToUser(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	for _, run := range []domainconversation.Run{
+		{RunID: "run_owned", RequestID: "req-origin-1", UserID: 1, ConversationID: 10, Status: "error", StartedAt: time.Now()},
+		{RunID: "run_foreign", RequestID: "req-foreign", UserID: 2, ConversationID: 20, Status: "error", StartedAt: time.Now()},
+	} {
+		if err := repo.CreateConversationRun(ctx, &run); err != nil {
+			t.Fatalf("create run %s: %v", run.RunID, err)
+		}
+	}
+
+	items, err := repo.ListConversationRunStatusesByRunIDs(ctx, 1, []string{"run_owned", "run_foreign"})
+	if err != nil {
+		t.Fatalf("list run statuses: %v", err)
+	}
+	if len(items) != 1 || items[0].RunID != "run_owned" || items[0].RequestID != "req-origin-1" || items[0].Status != "error" {
+		t.Fatalf("expected only the caller's run with its request id, got %#v", items)
+	}
+}
+
 func TestConversationRunClaimIsUniqueAndOwnershipCannotBeTransferred(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)
@@ -1768,5 +1790,36 @@ func TestHistoricalMessageScopeStopsAtUserBoundary(t *testing.T) {
 	}
 	if len(messageIDs) != 0 {
 		t.Fatalf("expected traversal to stop at foreign-user parent, got message ids %v", messageIDs)
+	}
+}
+
+func TestListConversationEventLogsMatchesOriginatingRequestID(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	for _, run := range []domainconversation.Run{
+		{RunID: "run_target", RequestID: "req-target", UserID: 1, ConversationID: 10, Status: "error", StartedAt: time.Now()},
+		{RunID: "run_other", RequestID: "req-other", UserID: 1, ConversationID: 10, Status: "success", StartedAt: time.Now()},
+	} {
+		if err := repo.CreateConversationRun(ctx, &run); err != nil {
+			t.Fatalf("create run %s: %v", run.RunID, err)
+		}
+	}
+	for _, event := range []models.ChatRunEvent{
+		{RunID: "run_target", EventScope: "trace_event", EventID: "e1", EventType: "error", UserID: 1, ConversationID: 10},
+		{RunID: "run_other", EventScope: "trace_event", EventID: "e2", EventType: "completed", UserID: 1, ConversationID: 10},
+	} {
+		event := event
+		if err := db.Create(&event).Error; err != nil {
+			t.Fatalf("create event: %v", err)
+		}
+	}
+
+	items, total, err := repo.ListConversationEventLogs(ctx, repository.ConversationEventLogListFilter{Query: "req-target"}, 0, 20)
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	if total != 1 || len(items) != 1 || items[0].RunID != "run_target" {
+		t.Fatalf("expected only the run created by req-target, got total=%d %#v", total, items)
 	}
 }

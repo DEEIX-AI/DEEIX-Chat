@@ -25,7 +25,7 @@ import (
 func (h *Handler) GetOpenRouterOfficialPricing(c *gin.Context) {
 	refresh := strings.EqualFold(strings.TrimSpace(c.Query("refresh")), "true")
 	if h.officialPricing == nil {
-		response.InternalError(c)
+		response.InternalError(c, errors.New("official pricing service is not configured"))
 		return
 	}
 	result, err := h.officialPricing.GetOpenRouterOfficialPricing(c.Request.Context(), refresh)
@@ -33,7 +33,7 @@ func (h *Handler) GetOpenRouterOfficialPricing(c *gin.Context) {
 		if errors.Is(err, appbilling.ErrOfficialPricingCacheUnavailable) ||
 			errors.Is(err, appbilling.ErrOfficialPricingCacheReadFailed) ||
 			errors.Is(err, appbilling.ErrOfficialPricingCacheWriteFailed) {
-			response.InternalError(c)
+			response.InternalError(c, err)
 		} else {
 			response.ErrorFrom(c, http.StatusBadGateway, errUpstreamServiceUnavailable)
 		}

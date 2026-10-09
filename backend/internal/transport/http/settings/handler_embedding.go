@@ -85,7 +85,7 @@ func (h *Handler) GetEmbeddingStatus(c *gin.Context) {
 	defer cancel()
 	status, err := h.embeddingSvc.GetIndexStatus(ctx)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toEmbeddingIndexStatusResponse(status))
@@ -114,7 +114,7 @@ func (h *Handler) TriggerReindex(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, EmbeddingReindexResponse{Submitted: submitted, Message: "reindex jobs submitted"})

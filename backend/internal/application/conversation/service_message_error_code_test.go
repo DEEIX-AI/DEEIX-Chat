@@ -122,3 +122,18 @@ func TestMapRouteResolutionErrorPreservesFailureSemantics(t *testing.T) {
 		})
 	}
 }
+
+func TestWrapUpstreamRequestErrorDoesNotRepeatPrefix(t *testing.T) {
+	upstream := &llm.UpstreamError{StatusCode: http.StatusNotFound, Message: "Not Found"}
+	err := wrapUpstreamRequestError(upstream)
+	if got := err.Error(); got != "upstream request failed: status=404 message=Not Found" {
+		t.Fatalf("unexpected message: %q", got)
+	}
+	var target *llm.UpstreamError
+	if !errors.Is(err, ErrUpstreamRequestFailed) || !errors.As(err, &target) {
+		t.Fatalf("wrapped error must keep both the sentinel and the upstream error in its chain")
+	}
+	if got := wrapUpstreamRequestError(appchannel.ErrAllRoutesUnavailable).Error(); got != "upstream request failed: "+appchannel.ErrAllRoutesUnavailable.Error() {
+		t.Fatalf("non-upstream causes keep the prefix: %q", got)
+	}
+}

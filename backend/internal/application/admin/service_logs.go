@@ -7,10 +7,12 @@ import (
 	auditapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
+	apperrorlog "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/errorlog"
 	applogcleanup "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/logcleanup"
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainerrorlog "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/errorlog"
 )
 
 // ListAuditLogs 查询审计日志分页列表。
@@ -75,6 +77,14 @@ func (s *Service) GetConversationEventLog(ctx context.Context, eventID uint) (*d
 		return nil, appconversation.ErrConversationEventNotFound
 	}
 	return s.conversationEventSvc.GetConversationEventLog(ctx, eventID)
+}
+
+// ListErrorLogs 查询失败请求错误日志，供管理员按错误 ID 检索原始原因。
+func (s *Service) ListErrorLogs(ctx context.Context, page int, pageSize int, filter apperrorlog.ListFilter) ([]domainerrorlog.Log, int64, error) {
+	if s.errorLogService == nil {
+		return []domainerrorlog.Log{}, 0, nil
+	}
+	return s.errorLogService.List(ctx, page, pageSize, filter)
 }
 
 // CleanupLogs 物理清理指定截止时间之前的一类日志。

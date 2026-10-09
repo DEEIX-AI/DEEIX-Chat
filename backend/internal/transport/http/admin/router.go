@@ -10,6 +10,7 @@ import (
 // 订单与兑换记录属于计费门禁，账号与权限组只在多用户部署里有对象；能力键的含义见 docs/ARCHITECTURE.md §4。
 func (m *Module) RegisterRoutes(adminGroup *gin.RouterGroup, gate middleware.FeatureGate) {
 	adminGroup.GET("/audit-logs", m.Handler.ListAuditLogs)
+	adminGroup.GET("/error-logs", m.Handler.ListErrorLogs)
 	adminGroup.GET("/usage-statistics", m.Handler.GetUsageStatistics)
 	adminGroup.GET("/call-logs", m.Handler.ListUsageLogs)
 	adminGroup.GET("/conversation-events", m.Handler.ListConversationEvents)

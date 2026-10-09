@@ -132,7 +132,7 @@ func (h *Handler) ExchangeLocalGrant(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidLocalGrant)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	h.respondWithSession(c, result)

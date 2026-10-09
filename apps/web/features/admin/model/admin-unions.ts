@@ -52,5 +52,6 @@ export const isAdminUsageStatisticsRankBy = isOneOf(ADMIN_USAGE_STATISTICS_RANK_
 export const PERMISSION_GROUP_MODEL_RULE_TYPES = ["all", "vendor", "protocol", "upstream"] as const;
 export const isPermissionGroupModelRuleType = isOneOf(PERMISSION_GROUP_MODEL_RULE_TYPES);
 
-export const ADMIN_LOG_CLEANUP_TYPES = ["audit", "auth", "usage", "orders", "conversation", "moderation"] as const;
+export const ADMIN_LOG_CLEANUP_TYPES = ["audit", "auth", "usage", "orders", "conversation", "moderation", "errors"] as const;
+export const ADMIN_ERROR_LOG_STATUS_CLASSES = ["5xx", "stream"] as const;
 export const isAdminLogCleanupType = isOneOf(ADMIN_LOG_CLEANUP_TYPES);

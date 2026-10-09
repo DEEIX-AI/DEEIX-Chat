@@ -33,7 +33,7 @@ func NewHandler(service *appmcp.Service) *Handler {
 func (h *Handler) ListServers(c *gin.Context) {
 	items, err := h.service.ListServers(c.Request.Context())
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]ServerResponse, 0, len(items))
@@ -55,7 +55,7 @@ func (h *Handler) ListServers(c *gin.Context) {
 func (h *Handler) ListAvailableTools(c *gin.Context) {
 	items, err := h.service.ListAvailableTools(c.Request.Context())
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]ToolResponse, 0, len(items))
@@ -151,7 +151,7 @@ func (h *Handler) DeleteServer(c *gin.Context) {
 		return
 	}
 	if err := h.service.DeleteServer(c.Request.Context(), serverID); err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, DeleteServerResponse{Deleted: true})
@@ -217,7 +217,7 @@ func (h *Handler) ListServerTools(c *gin.Context) {
 	}
 	items, err := h.service.ListTools(c.Request.Context(), serverID, false)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]ToolResponse, 0, len(items))
@@ -373,7 +373,7 @@ func writeServiceError(c *gin.Context, err error) {
 	case errors.Is(err, appmcp.ErrMCPClientUnavailable):
 		response.ErrorFrom(c, http.StatusInternalServerError, err)
 	default:
-		response.InternalError(c)
+		response.InternalError(c, err)
 	}
 }
 

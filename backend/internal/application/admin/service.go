@@ -12,12 +12,14 @@ import (
 	authapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/auth"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
+	apperrorlog "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/errorlog"
 	applogcleanup "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/logcleanup"
 	userapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/userview"
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainerrorlog "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/errorlog"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -68,6 +70,10 @@ type logCleanupService interface {
 	Cleanup(ctx context.Context, input applogcleanup.Input) (*applogcleanup.Result, error)
 }
 
+type errorLogService interface {
+	List(ctx context.Context, page int, pageSize int, filter apperrorlog.ListFilter) ([]domainerrorlog.Log, int64, error)
+}
+
 type authSecurityService interface {
 	GetCurrentTwoFactorStatus(ctx context.Context, userID uint) (*authapp.TwoFactorStatusResult, error)
 	ResetUserTwoFactorByAdmin(ctx context.Context, userID uint) error
@@ -82,6 +88,7 @@ type Service struct {
 	orderLogService                            orderLogService
 	conversationEventSvc                       conversationEventService
 	logCleanupService                          logCleanupService
+	errorLogService                            errorLogService
 	authSecurityService                        authSecurityService
 	subscriptionResolver                       subscriptionResolver
 	openWebUIRowLoader                         openWebUIRowLoader
@@ -220,6 +227,11 @@ func (s *Service) SetConversationEventService(service conversationEventService) 
 // SetLogCleanupService 注入日志清理能力。
 func (s *Service) SetLogCleanupService(service logCleanupService) {
 	s.logCleanupService = service
+}
+
+// SetErrorLogService 注入错误日志查询能力。
+func (s *Service) SetErrorLogService(service errorLogService) {
+	s.errorLogService = service
 }
 
 // SetSubscriptionResolver 注入订阅派生解析能力。

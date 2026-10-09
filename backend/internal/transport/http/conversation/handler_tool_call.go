@@ -47,7 +47,7 @@ func (h *Handler) GetConversationToolCallDetail(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toConversationToolCallDetailResponse(item))

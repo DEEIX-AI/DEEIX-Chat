@@ -259,6 +259,8 @@ func TestTransportDoesNotBypassErrorEnvelope(t *testing.T) {
 	root := filepath.Clean("../../transport/http")
 	abortPattern := regexp.MustCompile(`AbortWithStatus\(\s*http\.Status([A-Za-z]+)\s*\)`)
 	rawErrorPattern := regexp.MustCompile(`gin\.H\s*\{\s*"errorMsg"\s*:`)
+	// 内部错误必须带上真实原因，否则访问日志里只剩 internal.error，管理员无法按 requestId 定位。
+	nilCausePattern := regexp.MustCompile(`response\.InternalError\(\s*c\s*,\s*nil\s*\)`)
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" {
 			return walkErr
@@ -275,6 +277,9 @@ func TestTransportDoesNotBypassErrorEnvelope(t *testing.T) {
 		}
 		if rawErrorPattern.MatchString(text) {
 			t.Fatalf("%s writes raw errorMsg JSON; use the response package", path)
+		}
+		if nilCausePattern.MatchString(text) {
+			t.Fatalf("%s calls response.InternalError with a nil cause; pass the real error so it reaches the access log", path)
 		}
 		return nil
 	})

@@ -56,7 +56,7 @@
     }
   },
   "usage": {
-    "searchPlaceholder": "搜索用户 ID、平台模型、上游模型、上游名、绑定编码、协议",
+    "searchPlaceholder": "搜索用户 ID、平台模型、上游模型、上游名、绑定编码、协议、运行 ID 或错误 ID",
     "empty": "暂无调用日志",
     "filters": {
       "billingMode": "计费模式",
@@ -129,7 +129,8 @@
     "orders": "订单记录",
     "redemptions": "兑换记录",
     "conversation": "对话事件",
-    "moderation": "审核事件"
+    "moderation": "审核事件",
+    "errors": "错误日志"
   },
   "cleanup": {
     "trigger": "清理日志",
@@ -149,7 +150,8 @@
       "usage": "模型调用",
       "orders": "订单记录",
       "conversation": "对话事件",
-      "moderation": "审核事件"
+      "moderation": "审核事件",
+      "errors": "错误日志"
     },
     "impacts": {
       "audit": "仅删除管理员和用户操作的追踪记录，不会删除用户、会话或其他业务数据。",
@@ -157,7 +159,8 @@
       "usage": "删除用量与费用账本，会影响历史日/月用量、当前周期额度统计和计费追溯，并可能使已清理周期的已用额度下降。",
       "orders": "删除支付订单及回调关联依据，不会撤销已发放的余额或订阅，但旧支付回调可能失败，支付追溯和幂等依据将丢失。",
       "conversation": "删除消息处理轨迹、工具调用和运行事件；会话与消息正文保留，但历史处理过程和工具详情可能不再展示。",
-      "moderation": "删除内容审核事件及其判定结果，不会改变审核配置或当前对话内容。"
+      "moderation": "删除内容审核事件及其判定结果，不会改变审核配置或当前对话内容。",
+      "errors": "删除失败请求的原始错误原因，删除后无法再按错误 ID 查询这些请求。不影响会话、用量和其他业务数据。"
     },
     "toast": {
       "sessionExpired": "登录状态已失效",
@@ -281,7 +284,7 @@
     }
   },
   "conversation": {
-    "searchPlaceholder": "搜索用户 ID、运行 ID、事件、阶段、标题、工具名",
+    "searchPlaceholder": "搜索用户 ID、运行 ID、错误 ID、事件、阶段、标题、工具名",
     "empty": "暂无对话事件",
     "filters": {
       "all": "全部",
@@ -465,5 +468,54 @@
     "blocks": {
       "event": "事件"
     }
+  },
+  "errors": {
+    "searchPlaceholder": "输入错误 ID 精确查找，或搜索路由、错误码、上游响应内容",
+    "empty": "暂无错误日志",
+    "noCause": "调用方未记录原因",
+    "statusClass": {
+      "label": "类型",
+      "all": "全部",
+      "server": "服务端错误 (5xx)",
+      "stream": "流式中断"
+    },
+    "columns": {
+      "requestID": "错误 ID",
+      "user": "用户",
+      "route": "路由",
+      "status": "状态",
+      "errorCode": "错误码",
+      "cause": "原因",
+      "latency": "耗时",
+      "time": "时间"
+    },
+    "detail": {
+      "title": "错误详情",
+      "request": "请求",
+      "cause": "原始原因",
+      "client": "客户端",
+      "requestID": "错误 ID",
+      "traceID": "追踪 ID",
+      "method": "方法",
+      "route": "路由",
+      "path": "路径",
+      "status": "HTTP 状态",
+      "errorCode": "对外错误码",
+      "user": "用户",
+      "latency": "耗时",
+      "clientIP": "IP",
+      "userAgent": "User-Agent",
+      "time": "时间",
+      "copyCause": "复制原因",
+      "copied": "已复制",
+      "copyFailed": "复制失败",
+      "relatedHint": "生成类请求的事件与用量可在「对话事件」「模型调用」中用同一错误 ID 搜索。",
+      "upstream": "上游原始响应",
+      "viewRaw": "原文",
+      "viewFormatted": "格式化",
+      "copyUpstream": "复制上游响应",
+      "noUpstream": "该错误没有携带上游响应内容"
+    },
+    "loadFailed": "加载错误日志失败"
   }
 }

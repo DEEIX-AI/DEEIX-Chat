@@ -38,7 +38,7 @@ func (h *Handler) GetConversationShare(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toConversationShareResponse(result))
@@ -215,7 +215,7 @@ func (h *Handler) GetPublicSharedConversation(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toPublicSharedConversationResponse(result))
@@ -252,7 +252,7 @@ func (h *Handler) CloneSharedConversation(c *gin.Context) {
 		case errors.Is(err, appconversation.ErrStorageQuotaExceeded):
 			response.ErrorFrom(c, http.StatusBadRequest, errStorageQuotaExceeded)
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 		}
 		return
 	}
@@ -296,7 +296,7 @@ func (h *Handler) GetPublicSharedFileContent(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, appconversation.ErrFileNotFound)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -314,6 +314,6 @@ func writeConversationShareError(c *gin.Context, err error) {
 	case errors.Is(err, appconversation.ErrConversationShareSchemaOutdated):
 		response.ErrorFrom(c, http.StatusInternalServerError, err)
 	default:
-		response.InternalError(c)
+		response.InternalError(c, err)
 	}
 }

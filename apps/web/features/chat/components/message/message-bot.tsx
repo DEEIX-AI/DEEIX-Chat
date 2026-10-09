@@ -1,27 +1,23 @@
 "use client";
 
-import { ChevronDown, CircleAlert, Film, GalleryHorizontalEnd } from "lucide-react";
+import { Check, ChevronDown, CircleAlert, Film, GalleryHorizontalEnd, Hash } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import * as React from "react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-} from "@/components/ui/accordion";
 import {
   Alert,
   AlertDescription,
 } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MessageAttachmentRow } from "@/features/chat/components/message/message-attachment";
 import { MessageKnowledgeSources } from "@/features/chat/components/message/message-knowledge-sources";
 import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
 import { AssistantMessageMeta } from "@/features/chat/components/message/message-meta";
 import { MessageAgentTrace, MessageProcessTrace } from "@/features/chat/components/message/message-process-trace";
+import { UpstreamExchangeDetails } from "@/features/chat/components/message/message-upstream-debug";
 import { useChatInlineVideoSource } from "@/features/chat/hooks/use-chat-inline-video-source";
 import type { ChatRegenerateReasoningOptions } from "@/features/chat/model/chat-reasoning-effort";
 import { resolveLeadingImagePreview } from "@/features/chat/model/media-image-preview";
@@ -42,6 +38,7 @@ import { type MarkdownArtifactActions, MarkdownImage } from "@/shared/components
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { MediaActionBar, MediaActionButton } from "@/shared/components/media-action-bar";
 import { useBranding } from "@/shared/config/branding-provider";
+import { useCopyAction } from "@/shared/components/copy-action";
 import type { BillingDisplayCurrency } from "@/entities/billing";
 import type { ReasoningEffortLevel } from "@/entities/model";
 
@@ -550,6 +547,7 @@ export function ChatInlineAlertCard({
           <ChevronDown className={cn("mt-0.5 size-4 shrink-0 text-destructive/70 transition-transform", detailsOpen && "rotate-180")} />
         ) : null}
       </button>
+      {alert.errorId ? <ChatInlineAlertErrorId errorId={alert.errorId} /> : null}
       {hasDetails ? (
         <AlertDescription className="w-full min-w-0 max-w-full justify-self-stretch justify-items-stretch break-words [overflow-wrap:anywhere]">
           <UpstreamExchangeDetails details={details} open={detailsOpen} onOpenChange={setDetailsOpen} />
@@ -559,95 +557,38 @@ export function ChatInlineAlertCard({
   );
 }
 
-function UpstreamExchangeDetails({
-  details,
-  open,
-  onOpenChange,
-}: {
-  details?: ChatInlineAlert["details"];
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const t = useTranslations("chat.messages");
-
+// ChatInlineAlertErrorId renders the server error ID as a message meta chip (same style as the model and
+// token chips); clicking copies it. It sits outside the toggle button because buttons cannot nest.
+function ChatInlineAlertErrorId({ errorId }: { errorId: string }) {
+  const t = useTranslations("chat.composer");
+  const { copy, copied } = useCopyAction({
+    messages: { copied: t("errorIdCopied"), failed: t("errorIdCopyFailed") },
+  });
   return (
-    <Accordion
-      type="single"
-      collapsible
-      value={open ? "upstream-debug" : ""}
-      onValueChange={(value) => onOpenChange(value === "upstream-debug")}
-      className="w-full min-w-0 max-w-full text-xs text-foreground"
-    >
-      <AccordionItem value="upstream-debug" className="w-full min-w-0 max-w-full border-b-0">
-        <AccordionContent className="w-full min-w-0 max-w-full pb-0 pt-3">
-          <Tabs defaultValue="request" className="min-w-0 w-full max-w-full overflow-hidden">
-            <TabsList className="h-7 gap-1">
-              <TabsTrigger value="request">{t("debugRequest")}</TabsTrigger>
-              <TabsTrigger value="response">{t("debugResponse")}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="request" className="min-w-0 w-full max-w-full overflow-hidden">
-              <DebugCodeBlock value={rawRequestBody(details)} />
-            </TabsContent>
-            <TabsContent value="response" className="min-w-0 w-full max-w-full overflow-hidden">
-              <DebugCodeBlock value={rawResponseBody(details)} />
-            </TabsContent>
-          </Tabs>
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
+    <div className="col-start-2 mt-1">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={t("copyErrorId")}
+            onClick={() => void copy(errorId)}
+            className="inline-flex max-w-full items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] leading-3.5 text-muted-foreground/70 whitespace-nowrap outline-none transition-colors hover:bg-muted/50 hover:text-muted-foreground focus-visible:bg-muted/50"
+          >
+            <span className="sr-only">{t("errorId")}</span>
+            {copied ? (
+              <Check className="size-3 shrink-0" strokeWidth={1.4} />
+            ) : (
+              <Hash className="size-3 shrink-0" strokeWidth={1.4} />
+            )}
+            <span className="truncate">{errorId}</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64">
+          {t("errorId")} · {t("errorIdHint")}
+        </TooltipContent>
+      </Tooltip>
+    </div>
   );
-}
-
-function rawRequestBody(details?: ChatInlineAlert["details"]): string {
-  return details?.request?.body ?? "";
-}
-
-function rawResponseBody(details?: ChatInlineAlert["details"]): string {
-  return details?.response?.body ?? "";
-}
-
-function DebugCodeBlock({ value }: { value: string }) {
-  return (
-    <pre className="block max-h-96 min-w-0 w-full max-w-full justify-self-stretch overflow-y-auto overflow-x-hidden rounded-md bg-muted/45 px-4 py-3 text-[12px] leading-6 whitespace-pre-wrap break-words text-foreground [overflow-wrap:anywhere]">
-      <code>{formatDebugValue(value)}</code>
-    </pre>
-  );
-}
-
-function formatDebugValue(value: string): string {
-  const raw = value.trim();
-  if (!raw) {
-    return "";
-  }
-  const parsedSSE = formatSSEData(raw);
-  if (parsedSSE) {
-    return parsedSSE;
-  }
-  return formatJSON(raw);
-}
-
-function formatSSEData(value: string): string {
-  if (!/(^|\n)data:\s*/.test(value)) {
-    return "";
-  }
-  const payloads = value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice("data:".length).trim())
-    .filter((line) => line && line !== "[DONE]");
-  if (payloads.length === 0) {
-    return value;
-  }
-  return payloads.map(formatJSON).join("\n\n");
-}
-
-function formatJSON(value: string): string {
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2);
-  } catch {
-    return value;
-  }
 }
 
 export function AssistantMessageSkeleton({ fileProc, label }: { fileProc?: boolean; label?: string } = {}) {

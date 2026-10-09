@@ -43,7 +43,7 @@ func (h *Handler) GetContextArtifact(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toContextArtifactResponse(item))

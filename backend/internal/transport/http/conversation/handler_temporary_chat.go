@@ -83,6 +83,7 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 	generationCtx, releaseLifecycle, ok := h.service.AcquireMessageGenerationLifecycle(c.Request.Context())
 	if !ok {
 		_ = session.Finish(c.Request.Context(), nil)
+		response.RecordError(c, errGenerationLifecycleUnavailable)
 		response.ErrorWithCode(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable)
 		return
 	}
@@ -117,7 +118,7 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 
 	billingErr := session.Finish(c.Request.Context(), result)
 	if billingErr != nil && clientConnected() {
-		_ = writeEvent(streamErrorPayload(billingErr))
+		_ = writeEvent(streamErrorPayload(c, billingErr))
 	}
 	if streamErr == nil && billingErr != nil {
 		h.recordTemporaryChatAuditAsync(c, req, len(input.Attachments), "billing_failed")
@@ -132,14 +133,14 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 	}
 	if streamErr != nil {
 		if clientConnected() {
-			_ = writeEvent(streamErrorPayload(streamErr))
+			_ = writeEvent(streamErrorPayload(c, streamErr))
 		}
 		h.recordTemporaryChatAuditAsync(c, req, len(input.Attachments), "failed")
 		return
 	}
 	_ = writeEvent(map[string]any{
 		"type": "completed",
-		"data": toSendMessageResponse(result),
+		"data": toSendMessageResponse(result, middleware.MustRequestID(c)),
 	})
 	h.recordTemporaryChatAuditAsync(c, req, len(input.Attachments), "completed")
 }
@@ -164,7 +165,7 @@ func (h *Handler) bindTemporaryChatRequest(c *gin.Context) (
 
 	policy, err := h.service.GetChatFilePolicy(c.Request.Context(), middleware.MustUserID(c))
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return TemporaryChatMessageRequest{}, nil, noop, false
 	}
 	maxUploadBytes := policy.MaxUploadFileBytes

@@ -39,7 +39,8 @@
   "errors": {
     "unknown": "操作失败，请稍后重试。",
     "sessionExpired": "登录状态已失效，请重新登录。",
-    "copyFailed": "复制失败，请手动选择内容复制。"
+    "copyFailed": "复制失败，请手动选择内容复制。",
+    "errorReference": "错误 ID：{requestId}（反馈时请提供）"
   },
   "navigation": {
     "newChat": "新对话",

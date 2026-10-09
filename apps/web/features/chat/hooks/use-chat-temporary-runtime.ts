@@ -16,7 +16,8 @@ import type { PendingAttachment } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage, MessageAttachment, UserMessageEditMode } from "@/features/chat/types/messages";
 import {
   resolveErrorDetails,
-  resolveErrorMessage,
+  resolveGenerationErrorId,
+  resolveErrorReason,
   resolveErrorSummary,
 } from "@/features/chat/utils/chat-runtime";
 import {
@@ -513,7 +514,7 @@ export function useChatTemporaryRuntime({
         }));
         return false;
       }
-      const errorMessage = aborted ? "" : resolveErrorMessage(error, tSubmit("retryLater"));
+      const errorMessage = aborted ? "" : resolveErrorReason(error, tSubmit("retryLater"));
       const errorDetails = aborted ? undefined : resolveErrorDetails(error);
       updateMessage(assistantID, (message) => ({
         ...message,
@@ -526,6 +527,7 @@ export function useChatTemporaryRuntime({
           : {
               title: tSubmit("generationInterrupted"),
               message: errorMessage,
+              errorId: resolveGenerationErrorId(error),
               details: errorDetails,
             },
       }));

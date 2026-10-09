@@ -12,6 +12,7 @@ const (
 	LogCleanupTypeOrders       = "orders"
 	LogCleanupTypeConversation = "conversation"
 	LogCleanupTypeModeration   = "moderation"
+	LogCleanupTypeErrors       = "errors"
 )
 
 // LogCleanupRepository 定义管理员日志物理清理能力。

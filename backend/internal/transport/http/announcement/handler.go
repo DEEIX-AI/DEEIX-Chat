@@ -38,7 +38,7 @@ func (h *Handler) ListAnnouncements(c *gin.Context) {
 	includeDismissed, _ := strconv.ParseBool(c.Query("include_dismissed"))
 	items, err := h.service.ListActive(c.Request.Context(), middleware.MustUserID(c), time.Now(), includeDismissed)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, toAnnouncementResponses(items))
@@ -144,7 +144,7 @@ func (h *Handler) ListAdminAnnouncements(c *gin.Context) {
 		PageSize: pageSize,
 	})
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.SuccessPage(c, total, toAnnouncementResponses(items))
@@ -255,5 +255,5 @@ func writeAnnouncementError(c *gin.Context, err error) {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
-	response.InternalError(c)
+	response.InternalError(c, err)
 }

@@ -58,7 +58,7 @@ func (h *Handler) UpdateMessage(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -123,7 +123,7 @@ func (h *Handler) SetMessageFeedback(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -179,7 +179,7 @@ func (h *Handler) ListMessages(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -197,7 +197,7 @@ func (h *Handler) ListMessages(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	runModels := map[string]model.Run{}
@@ -209,7 +209,7 @@ func (h *Handler) ListMessages(c *gin.Context) {
 				response.ErrorFrom(c, http.StatusNotFound, runErr)
 				return
 			}
-			response.InternalError(c)
+			response.InternalError(c, runErr)
 			return
 		}
 		for _, run := range runs {
@@ -252,7 +252,7 @@ func (h *Handler) ListConversationPreviewMessages(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]ConversationPreviewMessageResponse, 0, len(items))
@@ -293,7 +293,7 @@ func (h *Handler) ListConversationRuns(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -303,7 +303,7 @@ func (h *Handler) ListConversationRuns(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	runResults := make([]RunResponse, 0, len(items))
@@ -338,7 +338,7 @@ func (h *Handler) GetConversationRunStatuses(c *gin.Context) {
 		req.RunIDs,
 	)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	statuses := make([]ConversationRunStatusResponse, 0, len(items))
