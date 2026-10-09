@@ -69,7 +69,7 @@ func (h *Handler) RefreshModelCatalog(c *gin.Context) {
 		case errors.Is(err, appchannel.ErrModelCatalogFetchFailed):
 			response.ErrorFrom(c, http.StatusBadGateway, err)
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 		}
 		return
 	}

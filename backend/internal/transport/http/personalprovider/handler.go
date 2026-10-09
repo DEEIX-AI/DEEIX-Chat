@@ -391,5 +391,5 @@ func writeError(c *gin.Context, err error) {
 			return
 		}
 	}
-	response.InternalError(c)
+	response.InternalError(c, err)
 }

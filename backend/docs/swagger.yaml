@@ -3628,6 +3628,84 @@ definitions:
     - data
     - errorMsg
     type: object
+  ErrorLogListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/ErrorLogResponse'
+            type: array
+          total:
+            type: integer
+        required:
+        - results
+        - total
+        type: object
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ErrorLogResponse:
+    properties:
+      cause:
+        type: string
+      clientIP:
+        type: string
+      createdAt:
+        type: string
+      detail:
+        type: string
+      errorCode:
+        type: string
+      id:
+        type: integer
+      latencyMS:
+        type: integer
+      method:
+        type: string
+      path:
+        type: string
+      requestID:
+        type: string
+      route:
+        type: string
+      statusCode:
+        type: integer
+      traceID:
+        type: string
+      userAgent:
+        type: string
+      userDisplayName:
+        type: string
+      userID:
+        type: integer
+      userLabel:
+        type: string
+      userUsername:
+        type: string
+    required:
+    - cause
+    - clientIP
+    - createdAt
+    - detail
+    - errorCode
+    - id
+    - latencyMS
+    - method
+    - path
+    - requestID
+    - route
+    - statusCode
+    - traceID
+    - userAgent
+    - userDisplayName
+    - userID
+    - userLabel
+    - userUsername
+    type: object
   FeaturePolicyResponse:
     properties:
       desktopDownloadEnabled:
@@ -5152,6 +5230,11 @@ definitions:
         type: string
       errorMessage:
         type: string
+      errorRequestID:
+        description: |-
+          ErrorRequestID 是失败助手消息（status 为 error / interrupted）对应生成请求的 requestId，
+          即用户可见的“错误 ID”，管理员凭它检索访问日志；其他消息为空串。
+        type: string
       id:
         type: integer
       inputTokens:
@@ -5235,6 +5318,7 @@ definitions:
     - editedAt
     - errorCode
     - errorMessage
+    - errorRequestID
     - id
     - inputTokens
     - latencyMS
@@ -12995,6 +13079,78 @@ paths:
       security:
       - BearerAuth: []
       summary: 管理员导出全量对话数据
+      tags:
+      - admin
+  /admin/error-logs:
+    get:
+      consumes:
+      - application/json
+      description: 分页查看失败请求（5xx 与以错误结束的流式请求）的原始原因；按错误 ID（request_id）精确检索
+      parameters:
+      - description: 页码（从 1 开始，默认 1）
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量（1-1000，默认 20）
+        in: query
+        name: page_size
+        type: integer
+      - description: 错误 ID（请求 ID），精确匹配
+        in: query
+        name: request_id
+        type: string
+      - description: 搜索关键词：错误 ID / 追踪 ID 精确匹配，路由、路径、错误码、原因模糊匹配
+        in: query
+        name: query
+        type: string
+      - description: 对外错误码
+        in: query
+        name: error_code
+        type: string
+      - description: 状态分类
+        enum:
+        - 5xx
+        - stream
+        in: query
+        name: status_class
+        type: string
+      - description: 用户ID
+        in: query
+        name: user_id
+        type: integer
+      - description: 创建时间起点(RFC3339)
+        in: query
+        name: created_from
+        type: string
+      - description: 创建时间终点(RFC3339)
+        in: query
+        name: created_to
+        type: string
+      - description: 排序方式
+        enum:
+        - created_desc
+        - created_asc
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ErrorLogListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询错误日志
       tags:
       - admin
   /admin/knowledge-bases:

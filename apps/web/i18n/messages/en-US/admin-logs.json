@@ -56,7 +56,7 @@
     }
   },
   "usage": {
-    "searchPlaceholder": "Search user ID, platform model, upstream model, upstream name, binding code, or protocol",
+    "searchPlaceholder": "Search user ID, platform model, upstream model, upstream name, binding code, protocol, run ID or error ID",
     "empty": "No usage logs",
     "filters": {
       "billingMode": "Billing mode",
@@ -129,7 +129,8 @@
     "orders": "Order records",
     "redemptions": "Redemptions",
     "conversation": "Conversation events",
-    "moderation": "Moderation events"
+    "moderation": "Moderation events",
+    "errors": "Errors"
   },
   "cleanup": {
     "trigger": "Clean up logs",
@@ -149,7 +150,8 @@
       "usage": "Model calls",
       "orders": "Order records",
       "conversation": "Conversation events",
-      "moderation": "Moderation events"
+      "moderation": "Moderation events",
+      "errors": "Errors"
     },
     "impacts": {
       "audit": "Deletes operation tracking records only. Users, conversations, and other business data are not deleted.",
@@ -157,7 +159,8 @@
       "usage": "Deletes usage and cost ledgers. Historical daily and monthly usage, current-cycle quota calculations, and billing traceability are affected, and cleared periods may show lower consumed quota.",
       "orders": "Deletes payment orders and callback correlation data. Granted balances and subscriptions are not revoked, but old callbacks may fail and payment traceability and idempotency evidence are lost.",
       "conversation": "Deletes message processing traces, tool calls, and run events. Conversations and message content remain, but historical processing and tool details may no longer appear.",
-      "moderation": "Deletes content moderation events and their verdicts. Moderation settings and conversation content are unaffected."
+      "moderation": "Deletes content moderation events and their verdicts. Moderation settings and conversation content are unaffected.",
+      "errors": "Deletes the raw causes of failed requests; those requests can no longer be looked up by error ID. Conversations, usage and other business data are not affected."
     },
     "toast": {
       "sessionExpired": "Session expired",
@@ -281,7 +284,7 @@
     }
   },
   "conversation": {
-    "searchPlaceholder": "Search user ID, run ID, event, stage, title, or tool name",
+    "searchPlaceholder": "Search user ID, run ID, error ID, event, stage, title or tool",
     "empty": "No conversation events",
     "filters": {
       "all": "All",
@@ -465,5 +468,54 @@
     "blocks": {
       "event": "Event"
     }
+  },
+  "errors": {
+    "searchPlaceholder": "Paste an error ID for an exact match, or search route, code, upstream response",
+    "empty": "No error logs",
+    "noCause": "No cause was recorded by the caller",
+    "statusClass": {
+      "label": "Type",
+      "all": "All",
+      "server": "Server errors (5xx)",
+      "stream": "Stream failures"
+    },
+    "columns": {
+      "requestID": "Error ID",
+      "user": "User",
+      "route": "Route",
+      "status": "Status",
+      "errorCode": "Error code",
+      "cause": "Cause",
+      "latency": "Latency",
+      "time": "Time"
+    },
+    "detail": {
+      "title": "Error details",
+      "request": "Request",
+      "cause": "Raw cause",
+      "client": "Client",
+      "requestID": "Error ID",
+      "traceID": "Trace ID",
+      "method": "Method",
+      "route": "Route",
+      "path": "Path",
+      "status": "HTTP status",
+      "errorCode": "Public error code",
+      "user": "User",
+      "latency": "Latency",
+      "clientIP": "IP",
+      "userAgent": "User-Agent",
+      "time": "Time",
+      "copyCause": "Copy cause",
+      "copied": "Copied",
+      "copyFailed": "Copy failed",
+      "relatedHint": "For generation requests, search the same error ID under Conversation events and Model calls for events and usage.",
+      "upstream": "Raw upstream response",
+      "viewRaw": "Raw",
+      "viewFormatted": "Formatted",
+      "copyUpstream": "Copy upstream response",
+      "noUpstream": "This error carries no upstream response body"
+    },
+    "loadFailed": "Failed to load error logs"
   }
 }

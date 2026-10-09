@@ -44,7 +44,7 @@ export function streamEventErrorToApiError(
   event: Extract<StreamMessageEvent, { type: "error" }>,
   fallback: string,
 ): ApiError {
-  return new ApiError(event.message || fallback, event.status ?? 502, event.debug, event.errorCode);
+  return new ApiError(event.message || fallback, event.status ?? 502, event.debug, event.errorCode, event.requestId);
 }
 
 export function resolveMediaStatusLabel(

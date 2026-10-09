@@ -14,6 +14,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 const (
@@ -177,6 +178,27 @@ func (s *Service) MarkMessageGenerationInterrupted(ctx context.Context, userID u
 		ErrMessageGenerationInterrupted.Code(),
 		ErrMessageGenerationInterrupted.Message(),
 	)
+}
+
+// MessageGenerationRequestID 返回当前用户某次生成 run 的原始请求 ID（用户可见的错误 ID），查不到时返回空串。
+// 续传流是新的 HTTP 请求，报告生成失败时应引用发起生成的那次请求，根因记录在它的访问日志里。
+func (s *Service) MessageGenerationRequestID(ctx context.Context, userID uint, runID string) string {
+	normalized := normalizeRunID(runID)
+	if s == nil || s.repo == nil || normalized == "" {
+		return ""
+	}
+	items, err := s.repo.ListConversationRunStatusesByRunIDs(ctx, userID, []string{normalized})
+	if err != nil {
+		// 只影响错误 ID 的引用对象：调用方退回使用续传请求自身的 ID，不阻断终态事件。
+		s.logger.Warn("message_generation_request_id_lookup_failed", zap.String("run_id", normalized), zap.Error(err))
+		return ""
+	}
+	for _, item := range items {
+		if item.RunID == normalized {
+			return strings.TrimSpace(item.RequestID)
+		}
+	}
+	return ""
 }
 
 func (s *Service) isMessageGenerationCanceled(ctx context.Context, runID string) bool {

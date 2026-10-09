@@ -54,7 +54,8 @@ import type {
 import type { ChatAreaMessage } from "@/features/chat/types/messages";
 import {
   resolveErrorDetails,
-  resolveErrorMessage,
+  resolveGenerationErrorId,
+  resolveErrorReason,
   resolveErrorSummary,
 } from "@/features/chat/utils/chat-runtime";
 import { getConversation } from "@/shared/api/conversation";
@@ -687,7 +688,7 @@ export function useChatMessageSubmit({
           }
           return false;
         }
-        const errorMessage = resolveErrorMessage(error, t("retryLater"));
+        const errorMessage = resolveErrorReason(error, t("retryLater"));
         const errorDetails = resolveErrorDetails(error);
         const errorSummary = resolveErrorSummary(error, t("retryLater"));
         shouldKeepConversationLayout = true;
@@ -712,6 +713,7 @@ export function useChatMessageSubmit({
             clientRunID,
             title: t("generationInterrupted"),
             errorMessage,
+            errorId: resolveGenerationErrorId(error),
             errorDetails,
           }),
         );

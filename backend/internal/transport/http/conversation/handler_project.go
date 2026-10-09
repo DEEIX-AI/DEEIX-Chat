@@ -25,7 +25,7 @@ func (h *Handler) ListConversationProjects(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	items, err := h.service.ListConversationProjects(c.Request.Context(), userID, c.Query("status"))
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]ConversationProjectResponse, 0, len(items))
@@ -75,7 +75,7 @@ func (h *Handler) CreateConversationProject(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, errConversationProjectLimitExceeded)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	h.recordAudit(c, "create_conversation_project", "conversation_project", item.PublicID, map[string]any{
@@ -137,7 +137,7 @@ func (h *Handler) UpdateConversationProject(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -188,7 +188,7 @@ func (h *Handler) DeleteConversationProject(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	h.recordAudit(c, "delete_conversation_project", "conversation_project", publicID, map[string]any{
@@ -229,13 +229,13 @@ func (h *Handler) ReorderConversationProjects(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
 	items, err := h.service.ListConversationProjects(c.Request.Context(), userID, "active")
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	results := make([]ConversationProjectResponse, 0, len(items))
@@ -282,7 +282,7 @@ func (h *Handler) SetConversationProject(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}
@@ -323,7 +323,7 @@ func (h *Handler) BatchSetConversationProject(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 			return
 		}
 	}

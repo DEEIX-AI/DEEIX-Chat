@@ -1974,6 +1974,116 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/error-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "分页查看失败请求（5xx 与以错误结束的流式请求）的原始原因；按错误 ID（request_id）精确检索",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "管理员查询错误日志",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码（从 1 开始，默认 1）",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量（1-1000，默认 20）",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "错误 ID（请求 ID），精确匹配",
+                        "name": "request_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词：错误 ID / 追踪 ID 精确匹配，路由、路径、错误码、原因模糊匹配",
+                        "name": "query",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "对外错误码",
+                        "name": "error_code",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "5xx",
+                            "stream"
+                        ],
+                        "type": "string",
+                        "description": "状态分类",
+                        "name": "status_class",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "用户ID",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "创建时间起点(RFC3339)",
+                        "name": "created_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "创建时间终点(RFC3339)",
+                        "name": "created_to",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "created_desc",
+                            "created_asc"
+                        ],
+                        "type": "string",
+                        "description": "排序方式",
+                        "name": "sort",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorLogListResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/knowledge-bases": {
             "get": {
                 "security": [
@@ -22977,6 +23087,115 @@ const docTemplate = `{
                 }
             }
         },
+        "ErrorLogListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
+                    "properties": {
+                        "results": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/ErrorLogResponse"
+                            }
+                        },
+                        "total": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ErrorLogResponse": {
+            "type": "object",
+            "required": [
+                "cause",
+                "clientIP",
+                "createdAt",
+                "detail",
+                "errorCode",
+                "id",
+                "latencyMS",
+                "method",
+                "path",
+                "requestID",
+                "route",
+                "statusCode",
+                "traceID",
+                "userAgent",
+                "userDisplayName",
+                "userID",
+                "userLabel",
+                "userUsername"
+            ],
+            "properties": {
+                "cause": {
+                    "type": "string"
+                },
+                "clientIP": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "errorCode": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "latencyMS": {
+                    "type": "integer"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "requestID": {
+                    "type": "string"
+                },
+                "route": {
+                    "type": "string"
+                },
+                "statusCode": {
+                    "type": "integer"
+                },
+                "traceID": {
+                    "type": "string"
+                },
+                "userAgent": {
+                    "type": "string"
+                },
+                "userDisplayName": {
+                    "type": "string"
+                },
+                "userID": {
+                    "type": "integer"
+                },
+                "userLabel": {
+                    "type": "string"
+                },
+                "userUsername": {
+                    "type": "string"
+                }
+            }
+        },
         "FeaturePolicyResponse": {
             "type": "object",
             "required": [
@@ -25134,6 +25353,7 @@ const docTemplate = `{
                 "editedAt",
                 "errorCode",
                 "errorMessage",
+                "errorRequestID",
                 "id",
                 "inputTokens",
                 "latencyMS",
@@ -25196,6 +25416,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "errorMessage": {
+                    "type": "string"
+                },
+                "errorRequestID": {
+                    "description": "ErrorRequestID 是失败助手消息（status 为 error / interrupted）对应生成请求的 requestId，\n即用户可见的“错误 ID”，管理员凭它检索访问日志；其他消息为空串。",
                     "type": "string"
                 },
                 "id": {

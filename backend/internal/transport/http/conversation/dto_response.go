@@ -860,11 +860,14 @@ type MessageResponse struct {
 	CacheWriteTokens int64  `json:"cacheWriteTokens"`
 	ReasoningTokens  int64  `json:"reasoningTokens"`
 	// ReasoningEffort 是生成该消息时生效的规范推理档位；模型无推理能力时为 null。
-	ReasoningEffort   *string                          `json:"reasoningEffort" enums:"none,minimal,low,medium,high,xhigh,max" extensions:"x-nullable,!x-omitempty"`
-	LatencyMS         int64                            `json:"latencyMS"`
-	Status            string                           `json:"status"`
-	ErrorCode         string                           `json:"errorCode"`
-	ErrorMessage      string                           `json:"errorMessage"`
+	ReasoningEffort *string `json:"reasoningEffort" enums:"none,minimal,low,medium,high,xhigh,max" extensions:"x-nullable,!x-omitempty"`
+	LatencyMS       int64   `json:"latencyMS"`
+	Status          string  `json:"status"`
+	ErrorCode       string  `json:"errorCode"`
+	ErrorMessage    string  `json:"errorMessage"`
+	// ErrorRequestID 是失败助手消息（status 为 error / interrupted）对应生成请求的 requestId，
+	// 即用户可见的“错误 ID”，管理员凭它检索访问日志；其他消息为空串。
+	ErrorRequestID    string                           `json:"errorRequestID"`
 	Attachments       string                           `json:"attachments"`
 	PlatformModelName string                           `json:"platformModelName"`
 	UpstreamModelName string                           `json:"upstreamModelName"`
@@ -1119,6 +1122,7 @@ func toMessageResponseWithRunAndFallback(m model.Message, run model.Run, fallbac
 		Status:            m.Status,
 		ErrorCode:         m.ErrorCode,
 		ErrorMessage:      m.ErrorMessage,
+		ErrorRequestID:    messageErrorRequestID(m, run.RequestID),
 		Attachments:       attachments,
 		PlatformModelName: platformModelName,
 		UpstreamModelName: strings.TrimSpace(run.UpstreamModelName),
@@ -1136,6 +1140,20 @@ func toMessageResponseWithRunAndFallback(m model.Message, run model.Run, fallbac
 		EditedAt:          m.EditedAt,
 		CreatedAt:         m.CreatedAt,
 		UpdatedAt:         m.UpdatedAt,
+	}
+}
+
+// messageErrorRequestID 只为失败的助手消息返回其生成请求的 requestId。
+// 成功、取消（用户主动）、拦截（有独立审核事件编号）的消息不需要排障凭证，返回空串。
+func messageErrorRequestID(m model.Message, requestID string) string {
+	if m.Role != "assistant" {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(m.Status)) {
+	case "error", "interrupted":
+		return strings.TrimSpace(requestID)
+	default:
+		return ""
 	}
 }
 
@@ -1256,8 +1274,10 @@ type ActiveMessageGenerationEventResponse struct {
 	ConversationPublicID string                            `json:"conversationPublicID,omitempty"`
 }
 
-func toSendMessageResponse(r *appconversation.SendMessageResult) SendMessageResponse {
+// toSendMessageResponse 组装本次发送的结果；requestID 是当前请求的 ID，本次生成的 run 正是由它创建。
+func toSendMessageResponse(r *appconversation.SendMessageResult, requestID string) SendMessageResponse {
 	run := model.Run{
+		RequestID:         requestID,
 		PlatformModelName: r.PlatformModelName,
 		UpstreamModelName: r.UpstreamModelName,
 	}

@@ -42,7 +42,7 @@ func (h *Handler) writePermissionGroupError(c *gin.Context, err error) {
 	case errors.Is(err, appadmin.ErrPermissionGroupNotFound):
 		response.ErrorFrom(c, http.StatusNotFound, err)
 	default:
-		response.InternalError(c)
+		response.InternalError(c, err)
 	}
 }
 

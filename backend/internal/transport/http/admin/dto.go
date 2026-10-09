@@ -10,6 +10,7 @@ import (
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainerrorlog "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/errorlog"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 )
 
@@ -601,6 +602,37 @@ type UserAuthEventListResponseDoc struct {
 	} `json:"data"`
 }
 
+// ErrorLogResponse 失败请求错误日志。Cause 是已脱敏、截断的原始原因，Detail 是只遮蔽凭证的原始诊断内容，只对管理员返回。
+type ErrorLogResponse struct {
+	ID              uint      `json:"id"`
+	RequestID       string    `json:"requestID"`
+	TraceID         string    `json:"traceID"`
+	UserID          uint      `json:"userID"`
+	UserUsername    string    `json:"userUsername"`
+	UserDisplayName string    `json:"userDisplayName"`
+	UserLabel       string    `json:"userLabel"`
+	Method          string    `json:"method"`
+	Route           string    `json:"route"`
+	Path            string    `json:"path"`
+	StatusCode      int       `json:"statusCode"`
+	ErrorCode       string    `json:"errorCode"`
+	Cause           string    `json:"cause"`
+	Detail          string    `json:"detail"`
+	LatencyMS       int64     `json:"latencyMS"`
+	ClientIP        string    `json:"clientIP"`
+	UserAgent       string    `json:"userAgent"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
+// ErrorLogListResponseDoc 错误日志分页响应文档。
+type ErrorLogListResponseDoc struct {
+	ErrorMsg string `json:"errorMsg"`
+	Data     struct {
+		Total   int64              `json:"total"`
+		Results []ErrorLogResponse `json:"results"`
+	} `json:"data"`
+}
+
 // AuditLogListResponseDoc 审计日志分页响应。
 type AuditLogListResponseDoc struct {
 	ErrorMsg string `json:"errorMsg"`
@@ -774,6 +806,29 @@ func toAuditLogResponse(l domainaudit.Log, label appadmin.UserLabel) AuditLogRes
 		DetailJSON:       l.DetailJSON,
 		CreatedAt:        l.CreatedAt,
 		UpdatedAt:        l.UpdatedAt,
+	}
+}
+
+func toErrorLogResponse(item domainerrorlog.Log, label appadmin.UserLabel) ErrorLogResponse {
+	return ErrorLogResponse{
+		ID:              item.ID,
+		RequestID:       item.RequestID,
+		TraceID:         item.TraceID,
+		UserID:          item.UserID,
+		UserUsername:    label.Username,
+		UserDisplayName: label.DisplayName,
+		UserLabel:       label.Label,
+		Method:          item.Method,
+		Route:           item.Route,
+		Path:            item.Path,
+		StatusCode:      item.StatusCode,
+		ErrorCode:       item.ErrorCode,
+		Cause:           item.Cause,
+		Detail:          item.Detail,
+		LatencyMS:       item.LatencyMS,
+		ClientIP:        item.ClientIP,
+		UserAgent:       item.UserAgent,
+		CreatedAt:       item.CreatedAt,
 	}
 }
 

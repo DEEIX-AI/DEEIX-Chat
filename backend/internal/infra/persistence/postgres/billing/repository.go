@@ -1511,13 +1511,18 @@ func (r *Repo) ListUsageLogs(ctx context.Context, filter repository.UsageLogList
 	}
 	if search := strings.TrimSpace(filter.Query); search != "" {
 		like := "%" + strings.ToLower(search) + "%"
+		// 账本 ref_no 即生成 run 的 run_id：错误 ID（发起请求的 ID）经 run 精确关联到对应调用，
+		// 运行 ID 本身也可直接搜索。
+		runsByRequestID := r.db.WithContext(ctx).Model(&models.ConversationRun{}).Select("run_id").Where("request_id = ?", search)
 		query = query.Where(
-			"LOWER(platform_model_name) LIKE ? OR LOWER(upstream_model_name) LIKE ? OR LOWER(upstream_name) LIKE ? OR LOWER(routed_binding_code) LIKE ? OR LOWER(provider_protocol) LIKE ?",
+			"LOWER(platform_model_name) LIKE ? OR LOWER(upstream_model_name) LIKE ? OR LOWER(upstream_name) LIKE ? OR LOWER(routed_binding_code) LIKE ? OR LOWER(provider_protocol) LIKE ? OR ref_no = ? OR ref_no IN (?)",
 			like,
 			like,
 			like,
 			like,
 			like,
+			search,
+			runsByRequestID,
 		)
 	}
 	if platformModelName := strings.TrimSpace(filter.PlatformModelName); platformModelName != "" {

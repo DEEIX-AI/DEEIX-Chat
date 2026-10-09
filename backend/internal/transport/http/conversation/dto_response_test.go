@@ -55,3 +55,25 @@ func TestTraceBlockResponseOmitsZeroStartedAt(t *testing.T) {
 		t.Fatalf("expected payload to survive mapping, got %#v", resp)
 	}
 }
+
+func TestMessageResponseExposesErrorRequestIDOnlyForFailedAssistantMessages(t *testing.T) {
+	run := model.Run{RunID: "run_1", RequestID: "req-original-1"}
+	cases := []struct {
+		role   string
+		status string
+		want   string
+	}{
+		{"assistant", "error", "req-original-1"},
+		{"assistant", "interrupted", "req-original-1"},
+		{"assistant", "success", ""},
+		{"assistant", "canceled", ""},
+		{"assistant", "blocked", ""},
+		{"user", "error", ""},
+	}
+	for _, tc := range cases {
+		got := toMessageResponseWithRun(model.Message{Role: tc.role, Status: tc.status, RunID: run.RunID}, run).ErrorRequestID
+		if got != tc.want {
+			t.Errorf("role=%s status=%s: errorRequestID = %q, want %q", tc.role, tc.status, got, tc.want)
+		}
+	}
+}

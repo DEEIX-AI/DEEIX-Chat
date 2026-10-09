@@ -443,6 +443,8 @@ type Run struct {
 type RunStatus struct {
 	RunID  string
 	Status string
+	// RequestID 是发起该 run 的 HTTP 请求 ID，用于把续传等后续请求关联回原始请求的日志。
+	RequestID string
 }
 
 // MessageTrace 表示消息处理轨迹。

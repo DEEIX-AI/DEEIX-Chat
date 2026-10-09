@@ -6,6 +6,7 @@ import { authedRequest } from "@/shared/api/authed-client";
 import type {
   AdminAuditLogDTO,
   AdminConversationEventDTO,
+  AdminErrorLogDTO,
   AdminPaymentOrderDTO,
   AdminRedemptionRecordDTO,
   AdminUsageLogDTO,
@@ -14,7 +15,32 @@ import type {
 import type { PagePayload } from "@/shared/api/common-types";
 
 import { normalizeAdminPagePayload, resolveAdminPage, type AdminPageOptions } from "./shared";
-import type { ADMIN_LOG_CLEANUP_TYPES } from "@/features/admin/model/admin-unions";
+import type { ADMIN_ERROR_LOG_STATUS_CLASSES, ADMIN_LOG_CLEANUP_TYPES } from "@/features/admin/model/admin-unions";
+
+export type AdminErrorLogStatusClass = (typeof ADMIN_ERROR_LOG_STATUS_CLASSES)[number];
+
+type ListAdminErrorLogsOptions = AdminPageOptions & {
+  query?: string;
+  statusClass?: AdminErrorLogStatusClass;
+};
+
+export async function listAdminErrorLogs(
+  accessToken: string,
+  options: ListAdminErrorLogsOptions = {},
+): Promise<PagePayload<AdminErrorLogDTO>> {
+  const { page, pageSize } = resolveAdminPage(options);
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("page_size", String(pageSize));
+  if (options.query?.trim()) params.set("query", options.query.trim());
+  if (options.statusClass) params.set("status_class", options.statusClass);
+  const data = await authedRequest<PagePayload<AdminErrorLogDTO>>(
+    `/api/v1/admin/error-logs?${params.toString()}`,
+    { accessToken },
+    true,
+  );
+  return normalizeAdminPagePayload(data);
+}
 
 type ListAdminUserAuthEventsOptions = AdminPageOptions & {
   userID?: number;

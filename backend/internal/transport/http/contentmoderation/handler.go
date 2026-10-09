@@ -362,6 +362,6 @@ func writeError(c *gin.Context, err error) {
 	case errors.Is(err, appcm.ErrInvalidEventFilter):
 		response.ErrorFrom(c, http.StatusBadRequest, appcm.ErrInvalidEventFilter)
 	default:
-		response.InternalError(c)
+		response.InternalError(c, err)
 	}
 }

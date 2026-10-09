@@ -39,7 +39,8 @@
   "errors": {
     "unknown": "Something went wrong. Please try again later.",
     "sessionExpired": "Your session has expired. Please sign in again.",
-    "copyFailed": "Copy failed. Please select the content manually."
+    "copyFailed": "Copy failed. Please select the content manually.",
+    "errorReference": "Error ID: {requestId} (include it when reporting)"
   },
   "navigation": {
     "newChat": "New chat",

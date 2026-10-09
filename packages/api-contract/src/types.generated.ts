@@ -1622,6 +1622,35 @@ export interface Envelope {
   requestId?: string;
 }
 
+export interface ErrorLogListResponseDoc {
+  data: {
+    results: ErrorLogResponse[];
+    total: number;
+  };
+  errorMsg: string;
+}
+
+export interface ErrorLogResponse {
+  cause: string;
+  clientIP: string;
+  createdAt: string;
+  detail: string;
+  errorCode: string;
+  id: number;
+  latencyMS: number;
+  method: string;
+  path: string;
+  requestID: string;
+  route: string;
+  statusCode: number;
+  traceID: string;
+  userAgent: string;
+  userDisplayName: string;
+  userID: number;
+  userLabel: string;
+  userUsername: string;
+}
+
 export interface FeaturePolicyResponse {
   /** DesktopDownloadEnabled 为 true 时网页端用户菜单展示「下载桌面端」入口；桌面端内由前端自行隐藏。 */
   desktopDownloadEnabled: boolean;
@@ -2302,6 +2331,11 @@ export interface MessageResponse {
   editedAt: string | null;
   errorCode: string;
   errorMessage: string;
+  /**
+   * ErrorRequestID 是失败助手消息（status 为 error / interrupted）对应生成请求的 requestId，
+   * 即用户可见的“错误 ID”，管理员凭它检索访问日志；其他消息为空串。
+   */
+  errorRequestID: string;
   id: number;
   inputTokens: number;
   knowledgeSources?: MessageKnowledgeSourceResponse[];
@@ -5977,6 +6011,43 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = string;
+  }
+
+  /**
+   * @description 分页查看失败请求（5xx 与以错误结束的流式请求）的原始原因；按错误 ID（request_id）精确检索
+   * @tags admin
+   * @name ErrorLogsList
+   * @summary 管理员查询错误日志
+   * @request GET:/admin/error-logs
+   * @secure
+   */
+  export namespace ErrorLogsList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 创建时间起点(RFC3339) */
+      created_from?: string;
+      /** 创建时间终点(RFC3339) */
+      created_to?: string;
+      /** 对外错误码 */
+      error_code?: string;
+      /** 页码（从 1 开始，默认 1） */
+      page?: number;
+      /** 每页数量（1-1000，默认 20） */
+      page_size?: number;
+      /** 搜索关键词：错误 ID / 追踪 ID 精确匹配，路由、路径、错误码、原因模糊匹配 */
+      query?: string;
+      /** 错误 ID（请求 ID），精确匹配 */
+      request_id?: string;
+      /** 排序方式 */
+      sort?: "created_desc" | "created_asc";
+      /** 状态分类 */
+      status_class?: "5xx" | "stream";
+      /** 用户ID */
+      user_id?: number;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ErrorLogListResponseDoc;
   }
 
   /**

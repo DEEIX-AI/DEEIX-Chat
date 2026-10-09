@@ -25,6 +25,7 @@ import { CopyActionButton } from "@/shared/components/copy-action";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import type { BillingDisplayOptions } from "@/entities/billing";
 import { formatBytes } from "@/entities/file";
+import { isPersonalModelRef, resolveModelOptionLabel } from "@/entities/model";
 
 function DetailRow({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
@@ -32,6 +33,23 @@ function DetailRow({ label, value, mono = false }: { label: string; value: React
       <p className="text-xs text-muted-foreground">{label}</p>
       <div className={cn("min-w-0 break-words text-xs leading-5 text-foreground/86", mono && "font-mono")}>{value ?? "-"}</div>
     </div>
+  );
+}
+
+// Personal-key refs (`personal:<provider id>/<model>`) carry an opaque provider id that means
+// nothing to admins; show the model name with an "own key" chip and keep the full ref on hover.
+function PlatformModelValue({ value }: { value: string | null | undefined }) {
+  const t = useTranslations("adminLogs.usage.modelTooltip");
+  const raw = value?.trim() ?? "";
+  if (!raw) return "-";
+  if (!isPersonalModelRef(raw)) return raw;
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5" title={raw}>
+      <span className="truncate">{resolveModelOptionLabel(raw)}</span>
+      <span className="shrink-0 rounded-sm bg-muted px-1 font-sans text-[10px] leading-4 text-muted-foreground">
+        {t("personalKey")}
+      </span>
+    </span>
   );
 }
 
@@ -140,7 +158,7 @@ export function LogDetailSheet({
     detail?.kind === "auth"
       ? `${detail.item.eventType || t("fallbacks.authEvent")} · ${formatDateTime(detail.item.occurredAt, locale)}`
       : detail?.kind === "usage"
-        ? `${detail.item.platformModelName || t("fallbacks.modelCall")} · ${formatDateTime(detail.item.createdAt, locale)}`
+        ? `${resolveModelOptionLabel(detail.item.platformModelName ?? "") || t("fallbacks.modelCall")} · ${formatDateTime(detail.item.createdAt, locale)}`
         : detail?.kind === "order"
           ? `${detail.item.orderNo || t("fallbacks.order")} · ${formatDateTime(detail.item.createdAt, locale)}`
           : detail?.kind === "redemption"
@@ -257,7 +275,7 @@ export function LogDetailSheet({
                 <DetailRow label={t("fields.callTime")} value={formatDateTime(detail.item.createdAt, locale)} />
               </DetailBlock>
               <DetailBlock title={t("blocks.modelRoute")}>
-                <DetailRow label={t("fields.platformModel")} value={detail.item.platformModelName} mono />
+                <DetailRow label={t("fields.platformModel")} value={<PlatformModelValue value={detail.item.platformModelName} />} mono />
                 <DetailRow label={t("fields.upstreamName")} value={detail.item.upstreamName} />
                 <DetailRow label={t("fields.upstreamModel")} value={detail.item.upstreamModelName} mono />
                 <DetailRow label={t("fields.bindingCode")} value={detail.item.routedBindingCode} mono />
@@ -411,7 +429,7 @@ export function LogDetailSheet({
                 <DetailRow label={t("fields.messageID")} value={detail.item.messageID} mono />
               </DetailBlock>
               <DetailBlock title={t("blocks.modelRoute")}>
-                <DetailRow label={t("fields.platformModel")} value={detail.item.platformModelName || "-"} mono />
+                <DetailRow label={t("fields.platformModel")} value={<PlatformModelValue value={detail.item.platformModelName} />} mono />
                 <DetailRow label={t("fields.upstreamName")} value={detail.item.upstreamName || "-"} />
                 <DetailRow label={t("fields.upstreamModel")} value={detail.item.upstreamModelName || "-"} mono />
                 <DetailRow label={t("fields.bindingCode")} value={detail.item.routedBindingCode || "-"} mono />

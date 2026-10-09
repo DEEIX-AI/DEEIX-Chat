@@ -52,7 +52,7 @@ func (h *Handler) DeleteMessage(c *gin.Context) {
 		case errors.Is(err, appconversation.ErrMessageDeleteRootInvalid):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 		default:
-			response.InternalError(c)
+			response.InternalError(c, err)
 		}
 		return
 	}

@@ -375,6 +375,7 @@ func (h *Handler) SubmitAdminFileEmbeddings(c *gin.Context) {
 	}
 	result, err := h.service.SubmitPlatformFileEmbeddings(c.Request.Context(), middleware.MustUserID(c), req.FileIDs)
 	if err != nil {
+		response.RecordError(c, err)
 		switch {
 		case errors.Is(err, appembedding.ErrTooManyTargetedFiles):
 			response.ErrorWithCode(c, http.StatusBadRequest, "embedding.too_many_files")
@@ -468,7 +469,7 @@ func (h *Handler) writeUploadError(c *gin.Context, err error) {
 	case errors.Is(err, appconversation.ErrFileTooLarge):
 		response.ErrorFrom(c, http.StatusRequestEntityTooLarge, err)
 	default:
-		response.InternalError(c)
+		response.InternalError(c, err)
 	}
 }
 
@@ -824,6 +825,7 @@ func listInput(c *gin.Context) appknowledgebase.ListInput {
 }
 
 func writeError(c *gin.Context, err error) {
+	response.RecordError(c, err)
 	switch {
 	case errors.Is(err, appknowledgebase.ErrInvalidKnowledgeBase):
 		response.ErrorWithCode(c, http.StatusBadRequest, "knowledge_base.invalid")

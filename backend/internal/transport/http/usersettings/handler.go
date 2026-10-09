@@ -33,7 +33,7 @@ func (h *Handler) GetSettings(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	data, err := h.service.ListSettings(c.Request.Context(), userID)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	response.Success(c, UserSettingsResponse{Settings: data})
@@ -64,7 +64,7 @@ func (h *Handler) PatchSettings(c *gin.Context) {
 		if errors.Is(err, appusersettings.ErrUnknownSetting) || errors.Is(err, appusersettings.ErrInvalidSettingValue) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 		} else {
-			response.InternalError(c)
+			response.InternalError(c, err)
 		}
 		return
 	}

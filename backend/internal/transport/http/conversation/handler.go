@@ -167,13 +167,25 @@ func describeUpstreamRequestFailure(err error) response.Description {
 	return response.DescribeCode(http.StatusBadGateway, code)
 }
 
-func streamErrorPayload(err error) map[string]any {
+// streamErrorPayload 构造 NDJSON 终态错误事件。流式响应已写出 200，错误不经过 response.Error*，
+// 因此在这里把错误码与原始原因记入请求上下文供访问日志记录，并在事件中带上 requestId 供用户反馈。
+func streamErrorPayload(c *gin.Context, err error) map[string]any {
 	mapped := describeSendMessageError(err)
 	payload := map[string]any{
 		"type":      "error",
 		"status":    mapped.Status,
 		"message":   mapped.Message,
 		"errorCode": mapped.Code,
+	}
+	if c != nil {
+		// 用户主动停止不是故障：不记入访问日志的错误字段，也就不会进入错误日志。
+		if !errors.Is(err, appconversation.ErrMessageGenerationCanceled) {
+			response.RecordErrorCode(c, mapped.Code)
+			response.RecordError(c, err)
+		}
+		if requestID := middleware.MustRequestID(c); requestID != "" {
+			payload["requestId"] = requestID
+		}
 	}
 	if debug := appconversation.MessageErrorDebug(err); debug != nil {
 		payload["debug"] = debug
@@ -182,10 +194,14 @@ func streamErrorPayload(err error) map[string]any {
 }
 
 // streamErrorPayloadWithResult 在错误事件中保留已持久化的消息结果，供客户端完成临时消息对账。
-func streamErrorPayloadWithResult(err error, result *appconversation.SendMessageResult) map[string]any {
-	payload := streamErrorPayload(err)
+func streamErrorPayloadWithResult(c *gin.Context, err error, result *appconversation.SendMessageResult) map[string]any {
+	payload := streamErrorPayload(c, err)
 	if result != nil {
-		payload["data"] = toSendMessageResponse(result)
+		requestID := ""
+		if c != nil {
+			requestID = middleware.MustRequestID(c)
+		}
+		payload["data"] = toSendMessageResponse(result, requestID)
 	}
 	return payload
 }

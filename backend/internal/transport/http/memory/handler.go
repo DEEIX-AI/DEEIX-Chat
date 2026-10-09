@@ -37,7 +37,7 @@ func (h *Handler) ListUserMemories(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	items, err := h.service.ListUserMemories(c.Request.Context(), userID)
 	if err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 	memories := make([]UserMemoryResponse, 0, len(items))
@@ -81,7 +81,7 @@ func (h *Handler) UpsertUserMemory(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, errUserMemoryLimitExceeded)
 			return
 		}
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
@@ -120,7 +120,7 @@ func (h *Handler) DeleteUserMemory(c *gin.Context) {
 	}
 
 	if err := h.service.DeleteUserMemory(c.Request.Context(), userID, memoryKey); err != nil {
-		response.InternalError(c)
+		response.InternalError(c, err)
 		return
 	}
 
