@@ -1372,6 +1372,8 @@ export interface CreateRedemptionCodeRequest {
 export interface CreateServerRequest {
   authToken?: string;
   baseURL: string;
+  /** FileCreateEnabled authorizes automatic creation of one user file per persistent tool call. */
+  fileCreateEnabled?: boolean;
   headersJSON?: string;
   name: string;
   status?: string;
@@ -1721,6 +1723,24 @@ export interface FeaturePolicyResponse {
 
 export interface FeaturePolicyResponseDoc {
   data: FeaturePolicyResponse;
+  errorMsg: string;
+}
+
+export interface FileCreateResponse {
+  sha256: string;
+  embed_status: string;
+  extract_status: string;
+  file_id: string;
+  file_name: string;
+  processing_ready: boolean;
+  processing_status: string;
+  replayed: boolean;
+  reused: boolean;
+  size_bytes: number;
+}
+
+export interface FileCreateResponseDoc {
+  data: FileCreateResponse;
   errorMsg: string;
 }
 
@@ -3990,6 +4010,7 @@ export interface ServerResponse {
   activeToolCount: number;
   baseURL: string;
   createdAt: string;
+  fileCreateEnabled: boolean;
   headersJSON: string;
   id: number;
   lastError: string;
@@ -10681,6 +10702,30 @@ export namespace Llm {
 }
 
 export namespace Mcp {
+  /**
+   * @description 仅接受 DEEIX 在 tools/call 签发的一文件 capability，不接受用户 JWT 或 MCP 共享 HMAC 上下文。重复相同文件返回同一 file_id；创建不代表提取或向量化已完成。
+   * @tags mcp
+   * @name ServersFilesCreate
+   * @summary 创建 MCP 工具产物文件
+   * @request POST:/mcp/servers/{id}/files
+   */
+  export namespace ServersFilesCreate {
+    export type RequestParams = {
+      /** 登记的 MCP 服务 ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = {
+      /** 唯一文件，不接受其他字段 */
+      file: File;
+    };
+    export type RequestHeaders = {
+      /** Bearer <DEEIX-issued file-create token> */
+      Authorization: string;
+    };
+    export type ResponseBody = FileCreateResponseDoc;
+  }
+
   /**
    * @description 获取当前聊天侧可选择的 MCP 工具
    * @tags mcp

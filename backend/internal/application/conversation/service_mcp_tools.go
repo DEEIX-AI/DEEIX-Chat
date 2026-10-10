@@ -28,6 +28,7 @@ type selectedToolRuntime struct {
 type mcpToolCallBinding struct {
 	Config       mcp.CallConfig
 	ServerID     uint
+	ToolID       uint
 	ServerName   string
 	ToolName     string
 	PriceNanousd int64
@@ -150,12 +151,14 @@ func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint
 		result.schemas[modelName] = schema
 		result.mcpBindings[modelName] = mcpToolCallBinding{
 			Config: mcp.CallConfig{
-				BaseURL:   server.BaseURL,
-				AuthToken: token,
-				TimeoutMS: cfg.MCPToolTimeoutSeconds * 1000,
-				Headers:   headers,
+				BaseURL:         server.BaseURL,
+				AuthToken:       token,
+				TimeoutMS:       cfg.MCPToolTimeoutSeconds * 1000,
+				Headers:         headers,
+				FileCreateEpoch: server.FileCreateEpoch,
 			},
 			ServerID:     server.ID,
+			ToolID:       tool.ID,
 			ServerName:   server.Name,
 			ToolName:     tool.Name,
 			PriceNanousd: tool.PriceNanousd,

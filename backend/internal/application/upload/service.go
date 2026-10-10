@@ -32,7 +32,8 @@ var errLocalFileTooLarge = errors.New("local file too large")
 
 // Hooks 封装上传后续编排动作。
 type Hooks struct {
-	InitializeUploadedFile func(ctx context.Context, file *domainconversation.FileObject) error
+	InitializeUploadedFile     func(ctx context.Context, file *domainconversation.FileObject) error
+	EnsureFileCreateProcessing func(ctx context.Context, file *domainconversation.FileObject) error
 }
 
 // ErrorSet 允许上层注入统一错误语义。
@@ -291,25 +292,10 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 		return result, nil
 	}
 
-	fileItem := &domainconversation.FileObject{
-		FileID:           fileID,
-		UserID:           ownerUserID,
-		Purpose:          normalizePurpose(input.Purpose),
-		FileName:         normalizedName,
-		MimeType:         normalizedMIME,
-		DetectedMIME:     detectedMIME,
-		FileCategory:     category,
-		SizeBytes:        sizeBytes,
-		SHA256:           shaValue,
-		StoragePath:      relativePath,
-		Status:           "active",
-		ProcessingStatus: "uploaded",
-		ProcessingReady:  category == fileCategoryVideo || category == fileCategoryAudio || (category == fileCategoryImage && !cfg.ExtractImageOCREnabled),
-		ExtractStatus:    "none",
-		EmbedStatus:      "none",
-		ExtractorVersion: s.resolveExtractorVersion(),
-		ExpiresAt:        nil,
-	}
+	fileItem := s.fileObjectFromPrepared(fileID, ownerUserID, input.Purpose, relativePath, &PreparedTemporaryFile{
+		FileName: normalizedName, MimeType: normalizedMIME, DetectedMIME: detectedMIME,
+		FileCategory: category, SizeBytes: sizeBytes, SHA256: shaValue,
+	})
 
 	quota, err := s.repo.CreateFileObjectAndConsumeQuota(ctx, fileItem, quotaBytes)
 	if err != nil && errors.Is(err, repository.ErrDuplicate) {
@@ -966,14 +952,8 @@ func saveUploadedFile(ctx context.Context, input saveUploadedFileInput) (string,
 		input.FileID+"_"+sanitizeFileName(input.FileName),
 	)
 	relativePath = filepath.ToSlash(relativePath)
-	tmpFile, err := os.Open(staged.absolutePath)
-	if err != nil {
-		return "", "", "", 0, err
-	}
-	defer tmpFile.Close() //nolint:errcheck
-	if _, err = input.Store.Put(ctx, relativePath, tmpFile, objectstorage.PutOptions{
-		SizeBytes:   staged.sizeBytes,
-		ContentType: staged.detectedMIME,
+	if err = putPreparedFile(ctx, input.Store, relativePath, &PreparedTemporaryFile{
+		AbsolutePath: staged.absolutePath, SizeBytes: staged.sizeBytes, DetectedMIME: staged.detectedMIME,
 	}); err != nil {
 		return "", "", "", 0, err
 	}

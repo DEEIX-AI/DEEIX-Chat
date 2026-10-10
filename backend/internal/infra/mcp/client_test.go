@@ -3,11 +3,13 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	portmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -77,6 +79,54 @@ func TestClientCallToolUsesStreamableHTTPJSONRPC(t *testing.T) {
 	}
 	if len(methods) != 3 || methods[0] != "initialize" || methods[1] != "notifications/initialized" || methods[2] != "tools/call" {
 		t.Fatalf("unexpected methods: %#v", methods)
+	}
+}
+
+func TestFileCreateCapabilityIsCallOnlyAndCannotRedirect(t *testing.T) {
+	for _, redirect := range []bool{false, true} {
+		t.Run(fmt.Sprintf("redirect_%v", redirect), func(t *testing.T) {
+			targetCalled := false
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { targetCalled = true; w.WriteHeader(200) }))
+			defer target.Close()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var req struct {
+					ID     any    `json:"id"`
+					Method string `json:"method"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					t.Error(err)
+					return
+				}
+				want := ""
+				if req.Method == "tools/call" {
+					want = "issued-capability"
+				}
+				if r.Header.Get(portmcp.FileCreateHeader) != want {
+					t.Errorf("%s leaked or replaced capability", req.Method)
+				}
+				if redirect && req.Method == "tools/call" {
+					http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if req.Method == "notifications/initialized" {
+					w.WriteHeader(202)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": map[string]any{}})
+			}))
+			defer server.Close()
+			client := NewClient(security.NewStrictOutboundPolicy(true))
+			cfg := CallConfig{BaseURL: server.URL, FileCreateToken: "issued-capability", Headers: map[string]string{strings.ToLower(portmcp.FileCreateHeader): "static-forgery"}}
+			_, err := client.CallTool(context.Background(), cfg, CallInput{ToolName: "generate", ArgumentsJSON: `{}`})
+			if redirect {
+				if err == nil || targetCalled {
+					t.Fatal("capability crossed origins")
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 

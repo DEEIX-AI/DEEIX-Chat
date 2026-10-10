@@ -152,6 +152,9 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			ToolName:       row.ToolName,
 			ArgumentsJSON:  row.InputJSON,
 			MCPConfig:      &binding.Config,
+			ServerID:       binding.ServerID,
+			ToolID:         binding.ToolID,
+			Ephemeral:      input.Ephemeral,
 		})
 		row.LatencyMS = time.Since(toolStartedAt).Milliseconds()
 		if row.LatencyMS < 0 {

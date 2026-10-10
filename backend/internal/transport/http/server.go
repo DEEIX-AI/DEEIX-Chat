@@ -206,6 +206,9 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	}
 
 	authRequired := api.Group("")
+	if modules.MCP != nil {
+		modules.MCP.RegisterFileCreateRoute(api.Group("", middleware.PublicAuthRateLimit(limiter, cfg)), middleware.RateLimit(limiter, cfg))
+	}
 	authRequired.Use(middleware.AuthMiddleware(snapshot.JWTSecret, modules.AuthService))
 	authRequired.Use(middleware.RateLimit(limiter, cfg))
 

@@ -18,6 +18,8 @@ type Server struct {
 	AuthTokenEnc                         string
 	HeadersJSON                          string
 	Status                               string
+	FileCreateEnabled                    bool
+	FileCreateEpoch                      uint
 	SortOrder                            int
 	ToolCount                            int
 	ActiveToolCount                      int
@@ -31,6 +33,25 @@ type Server struct {
 type ServerWithTools struct {
 	Server Server
 	Tools  []Tool
+}
+
+// FileCreateGrant is a DEEIX-issued capability for one file from one tool call.
+// TokenHash is never a credential; the random bearer is only sent to that MCP.
+type FileCreateGrant struct {
+	TokenHash   string
+	ServerID    uint
+	ToolID      uint
+	UserID      uint
+	Epoch       uint
+	CallID      string
+	RequestID   string
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
+	Fingerprint string
+	CandidateID string
+	StoragePath string
+	FileID      string
+	Reused      bool
 }
 
 // Tool 表示从 MCP 服务发现并由管理员控制可用性的工具。

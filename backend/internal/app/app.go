@@ -425,7 +425,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 		runtimeCfg,
 		conversationRepo,
 		log,
-		appupload.Hooks{InitializeUploadedFile: processingService.InitializeUploadedFile},
+		appupload.Hooks{InitializeUploadedFile: processingService.InitializeUploadedFile, EnsureFileCreateProcessing: processingService.EnsureFileCreateProcessing},
 		conversation.UploadErrorSet(),
 		appprocessing.DefaultExtractorVersion,
 	)
@@ -480,6 +480,9 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	mcpService := appmcp.NewServiceWithRuntime(runtimeCfg, mcpRepo, mcpClient)
 	mcpService.SetBillingModeProvider(billingService)
 	mcpHandler := mcphttp.NewHandler(mcpService)
+	fileCreateService := appmcp.NewFileCreateService(runtimeCfg, mcpRepo, conversationRepo, uploadService, auditService, log)
+	conversationService.SetMCPFileCreateService(fileCreateService)
+	mcpHandler.SetFileCreateService(fileCreateService)
 	mcpModule := mcphttp.NewModule(mcpHandler)
 	adminService := admin.NewService(userService, auditService)
 	adminService.SetAuthSecurityService(authService)
@@ -582,6 +585,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	}
 	embeddingService.StartBackgroundWorkers(backgroundCtx)
 	conversationService.StartBackgroundWorkers(backgroundCtx)
+	fileCreateService.StartMaintenance(backgroundCtx)
 	contentModerationService.StartBackgroundWorkers(backgroundCtx)
 	channelService.StartModelIconAssetCleanup(backgroundCtx)
 	channelService.LoadModelCatalog(backgroundCtx)

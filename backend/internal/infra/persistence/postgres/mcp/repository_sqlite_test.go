@@ -505,7 +505,7 @@ func openMCPSQLiteTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&models.MCPServer{}, &models.MCPTool{}, &models.ConversationProjectMCPTool{}); err != nil {
+	if err := db.AutoMigrate(&models.MCPServer{}, &models.MCPTool{}, &models.MCPFileCreateGrant{}, &models.ConversationProjectMCPTool{}); err != nil {
 		t.Fatalf("migrate sqlite: %v", err)
 	}
 	return db

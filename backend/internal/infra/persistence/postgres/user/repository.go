@@ -749,11 +749,15 @@ func (r *Repo) ResetLoginFailure(ctx context.Context, userID uint) error {
 
 // UpdateUserStatus 更新用户状态。
 func (r *Repo) UpdateUserStatus(ctx context.Context, userID uint, status string) error {
-	return translateError(r.db.WithContext(ctx).
-		Model(&models.User{}).
-		Where("id = ?", userID).
-		Update("status", status).
-		Error)
+	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("status", status).Error; err != nil {
+			return err
+		}
+		if status != models.UserStatusActive {
+			return tx.Model(&models.MCPFileCreateGrant{}).Where("user_id = ?", userID).Update("expires_at", time.Unix(0, 0)).Error
+		}
+		return nil
+	}))
 }
 
 // ResetPasswordByAdmin 重置用户密码并更新凭据元信息。
@@ -853,6 +857,10 @@ func (r *Repo) ListLatestSessionActivityByUserIDs(ctx context.Context, userIDs [
 // DeleteAccountHard 删除用户主记录及主要用户域数据。
 func (r *Repo) DeleteAccountHard(ctx context.Context, userID uint) error {
 	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var owner models.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&owner, userID).Error; err != nil {
+			return err
+		}
 		var builtinFileReferences int64
 		if err := tx.Table("knowledge_base_files AS kbf").
 			Joins("JOIN knowledge_bases AS kb ON kb.id = kbf.knowledge_base_id").
@@ -1028,6 +1036,10 @@ func (r *Repo) DeleteAccountHard(ctx context.Context, userID uint) error {
 			{
 				label: "file_objects",
 				run: func(db *gorm.DB) error {
+					// Revoke immediately; maintenance retains candidate keys for safe cleanup.
+					if err := db.Model(&models.MCPFileCreateGrant{}).Where("user_id = ?", userID).Update("expires_at", time.Unix(0, 0)).Error; err != nil {
+						return err
+					}
 					return db.Unscoped().Where("user_id = ?", userID).Delete(&models.FileObject{}).Error
 				},
 			},
