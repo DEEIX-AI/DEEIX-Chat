@@ -2961,7 +2961,9 @@ func getOrInitQuotaForUpdate(tx *gorm.DB, userID uint, defaultQuotaBytes int64) 
 
 // QueueFileEmbedding 原子登记指定向量空间的待执行任务。
 // 同一签名已经排队、执行或完成时不会重复登记；失败和失效任务允许重新排队。
-func (r *Repo) QueueFileEmbedding(ctx context.Context, userID uint, fileID string, embeddingSignature string) (bool, error) {
+// 最近更新时间早于 stalledBefore 的 queued/processing 任务视为停滞（进程重启或队列消息丢失），允许重新登记；
+// 重复投递是安全的：已完成的文件不会被再次领取，分片发布按文件行加锁串行化且结果幂等。
+func (r *Repo) QueueFileEmbedding(ctx context.Context, userID uint, fileID string, embeddingSignature string, stalledBefore time.Time) (bool, error) {
 	fileID = strings.TrimSpace(fileID)
 	embeddingSignature = strings.TrimSpace(embeddingSignature)
 	if fileID == "" || embeddingSignature == "" {
@@ -2970,7 +2972,13 @@ func (r *Repo) QueueFileEmbedding(ctx context.Context, userID uint, fileID strin
 	result := r.db.WithContext(ctx).
 		Model(&models.FileObject{}).
 		Where("user_id = ? AND file_id = ? AND status = ?", userID, fileID, "active").
-		Where("NOT (embed_signature = ? AND embed_status IN ?)", embeddingSignature, []string{"queued", "processing", "ready"}).
+		Where(
+			"NOT (embed_signature = ? AND (embed_status = ? OR (embed_status IN ? AND updated_at >= ?)))",
+			embeddingSignature,
+			"ready",
+			[]string{"queued", "processing"},
+			stalledBefore,
+		).
 		Updates(map[string]any{
 			"embed_status":    "queued",
 			"embed_signature": embeddingSignature,
@@ -4652,6 +4660,11 @@ func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcess
 		updates["embed_status"] = domainconversation.FileSubprocessStatusEmpty
 		updates["embed_error"] = ""
 	}
+	// 处理失败时撤销重新处理登记的向量化请求（queued），文件回到未索引状态等待下次重试，
+	// 否则请求会一直停在排队中。其他向量化状态与提取无关，保持不变。
+	if item.ProcessingStatus == "failed" {
+		updates["embed_status"] = gorm.Expr("CASE WHEN embed_status = ? THEN ? ELSE embed_status END", domainconversation.FileSubprocessStatusQueued, "none")
+	}
 	return updates
 }
 
@@ -4981,59 +4994,4 @@ func (r *Repo) MarkEmbeddedFilesStale(ctx context.Context, activeSignature strin
 			"embed_error":  "embedding configuration changed, reindex required",
 		})
 	return result.RowsAffected, dberror.Translate(result.Error)
-}
-
-// CountFilesByEmbedStatus 统计指定 embed_status 的文件数量。
-func (r *Repo) CountFilesByEmbedStatus(ctx context.Context, status string) (int64, error) {
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&models.FileObject{}).
-		Where("embed_status = ? AND status = ?", status, "active").
-		Count(&count).Error
-	return count, dberror.Translate(err)
-}
-
-// MarkTimedOutFileEmbeddingsFailed 将长时间停留在向量化中的文件标记为失败。
-func (r *Repo) MarkTimedOutFileEmbeddingsFailed(ctx context.Context, userID uint, cutoff time.Time, message string) (int64, error) {
-	if message == "" {
-		message = "向量化超时"
-	}
-	result := r.db.WithContext(ctx).
-		Model(&models.FileObject{}).
-		Where("user_id = ? AND status = ? AND embed_status = ? AND updated_at < ?", userID, "active", "processing", cutoff).
-		Updates(map[string]any{
-			"embed_status":             "failed",
-			"embed_error":              truncateText(message, 255),
-			"processing_status":        gorm.Expr("CASE WHEN processing_status = ? THEN ? ELSE processing_status END", "embedding", "ready"),
-			"processing_ready":         gorm.Expr("CASE WHEN processing_status = ? THEN ? ELSE processing_ready END", "embedding", true),
-			"processing_error_code":    gorm.Expr("CASE WHEN processing_status = ? THEN ? ELSE processing_error_code END", "embedding", "embed_failed"),
-			"processing_error_message": gorm.Expr("CASE WHEN processing_status = ? THEN ? ELSE processing_error_message END", "embedding", truncateText(message, 255)),
-		})
-	return result.RowsAffected, dberror.Translate(result.Error)
-}
-
-// ListFilesForReindex 分页返回需要重建向量的文件（embed_status 为 none、stale 或 failed）。
-// includeEmpty 为 true 时同时纳入 empty 终态文件。
-func (r *Repo) ListFilesForReindex(ctx context.Context, limit int, afterID uint, includeEmpty bool) ([]domainconversation.FileObject, error) {
-	if limit <= 0 {
-		limit = 50
-	}
-	statuses := []string{"none", "stale", "failed"}
-	if includeEmpty {
-		statuses = append(statuses, domainconversation.FileSubprocessStatusEmpty)
-	}
-	var entities []models.FileObject
-	err := r.db.WithContext(ctx).
-		Where("id > ? AND embed_status IN ? AND status = ?", afterID, statuses, "active").
-		Order("id ASC").
-		Limit(limit).
-		Find(&entities).Error
-	if err != nil {
-		return nil, dberror.Translate(err)
-	}
-	results := make([]domainconversation.FileObject, 0, len(entities))
-	for i := range entities {
-		results = append(results, toFileObjectDomain(entities[i]))
-	}
-	return results, nil
 }

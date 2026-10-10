@@ -1589,14 +1589,23 @@ export interface EmailVerificationStartResponseDoc {
 }
 
 export interface EmbeddingIndexStatusResponse {
+  /** ActiveCount 是 PendingCount 中仍在正常排队或执行的任务数。 */
+  activeCount: number;
   /** EmptyCount 是提取完成但无文本的文件数；这些文件不参与自动重建。 */
   emptyCount: number;
   failedCount: number;
   modelSignature: string;
   needsReindex: boolean;
+  /** PendingCount 是尚未索引的可向量化文件与排队、执行中的任务之和。 */
   pendingCount: number;
   readyCount: number;
+  /** ReindexRunning 表示补建任务仍在后台执行；多实例部署时只反映处理本次请求的实例。 */
+  reindexRunning: boolean;
   staleCount: number;
+  /** StalledCount 是 PendingCount 中排队或执行超过停滞阈值、可以重新提交的任务数。 */
+  stalledCount: number;
+  /** UnsupportedCount 是当前配置下类型无法向量化的文件数，不计入待处理。 */
+  unsupportedCount: number;
 }
 
 export interface EmbeddingIndexStatusResponseDoc {
@@ -1612,6 +1621,56 @@ export interface EmbeddingReindexResponse {
 export interface EmbeddingReindexResponseDoc {
   data: EmbeddingReindexResponse;
   errorMsg: string;
+}
+
+export interface EmbeddingTaskListResponseDoc {
+  data: {
+    results: EmbeddingTaskResponse[];
+    total: number;
+  };
+  errorMsg: string;
+}
+
+export interface EmbeddingTaskResponse {
+  /** EmbedError 是失败原因：处理流水线失败时取处理错误，否则取向量化错误。 */
+  embedError: string;
+  /** EmbedStatus 取值 none、queued、processing、failed、stale、empty。 */
+  embedStatus: string;
+  fileID: string;
+  fileName: string;
+  mimeType: string;
+  retryBlockedReason: string;
+  /** Retryable 为 false 时 RetryBlockedReason 说明原因，取值与向量化提交的 skipped.reason 一致。 */
+  retryable: boolean;
+  sizeBytes: number;
+  /** Stalled 表示排队或执行超过停滞阈值，重试会重新投递任务。 */
+  stalled: boolean;
+  updatedAt: string;
+  userID: number;
+  userLabel: string;
+}
+
+export interface EmbeddingTaskRetryRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  fileIDs: string[];
+}
+
+export interface EmbeddingTaskRetryResponse {
+  skipped: EmbeddingTaskSkipResponse[];
+  submittedFileIDs: string[];
+}
+
+export interface EmbeddingTaskRetryResponseDoc {
+  data: EmbeddingTaskRetryResponse;
+  errorMsg: string;
+}
+
+export interface EmbeddingTaskSkipResponse {
+  fileID: string;
+  reason: string;
 }
 
 export interface Envelope {
@@ -8009,17 +8068,17 @@ export namespace Admin {
   }
 
   /**
-   * @description include_empty=true 时同时重试提取无文本的 empty 文件，适用于更换 OCR 引擎后
+   * @description 为尚未索引、失效、失败及停滞的文件补建向量，已就绪的文件不会重建。已有文本的文件直接向量化；处理失败或排队停滞的文件重新提取后再向量化；include_empty=true 时无文本文件也重新提取，适用于更换 OCR 引擎后
    * @tags admin/settings
    * @name SettingsEmbeddingReindexCreate
-   * @summary 触发向量重建（重索引所有 stale/failed 文件）
+   * @summary 补建向量索引
    * @request POST:/admin/settings/embedding/reindex
    * @secure
    */
   export namespace SettingsEmbeddingReindexCreate {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 是否包含 empty 终态文件 */
+      /** 是否同时重新提取无文本文件 */
       include_empty?: boolean;
     };
     export type RequestBody = never;
@@ -8057,6 +8116,53 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = EmbeddingIndexStatusResponseDoc;
+  }
+
+  /**
+   * @description 按分组分页列出全平台文件的向量化任务，并返回每个文件当前能否重试
+   * @tags admin/settings
+   * @name SettingsEmbeddingTasksList
+   * @summary 查询全平台向量化任务
+   * @request GET:/admin/settings/embedding/tasks
+   * @secure
+   */
+  export namespace SettingsEmbeddingTasksList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 任务分组 */
+      bucket:
+        | "ready"
+        | "pending"
+        | "failed"
+        | "stale"
+        | "empty"
+        | "unsupported";
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 按文件 ID 或文件名搜索 */
+      query?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = EmbeddingTaskListResponseDoc;
+  }
+
+  /**
+   * @description 管理员跨用户重试失败、待处理、失效或无文本文件的向量化任务；不可重试的文件在 skipped 中返回原因
+   * @tags admin/settings
+   * @name SettingsEmbeddingTasksRetryCreate
+   * @summary 重试指定文件的向量化任务
+   * @request POST:/admin/settings/embedding/tasks/retry
+   * @secure
+   */
+  export namespace SettingsEmbeddingTasksRetryCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = EmbeddingTaskRetryRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = EmbeddingTaskRetryResponseDoc;
   }
 
   /**

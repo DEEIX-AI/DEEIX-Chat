@@ -6,6 +6,7 @@ import * as React from "react";
 import { AnimatedText } from "@/components/ui/animated-text";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { FilePreviewState } from "@/features/files/hooks/use-file-preview";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,37 @@ type ContentHeaderProps = {
   onToggleRagOptOut: (fileID: string, current: boolean) => Promise<void>;
   onVectorize: (fileID: string) => Promise<void>;
 };
+
+function HeaderActionButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="size-6"
+          onClick={onClick}
+          disabled={disabled}
+          aria-label={label}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 function resolveRawFileTypeLabel(file: FileObjectDTO): string {
   const mimeType = file.mimeType.trim().toLowerCase();
@@ -163,55 +195,27 @@ export function ContentHeader({
 
       <div className="flex shrink-0 items-center gap-1">
         {canManuallyVectorizeFile(file) ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="size-6"
-            onClick={() => onVectorize(file.fileID)}
+          <HeaderActionButton
+            label={t(isVectorIndexOutdated(file) ? "actions.updateIndex" : "actions.vectorize")}
+            onClick={() => void onVectorize(file.fileID)}
             disabled={vectorizing}
-            aria-label={t(isVectorIndexOutdated(file) ? "actions.updateIndex" : "actions.vectorize")}
-            title={t(isVectorIndexOutdated(file) ? "actions.updateIndex" : "actions.vectorize")}
           >
             {vectorizing ? <LoaderCircle className="size-3.5 animate-spin" strokeWidth={1.6} /> : <DatabaseZap className="size-3.5" strokeWidth={1.6} />}
-          </Button>
+          </HeaderActionButton>
         ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="size-6"
-          onClick={onOpen}
-          disabled={!isReady}
-          aria-label={t("actions.open")}
-          title={t("actions.open")}
-        >
+        <HeaderActionButton label={t("actions.open")} onClick={onOpen} disabled={!isReady}>
           <ExternalLink className="size-3.5" strokeWidth={1.6} />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="size-6"
-          onClick={onDownload}
-          disabled={!isReady}
-          aria-label={t("actions.download")}
-          title={t("actions.download")}
-        >
+        </HeaderActionButton>
+        <HeaderActionButton label={t("actions.download")} onClick={onDownload} disabled={!isReady}>
           <Download className="size-3.5" strokeWidth={1.6} />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="size-6"
+        </HeaderActionButton>
+        <HeaderActionButton
+          label={t("actions.delete")}
           onClick={() => onDeleteRequest(file)}
           disabled={deleting}
-          aria-label={t("actions.delete")}
-          title={t("actions.delete")}
         >
           {deleting ? <LoaderCircle className="size-3.5 animate-spin" strokeWidth={1.6} /> : <Trash2 className="size-3.5" strokeWidth={1.6} />}
-        </Button>
+        </HeaderActionButton>
       </div>
     </div>
   );

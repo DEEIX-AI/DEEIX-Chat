@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	appadmin "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/admin"
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	appruntime "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/runtime"
 	appsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/settings"
@@ -25,6 +26,15 @@ type nativeToolCatalogProvider interface {
 	ListNativeToolDefinitions(ctx context.Context) ([]nativetool.Definition, error)
 }
 
+type adminFileEmbeddingSubmitter interface {
+	SubmitAdminFileEmbeddings(ctx context.Context, fileIDs []string) (appembedding.TargetedSubmissionResult, error)
+	ReprocessFilesWithoutText(ctx context.Context, includeEmpty bool) (int, error)
+}
+
+type userLabelResolver interface {
+	ResolveUserLabels(ctx context.Context, userIDs []uint) map[uint]appadmin.UserLabel
+}
+
 // Handler 封装 settings HTTP 处理。
 type Handler struct {
 	service         *appsettings.Service
@@ -32,6 +42,8 @@ type Handler struct {
 	runtimeSvc      *appruntime.Service
 	runtime         *config.Runtime
 	embeddingSvc    *appembedding.Service // 可选，用于模型变更后触发向量失效
+	fileEmbedder    adminFileEmbeddingSubmitter
+	userLabels      userLabelResolver
 	nativeTools     nativeToolCatalogProvider
 }
 
@@ -48,6 +60,16 @@ func NewHandler(service *appsettings.Service, runtimeSettings *appsettings.Runti
 // SetEmbeddingService 注入 Embedding 服务（可选），用于在模型配置变更时自动标记向量失效。
 func (h *Handler) SetEmbeddingService(svc *appembedding.Service) {
 	h.embeddingSvc = svc
+}
+
+// SetAdminFileEmbeddingSubmitter 注入管理员重试向量化任务使用的可恢复队列。
+func (h *Handler) SetAdminFileEmbeddingSubmitter(submitter adminFileEmbeddingSubmitter) {
+	h.fileEmbedder = submitter
+}
+
+// SetUserLabelResolver 注入任务列表展示文件所有者所需的批量用户标签解析。
+func (h *Handler) SetUserLabelResolver(resolver userLabelResolver) {
+	h.userLabels = resolver
 }
 
 // SetNativeToolCatalogProvider 注入平台级官方原生工具目录提供者。

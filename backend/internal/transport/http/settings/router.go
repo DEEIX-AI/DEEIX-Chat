@@ -38,6 +38,8 @@ func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	g.GET("/embedding/runtime", m.Handler.GetEmbeddingRuntime)
 	g.GET("/embedding/status", m.Handler.GetEmbeddingStatus)
 	g.POST("/embedding/reindex", m.Handler.TriggerReindex)
+	g.GET("/embedding/tasks", m.Handler.ListEmbeddingTasks)
+	g.POST("/embedding/tasks/retry", m.Handler.RetryEmbeddingTasks)
 	g.GET("/:namespace", m.Handler.ListByNamespace)
 	g.PATCH("", m.Handler.Patch)
 }

@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"testing"
+	"time"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
@@ -238,11 +239,12 @@ func TestFileEmbeddingQueueStateAndProcessingProjection(t *testing.T) {
 		t.Fatalf("create file: %v", err)
 	}
 
-	queued, err := repo.QueueFileEmbedding(ctx, 7, file.FileID, "model@1536")
+	stalledBefore := time.Now().Add(-30 * time.Minute)
+	queued, err := repo.QueueFileEmbedding(ctx, 7, file.FileID, "model@1536", stalledBefore)
 	if err != nil || !queued {
 		t.Fatalf("queue embedding: queued=%v err=%v", queued, err)
 	}
-	if duplicate, duplicateErr := repo.QueueFileEmbedding(ctx, 7, file.FileID, "model@1536"); duplicateErr != nil || duplicate {
+	if duplicate, duplicateErr := repo.QueueFileEmbedding(ctx, 7, file.FileID, "model@1536", stalledBefore); duplicateErr != nil || duplicate {
 		t.Fatalf("duplicate queue must be rejected: queued=%v err=%v", duplicate, duplicateErr)
 	}
 

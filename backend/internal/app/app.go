@@ -420,6 +420,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 		Logger:           log,
 		ExtractorVersion: appprocessing.DefaultExtractorVersion,
 	})
+	settingsHandler.SetAdminFileEmbeddingSubmitter(processingService)
 	uploadService := appupload.NewServiceWithRuntime(
 		runtimeCfg,
 		conversationRepo,
@@ -497,6 +498,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	adminHandler.SetConversationExporter(conversationService)
 	adminModule := adminhttp.NewModule(adminHandler)
 	contentModerationHandler.SetUserLabelResolver(adminService)
+	settingsHandler.SetUserLabelResolver(adminService)
 	userSettingsRepo := usersettingsrepo.NewRepo(db)
 	userSettingsService := usersettings.NewService(userSettingsRepo)
 	userSettingsService.SetCacheRefresher(conversationService.RefreshUserSettingCache)
