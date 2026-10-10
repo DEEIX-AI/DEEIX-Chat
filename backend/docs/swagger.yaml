@@ -3560,6 +3560,9 @@ definitions:
     type: object
   EmbeddingIndexStatusResponse:
     properties:
+      activeCount:
+        description: ActiveCount 是 PendingCount 中仍在正常排队或执行的任务数。
+        type: integer
       emptyCount:
         description: EmptyCount 是提取完成但无文本的文件数；这些文件不参与自动重建。
         type: integer
@@ -3570,19 +3573,33 @@ definitions:
       needsReindex:
         type: boolean
       pendingCount:
+        description: PendingCount 是尚未索引的可向量化文件与排队、执行中的任务之和。
         type: integer
       readyCount:
         type: integer
+      reindexRunning:
+        description: ReindexRunning 表示补建任务仍在后台执行；多实例部署时只反映处理本次请求的实例。
+        type: boolean
       staleCount:
         type: integer
+      stalledCount:
+        description: StalledCount 是 PendingCount 中排队或执行超过停滞阈值、可以重新提交的任务数。
+        type: integer
+      unsupportedCount:
+        description: UnsupportedCount 是当前配置下类型无法向量化的文件数，不计入待处理。
+        type: integer
     required:
+    - activeCount
     - emptyCount
     - failedCount
     - modelSignature
     - needsReindex
     - pendingCount
     - readyCount
+    - reindexRunning
     - staleCount
+    - stalledCount
+    - unsupportedCount
     type: object
   EmbeddingIndexStatusResponseDoc:
     properties:
@@ -3613,6 +3630,116 @@ definitions:
     required:
     - data
     - errorMsg
+    type: object
+  EmbeddingTaskListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/EmbeddingTaskResponse'
+            type: array
+          total:
+            type: integer
+        required:
+        - results
+        - total
+        type: object
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  EmbeddingTaskResponse:
+    properties:
+      embedError:
+        description: EmbedError 是失败原因：处理流水线失败时取处理错误，否则取向量化错误。
+        type: string
+      embedStatus:
+        description: EmbedStatus 取值 none、queued、processing、failed、stale、empty。
+        type: string
+      fileID:
+        type: string
+      fileName:
+        type: string
+      mimeType:
+        type: string
+      retryBlockedReason:
+        type: string
+      retryable:
+        description: Retryable 为 false 时 RetryBlockedReason 说明原因，取值与向量化提交的 skipped.reason
+          一致。
+        type: boolean
+      sizeBytes:
+        type: integer
+      stalled:
+        description: Stalled 表示排队或执行超过停滞阈值，重试会重新投递任务。
+        type: boolean
+      updatedAt:
+        type: string
+      userID:
+        type: integer
+      userLabel:
+        type: string
+    required:
+    - embedError
+    - embedStatus
+    - fileID
+    - fileName
+    - mimeType
+    - retryBlockedReason
+    - retryable
+    - sizeBytes
+    - stalled
+    - updatedAt
+    - userID
+    - userLabel
+    type: object
+  EmbeddingTaskRetryRequest:
+    properties:
+      fileIDs:
+        items:
+          type: string
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - fileIDs
+    type: object
+  EmbeddingTaskRetryResponse:
+    properties:
+      skipped:
+        items:
+          $ref: '#/definitions/EmbeddingTaskSkipResponse'
+        type: array
+      submittedFileIDs:
+        items:
+          type: string
+        type: array
+    required:
+    - skipped
+    - submittedFileIDs
+    type: object
+  EmbeddingTaskRetryResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/EmbeddingTaskRetryResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  EmbeddingTaskSkipResponse:
+    properties:
+      fileID:
+        type: string
+      reason:
+        type: string
+    required:
+    - fileID
+    - reason
     type: object
   Envelope:
     properties:
@@ -16618,9 +16745,10 @@ paths:
       - admin/settings
   /admin/settings/embedding/reindex:
     post:
-      description: include_empty=true 时同时重试提取无文本的 empty 文件，适用于更换 OCR 引擎后
+      description: 为尚未索引、失效、失败及停滞的文件补建向量，已就绪的文件不会重建。已有文本的文件直接向量化；处理失败或排队停滞的文件重新提取后再向量化；include_empty=true
+        时无文本文件也重新提取，适用于更换 OCR 引擎后
       parameters:
-      - description: 是否包含 empty 终态文件
+      - description: 是否同时重新提取无文本文件
         in: query
         name: include_empty
         type: boolean
@@ -16631,9 +16759,25 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/EmbeddingReindexResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/Envelope'
       security:
       - BearerAuth: []
-      summary: 触发向量重建（重索引所有 stale/failed 文件）
+      summary: 补建向量索引
       tags:
       - admin/settings
   /admin/settings/embedding/runtime:
@@ -16662,6 +16806,94 @@ paths:
       security:
       - BearerAuth: []
       summary: 查询向量索引健康状态
+      tags:
+      - admin/settings
+  /admin/settings/embedding/tasks:
+    get:
+      description: 按分组分页列出全平台文件的向量化任务，并返回每个文件当前能否重试
+      parameters:
+      - description: 任务分组
+        enum:
+        - ready
+        - pending
+        - failed
+        - stale
+        - empty
+        - unsupported
+        in: query
+        name: bucket
+        required: true
+        type: string
+      - description: 按文件 ID 或文件名搜索
+        in: query
+        name: query
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/EmbeddingTaskListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询全平台向量化任务
+      tags:
+      - admin/settings
+  /admin/settings/embedding/tasks/retry:
+    post:
+      consumes:
+      - application/json
+      description: 管理员跨用户重试失败、待处理、失效或无文本文件的向量化任务；不可重试的文件在 skipped 中返回原因
+      parameters:
+      - description: 待重试的文件 ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/EmbeddingTaskRetryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/EmbeddingTaskRetryResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/Envelope'
+      security:
+      - BearerAuth: []
+      summary: 重试指定文件的向量化任务
       tags:
       - admin/settings
   /admin/settings/mineru/runtime:

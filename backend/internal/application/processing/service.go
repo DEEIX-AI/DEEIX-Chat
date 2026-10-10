@@ -20,11 +20,12 @@ import (
 
 const (
 	// DefaultExtractorVersion 是当前文件处理流水线版本标识。
-	DefaultExtractorVersion       = "file-pipeline-v1"
-	fileProcessingMaxRetries      = 3
-	defaultProcessingPreview      = 280
-	defaultExtractTimeout         = 60 * time.Second
-	fixedEmbeddingTimeout         = 5 * time.Minute
+	DefaultExtractorVersion  = "file-pipeline-v1"
+	fileProcessingMaxRetries = 3
+	defaultProcessingPreview = 280
+	defaultExtractTimeout    = 60 * time.Second
+	// fixedEmbeddingTimeout 与 embedding 服务的单次执行上限一致，停滞巡检依赖该上限。
+	fixedEmbeddingTimeout         = appembedding.JobTimeout
 	failurePersistTimeout         = 5 * time.Second
 	processingQueueFailureMessage = "文件处理失败，请稍后重试。"
 	fileProcessingLeaseRenew      = 15 * time.Second
@@ -134,19 +135,51 @@ func (s *Service) SubmitFileEmbeddings(
 	userID uint,
 	fileIDs []string,
 ) (appembedding.TargetedSubmissionResult, error) {
-	result := appembedding.TargetedSubmissionResult{
-		SubmittedFileIDs: []string{},
-		Skipped:          []appembedding.TargetedFileSkip{},
-	}
 	if s == nil || s.embeddingSvc == nil || s.cache == nil {
-		return result, appembedding.ErrEmbeddingServiceNotConfigured
+		return emptyEmbeddingSubmission(), appembedding.ErrEmbeddingServiceNotConfigured
 	}
 	plan, err := s.embeddingSvc.PlanFiles(ctx, userID, fileIDs)
 	if err != nil {
-		return result, err
+		return emptyEmbeddingSubmission(), err
 	}
+	return s.submitEmbeddingPlan(ctx, plan), nil
+}
+
+// SubmitAdminFileEmbeddings 供管理员跨用户重试指定文件的向量化任务，复用同一可恢复队列。
+func (s *Service) SubmitAdminFileEmbeddings(
+	ctx context.Context,
+	fileIDs []string,
+) (appembedding.TargetedSubmissionResult, error) {
+	if s == nil || s.embeddingSvc == nil || s.cache == nil {
+		return emptyEmbeddingSubmission(), appembedding.ErrEmbeddingServiceNotConfigured
+	}
+	plan, err := s.embeddingSvc.PlanAdminFiles(ctx, fileIDs)
+	if err != nil {
+		return emptyEmbeddingSubmission(), err
+	}
+	return s.submitEmbeddingPlan(ctx, plan), nil
+}
+
+func emptyEmbeddingSubmission() appembedding.TargetedSubmissionResult {
+	return appembedding.TargetedSubmissionResult{
+		SubmittedFileIDs: []string{},
+		Skipped:          []appembedding.TargetedFileSkip{},
+	}
+}
+
+// submitEmbeddingPlan 逐项登记并投递已规划的任务；单项失败只影响该文件。
+func (s *Service) submitEmbeddingPlan(ctx context.Context, plan appembedding.TargetedSubmissionPlan) appembedding.TargetedSubmissionResult {
+	result := emptyEmbeddingSubmission()
 	result.Skipped = append(result.Skipped, plan.Skipped...)
 	for _, job := range plan.Jobs {
+		if job.Reprocess {
+			if reason := s.submitReprocessing(ctx, job); reason != "" {
+				result.Skipped = append(result.Skipped, appembedding.TargetedFileSkip{FileID: job.FileID, Reason: reason})
+			} else {
+				result.SubmittedFileIDs = append(result.SubmittedFileIDs, job.FileID)
+			}
+			continue
+		}
 		queued, queueErr := s.embeddingSvc.QueueTargetedJob(ctx, job)
 		if queueErr != nil {
 			result.Skipped = append(result.Skipped, appembedding.TargetedFileSkip{
@@ -165,7 +198,7 @@ func (s *Service) SubmitFileEmbeddings(
 			})
 			continue
 		}
-		err = s.cache.EnqueueFileEmbedding(
+		err := s.cache.EnqueueFileEmbedding(
 			ctx,
 			job.UserID,
 			job.FileID,
@@ -184,7 +217,77 @@ func (s *Service) SubmitFileEmbeddings(
 			Reason: appembedding.SkipReasonQueueBusy,
 		})
 	}
-	return result, nil
+	return result
+}
+
+// submitReprocessing 把没有可用文本的文件重置为待处理并投递到文件处理队列，提取结果保存后再向量化。
+// 返回非空的跳过原因表示未提交。
+func (s *Service) submitReprocessing(ctx context.Context, job appembedding.TargetedJob) string {
+	reset, err := s.embeddingSvc.ResetForReprocessing(ctx, job)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warn("reset_file_for_reprocessing_failed", zap.Uint("user_id", job.UserID), zap.String("file_id", job.FileID), zap.Error(err))
+		}
+		return appembedding.SkipReasonSubmitFailed
+	}
+	if !reset {
+		// 另一请求已重置并投递，或文件正在提取。
+		return appembedding.SkipReasonProcessing
+	}
+	if err := s.enqueueFileProcessing(ctx, job.UserID, job.FileID, 0, ""); err != nil {
+		fileObj, loadErr := s.repo.GetActiveFileObjectByID(ctx, job.UserID, job.FileID)
+		if loadErr == nil && fileObj != nil {
+			code := "queue_unavailable"
+			if errors.Is(err, repository.ErrFileProcessingQueueFull) {
+				code = "queue_full"
+			}
+			// 投递失败时落为处理失败，文件保持可重试，不会停在 queued。
+			if failErr := s.markFileProcessingFailed(ctx, fileObj, code, HumanizeFileProcessingError(fileObj.FileCategory, code, "")); failErr != nil && s.logger != nil {
+				s.logger.Warn("mark_reprocessing_failed_after_enqueue_error", zap.String("file_id", job.FileID), zap.Error(failErr))
+			}
+		}
+		return appembedding.SkipReasonQueueBusy
+	}
+	return ""
+}
+
+// ReprocessFilesWithoutText 为全平台没有可用文本的文件（处理失败、排队停滞；includeEmpty 时含无文本文件）
+// 重新投递处理流水线，返回提交的文件数。提取结果保存后会为当前向量空间建立索引。
+func (s *Service) ReprocessFilesWithoutText(ctx context.Context, includeEmpty bool) (int, error) {
+	if s == nil || s.embeddingSvc == nil {
+		return 0, appembedding.ErrEmbeddingServiceNotConfigured
+	}
+	if available, reason := s.embeddingSvc.IndexingAvailable(ctx); !available {
+		if reason == "embedding_disabled" || reason == "embedding_model_missing" || reason == "embedding_host_missing" {
+			return 0, appembedding.ErrEmbeddingServiceNotConfigured
+		}
+		return 0, appembedding.ErrEmbeddingServiceUnavailable
+	}
+	const pageSize = 100
+	submitted := 0
+	var afterID uint
+	for {
+		jobs, nextAfterID, err := s.embeddingSvc.PlanReprocessing(ctx, afterID, pageSize, includeEmpty)
+		if err != nil {
+			// 请求时限内没扫完：已提交的文件已转入排队，不会再被扫到，管理员再次触发即可接着处理剩余文件。
+			if submitted > 0 && errors.Is(err, context.DeadlineExceeded) {
+				if s.logger != nil {
+					s.logger.Warn("reprocess_scan_truncated", zap.Int("submitted", submitted))
+				}
+				return submitted, nil
+			}
+			return submitted, err
+		}
+		for _, job := range jobs {
+			if s.submitReprocessing(ctx, job) == "" {
+				submitted++
+			}
+		}
+		if nextAfterID == afterID {
+			return submitted, nil
+		}
+		afterID = nextAfterID
+	}
 }
 
 // ResolveFileVectorizationCapabilities 批量解析文件是否允许显式向量化。
@@ -288,13 +391,30 @@ func (s *Service) processFile(
 		return false, err
 	}
 	if fileObj.FileCategory == "image" && !s.snapshot().ExtractImageOCREnabled {
-		return true, s.updateClaimedFileProcessingState(
+		if err := s.updateClaimedFileProcessingState(
 			ctx,
 			attemptID,
 			s.readyWithoutExtractionState(fileObj, "image_not_applicable"),
-		)
+		); err != nil {
+			return true, err
+		}
+		// 图片不提取文本，但协议支持图片输入时仍可按原图建立索引；显式重新处理登记的请求必须在这里完成，
+		// 否则会一直停在排队中。
+		if hasEmbeddingRequest(*fileObj) {
+			embedCtx, cancel := context.WithTimeout(ctx, fixedEmbeddingTimeout)
+			defer cancel()
+			if err := s.embeddingSvc.EmbedAfterReprocessing(embedCtx, *fileObj); err != nil && s.logger != nil {
+				s.logger.Warn("embed_reprocessed_image_failed", zap.Uint("user_id", fileObj.UserID), zap.String("file_id", fileObj.FileID), zap.Error(err))
+			}
+		}
+		return true, nil
 	}
 	return true, s.processClaimedFile(ctx, fileObj, attemptID)
+}
+
+// hasEmbeddingRequest 判断文件上是否登记了显式重新处理留下的向量化请求（embed_status=queued 且带签名）。
+func hasEmbeddingRequest(fileObj domainconversation.FileObject) bool {
+	return fileObj.EmbedStatus == domainconversation.FileSubprocessStatusQueued && strings.TrimSpace(fileObj.EmbedSignature) != ""
 }
 
 func (s *Service) readyWithoutExtractionState(
@@ -367,7 +487,11 @@ func (s *Service) processClaimedFile(
 			resultRAGReason = ragReason
 		}
 	}
-	shouldEmbed := indexingAvailable && supportsRAG(fileObj.FileCategory) && s.embeddingSvc.ShouldTrigger(*fileObj)
+	// 显式重新处理会在文件行上登记向量化请求（embed_status=queued）：即使关闭了上传后自动向量化也要完成；
+	// 向量服务不可用时也交给 EmbedAfterReprocessing，把请求落为失败而不是一直停在排队中。
+	embedRequested := hasEmbeddingRequest(*fileObj)
+	shouldEmbed := supportsRAG(fileObj.FileCategory) &&
+		(embedRequested || (indexingAvailable && s.embeddingSvc.ShouldTrigger(*fileObj)))
 	nextProcessingStatus := "ready"
 	if shouldEmbed {
 		nextProcessingStatus = "embedding"
@@ -399,7 +523,12 @@ func (s *Service) processClaimedFile(
 
 	if shouldEmbed {
 		embedCtx, embedCancel := context.WithTimeout(runCtx, fixedEmbeddingTimeout)
-		embedErr := s.embeddingSvc.ProcessFile(embedCtx, *fileObj)
+		var embedErr error
+		if embedRequested {
+			embedErr = s.embeddingSvc.EmbedAfterReprocessing(embedCtx, *fileObj)
+		} else {
+			embedErr = s.embeddingSvc.ProcessFile(embedCtx, *fileObj)
+		}
 		embedCancel()
 		if embedErr != nil {
 			if ctx.Err() != nil {
@@ -821,6 +950,7 @@ func (s *Service) handleEmbeddingMessage(ctx context.Context, consumerName strin
 		UserID:             msg.UserID,
 		EmbeddingSignature: msg.EmbeddingSignature,
 		EmbeddingHost:      msg.EmbeddingHost,
+		Reclaimed:          msg.Reclaimed,
 	}
 
 	processingCtx, cancelProcessing := context.WithCancel(ctx)

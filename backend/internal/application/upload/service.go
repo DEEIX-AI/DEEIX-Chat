@@ -163,19 +163,10 @@ func (s *Service) openObjectStore(ctx context.Context) (objectstorage.Store, err
 	return s.storeProvider.Open(ctx)
 }
 
-const (
-	embeddingTimeoutStaleAfter = 6 * time.Minute
-)
-
 // ListFiles 分页查询用户文件。
+// 停滞的向量化任务由 embedding 服务的后台巡检统一回收，读路径不再写库。
 func (s *Service) ListFiles(ctx context.Context, input ListFilesInput) (*ListFilesResult, error) {
 	offset, limit := pagination.Offset(input.Page, input.PageSize)
-	_, _ = s.repo.MarkTimedOutFileEmbeddingsFailed(
-		ctx,
-		input.UserID,
-		time.Now().Add(-embeddingTimeoutStaleAfter),
-		"向量化超时，请检查向量化服务配置后重试",
-	)
 	items, total, err := s.repo.ListFileObjectsByUserWithFilter(ctx, repository.ListFileObjectsInput{
 		UserID:      input.UserID,
 		Offset:      offset,

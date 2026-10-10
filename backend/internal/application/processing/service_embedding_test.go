@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
@@ -19,6 +20,7 @@ type targetedEmbeddingRepositoryStub struct {
 	queueErrors   map[string]error
 	vectorError   error
 	statusHistory map[string][]string
+	resetFileIDs  []string
 }
 
 func (r *targetedEmbeddingRepositoryStub) VectorStoreAvailable(context.Context) (bool, error) {
@@ -55,11 +57,25 @@ func (r *targetedEmbeddingRepositoryStub) GetActiveFileObjectsByIDs(_ context.Co
 	return files, nil
 }
 
+func (r *targetedEmbeddingRepositoryStub) GetActiveFileObjectsByFileIDs(_ context.Context, fileIDs []string) ([]domainconversation.FileObject, error) {
+	wanted := make(map[string]struct{}, len(fileIDs))
+	for _, fileID := range fileIDs {
+		wanted[fileID] = struct{}{}
+	}
+	files := make([]domainconversation.FileObject, 0, len(fileIDs))
+	for i := range r.files {
+		if _, ok := wanted[r.files[i].FileID]; ok {
+			files = append(files, r.files[i])
+		}
+	}
+	return files, nil
+}
+
 func (*targetedEmbeddingRepositoryStub) GetFileObjectProcessingByObjectID(context.Context, uint) (*domainconversation.FileObjectProcessing, error) {
 	return nil, nil
 }
 
-func (r *targetedEmbeddingRepositoryStub) QueueFileEmbedding(_ context.Context, _ uint, fileID, _ string) (bool, error) {
+func (r *targetedEmbeddingRepositoryStub) QueueFileEmbedding(_ context.Context, _ uint, fileID, _ string, _ time.Time) (bool, error) {
 	if err := r.queueErrors[fileID]; err != nil {
 		return false, err
 	}
@@ -90,11 +106,28 @@ func (*targetedEmbeddingRepositoryStub) MarkEmbeddedFilesStale(context.Context, 
 	return 0, nil
 }
 
-func (*targetedEmbeddingRepositoryStub) CountFilesByEmbedStatus(context.Context, string) (int64, error) {
+func (r *targetedEmbeddingRepositoryStub) ResetFileForReprocessing(_ context.Context, _ uint, fileID string, _ string, _ time.Time) (bool, error) {
+	r.resetFileIDs = append(r.resetFileIDs, fileID)
+	return true, nil
+}
+
+func (*targetedEmbeddingRepositoryStub) ListFilesForReprocessing(context.Context, repository.ListFilesForReprocessingInput) ([]domainconversation.FileObject, error) {
+	return nil, nil
+}
+
+func (*targetedEmbeddingRepositoryStub) MarkStalledFileEmbeddingsFailed(context.Context, time.Time, string) (int64, error) {
 	return 0, nil
 }
 
-func (*targetedEmbeddingRepositoryStub) ListFilesForReindex(context.Context, int, uint, bool) ([]domainconversation.FileObject, error) {
+func (*targetedEmbeddingRepositoryStub) CountFileEmbeddingStates(context.Context, repository.EmbeddableFileScope, time.Time) ([]repository.FileEmbeddingStateCount, error) {
+	return nil, nil
+}
+
+func (*targetedEmbeddingRepositoryStub) ListFileEmbeddingTasks(context.Context, repository.ListFileEmbeddingTasksInput) ([]domainconversation.FileObject, int64, error) {
+	return nil, 0, nil
+}
+
+func (*targetedEmbeddingRepositoryStub) ListFilesForReindex(context.Context, repository.ListFilesForReindexInput) ([]domainconversation.FileObject, error) {
 	return nil, nil
 }
 
@@ -173,6 +206,63 @@ func TestSubmitFileEmbeddingsKeepsPerFileFailuresIsolated(t *testing.T) {
 	messages, err := queue.ReadFileEmbeddingMessages(context.Background(), "embedding_worker")
 	if err != nil || len(messages) != 1 || messages[0].FileID != "submitted" {
 		t.Fatalf("queued messages = %#v, err=%v", messages, err)
+	}
+}
+
+func TestSubmitAdminFileEmbeddingsQueuesJobsForEachFileOwner(t *testing.T) {
+	cfg := targetedEmbeddingTestConfig()
+	failed := targetedEmbeddingTestFile("failed_other_user")
+	failed.UserID = 9
+	failed.EmbedStatus = "failed"
+	stalled := targetedEmbeddingTestFile("stalled_queue")
+	stalled.EmbedStatus = "queued"
+	stalled.EmbedSignature = appembedding.ComputeModelSignature(cfg.RAGModel, cfg.EmbeddingOutputDimensions)
+	stalled.UpdatedAt = time.Now().Add(-2 * time.Hour)
+	running := targetedEmbeddingTestFile("running")
+	running.EmbedStatus = "processing"
+	running.EmbedSignature = stalled.EmbedSignature
+	running.UpdatedAt = time.Now()
+	repo := &targetedEmbeddingRepositoryStub{files: []domainconversation.FileObject{failed, stalled, running}}
+	queue := memorycache.New()
+	embeddingSvc := appembedding.NewServiceWithRuntime(
+		config.NewRuntime(cfg),
+		repo,
+		nil,
+		infraembedding.New(security.OutboundPolicy{}),
+		nil,
+	)
+	service := NewServiceWithRuntime(Dependencies{
+		Config:           config.NewRuntime(cfg),
+		Cache:            queue,
+		EmbeddingService: embeddingSvc,
+		ExtractorVersion: DefaultExtractorVersion,
+	})
+
+	result, err := service.SubmitAdminFileEmbeddings(
+		context.Background(),
+		[]string{"failed_other_user", "stalled_queue", "running"},
+	)
+	if err != nil {
+		t.Fatalf("submit admin embeddings: %v", err)
+	}
+	if len(result.SubmittedFileIDs) != 2 {
+		t.Fatalf("submitted files = %#v", result.SubmittedFileIDs)
+	}
+	// 仍在执行中的任务不能被重复提交；停滞的排队任务允许重新投递。
+	if len(result.Skipped) != 1 || result.Skipped[0].FileID != "running" || result.Skipped[0].Reason != appembedding.SkipReasonProcessing {
+		t.Fatalf("skipped files = %#v", result.Skipped)
+	}
+	owners := map[string]uint{}
+	for range result.SubmittedFileIDs {
+		messages, readErr := queue.ReadFileEmbeddingMessages(context.Background(), "embedding_worker")
+		if readErr != nil || len(messages) != 1 {
+			t.Fatalf("queued messages = %#v, err=%v", messages, readErr)
+		}
+		owners[messages[0].FileID] = messages[0].UserID
+	}
+	// 任务必须归属文件所有者，worker 才能按所有者作用域读取文件。
+	if owners["failed_other_user"] != 9 || owners["stalled_queue"] != 7 {
+		t.Fatalf("queued message owners = %#v", owners)
 	}
 }
 

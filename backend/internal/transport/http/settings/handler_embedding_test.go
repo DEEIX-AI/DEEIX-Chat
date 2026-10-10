@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	appsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/settings"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -75,6 +78,7 @@ func TestTriggerReindexReturnsBadRequestWhenEmbeddingNotConfigured(t *testing.T)
 	runtime := config.NewRuntime(config.Config{})
 	handler := &Handler{
 		embeddingSvc: appembedding.NewServiceWithRuntime(runtime, testEmbeddingRepo{}, nil, nil, zap.NewNop()),
+		fileEmbedder: &testAdminEmbeddingSubmitter{},
 	}
 
 	router := gin.New()
@@ -96,6 +100,73 @@ func TestTriggerReindexReturnsBadRequestWhenEmbeddingNotConfigured(t *testing.T)
 	}
 }
 
+func TestListEmbeddingTasksRejectsUnknownBucket(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := &Handler{
+		embeddingSvc: appembedding.NewServiceWithRuntime(config.NewRuntime(config.Config{}), testEmbeddingRepo{}, nil, nil, zap.NewNop()),
+	}
+	router := gin.New()
+	router.GET("/tasks", handler.ListEmbeddingTasks)
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/tasks?bucket=archived", nil))
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestRetryEmbeddingTasksReturnsSubmissionResult(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	submitter := &testAdminEmbeddingSubmitter{result: appembedding.TargetedSubmissionResult{
+		SubmittedFileIDs: []string{"file_a"},
+		Skipped:          []appembedding.TargetedFileSkip{{FileID: "file_b", Reason: appembedding.SkipReasonProcessing}},
+	}}
+	handler := &Handler{service: appsettings.NewService(nil, nil), fileEmbedder: submitter}
+	router := gin.New()
+	router.POST("/tasks/retry", handler.RetryEmbeddingTasks)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/tasks/retry", strings.NewReader(`{"fileIDs":["file_a","file_b"]}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body struct {
+		Data EmbeddingTaskRetryResponse `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(submitter.fileIDs) != 2 || len(body.Data.SubmittedFileIDs) != 1 || len(body.Data.Skipped) != 1 || body.Data.Skipped[0].Reason != "processing" {
+		t.Fatalf("unexpected retry response: requested=%#v body=%#v", submitter.fileIDs, body.Data)
+	}
+}
+
+// TestEmbeddingTaskErrorContract 固定重建冲突的状态码与错误码；错误码是前端 errors.json 依赖的契约。
+func TestEmbeddingTaskErrorContract(t *testing.T) {
+	description := response.Describe(http.StatusConflict, appembedding.ErrReindexInProgress)
+	if description.Status != http.StatusConflict || description.Code != "embedding.reindex_in_progress" {
+		t.Fatalf("unexpected reindex conflict contract: %+v", description)
+	}
+}
+
+type testAdminEmbeddingSubmitter struct {
+	fileIDs []string
+	result  appembedding.TargetedSubmissionResult
+}
+
+func (*testAdminEmbeddingSubmitter) ReprocessFilesWithoutText(context.Context, bool) (int, error) {
+	return 0, nil
+}
+
+func (s *testAdminEmbeddingSubmitter) SubmitAdminFileEmbeddings(_ context.Context, fileIDs []string) (appembedding.TargetedSubmissionResult, error) {
+	s.fileIDs = fileIDs
+	return s.result, nil
+}
+
 type testEmbeddingRepo struct{}
 
 func (testEmbeddingRepo) VectorStoreAvailable(context.Context) (bool, error) {
@@ -110,11 +181,15 @@ func (testEmbeddingRepo) GetActiveFileObjectsByIDs(context.Context, uint, []stri
 	return nil, nil
 }
 
+func (testEmbeddingRepo) GetActiveFileObjectsByFileIDs(context.Context, []string) ([]domainconversation.FileObject, error) {
+	return nil, nil
+}
+
 func (testEmbeddingRepo) GetFileObjectProcessingByObjectID(context.Context, uint) (*domainconversation.FileObjectProcessing, error) {
 	return nil, nil
 }
 
-func (testEmbeddingRepo) QueueFileEmbedding(context.Context, uint, string, string) (bool, error) {
+func (testEmbeddingRepo) QueueFileEmbedding(context.Context, uint, string, string, time.Time) (bool, error) {
 	return true, nil
 }
 
@@ -138,10 +213,26 @@ func (testEmbeddingRepo) MarkEmbeddedFilesStale(context.Context, string) (int64,
 	return 0, nil
 }
 
-func (testEmbeddingRepo) CountFilesByEmbedStatus(context.Context, string) (int64, error) {
+func (testEmbeddingRepo) ResetFileForReprocessing(context.Context, uint, string, string, time.Time) (bool, error) {
+	return true, nil
+}
+
+func (testEmbeddingRepo) ListFilesForReprocessing(context.Context, repository.ListFilesForReprocessingInput) ([]domainconversation.FileObject, error) {
+	return nil, nil
+}
+
+func (testEmbeddingRepo) MarkStalledFileEmbeddingsFailed(context.Context, time.Time, string) (int64, error) {
 	return 0, nil
 }
 
-func (testEmbeddingRepo) ListFilesForReindex(context.Context, int, uint, bool) ([]domainconversation.FileObject, error) {
+func (testEmbeddingRepo) CountFileEmbeddingStates(context.Context, repository.EmbeddableFileScope, time.Time) ([]repository.FileEmbeddingStateCount, error) {
+	return nil, nil
+}
+
+func (testEmbeddingRepo) ListFileEmbeddingTasks(context.Context, repository.ListFileEmbeddingTasksInput) ([]domainconversation.FileObject, int64, error) {
+	return nil, 0, nil
+}
+
+func (testEmbeddingRepo) ListFilesForReindex(context.Context, repository.ListFilesForReindexInput) ([]domainconversation.FileObject, error) {
 	return nil, nil
 }

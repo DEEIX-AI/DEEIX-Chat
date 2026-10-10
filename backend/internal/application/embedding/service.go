@@ -36,6 +36,7 @@ const (
 	embeddingImageTooLargeMessage = "图片过大，缩放后仍超过向量化上限。"
 	embeddingImageFormatMessage   = "图片格式不受当前向量化服务支持。"
 	embeddingModalityMessage      = "当前向量化协议不支持该输入类型。"
+	embeddingStalledMessage       = "向量化任务超时或被中断，请重试。"
 )
 
 // ErrorSummary 返回长度有限、用户可见的描述，不暴露
@@ -80,6 +81,19 @@ func ErrorSummary(err error) string {
 const (
 	WorkerConcurrency = 4
 	MaxTargetedFiles  = 100
+	// JobTimeout 是单个文件一次向量化执行的时长上限。所有执行入口都必须遵守，
+	// 停滞判定依赖它：超过上限仍停在 processing 的任务只可能是执行进程已退出。
+	JobTimeout = 5 * time.Minute
+)
+
+const (
+	// processingStallTimeout 留出一分钟余量，避免把刚好接近上限的执行误判为停滞。
+	processingStallTimeout = JobTimeout + time.Minute
+	// queueStallTimeout 是任务排队后允许等待的时长；超过后视为队列消息丢失（如进程重启、内存队列），允许重新提交。
+	// 误判只会产生一次重复投递，执行结果幂等。
+	queueStallTimeout = 30 * time.Minute
+	// stallSweepInterval 是后台回收停滞任务的巡检间隔。
+	stallSweepInterval = time.Minute
 )
 
 const (
@@ -108,6 +122,11 @@ type TargetedJob struct {
 	UserID             uint
 	EmbeddingSignature string
 	EmbeddingHost      string
+	// Reprocess 表示文件还没有可用文本（处理失败、无文本或排队停滞），必须先重新走处理流水线提取，
+	// 提取结果保存后再向量化；否则直接按已保存的文本向量化。
+	Reprocess bool
+	// Reclaimed 表示消息在原消费者停止续租后被重新领取，只有这种情况才能接手停在 processing 的文件。
+	Reclaimed bool
 }
 
 type TargetedSubmissionPlan struct {
@@ -155,7 +174,7 @@ func NewServiceWithRuntime(cfg *config.Runtime, repo repository.EmbeddingReposit
 	}
 }
 
-// StartBackgroundWorkers 启动后台重建任务的常驻执行协程；ctx 取消后不再领取新任务。
+// StartBackgroundWorkers 启动后台重建任务的常驻执行协程与停滞任务巡检；ctx 取消后不再领取新任务。
 func (s *Service) StartBackgroundWorkers(ctx context.Context) {
 	if s == nil || ctx == nil {
 		return
@@ -167,6 +186,20 @@ func (s *Service) StartBackgroundWorkers(ctx context.Context) {
 				return
 			case job := <-s.reindexJobs:
 				s.runReindex(ctx, job)
+			}
+		}
+	})
+	background.Go(s.logger, "embedding_stall_sweep", func() {
+		ticker := time.NewTicker(stallSweepInterval)
+		defer ticker.Stop()
+		// 启动时先巡检一次，回收上次进程退出时遗留在 processing 的任务。
+		s.sweepStalledTasks(ctx)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.sweepStalledTasks(ctx)
 			}
 		}
 	})
@@ -257,7 +290,7 @@ func (s *Service) MaybeTrigger(ctx context.Context, fileObj domainconversation.F
 		return
 	}
 	background.Go(s.logger, "embedding_process_file", func() {
-		ctx, cancel := background.WithTimeout(ctx, 5*time.Minute)
+		ctx, cancel := background.WithTimeout(ctx, JobTimeout)
 		defer cancel()
 		if available, _, _ := s.indexingAvailable(ctx, s.snapshot()); !available {
 			return
@@ -274,6 +307,25 @@ func (s *Service) MaybeTrigger(ctx context.Context, fileObj domainconversation.F
 // PlanFiles 校验当前用户指定文件并生成向量化任务计划。
 // 任务认领与投递由 processing 应用服务逐项完成，避免批量预认领后因中途失败遗留 processing 状态。
 func (s *Service) PlanFiles(ctx context.Context, userID uint, fileIDs []string) (TargetedSubmissionPlan, error) {
+	return s.planFiles(ctx, fileIDs, false, func(ids []string) ([]domainconversation.FileObject, error) {
+		return s.repo.GetActiveFileObjectsByIDs(ctx, userID, ids)
+	})
+}
+
+// PlanAdminFiles 为管理员跨用户重试指定文件生成向量化任务计划；任务仍归属文件所有者。
+// 没有可用文本的文件会规划为重新处理任务，先重新提取再向量化。
+func (s *Service) PlanAdminFiles(ctx context.Context, fileIDs []string) (TargetedSubmissionPlan, error) {
+	return s.planFiles(ctx, fileIDs, true, func(ids []string) ([]domainconversation.FileObject, error) {
+		return s.repo.GetActiveFileObjectsByFileIDs(ctx, ids)
+	})
+}
+
+func (s *Service) planFiles(
+	ctx context.Context,
+	fileIDs []string,
+	allowReprocess bool,
+	loadFiles func(ids []string) ([]domainconversation.FileObject, error),
+) (TargetedSubmissionPlan, error) {
 	plan := TargetedSubmissionPlan{
 		Jobs:    []TargetedJob{},
 		Skipped: []TargetedFileSkip{},
@@ -292,7 +344,7 @@ func (s *Service) PlanFiles(ctx context.Context, userID uint, fileIDs []string) 
 		return plan, embeddingAvailabilityError(reason, err)
 	}
 
-	files, err := s.repo.GetActiveFileObjectsByIDs(ctx, userID, normalizedIDs)
+	files, err := loadFiles(normalizedIDs)
 	if err != nil {
 		return plan, err
 	}
@@ -303,34 +355,110 @@ func (s *Service) PlanFiles(ctx context.Context, userID uint, fileIDs []string) 
 
 	embeddingSignature := configuredModelSignature(cfg)
 	embeddingHost := strings.TrimRight(strings.TrimSpace(cfg.EmbeddingHost), "/")
+	stalledBefore := queueStalledBefore(time.Now())
 	for _, fileID := range normalizedIDs {
 		fileObj, found := filesByID[fileID]
 		if !found {
 			plan.Skipped = append(plan.Skipped, TargetedFileSkip{FileID: fileID, Reason: SkipReasonNotFound})
 			continue
 		}
-		if reason := fileVectorizationSkipReason(cfg, fileObj, embeddingSignature); reason != "" {
+		reason, reprocess := fileVectorizationPlan(cfg, fileObj, embeddingSignature, stalledBefore, allowReprocess)
+		if reason != "" {
 			plan.Skipped = append(plan.Skipped, TargetedFileSkip{FileID: fileID, Reason: reason})
 			continue
 		}
 
 		plan.Jobs = append(plan.Jobs, TargetedJob{
 			FileID:             fileID,
-			UserID:             userID,
+			UserID:             fileObj.UserID,
 			EmbeddingSignature: embeddingSignature,
 			EmbeddingHost:      embeddingHost,
+			Reprocess:          reprocess,
 		})
 	}
 	return plan, nil
 }
 
-// QueueTargetedJob 原子登记单个已规划任务，防止并发提交产生重复队列消息。
+// QueueTargetedJob 原子登记单个已规划任务，防止并发提交产生重复队列消息；停滞的排队任务允许重新登记。
 // 真正的 processing 状态由 worker 领取消息后再设置。
 func (s *Service) QueueTargetedJob(ctx context.Context, job TargetedJob) (bool, error) {
 	if s == nil || s.repo == nil || strings.TrimSpace(job.FileID) == "" || strings.TrimSpace(job.EmbeddingSignature) == "" {
 		return false, nil
 	}
-	return s.repo.QueueFileEmbedding(ctx, job.UserID, job.FileID, job.EmbeddingSignature)
+	return s.repo.QueueFileEmbedding(ctx, job.UserID, job.FileID, job.EmbeddingSignature, queueStalledBefore(time.Now()))
+}
+
+// ResetForReprocessing 把没有可用文本的文件原子重置为待处理，并登记任务对应向量空间的向量化请求。
+// 返回 false 表示文件已不满足条件（例如已被其他请求重置或正在提取），调用方应跳过而不是重复投递。
+func (s *Service) ResetForReprocessing(ctx context.Context, job TargetedJob) (bool, error) {
+	if s == nil || s.repo == nil || strings.TrimSpace(job.FileID) == "" || strings.TrimSpace(job.EmbeddingSignature) == "" {
+		return false, nil
+	}
+	return s.repo.ResetFileForReprocessing(ctx, job.UserID, job.FileID, job.EmbeddingSignature, queueStalledBefore(time.Now()))
+}
+
+// PlanReprocessing 扫描全平台没有可用文本的文件（处理失败、排队停滞；includeEmpty 时含无文本文件），
+// 为当前向量空间生成重新处理任务。每批最多 limit 个，afterID 用于分页。
+func (s *Service) PlanReprocessing(ctx context.Context, afterID uint, limit int, includeEmpty bool) ([]TargetedJob, uint, error) {
+	if s == nil || s.repo == nil {
+		return nil, afterID, nil
+	}
+	cfg := s.snapshot()
+	files, err := s.repo.ListFilesForReprocessing(ctx, repository.ListFilesForReprocessingInput{
+		Limit:         limit,
+		AfterID:       afterID,
+		IncludeEmpty:  includeEmpty,
+		StalledBefore: queueStalledBefore(time.Now()),
+	})
+	if err != nil || len(files) == 0 {
+		return nil, afterID, err
+	}
+	signature := configuredModelSignature(cfg)
+	host := strings.TrimRight(strings.TrimSpace(cfg.EmbeddingHost), "/")
+	jobs := make([]TargetedJob, 0, len(files))
+	for i := range files {
+		// 当前配置无法向量化的文件（如未启用 OCR 的图片）重新提取也建不了索引，不为它们花提取成本。
+		if !canEmbedFile(cfg, files[i]) {
+			continue
+		}
+		jobs = append(jobs, TargetedJob{
+			FileID:             files[i].FileID,
+			UserID:             files[i].UserID,
+			EmbeddingSignature: signature,
+			EmbeddingHost:      host,
+			Reprocess:          true,
+		})
+	}
+	return jobs, files[len(files)-1].ID, nil
+}
+
+// EmbedAfterReprocessing 在处理流水线完成提取后，为显式重新处理请求登记的向量空间建立索引。
+// 登记的向量空间与当前配置不一致时（期间改过配置）标记为失效，交给常规补建处理。
+func (s *Service) EmbedAfterReprocessing(ctx context.Context, fileObj domainconversation.FileObject) error {
+	if s == nil || s.repo == nil {
+		return nil
+	}
+	cfg := s.snapshot()
+	signature := configuredModelSignature(cfg)
+	if strings.TrimSpace(fileObj.EmbedSignature) != signature {
+		return s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, fileObj.EmbedSignature, "stale", errEmbeddingConfigurationChanged)
+	}
+	available, reason, err := s.indexingAvailable(ctx, cfg)
+	if !available {
+		availabilityErr := embeddingAvailabilityError(reason, err)
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, signature, "failed", availabilityErr)
+		return availabilityErr
+	}
+	releaseSlot, err := s.acquireWorkSlot(ctx)
+	if err != nil {
+		return err
+	}
+	defer releaseSlot()
+	claimed, err := s.repo.ClaimFileEmbedding(ctx, fileObj.UserID, fileObj.FileID, signature)
+	if err != nil || !claimed {
+		return err
+	}
+	return s.processClaimedFile(ctx, fileObj, cfg, signature)
 }
 
 // ResolveFileVectorizationCapabilities 返回前端展示所需的后端事实状态。
@@ -352,8 +480,9 @@ func (s *Service) ResolveFileVectorizationCapabilities(
 		}
 		return capabilities
 	}
+	stalledBefore := queueStalledBefore(time.Now())
 	for i := range files {
-		skipReason := fileVectorizationSkipReason(cfg, files[i], signature)
+		skipReason, _ := fileVectorizationPlan(cfg, files[i], signature, stalledBefore, false)
 		reason := skipReason
 		if reason == "" && fileVectorIndexOutdated(files[i], signature) {
 			reason = ReasonOutdatedIndex
@@ -376,6 +505,9 @@ func (s *Service) ProcessTargetedJob(ctx context.Context, job TargetedJob) error
 		return err
 	}
 	defer releaseSlot()
+	// 超时从领取执行槽后开始计算：排队等待不会把文件置为 processing，不影响停滞判定。
+	ctx, cancel := context.WithTimeout(ctx, JobTimeout)
+	defer cancel()
 
 	cfg := s.snapshot()
 	if configuredModelSignature(cfg) != strings.TrimSpace(job.EmbeddingSignature) ||
@@ -402,6 +534,15 @@ func (s *Service) ProcessTargetedJob(ctx context.Context, job TargetedJob) error
 		if claimErr != nil || !claimed {
 			return claimErr
 		}
+	} else {
+		// 首次投递却发现文件已在执行，说明另一条消息或补建任务正在处理，重复执行只会浪费一次向量化调用。
+		if !job.Reclaimed {
+			return nil
+		}
+		// 租约过期后重新领取的消息接手上次中断的执行；刷新更新时间，避免停滞巡检把本次执行判为中断。
+		if _, refreshErr := s.repo.UpdateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "processing", ""); refreshErr != nil {
+			return refreshErr
+		}
 	}
 	return s.processClaimedFile(ctx, *fileObj, cfg, job.EmbeddingSignature)
 }
@@ -416,22 +557,50 @@ func (s *Service) RequeueTargetedJob(ctx context.Context, job TargetedJob, cause
 	return s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "queued", cause)
 }
 
-func fileVectorizationSkipReason(cfg config.Config, fileObj domainconversation.FileObject, embeddingSignature string) string {
+// fileVectorizationPlan 判断文件当前能否提交向量化以及走哪条路径。skipReason 非空时不能提交；
+// reprocess 为 true 时文件还没有可用文本，必须先由处理流水线重新提取。
+// allowReprocess 只对管理员开放：重新提取可能产生付费 OCR 调用，普通用户保持只能向量化已有文本的行为。
+func fileVectorizationPlan(
+	cfg config.Config,
+	fileObj domainconversation.FileObject,
+	embeddingSignature string,
+	stalledBefore time.Time,
+	allowReprocess bool,
+) (skipReason string, reprocess bool) {
 	if fileObj.EmbedSignature == embeddingSignature {
 		switch strings.ToLower(strings.TrimSpace(fileObj.EmbedStatus)) {
 		case "ready":
-			return SkipReasonAlreadyReady
+			return SkipReasonAlreadyReady, false
 		case "queued", "processing":
-			return SkipReasonProcessing
+			if !fileEmbeddingStalled(fileObj, stalledBefore) {
+				return SkipReasonProcessing, false
+			}
 		}
 	}
-	if !fileObj.ProcessingReady {
-		return SkipReasonNotReady
-	}
 	if !canEmbedFile(cfg, fileObj) {
-		return SkipReasonUnsupported
+		return SkipReasonUnsupported, false
 	}
-	return ""
+	switch {
+	case allowReprocess && fileNeedsReprocessing(fileObj, stalledBefore):
+		return "", true
+	case !fileObj.ProcessingReady:
+		return SkipReasonNotReady, false
+	default:
+		return "", false
+	}
+}
+
+// fileNeedsReprocessing 判断文件是否没有可用文本、需要重新走处理流水线：处理失败、提取完成但无文本，
+// 或排队早于停滞时刻仍未开始（队列消息丢失）。条件与仓储的 ResetFileForReprocessing 保持一致。
+func fileNeedsReprocessing(fileObj domainconversation.FileObject, stalledBefore time.Time) bool {
+	switch strings.ToLower(strings.TrimSpace(fileObj.ProcessingStatus)) {
+	case "failed":
+		return true
+	case "ready":
+		return fileObj.ExtractStatus == domainconversation.FileSubprocessStatusEmpty
+	default:
+		return fileProcessingStalled(fileObj, stalledBefore)
+	}
 }
 
 func fileVectorIndexOutdated(fileObj domainconversation.FileObject, embeddingSignature string) bool {
@@ -717,7 +886,7 @@ func (s *Service) WaitReady(ctx context.Context, userID uint, fileID string, tim
 }
 
 // loadSourceText 返回文件文本。处理流水线已判定为空的文件直接返回 errNoExtractableText，
-// 不再重新提取或 OCR。
+// 不再重新提取或 OCR；重新提取由处理流水线负责，结果会保存下来供后续向量化复用。
 func (s *Service) loadSourceText(ctx context.Context, fileObj domainconversation.FileObject) (string, error) {
 	if s != nil && s.repo != nil {
 		if result, err := s.repo.GetFileObjectProcessingByObjectID(ctx, fileObj.ID); err == nil && result != nil {
@@ -873,10 +1042,19 @@ type EmbeddingIndexStatus struct {
 	ModelSignature string
 	ReadyCount     int64
 	StaleCount     int64
-	PendingCount   int64
-	FailedCount    int64
-	EmptyCount     int64
-	NeedsReindex   bool
+	// PendingCount 是尚未索引的可向量化文件与排队、执行中的任务之和。
+	PendingCount int64
+	// StalledCount 是 PendingCount 中排队或执行超过停滞阈值的任务数。
+	StalledCount int64
+	// ActiveCount 是 PendingCount 中仍在正常排队或执行的任务数，管理端据此判断是否需要继续刷新进度。
+	ActiveCount int64
+	FailedCount int64
+	EmptyCount  int64
+	// UnsupportedCount 是当前配置下类型无法向量化、从未进入索引流程的文件数。
+	UnsupportedCount int64
+	NeedsReindex     bool
+	// ReindexRunning 表示本实例的补建任务仍在执行。
+	ReindexRunning bool
 }
 
 // ComputeModelSignature 根据模型名和输出维度计算模型签名（格式: hex8@dims）。
@@ -911,24 +1089,44 @@ func (s *Service) GetIndexStatus(ctx context.Context) (EmbeddingIndexStatus, err
 	if s.repo == nil {
 		return status, nil
 	}
-	var err error
-	if status.ReadyCount, err = s.repo.CountFilesByEmbedStatus(ctx, "ready"); err != nil {
+	counts, err := s.repo.CountFileEmbeddingStates(ctx, embeddableFileScope(cfg), queueStalledBefore(time.Now()))
+	if err != nil {
 		return status, err
 	}
-	if status.StaleCount, err = s.repo.CountFilesByEmbedStatus(ctx, "stale"); err != nil {
-		return status, err
+	for _, item := range counts {
+		switch item.Status {
+		case "ready":
+			status.ReadyCount += item.Count
+		case "stale":
+			status.StaleCount += item.Count
+		case "failed":
+			status.FailedCount += item.Count
+		case domainconversation.FileSubprocessStatusEmpty:
+			status.EmptyCount += item.Count
+		case "none":
+			// none 只表示从未进入索引流程：当前配置下不支持的文件单独计数；
+			// 处理流水线失败的文件没有文本可用，属于失败而不是待处理。
+			switch {
+			case !item.Embeddable:
+				status.UnsupportedCount += item.Count
+			case item.ProcessingFailed:
+				status.FailedCount += item.Count
+			default:
+				status.PendingCount += item.Count
+			}
+		case domainconversation.FileSubprocessStatusQueued, domainconversation.FileSubprocessStatusProcessing:
+			status.PendingCount += item.Count
+			if item.Stalled {
+				status.StalledCount += item.Count
+			} else {
+				status.ActiveCount += item.Count
+			}
+		}
 	}
-	if status.FailedCount, err = s.repo.CountFilesByEmbedStatus(ctx, "failed"); err != nil {
-		return status, err
-	}
-	if status.EmptyCount, err = s.repo.CountFilesByEmbedStatus(ctx, domainconversation.FileSubprocessStatusEmpty); err != nil {
-		return status, err
-	}
-	noneCount, _ := s.repo.CountFilesByEmbedStatus(ctx, "none")
-	queuedCount, _ := s.repo.CountFilesByEmbedStatus(ctx, "queued")
-	processingCount, _ := s.repo.CountFilesByEmbedStatus(ctx, "processing")
-	status.PendingCount = noneCount + queuedCount + processingCount
 	status.NeedsReindex = status.StaleCount > 0
+	s.reindexMu.Lock()
+	status.ReindexRunning = s.reindexing
+	s.reindexMu.Unlock()
 	return status, nil
 }
 
@@ -950,9 +1148,10 @@ func (s *Service) ReconcileIndex(ctx context.Context) (int64, error) {
 }
 
 // ReindexStaleFiles 提交一次去重的后台重建任务，返回本次纳入重建的文件数。
+// 只处理已有可用文本且尚未索引、失效、失败或停滞排队的文件，已就绪的文件不会重建；
+// 没有可用文本的文件由处理流水线重新提取（见 processing.Service.ReprocessFilesWithoutText）。
 // 后台任务通过固定 worker 数执行，不会按文件数量无限创建 goroutine。
-// includeEmpty 为 true 时把 empty 终态文件也重新纳入，供更换 OCR 引擎后强制重试。
-func (s *Service) ReindexStaleFiles(ctx context.Context, includeEmpty bool) (int, error) {
+func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 	if s.repo == nil {
 		return 0, nil
 	}
@@ -968,7 +1167,7 @@ func (s *Service) ReindexStaleFiles(ctx context.Context, includeEmpty bool) (int
 	s.reindexMu.Lock()
 	if s.reindexing {
 		s.reindexMu.Unlock()
-		return 0, nil
+		return 0, ErrReindexInProgress
 	}
 	s.reindexing = true
 	s.reindexMu.Unlock()
@@ -983,10 +1182,15 @@ func (s *Service) ReindexStaleFiles(ctx context.Context, includeEmpty bool) (int
 	}()
 
 	const pageSize = 100
+	stalledBefore := queueStalledBefore(time.Now())
 	submitted := 0
 	var afterID uint
 	for {
-		files, err := s.repo.ListFilesForReindex(ctx, pageSize, afterID, includeEmpty)
+		files, err := s.repo.ListFilesForReindex(ctx, repository.ListFilesForReindexInput{
+			Limit:         pageSize,
+			AfterID:       afterID,
+			StalledBefore: stalledBefore,
+		})
 		if err != nil {
 			return submitted, err
 		}
@@ -1009,13 +1213,16 @@ func (s *Service) ReindexStaleFiles(ctx context.Context, includeEmpty bool) (int
 
 	started = true
 	// reindexing 标记保证同一时刻至多一个待执行任务，缓冲为 1 的通道不会阻塞。
-	s.reindexJobs <- reindexJob{signature: configuredModelSignature(cfg), includeEmpty: includeEmpty}
+	s.reindexJobs <- reindexJob{
+		signature:     configuredModelSignature(cfg),
+		stalledBefore: stalledBefore,
+	}
 	return submitted, nil
 }
 
 type reindexJob struct {
-	signature    string
-	includeEmpty bool
+	signature     string
+	stalledBefore time.Time
 }
 
 func (s *Service) runReindex(ctx context.Context, job reindexJob) {
@@ -1036,7 +1243,7 @@ func (s *Service) runReindex(ctx context.Context, job reindexJob) {
 				if ctx.Err() != nil || configuredModelSignature(s.snapshot()) != expectedSignature {
 					continue
 				}
-				jobCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+				jobCtx, cancel := context.WithTimeout(ctx, JobTimeout)
 				err := s.ProcessFile(jobCtx, fileObj)
 				cancel()
 				if err != nil && !errors.Is(err, context.Canceled) && s.logger != nil {
@@ -1051,7 +1258,11 @@ func (s *Service) runReindex(ctx context.Context, job reindexJob) {
 	var afterID uint
 scan:
 	for ctx.Err() == nil && configuredModelSignature(s.snapshot()) == expectedSignature {
-		files, err := s.repo.ListFilesForReindex(ctx, pageSize, afterID, job.includeEmpty)
+		files, err := s.repo.ListFilesForReindex(ctx, repository.ListFilesForReindexInput{
+			Limit:         pageSize,
+			AfterID:       afterID,
+			StalledBefore: job.stalledBefore,
+		})
 		if err != nil {
 			if s.logger != nil {
 				s.logger.Warn("embedding_reindex_list_failed", zap.Error(err))
