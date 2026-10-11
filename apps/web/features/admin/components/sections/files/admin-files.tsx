@@ -22,7 +22,6 @@ import {
   type SettingsField,
   type SettingsGroup,
 } from "@/features/admin/model/files-settings";
-import { cn } from "@/lib/utils";
 import {
   SettingsFieldInset,
   SettingsFieldItem,
@@ -36,6 +35,7 @@ import {
   SettingsFieldEditor,
   type SettingsFieldServiceRuntime,
 } from "../../shared/settings-runtime-panel";
+import { FilesEmbeddingStatusPanel } from "./files-embedding-status";
 
 function resolveMinerUFileTypeOptionMeta(value: string, label: string, settingsMap: Record<string, string>) {
   const meta = resolveMinerUFileTypeFormats(value, settingsMap["extract.mineru_source"] ?? "").join("/");
@@ -75,6 +75,7 @@ export function AdminFilesPage() {
     embeddingStatusLoading,
     reindexing,
     loadEmbeddingStatus,
+    refreshEmbeddingStatus,
     clearEmbeddingStatus,
     handleReindex,
   } = useAdminFilesEmbeddingStatus();
@@ -240,78 +241,14 @@ export function AdminFilesPage() {
                 </SettingsFieldList>
 
                 {group.key === "embedding" && embeddingEnabled && (
-                  <SettingsFieldInset className="min-w-0 space-y-3">
-                    <div className="flex min-w-0 items-center justify-between gap-3">
-                      <div className="min-w-0 space-y-0.5">
-                        <p className="text-xs font-medium">{t("embeddingStatus.title")}</p>
-                        {embeddingStatus?.modelSignature ? (
-                          <p className="min-w-0 truncate font-mono text-[10px] text-muted-foreground" title={embeddingStatus.modelSignature}>
-                            {embeddingStatus.modelSignature}
-                          </p>
-                        ) : (
-                          <p className="text-[10px] text-muted-foreground">{t("embeddingStatus.noSignature")}</p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        {embeddingStatus && embeddingStatus.emptyCount > 0 ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs shadow-none"
-                            disabled={reindexing || embeddingStatusLoading || loading || saving}
-                            onClick={() => void handleReindex(true)}
-                          >
-                            {t("embeddingStatus.reindexIncludingNoText")}
-                          </Button>
-                        ) : null}
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs shadow-none"
-                          disabled={reindexing || embeddingStatusLoading || loading || saving}
-                          onClick={() => void handleReindex()}
-                        >
-                          {reindexing ? t("embeddingStatus.reindexing") : t("embeddingStatus.reindex")}
-                        </Button>
-                      </div>
-                    </div>
-                    {embeddingStatus ? (
-                      <div className="grid min-w-0 grid-cols-2 overflow-hidden rounded-md bg-muted/30 text-center sm:grid-cols-5">
-                        {[
-                          { label: t("embeddingStatus.ready"), value: embeddingStatus.readyCount, color: "text-green-600 dark:text-green-400" },
-                          { label: t("embeddingStatus.stale"), value: embeddingStatus.staleCount, color: embeddingStatus.staleCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground" },
-                          { label: t("embeddingStatus.pending"), value: embeddingStatus.pendingCount, color: "text-muted-foreground" },
-                          { label: t("embeddingStatus.noText"), value: embeddingStatus.emptyCount, color: "text-muted-foreground" },
-                          { label: t("embeddingStatus.failed"), value: embeddingStatus.failedCount, color: embeddingStatus.failedCount > 0 ? "text-destructive" : "text-muted-foreground" },
-                        ].map(({ label, value, color }) => (
-                          <div key={label} className="px-3 py-2.5">
-                            <p className={cn("text-sm font-semibold tabular-nums", color)}>{value}</p>
-                            <p className="mt-0.5 text-[10px] text-muted-foreground">{label}</p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : embeddingStatusLoading ? (
-                      <div className="grid min-w-0 grid-cols-2 overflow-hidden rounded-md bg-muted/30 sm:grid-cols-5" aria-hidden="true">
-                        {Array.from({ length: 5 }).map((_, index) => (
-                          <div key={`embedding-status-skeleton-${index}`} className="px-3 py-2.5">
-                            <div className="mx-auto h-4 w-8 animate-pulse rounded-sm bg-muted/70" />
-                            <div className="mx-auto mt-1.5 h-2.5 w-10 animate-pulse rounded-sm bg-muted/60" />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-muted-foreground">
-                        {t("embeddingStatus.empty")}
-                      </p>
-                    )}
-                    {embeddingStatus?.needsReindex && (
-                      <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                        {t("embeddingStatus.needsReindex")}
-                      </p>
-                    )}
-                  </SettingsFieldInset>
+                  <FilesEmbeddingStatusPanel
+                    status={embeddingStatus}
+                    loading={embeddingStatusLoading}
+                    reindexing={reindexing}
+                    disabled={loading || saving}
+                    onReindex={(includeEmpty) => void handleReindex(includeEmpty)}
+                    onStatusRefresh={() => void refreshEmbeddingStatus()}
+                  />
                 )}
               </SettingsSection>
             )}

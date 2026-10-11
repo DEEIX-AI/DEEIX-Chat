@@ -8,8 +8,12 @@ import (
 	"strings"
 	"time"
 
+	appadmin "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/admin"
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
+	appsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/settings"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -92,30 +96,174 @@ func (h *Handler) GetEmbeddingStatus(c *gin.Context) {
 }
 
 // TriggerReindex godoc
-// @Summary 触发向量重建（重索引所有 stale/failed 文件）
-// @Description include_empty=true 时同时重试提取无文本的 empty 文件，适用于更换 OCR 引擎后
+// @Summary 补建向量索引
+// @Description 为尚未索引、失效、失败及停滞的文件补建向量，已就绪的文件不会重建。已有文本的文件直接向量化；处理失败或排队停滞的文件重新提取后再向量化；include_empty=true 时无文本文件也重新提取，适用于更换 OCR 引擎后
 // @Tags admin/settings
 // @Produce json
 // @Security BearerAuth
-// @Param include_empty query bool false "是否包含 empty 终态文件"
+// @Param include_empty query bool false "是否同时重新提取无文本文件"
 // @Success 200 {object} EmbeddingReindexResponseDoc
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
+// @Failure 503 {object} response.Envelope
 // @Router /admin/settings/embedding/reindex [post]
 func (h *Handler) TriggerReindex(c *gin.Context) {
-	if h.embeddingSvc == nil {
+	if h.embeddingSvc == nil || h.fileEmbedder == nil {
 		response.ErrorFrom(c, http.StatusServiceUnavailable, errEmbeddingServiceNotAvailable)
 		return
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 	includeEmpty, _ := strconv.ParseBool(c.Query("include_empty"))
-	submitted, err := h.embeddingSvc.ReindexStaleFiles(ctx, includeEmpty)
+	submitted, err := h.embeddingSvc.ReindexStaleFiles(ctx)
+	if err != nil && !errors.Is(err, appembedding.ErrReindexInProgress) {
+		writeReindexError(c, err)
+		return
+	}
+	reindexBusy := err != nil
+	// 没有可用文本的文件不在补建任务中：它们重新走处理流水线，与正在运行的补建互不影响。
+	reprocessed, err := h.fileEmbedder.ReprocessFilesWithoutText(ctx, includeEmpty)
 	if err != nil {
-		if errors.Is(err, appembedding.ErrEmbeddingServiceNotConfigured) {
-			response.ErrorFrom(c, http.StatusBadRequest, err)
-			return
-		}
+		writeReindexError(c, err)
+		return
+	}
+	if reindexBusy && reprocessed == 0 {
+		response.ErrorFrom(c, http.StatusConflict, appembedding.ErrReindexInProgress)
+		return
+	}
+	h.recordEmbeddingAudit(c, "settings.embedding_reindex", map[string]any{
+		"include_empty": includeEmpty,
+		"submitted":     submitted,
+		"reprocessed":   reprocessed,
+	})
+	response.Success(c, EmbeddingReindexResponse{Submitted: submitted + reprocessed, Message: "reindex jobs submitted"})
+}
+
+func writeReindexError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, appembedding.ErrEmbeddingServiceNotConfigured):
+		response.ErrorFrom(c, http.StatusBadRequest, err)
+	case errors.Is(err, appembedding.ErrEmbeddingServiceUnavailable):
+		response.RecordError(c, err)
+		response.ErrorWithCode(c, http.StatusServiceUnavailable, "embedding.service_unavailable")
+	case errors.Is(err, appembedding.ErrReindexInProgress):
+		response.ErrorFrom(c, http.StatusConflict, err)
+	default:
+		response.InternalError(c, err)
+	}
+}
+
+// ListEmbeddingTasks godoc
+// @Summary 查询全平台向量化任务
+// @Description 按分组分页列出全平台文件的向量化任务，并返回每个文件当前能否重试
+// @Tags admin/settings
+// @Produce json
+// @Security BearerAuth
+// @Param bucket query string true "任务分组" Enums(ready, pending, failed, stale, empty, unsupported)
+// @Param query query string false "按文件 ID 或文件名搜索"
+// @Param page query int false "页码"
+// @Param page_size query int false "每页数量"
+// @Success 200 {object} EmbeddingTaskListResponseDoc
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 503 {object} response.Envelope
+// @Router /admin/settings/embedding/tasks [get]
+func (h *Handler) ListEmbeddingTasks(c *gin.Context) {
+	if h.embeddingSvc == nil {
+		response.ErrorFrom(c, http.StatusServiceUnavailable, errEmbeddingServiceNotAvailable)
+		return
+	}
+	bucket := strings.TrimSpace(c.Query("bucket"))
+	if !appembedding.IsTaskBucket(bucket) {
+		response.InvalidQueryParam(c, "bucket")
+		return
+	}
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
+	result, err := h.embeddingSvc.ListFileTasks(c.Request.Context(), appembedding.ListFileTasksInput{
+		Bucket:   bucket,
+		Query:    c.Query("query"),
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
 		response.InternalError(c, err)
 		return
 	}
-	response.Success(c, EmbeddingReindexResponse{Submitted: submitted, Message: "reindex jobs submitted"})
+	userIDs := make([]uint, 0, len(result.Items))
+	for _, item := range result.Items {
+		userIDs = append(userIDs, item.File.UserID)
+	}
+	labels := h.resolveUserLabels(c.Request.Context(), userIDs)
+	results := make([]EmbeddingTaskResponse, 0, len(result.Items))
+	for _, item := range result.Items {
+		results = append(results, toEmbeddingTaskResponse(item, labels[item.File.UserID]))
+	}
+	response.SuccessPage(c, result.Total, results)
+}
+
+// RetryEmbeddingTasks godoc
+// @Summary 重试指定文件的向量化任务
+// @Description 管理员跨用户重试失败、待处理、失效或无文本文件的向量化任务；不可重试的文件在 skipped 中返回原因
+// @Tags admin/settings
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body EmbeddingTaskRetryRequest true "待重试的文件 ID"
+// @Success 200 {object} EmbeddingTaskRetryResponseDoc
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 503 {object} response.Envelope
+// @Router /admin/settings/embedding/tasks/retry [post]
+func (h *Handler) RetryEmbeddingTasks(c *gin.Context) {
+	if h.fileEmbedder == nil {
+		response.ErrorFrom(c, http.StatusServiceUnavailable, errEmbeddingServiceNotAvailable)
+		return
+	}
+	var req EmbeddingTaskRetryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+	result, err := h.fileEmbedder.SubmitAdminFileEmbeddings(c.Request.Context(), req.FileIDs)
+	if err != nil {
+		switch {
+		case errors.Is(err, appembedding.ErrTooManyTargetedFiles):
+			response.RecordError(c, err)
+			response.ErrorWithCode(c, http.StatusBadRequest, "embedding.too_many_files")
+		case errors.Is(err, appembedding.ErrEmbeddingServiceNotConfigured):
+			response.ErrorFrom(c, http.StatusServiceUnavailable, err)
+		case errors.Is(err, appembedding.ErrEmbeddingServiceUnavailable):
+			response.RecordError(c, err)
+			response.ErrorWithCode(c, http.StatusServiceUnavailable, "embedding.service_unavailable")
+		default:
+			response.InternalError(c, err)
+		}
+		return
+	}
+	h.recordEmbeddingAudit(c, "settings.embedding_retry", map[string]any{
+		"requested_file_ids": req.FileIDs,
+		"submitted_file_ids": result.SubmittedFileIDs,
+		"skipped_count":      len(result.Skipped),
+	})
+	response.Success(c, toEmbeddingTaskRetryResponse(result))
+}
+
+func (h *Handler) resolveUserLabels(ctx context.Context, userIDs []uint) map[uint]appadmin.UserLabel {
+	if h.userLabels == nil {
+		return map[uint]appadmin.UserLabel{}
+	}
+	return h.userLabels.ResolveUserLabels(ctx, userIDs)
+}
+
+// recordEmbeddingAudit 记录管理员对向量索引的写操作：重试会跨用户投递任务，需要可追溯。
+func (h *Handler) recordEmbeddingAudit(c *gin.Context, action string, detail any) {
+	h.service.RecordAudit(c.Request.Context(), appsettings.AuditInput{
+		UserID:    middleware.MustUserID(c),
+		RequestID: middleware.MustRequestID(c),
+		Action:    action,
+		ClientIP:  c.ClientIP(),
+		UserAgent: c.Request.UserAgent(),
+		Detail:    detail,
+	})
 }

@@ -21,7 +21,6 @@ type ListFileObjectsInput struct {
 // FileListingRepository 封装文件列表查询能力。
 type FileListingRepository interface {
 	ListFileObjectsByUserWithFilter(ctx context.Context, input ListFileObjectsInput) ([]domainconversation.FileObject, int64, error)
-	MarkTimedOutFileEmbeddingsFailed(ctx context.Context, userID uint, cutoff time.Time, message string) (int64, error)
 }
 
 // FileLookupRepository 封装单文件读取与维护能力。
@@ -71,13 +70,66 @@ type FileEmbeddingArtifactsRepository interface {
 	CloneFileEmbeddingArtifacts(ctx context.Context, source *domainconversation.FileObject, target *domainconversation.FileObject) error
 }
 
+// EmbeddableFileScope 描述当前向量化配置下可以建立索引的文件范围，由 application 按运行时配置计算。
+// 仓储只把它翻译成查询条件，用于区分“尚未索引”与“类型不支持”的 none 文件。
+type EmbeddableFileScope struct {
+	// Categories 是可向量化的 file_category 列表。
+	Categories []string
+	// ImageMIMETypes 非空时，image 类别只有这些 MIME 可向量化；为空时 image 类别整体按 Categories 判断。
+	ImageMIMETypes []string
+}
+
+// FileEmbeddingStateCount 是按 embed_status 聚合的文件数量。
+type FileEmbeddingStateCount struct {
+	Status string
+	// Embeddable 表示这些文件是否落在 EmbeddableFileScope 内。
+	Embeddable bool
+	// ProcessingFailed 表示文件处理流水线失败，没有可用于向量化的文本。
+	ProcessingFailed bool
+	// Stalled 表示 queued/processing 文件的最近更新时间早于停滞阈值。
+	Stalled bool
+	Count   int64
+}
+
+// FileEmbedStatusMatch 描述一个 embed_status 匹配条件。
+type FileEmbedStatusMatch struct {
+	Status string
+	// Embeddable 非空时，额外要求文件是否落在 EmbeddableFileScope 内。
+	Embeddable *bool
+	// ProcessingFailed 非空时，额外要求文件处理流水线是否失败。
+	ProcessingFailed *bool
+}
+
+// ListFileEmbeddingTasksInput 定义管理员查看全平台文件向量化任务的筛选与分页条件。
+type ListFileEmbeddingTasksInput struct {
+	// Matches 之间为 OR 关系，不能为空。
+	Matches []FileEmbedStatusMatch
+	Scope   EmbeddableFileScope
+	// Query 按文件 ID 或文件名模糊匹配。
+	Query  string
+	Offset int
+	Limit  int
+}
+
+// ListFilesForReindexInput 定义批量重建扫描的分页与范围。
+type ListFilesForReindexInput struct {
+	Limit   int
+	AfterID uint
+	// StalledBefore 非零时纳入最近更新时间早于该时刻的 queued 文件，回收丢失队列消息的任务。
+	StalledBefore time.Time
+}
+
 // EmbeddingRepository 封装文件 embedding 状态与分片能力。
 type EmbeddingRepository interface {
 	VectorStoreAvailable(ctx context.Context) (bool, error)
 	GetActiveFileObjectByID(ctx context.Context, userID uint, fileID string) (*domainconversation.FileObject, error)
 	GetActiveFileObjectsByIDs(ctx context.Context, userID uint, fileIDs []string) ([]domainconversation.FileObject, error)
+	// GetActiveFileObjectsByFileIDs 跨用户按文件 ID 批量读取，仅供管理员任务管理使用。
+	GetActiveFileObjectsByFileIDs(ctx context.Context, fileIDs []string) ([]domainconversation.FileObject, error)
 	GetFileObjectProcessingByObjectID(ctx context.Context, fileObjID uint) (*domainconversation.FileObjectProcessing, error)
-	QueueFileEmbedding(ctx context.Context, userID uint, fileID string, embeddingSignature string) (bool, error)
+	// QueueFileEmbedding 原子登记待执行任务；同一签名已排队、执行或完成时不重复登记，
+	// 但最近更新时间早于 stalledBefore 的 queued/processing 任务视为停滞，允许重新登记。
+	QueueFileEmbedding(ctx context.Context, userID uint, fileID string, embeddingSignature string, stalledBefore time.Time) (bool, error)
 	ClaimFileEmbedding(ctx context.Context, userID uint, fileID string, embeddingSignature string) (bool, error)
 	UpdateFileObjectEmbedStatus(ctx context.Context, userID uint, fileID string, embeddingSignature string, status string, embedErr string) (bool, error)
 	UpdateFileObjectChunkCount(ctx context.Context, fileObjID uint, embeddingSignature string, chunkCount int) (bool, error)
@@ -86,11 +138,20 @@ type EmbeddingRepository interface {
 	// 在 Embedding 配置变更及服务启动时调用，使旧向量失效并等待重建。
 	// 返回被标记的文件数量。
 	MarkEmbeddedFilesStale(ctx context.Context, activeSignature string) (int64, error)
-	// CountFilesByEmbedStatus 统计指定 embed_status 的文件数量。
-	CountFilesByEmbedStatus(ctx context.Context, status string) (int64, error)
-	// ListFilesForReindex 分页返回需要重建向量的文件（embed_status 为 none、stale 或 failed）。
-	// includeEmpty 为 true 时同时纳入 empty 终态文件，用于管理员强制重试。
-	ListFilesForReindex(ctx context.Context, limit int, afterID uint, includeEmpty bool) ([]domainconversation.FileObject, error)
+	// MarkStalledFileEmbeddingsFailed 将全平台最近更新时间早于 cutoff 的 processing 文件标记为失败。
+	MarkStalledFileEmbeddingsFailed(ctx context.Context, cutoff time.Time, message string) (int64, error)
+	// CountFileEmbeddingStates 按 embed_status、是否可向量化与是否停滞聚合全平台文件数量。
+	CountFileEmbeddingStates(ctx context.Context, scope EmbeddableFileScope, stalledBefore time.Time) ([]FileEmbeddingStateCount, error)
+	// ListFileEmbeddingTasks 分页返回全平台匹配的文件，按最近更新时间倒序。
+	ListFileEmbeddingTasks(ctx context.Context, input ListFileEmbeddingTasksInput) ([]domainconversation.FileObject, int64, error)
+	// ListFilesForReindex 分页返回需要重建向量的文件：已有可用文本且 embed_status 为 none、stale、failed
+	// 或停滞的 queued；处理未完成或失败的文件不在其中，避免向量化服务重复提取。
+	ListFilesForReindex(ctx context.Context, input ListFilesForReindexInput) ([]domainconversation.FileObject, error)
+	// ResetFileForReprocessing 把没有可用文本的文件（处理失败、无文本、排队早于 stalledBefore 仍未开始）原子重置为待处理，
+	// 并在文件行上登记指定向量空间的向量化请求，处理流水线提取完成后据此建立索引；处理仍在进行时返回 false。
+	ResetFileForReprocessing(ctx context.Context, userID uint, fileID string, embeddingSignature string, stalledBefore time.Time) (bool, error)
+	// ListFilesForReprocessing 按 ID 升序分页返回全平台处理失败或排队停滞的文件；includeEmpty 为 true 时同时返回无文本文件。
+	ListFilesForReprocessing(ctx context.Context, input ListFilesForReprocessingInput) ([]domainconversation.FileObject, error)
 }
 
 // RAGRepository 封装向量检索能力。
@@ -110,6 +171,16 @@ type FileProcessingRepository interface {
 	CloneFileObjectProcessingState(ctx context.Context, sourceFileObjID uint, targetFileObjID uint, userID uint) error
 	TryClaimFileObjectProcessing(ctx context.Context, userID uint, fileID string, allowRecovery bool, extractorVersion string, attemptID string) (bool, error)
 	ResetFileObjectProcessingForRetry(ctx context.Context, userID uint, fileID string, attemptID string) (bool, error)
+}
+
+// ListFilesForReprocessingInput 定义需要重新走处理流水线的文件扫描范围。
+type ListFilesForReprocessingInput struct {
+	Limit   int
+	AfterID uint
+	// IncludeEmpty 为 true 时同时纳入提取完成但无文本的文件，供更换 OCR 引擎后重试。
+	IncludeEmpty bool
+	// StalledBefore 是排队停滞的判定时刻，早于该时刻仍未开始处理的文件视为队列消息丢失。
+	StalledBefore time.Time
 }
 
 // FileProcessingStatusRepository 封装单个与批量文件处理状态读取能力。

@@ -178,6 +178,7 @@
     "originForbidden": "当前来源不允许访问。"
   },
   "embedding": {
+    "reindexInProgress": "已有补建索引任务正在执行，请稍后再试。",
     "serviceNotConfigured": "请先启用并配置 Embedding 服务。",
     "serviceUnavailable": "向量服务不可用。",
     "submitFailed": "向量化任务提交失败，请稍后重试。",

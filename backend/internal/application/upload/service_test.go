@@ -650,10 +650,6 @@ func (r *uploadTestRepo) ListFileObjectsByUserWithFilter(context.Context, reposi
 	return nil, 0, nil
 }
 
-func (r *uploadTestRepo) MarkTimedOutFileEmbeddingsFailed(context.Context, uint, time.Time, string) (int64, error) {
-	return 0, nil
-}
-
 func (r *uploadTestRepo) GetActiveFileObjectByID(_ context.Context, userID uint, fileID string) (*domainconversation.FileObject, error) {
 	for i := range r.files {
 		if r.files[i].UserID == userID && r.files[i].FileID == fileID && r.files[i].Status == "active" {

@@ -1,5 +1,12 @@
-import type { EmbeddingIndexStatusResponse, EmbeddingReindexResponse } from "@deeix/api-contract";
+import type {
+  EmbeddingIndexStatusResponse,
+  EmbeddingReindexResponse,
+  EmbeddingTaskResponse,
+  EmbeddingTaskRetryResponse,
+} from "@deeix/api-contract";
 import { authedRequest, authedFetch } from "@/shared/api/authed-client";
+import type { PagePayload } from "@/shared/api/common-types";
+import type { ADMIN_EMBEDDING_TASK_BUCKETS } from "@/features/admin/model/admin-unions";
 import { pathParam } from "@/shared/api/http-client";
 import type {
   AdminDoclingRuntimeView,
@@ -10,6 +17,8 @@ import type {
   AdminTikaRuntimeView,
 } from "@/features/admin/api/admin-types";
 import type { PatchSettingsRequest, SettingItem, SettingsGrouped } from "@/shared/api/settings-types";
+
+import { normalizeAdminPagePayload, resolveAdminPage, type AdminPageOptions } from "./shared";
 
 export async function listAdminSettings(accessToken: string): Promise<SettingsGrouped> {
   return authedRequest<SettingsGrouped>(
@@ -102,6 +111,45 @@ export async function getAdminEmbeddingStatus(
   return authedRequest<AdminEmbeddingIndexStatus>(
     "/api/v1/admin/settings/embedding/status",
     { accessToken, signal },
+    true,
+  );
+}
+
+export type AdminEmbeddingTaskBucket = (typeof ADMIN_EMBEDDING_TASK_BUCKETS)[number];
+export type AdminEmbeddingTask = EmbeddingTaskResponse;
+export type AdminEmbeddingTaskRetryResult = EmbeddingTaskRetryResponse;
+
+type ListAdminEmbeddingTasksOptions = AdminPageOptions & {
+  bucket: AdminEmbeddingTaskBucket;
+  query?: string;
+};
+
+export async function listAdminEmbeddingTasks(
+  accessToken: string,
+  options: ListAdminEmbeddingTasksOptions,
+  signal?: AbortSignal,
+): Promise<PagePayload<AdminEmbeddingTask>> {
+  const { page, pageSize } = resolveAdminPage(options);
+  const params = new URLSearchParams();
+  params.set("bucket", options.bucket);
+  params.set("page", String(page));
+  params.set("page_size", String(pageSize));
+  if (options.query?.trim()) params.set("query", options.query.trim());
+  const data = await authedRequest<PagePayload<AdminEmbeddingTask>>(
+    `/api/v1/admin/settings/embedding/tasks?${params.toString()}`,
+    { accessToken, signal },
+    true,
+  );
+  return normalizeAdminPagePayload(data);
+}
+
+export async function retryAdminEmbeddingTasks(
+  accessToken: string,
+  fileIDs: string[],
+): Promise<AdminEmbeddingTaskRetryResult> {
+  return authedRequest<AdminEmbeddingTaskRetryResult>(
+    "/api/v1/admin/settings/embedding/tasks/retry",
+    { method: "POST", accessToken, body: { fileIDs } },
     true,
   );
 }

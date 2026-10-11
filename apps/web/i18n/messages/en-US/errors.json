@@ -178,6 +178,7 @@
     "originForbidden": "This origin is not allowed."
   },
   "embedding": {
+    "reindexInProgress": "An index rebuild is already running. Try again later.",
     "serviceNotConfigured": "Enable and configure the embedding service first.",
     "serviceUnavailable": "Embedding service is unavailable.",
     "submitFailed": "Failed to submit vectorization jobs. Please try again later.",

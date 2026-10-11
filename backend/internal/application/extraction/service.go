@@ -25,6 +25,9 @@ var ErrInvalidStoredFilePath = errors.New("invalid stored file path")
 // ErrStoredFileTooLarge 表示文件超过调用方允许读取的上限。
 var ErrStoredFileTooLarge = errors.New("stored file exceeds size limit")
 
+// ErrParserPanicked 表示内置解析器在处理文件时发生 panic，已被恢复为提取失败。
+var ErrParserPanicked = errors.New("extraction parser panicked")
+
 const (
 	EngineBuiltin      = "builtin"
 	EngineTika         = "tika"
@@ -192,6 +195,13 @@ func (s *Service) ExtractTemporaryFile(ctx context.Context, input ExtractInput) 
 
 func (s *Service) extractLocalFile(ctx context.Context, input ExtractInput, absPath string) (result Result, err error) {
 	defer func() {
+		// 内置解析器直接处理用户上传的文件，第三方库（excelize、pdfcpu 等）遇到畸形文件可能 panic。
+		// 调用方常在独立 goroutine 中执行提取，panic 无法被 HTTP recovery 接住，会让整个进程退出；
+		// 这里统一转成提取失败，只影响当前文件。
+		if recovered := recover(); recovered != nil {
+			result = Result{}
+			err = NewError("extract_failed", fmt.Errorf("%w: %s: %v", ErrParserPanicked, input.File.FileCategory, recovered))
+		}
 		err = withErrorCode(err)
 	}()
 	file := input.File

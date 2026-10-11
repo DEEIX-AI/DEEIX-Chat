@@ -12,6 +12,8 @@ var (
 	ErrEmbeddingServiceUnavailable   = errors.New("embedding service unavailable")
 	ErrEmbeddingQueueUnavailable     = errors.New("embedding queue unavailable")
 	ErrTooManyTargetedFiles          = errors.New("too many files for targeted embedding")
+	ErrReindexInProgress             = apperr.New("embedding.reindex_in_progress", "an index rebuild is already running")
+	ErrInvalidTaskBucket             = errors.New("invalid embedding task bucket")
 	errNoExtractableText             = errors.New("no extractable text in file")
 	errEmptyChunks                   = errors.New("embedding produced no chunks")
 	errImageTooLarge                 = errors.New("image exceeds embedding size limit after resize")
