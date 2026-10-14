@@ -21,8 +21,14 @@ import {
 } from "@/shared/api/file";
 import type { ChatFilePolicyDTO, FileProcessingStatusDTO } from "@/shared/api/file-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { type FileStatusPollingResult, isFileProcessing, useFileProcessingStatusPolling } from "@/entities/file";
-import { runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
+import {
+  type FileStatusPollingResult,
+  isFileProcessing,
+  isFileProcessingFailed,
+  resolveFileProcessingBadge,
+  useFileProcessingStatusPolling,
+} from "@/entities/file";
+import { firstSettledFailureReason, runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
 import { createSecureUUID } from "@/shared/lib/secure-id";
 
 function revokeAttachmentPreview(item: PendingAttachment) {
@@ -45,6 +51,7 @@ export function useChatAttachments({
   temporary?: boolean;
 }) {
   const t = useTranslations("chat.attachments");
+  const tFileStatus = useTranslations("files.status");
   const resolveErrorMessage = useLocalizedErrorMessage();
   const [uploadingByKey, setUploadingByKey] = React.useState<Record<string, UploadingAttachment[]>>({});
   const [maxFilesPerMessage, setMaxFilesPerMessage] = React.useState(() => resolveMaxFilesPerMessage());
@@ -64,12 +71,37 @@ export function useChatAttachments({
     [attachments],
   );
 
+  // Processing runs in the background after the upload, so the chip alone is easy to miss
+  // and its reason is only a hover title. Announce each failure once, with the reason.
+  const notifyProcessingFailed = React.useCallback((items: PendingAttachment[]) => {
+    for (const item of items) {
+      const badge = resolveFileProcessingBadge(item, (key, values) => tFileStatus(key, values));
+      toast.error(t("processingFailed", { name: item.fileName }), {
+        id: `attachment-processing-failed:${item.fileID}`,
+        description: badge.detail,
+      });
+    }
+  }, [t, tFileStatus]);
+
   const onProcessingResult = React.useCallback(({
     statuses,
     missingFileIDs,
   }: FileStatusPollingResult<FileProcessingStatusDTO>) => {
     const statusesByID = new Map(statuses.map((status) => [status.fileID, status]));
     const missingFileIDSet = new Set(missingFileIDs);
+    const newlyFailed = attachmentsRef.current.flatMap((item) => {
+      const status = statusesByID.get(item.fileID);
+      if (!status || isFileProcessingFailed(item)) {
+        return [];
+      }
+      const next = {
+        ...item,
+        processingStatus: status.processingStatus,
+        processingErrorCode: status.errorCode,
+        processingErrorMessage: status.errorMessage,
+      };
+      return isFileProcessingFailed(next) ? [next] : [];
+    });
     setAttachments((current) => {
       let changed = false;
       const next: PendingAttachment[] = [];
@@ -117,7 +149,8 @@ export function useChatAttachments({
       }
       return changed ? next : current;
     });
-  }, [setAttachments]);
+    notifyProcessingFailed(newlyFailed);
+  }, [notifyProcessingFailed, setAttachments]);
 
   useFileProcessingStatusPolling({
     fileIDs: processingFileIDs,
@@ -347,6 +380,7 @@ export function useChatAttachments({
             return true;
           });
           appendAttachmentsForKey(targetConversationKey, nextUploaded);
+          notifyProcessingFailed(nextUploaded.filter(isFileProcessingFailed));
           if (currentConversationKeyRef.current !== targetConversationKey) {
             releaseAttachments(uploaded);
           }
@@ -355,7 +389,8 @@ export function useChatAttachments({
           toast.success(t("duplicateReused"));
         }
         if (uploaded.length < policyAcceptedFiles.length) {
-          toast.error(t("partialUploadFailed"), { description: t("retryFailedFiles") });
+          const description = resolveErrorMessage(firstSettledFailureReason(results), t("retryFailedFiles"));
+          toast.error(uploaded.length === 0 ? t("uploadFailed") : t("partialUploadFailed"), { description });
         }
         return uploaded;
       } catch (error) {
@@ -388,6 +423,7 @@ export function useChatAttachments({
       chatFilePolicy,
       conversationKey,
       maxFilesPerMessage,
+      notifyProcessingFailed,
       releaseAttachments,
       resolveErrorMessage,
       t,

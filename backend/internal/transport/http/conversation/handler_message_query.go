@@ -14,6 +14,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// messageTraceSummary 是消息列表 trace 参数的摘要取值。
+const messageTraceSummary = "summary"
+
 // UpdateMessage godoc
 // @Summary 更新消息内容
 // @Description 就地更新当前用户会话中的 user 或 assistant 消息内容并标记为已编辑，不触发重新生成
@@ -149,6 +152,9 @@ func (h *Handler) SetMessageFeedback(c *gin.Context) {
 // @Param id path string true "会话 public_id"
 // @Param page query int false "页码（从 1 开始，默认 1）"
 // @Param page_size query int false "每页数量（1-1000，默认 20）"
+// @Param tail query bool false "为 true 时返回最近的 page_size 条消息"
+// @Param before_id query int false "返回该消息 id 之前的 page_size 条消息"
+// @Param trace query string false "summary：已完成消息的思考与工具过程只带摘要，完整内容通过 /messages/{id}/trace 获取" Enums(summary)
 // @Success 200 {object} MessageListResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc
@@ -218,11 +224,45 @@ func (h *Handler) ListMessages(c *gin.Context) {
 			}
 		}
 	}
+	if c.Query("trace") == messageTraceSummary {
+		appconversation.SummarizeMessageProcessTraces(items)
+	}
 	msgResults := make([]MessageResponse, 0, len(items))
 	for _, m := range items {
 		msgResults = append(msgResults, toMessageResponseWithRunAndFallback(m, runModels[strings.TrimSpace(m.RunID)], conversation.Model))
 	}
 	response.SuccessPage(c, total, msgResults)
+}
+
+// GetMessageProcessTrace godoc
+// @Summary 查询消息处理轨迹
+// @Description 返回当前用户一条助手消息的完整处理轨迹（思考全文与工具输入输出）；消息列表以 trace=summary 查询时只带摘要
+// @Tags chat
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "消息 public_id"
+// @Success 200 {object} MessageProcessTraceDetailResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /messages/{id}/trace [get]
+func (h *Handler) GetMessageProcessTrace(c *gin.Context) {
+	userID := middleware.MustUserID(c)
+	publicID, err := stringParam(c, "id")
+	if err != nil {
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidMessageID)
+		return
+	}
+	trace, err := h.service.GetMessageProcessTrace(c.Request.Context(), userID, publicID)
+	if err != nil {
+		if errors.Is(err, appconversation.ErrMessageNotFound) {
+			response.ErrorFrom(c, http.StatusNotFound, err)
+			return
+		}
+		response.InternalError(c, err)
+		return
+	}
+	response.Success(c, MessageProcessTraceDetailResponse{ProcessTrace: toMessageProcessTraceResponse(trace)})
 }
 
 // ListConversationPreviewMessages godoc

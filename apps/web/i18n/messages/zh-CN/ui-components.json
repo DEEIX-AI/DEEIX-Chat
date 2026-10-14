@@ -31,7 +31,7 @@
       "propsSummary": "入参摘要",
       "propsSummaryHint": "给模型看的紧凑入参说明，如 '{'symbol, name?'}'",
       "rendererSource": "渲染代码",
-      "rendererSourceHint": "HTML 与脚本在沙箱 iframe 中运行，无网络访问；通过 deeix.onProps 接收数据，deeix.onTheme 接收主题变量",
+      "rendererSourceHint": "HTML 与脚本在沙箱 iframe 中运行，无网络访问；通过 deeix.onProps 接收数据，deeix.onTheme 接收主题变量；deeix.onState / setState 读写会随对话保存的状态（最多 4 KB），deeix.ask(文字) 把文字填入输入框，由用户确认发送",
       "propsSchema": "入参 Schema",
       "propsSchemaHint": "可选的 JSON Schema，前端据此校验模型输出；留空则不校验",
       "enabled": "启用"
@@ -74,6 +74,10 @@
       "title": "指标卡片",
       "summary": "并列的 KPI、涨跌幅；迷你走势线可悬停读数"
     },
+    "image-gallery": {
+      "title": "图片集",
+      "summary": "多张图片并排浏览；点击放大、左右切换，显示说明与来源"
+    },
     "gantt": {
       "title": "甘特图",
       "summary": "排期、里程碑、依赖；刻度切换、依赖链高亮、分组折叠"
@@ -97,6 +101,14 @@
     "quiz": {
       "title": "测验 / 问答",
       "summary": "即时判对错与解析，计分；支持按选择跳题"
+    },
+    "panel": {
+      "title": "可交互面板",
+      "summary": "公式、滑块与示意图，拖动参数实时重算；勾选后取代交互式计算器"
+    },
+    "widget": {
+      "title": "交互图解",
+      "summary": "动画、三维示意与过程演示，可播放、暂停、拖动进度"
     }
   }
 }

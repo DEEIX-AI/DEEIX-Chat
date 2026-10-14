@@ -16,3 +16,9 @@ Windows Registry Editor Version 5.00
 "DisableLocalMode"=dword:00000001
 ; 1 = never check for updates (deliver versions through your software distribution).
 "DisableAutoUpdate"=dword:00000001
+; Network proxy (Chrome's value names). Remove the leading ";" to apply.
+; ProxyMode: "system", "direct" or "fixed_servers"; the other two values are
+; only read for fixed_servers. Credentials cannot be set by policy.
+;"ProxyMode"="fixed_servers"
+;"ProxyServer"="proxy.corp.example:3128"
+;"ProxyBypassList"="*.corp.example;10.*;192.168.*"

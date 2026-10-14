@@ -42,6 +42,7 @@ func TestTableNamesUseRestructuredDomains(t *testing.T) {
 		ConversationShare{},
 		Message{},
 		ConversationMessageFeedback{},
+		ConversationMessageUIState{},
 		Attachment{},
 		ConversationRun{},
 		ChatRunEvent{},

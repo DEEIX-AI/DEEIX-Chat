@@ -363,7 +363,6 @@
     "vendor": "Vendor",
     "displayGroup": "Display group",
     "followVendor": "Follow vendor ({vendor})",
-    "displayGroupDescription": "Optional. Leave unchanged to keep grouping by technical vendor.",
     "unknownVendor": "Unknown",
     "vendorSearchPlaceholder": "Search vendors",
     "noMatchedVendors": "No matching vendors",
@@ -416,7 +415,6 @@
       "unsupported": "Not supported",
       "invalid": "Invalid configuration",
       "noTemplate": "Bind an upstream source first",
-      "levelWithValue": "{name} ({value})",
       "budgetTokens": "{value} tokens"
     },
     "capabilityMode": {

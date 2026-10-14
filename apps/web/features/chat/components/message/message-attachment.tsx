@@ -51,7 +51,7 @@ function AttachmentCard({
       size="sm"
       className="h-12 w-56 border-0 bg-muted/35 text-left hover:bg-muted/50 dark:bg-white/[0.06] dark:hover:bg-white/[0.09]"
     >
-      <AttachmentMedia className="size-6 bg-transparent text-muted-foreground">
+      <AttachmentMedia className="size-8 bg-transparent text-muted-foreground">
         {React.createElement(fileIcon, { className: "size-5", strokeWidth: 1.6 })}
       </AttachmentMedia>
       <AttachmentContent className="flex min-w-0 flex-1 flex-col justify-center px-0 py-0">

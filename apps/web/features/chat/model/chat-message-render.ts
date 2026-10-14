@@ -5,6 +5,7 @@ import type {
   ChatMessageProcessTrace,
   MessageAttachment,
 } from "@/features/chat/types/messages";
+import { deepEquals } from "@/shared/components/markdown/ui-blocks/ui-block-state";
 
 function areBranchNavigatorsEqual(
   previous: ChatMessageBranchNavigator | undefined,
@@ -186,6 +187,8 @@ export function areChatAreaMessagesRenderEqual(
     areAttachmentsEqual(previous.attachments, next.attachments) &&
     areProcessTracesEqual(previous.processTrace, next.processTrace) &&
     areInlineAlertsEqual(previous.inlineAlert, next.inlineAlert) &&
-    areCompactDoneEqual(previous.compactDone, next.compactDone)
+    areCompactDoneEqual(previous.compactDone, next.compactDone) &&
+    // A reloaded message list brings a new snapshot object with the same content.
+    deepEquals(previous.uiState, next.uiState)
   );
 }

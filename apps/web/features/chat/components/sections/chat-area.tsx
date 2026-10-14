@@ -21,6 +21,7 @@ import {
 } from "@/features/chat/components/message/message-bot";
 import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
 import { ChatMessageUser } from "@/features/chat/components/message/message-user";
+import type { SendShortcut } from "@/features/settings";
 import { ChatLabel } from "@/features/chat/components/sections/chat-label";
 import {
   ChatMessagePositionRail,
@@ -29,10 +30,11 @@ import {
 import { ChatResponseOutlineRail } from "@/features/chat/components/sections/chat-response-outline-rail";
 import { ChatScreenshotSelectionBar } from "@/features/chat/components/sections/chat-screenshot-selection-bar";
 import { useChatMessageFeedback } from "@/features/chat/hooks/use-chat-message-feedback";
+import { useChatUIBlockStateBinding } from "@/features/chat/hooks/use-chat-ui-block-state";
 import type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts";
+import type { ChatUIBlockStateStore } from "@/features/chat/model/chat-ui-block-state-store";
 import { areChatAreaMessagesRenderEqual } from "@/features/chat/model/chat-message-render";
 import { MAX_SCREENSHOT_MESSAGES } from "@/features/chat/model/conversation-screenshot";
-import type { ChatRegenerateReasoningOptions } from "@/features/chat/model/chat-reasoning-effort";
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage, MessageAttachment, UserMessageEditMode } from "@/features/chat/types/messages";
 import { cn } from "@/lib/utils";
@@ -41,10 +43,11 @@ import { ConversationShareExportIconDropdown } from "@/entities/conversation";
 import { useCopyAction } from "@/shared/components/copy-action";
 import type { FileContentLoader } from "@/entities/file";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
+import { messageUIBlocksText, useUIBlockRegistry } from "@/shared/components/markdown/ui-blocks";
+import { isUIBlockState } from "@/shared/components/markdown/ui-blocks/ui-block-state";
 import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
 import { useBranding } from "@/shared/config/branding-provider";
 import type { BillingDisplayCurrency } from "@/entities/billing";
-import type { ReasoningEffortLevel } from "@/entities/model";
 
 function LiveMessageFollower({ activeKey }: { activeKey: string }): null {
   const { scrollToEnd } = useMessageScroller();
@@ -92,18 +95,22 @@ type ChatAreaProps = {
   messages: ChatAreaMessage[];
   messagesReadOnly?: boolean;
   persistMessageFeedback?: boolean;
+  // Interactive component state. Absent: blocks keep plain local state.
+  uiBlockState?: {
+    store: ChatUIBlockStateStore;
+    // Conversation the state is written to; null keeps it in memory only.
+    conversationPublicID: string | null;
+  };
   busy: boolean;
   messageContentRef: React.RefObject<HTMLDivElement | null>;
   onScroll: (event: React.UIEvent<HTMLDivElement>) => void;
   onRetryUserMessage: (message: ChatAreaMessage) => Promise<void> | void;
-  onRetryAssistantMessage: (message: ChatAreaMessage, reasoningEffort?: ReasoningEffortLevel) => Promise<void> | void;
+  onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onEditUserMessage: (message: ChatAreaMessage, content: string, mode: UserMessageEditMode) => Promise<boolean> | boolean;
   onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onDeleteMessage?: (message: ChatAreaMessage) => Promise<void> | void;
-  // Levels offered by "Regenerate with…" for the composer's model; null hides the submenu.
-  regenerateReasoning?: ChatRegenerateReasoningOptions | null;
   modelOptions: ChatModelOption[];
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
@@ -112,6 +119,8 @@ type ChatAreaProps = {
   onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onExtendVideoAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onOpenCodeArtifact?: (message: ChatAreaMessage, artifact: OpenCodeArtifactInput) => void;
+  // Opens an interactive block of the message in the side panel.
+  onOpenUIBlock?: (message: ChatAreaMessage, blockKey: string) => void;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onToggleStar?: () => void | Promise<void>;
   onRename?: (title: string) => void | Promise<void>;
@@ -132,6 +141,7 @@ type ChatAreaProps = {
   showTokenUsage?: boolean;
   showBillingCost?: boolean;
   showProcessTrace?: boolean;
+  sendShortcut?: SendShortcut;
   billingDisplayCurrency?: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate?: number | null;
   splitRightInset?: boolean;
@@ -265,6 +275,8 @@ function useStableEvent<Args extends unknown[], Return>(callback: (...args: Args
 
 const ChatMessageRow = React.memo(function ChatMessageRow({
   item,
+  uiBlockStateStore,
+  uiBlockStateConversationID,
   busy,
   readOnly,
   reaction,
@@ -275,7 +287,6 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onEditUserMessage,
   onForkMessage,
   onDeleteMessage,
-  regenerateReasoning = null,
   modelOptions,
   selectedPlatformModelName,
   onModelChange,
@@ -286,6 +297,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onCycleMessageBranch,
   onReactAssistantMessage,
   onOpenCodeArtifact,
+  onOpenUIBlock,
   markdownRender,
   autoExpandThinking,
   autoExpandToolCalls,
@@ -295,6 +307,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   showTokenUsage,
   showBillingCost,
   showProcessTrace,
+  sendShortcut,
   billingDisplayCurrency,
   billingDisplayUsdToCnyRate,
   contentWidthClassName,
@@ -303,18 +316,18 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   screenshotMetaTimestamp,
 }: {
   item: ChatAreaMessage;
+  uiBlockStateStore?: ChatUIBlockStateStore;
+  uiBlockStateConversationID: string | null;
   busy: boolean;
   readOnly: boolean;
   reaction: AssistantReaction;
   onRetryUserMessage: (message: ChatAreaMessage) => Promise<void> | void;
-  onRetryAssistantMessage: (message: ChatAreaMessage, reasoningEffort?: ReasoningEffortLevel) => Promise<void> | void;
+  onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onEditUserMessage: (message: ChatAreaMessage, content: string, mode: UserMessageEditMode) => Promise<boolean> | boolean;
   onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onDeleteMessage?: (message: ChatAreaMessage) => Promise<void> | void;
-  // Levels offered by "Regenerate with…" for the composer's model; null hides the submenu.
-  regenerateReasoning?: ChatRegenerateReasoningOptions | null;
   modelOptions: ChatModelOption[];
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
@@ -325,6 +338,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onReactAssistantMessage: (publicID: string, reaction: AssistantReaction) => void;
   onOpenCodeArtifact?: (message: ChatAreaMessage, artifact: OpenCodeArtifactInput) => void;
+  onOpenUIBlock?: (message: ChatAreaMessage, blockKey: string) => void;
   markdownRender: boolean;
   autoExpandThinking: boolean;
   autoExpandToolCalls: boolean;
@@ -334,6 +348,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   showTokenUsage: boolean;
   showBillingCost: boolean;
   showProcessTrace: boolean;
+  sendShortcut: SendShortcut;
   billingDisplayCurrency: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate: number | null;
   contentWidthClassName: string;
@@ -359,14 +374,17 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   });
   const isUser = item.role === "user";
   const isAssistant = item.role === "assistant";
+  // Read-only rows (screenshots of a shared view) keep block changes local.
+  const uiBlockStateBinding = useChatUIBlockStateBinding(uiBlockStateStore, item, uiBlockStateConversationID, !readOnly);
   const artifactActions = React.useMemo(
     () =>
       isAssistant && onOpenCodeArtifact
         ? {
             onOpenCodeArtifact: (artifact: OpenCodeArtifactInput) => onOpenCodeArtifact(item, artifact),
+            onOpenUIBlock: onOpenUIBlock ? (blockKey: string) => onOpenUIBlock(item, blockKey) : undefined,
           }
         : undefined,
-    [isAssistant, item, onOpenCodeArtifact],
+    [isAssistant, item, onOpenCodeArtifact, onOpenUIBlock],
   );
   const sourceSupportsVideoExtension = React.useMemo(
     () =>
@@ -382,9 +400,18 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   );
 
   const copyKey = item.publicID || item.key;
+  const uiBlockRegistry = useUIBlockRegistry();
+  // Interactive blocks are copied as readable text in their current state, not
+  // as block source: the copy is for pasting where blocks do not render.
   const onCopy = React.useCallback(async () => {
-    await copy(item.content, { key: copyKey });
-  }, [copy, copyKey, item.content]);
+    const text = isUser
+      ? item.content
+      : messageUIBlocksText(item.content, uiBlockRegistry, (blockKey) => {
+          const saved = uiBlockStateBinding ? uiBlockStateBinding.read(blockKey) : item.uiState?.[blockKey];
+          return isUIBlockState(saved) ? saved : undefined;
+        });
+    await copy(text, { key: copyKey });
+  }, [copy, copyKey, isUser, item.content, item.uiState, uiBlockRegistry, uiBlockStateBinding]);
 
   if (isUser) {
     return (
@@ -402,6 +429,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         copySucceeded={isCopied(copyKey)}
         attachmentContentLoader={attachmentContentLoader}
         readOnly={readOnly}
+        sendShortcut={sendShortcut}
         screenshotMeta={screenshotMeta}
       />
     );
@@ -414,7 +442,6 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         busy={busy}
         reaction={reaction}
         onRetryAssistantMessage={onRetryAssistantMessage}
-        regenerateReasoning={regenerateReasoning}
         onContinueAssistantMessage={onContinueAssistantMessage}
         onEditAssistantMessage={onEditAssistantMessage}
         onForkMessage={onForkMessage}
@@ -429,6 +456,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
           sourceSupportsVideoExtension ? onExtendVideoAttachment : undefined
         }
         artifactActions={artifactActions}
+        uiBlockState={uiBlockStateBinding}
         markdownRender={markdownRender}
         autoExpandThinking={autoExpandThinking}
         autoExpandToolCalls={autoExpandToolCalls}
@@ -438,6 +466,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         showTokenUsage={showTokenUsage}
         showBillingCost={showBillingCost}
         showProcessTrace={showProcessTrace}
+        sendShortcut={sendShortcut}
         billingDisplayCurrency={billingDisplayCurrency}
         billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
         readOnly={readOnly}
@@ -463,6 +492,8 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
 }, (previous, next) => (
   previous.busy === next.busy &&
   previous.readOnly === next.readOnly &&
+  previous.uiBlockStateStore === next.uiBlockStateStore &&
+  previous.uiBlockStateConversationID === next.uiBlockStateConversationID &&
   previous.reaction === next.reaction &&
   previous.markdownRender === next.markdownRender &&
   previous.autoExpandThinking === next.autoExpandThinking &&
@@ -473,6 +504,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.showTokenUsage === next.showTokenUsage &&
   previous.showBillingCost === next.showBillingCost &&
   previous.showProcessTrace === next.showProcessTrace &&
+  previous.sendShortcut === next.sendShortcut &&
   previous.billingDisplayCurrency === next.billingDisplayCurrency &&
   previous.billingDisplayUsdToCnyRate === next.billingDisplayUsdToCnyRate &&
   previous.contentWidthClassName === next.contentWidthClassName &&
@@ -480,7 +512,6 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.screenshotMetaModelName === next.screenshotMetaModelName &&
   previous.screenshotMetaTimestamp === next.screenshotMetaTimestamp &&
   previous.modelOptions === next.modelOptions &&
-  previous.regenerateReasoning === next.regenerateReasoning &&
   previous.selectedPlatformModelName === next.selectedPlatformModelName &&
   previous.onModelChange === next.onModelChange &&
   previous.onModelCatalogRefresh === next.onModelCatalogRefresh &&
@@ -488,6 +519,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.onEditImageAttachment === next.onEditImageAttachment &&
   previous.onExtendVideoAttachment === next.onExtendVideoAttachment &&
   previous.onOpenCodeArtifact === next.onOpenCodeArtifact &&
+  previous.onOpenUIBlock === next.onOpenUIBlock &&
   areChatAreaMessagesRenderEqual(previous.item, next.item)
 ));
 
@@ -498,6 +530,7 @@ export function ChatArea({
   messages,
   messagesReadOnly = false,
   persistMessageFeedback = true,
+  uiBlockState,
   busy,
   messageContentRef,
   onScroll,
@@ -508,7 +541,6 @@ export function ChatArea({
   onEditUserMessage,
   onForkMessage,
   onDeleteMessage,
-  regenerateReasoning = null,
   modelOptions,
   selectedPlatformModelName,
   onModelChange,
@@ -517,6 +549,7 @@ export function ChatArea({
   onEditImageAttachment,
   onExtendVideoAttachment,
   onOpenCodeArtifact,
+  onOpenUIBlock,
   onCycleMessageBranch,
   onToggleStar,
   onRename,
@@ -537,6 +570,7 @@ export function ChatArea({
   showTokenUsage = true,
   showBillingCost = false,
   showProcessTrace = true,
+  sendShortcut = "enter",
   billingDisplayCurrency = "USD",
   billingDisplayUsdToCnyRate = null,
   splitRightInset = false,
@@ -697,6 +731,8 @@ export function ChatArea({
                   const row = (
                     <ChatMessageRow
                       item={item}
+                      uiBlockStateStore={uiBlockState?.store}
+                      uiBlockStateConversationID={uiBlockState?.conversationPublicID ?? null}
                       busy={busy}
                       readOnly={messagesReadOnly}
                       reaction={getReaction(item)}
@@ -707,7 +743,6 @@ export function ChatArea({
                       onEditUserMessage={stableOnEditUserMessage}
                       onForkMessage={onForkMessage ? stableOnForkMessage : undefined}
                       onDeleteMessage={onDeleteMessage ? stableOnDeleteMessage : undefined}
-                      regenerateReasoning={regenerateReasoning}
                       modelOptions={modelOptions}
                       selectedPlatformModelName={selectedPlatformModelName}
                       onModelChange={stableOnModelChange}
@@ -718,6 +753,7 @@ export function ChatArea({
                       onCycleMessageBranch={stableOnCycleMessageBranch}
                       onReactAssistantMessage={stableOnReactAssistantMessage}
                       onOpenCodeArtifact={onOpenCodeArtifact}
+                      onOpenUIBlock={onOpenUIBlock}
                       markdownRender={markdownRender}
                       autoExpandThinking={autoExpandThinking}
                       autoExpandToolCalls={autoExpandToolCalls}
@@ -727,6 +763,7 @@ export function ChatArea({
                       showTokenUsage={showTokenUsage}
                       showBillingCost={showBillingCost}
                       showProcessTrace={showProcessTrace}
+                      sendShortcut={sendShortcut}
                       billingDisplayCurrency={billingDisplayCurrency}
                       billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
                       contentWidthClassName={contentWidthClassName}

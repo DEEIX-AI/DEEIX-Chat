@@ -601,6 +601,8 @@ export interface Capabilities {
   billingGating: boolean;
   /** ContentModeration 内容审核。 */
   contentModeration: boolean;
+  /** DesktopDownload 向网页端用户推荐下载桌面端；只监听回环的服务器只会被桌面端自己连接。 */
+  desktopDownload: boolean;
   /** IdentityProviders 第三方登录与身份绑定。 */
   identityProviders: boolean;
   /** MultiUser 存在多个账号：账号管理、权限组。 */
@@ -2357,7 +2359,18 @@ export interface MessageModerationResponse {
   state?: string;
 }
 
+export interface MessageProcessTraceDetailResponse {
+  processTrace: MessageProcessTraceResponse | null;
+}
+
+export interface MessageProcessTraceDetailResponseDoc {
+  data: MessageProcessTraceDetailResponse;
+  errorMsg: string;
+}
+
 export interface MessageProcessTraceResponse {
+  /** DetailOmitted 为 true 时是消息列表的摘要：思考只保留开头、工具调用不含完整输入输出，完整轨迹通过 GET /messages/{id}/trace 获取。 */
+  detailOmitted?: boolean;
   enabled: boolean;
   events?: MessageTraceEventResponse[];
   process?: MessageTraceBlockResponse;
@@ -2438,6 +2451,7 @@ export interface MessageResponse {
     | "high"
     | "xhigh"
     | "max"
+    | "ultra"
     | null;
   reasoningTokens: number;
   role: string;
@@ -2448,6 +2462,8 @@ export interface MessageResponse {
   thumbsDownCount: number;
   thumbsUpCount: number;
   tokenUsage: number;
+  /** UIState 是交互式组件块已保存的状态快照，键为块 id、值为该块的差量状态；没有状态时省略。 */
+  uiState?: object;
   updatedAt: string;
   upstreamModelName: string;
   userID: number;
@@ -2489,9 +2505,44 @@ export interface MessageTraceEventResponse {
   updatedAt: string;
 }
 
+export interface MessageUIStateInputRequest {
+  /** @maxLength 128 */
+  blockID: string;
+  /**
+   * MessagePublicID 是组件所在 assistant 消息的 public_id。
+   * @maxLength 64
+   */
+  messagePublicID: string;
+  state?: object;
+  /**
+   * Title 是组件标题，帮助模型对应到具体组件；超过 40 个字符的部分被截断。
+   * @maxLength 200
+   */
+  title?: string;
+}
+
+export interface MessageUIStateResponse {
+  messageID: number;
+  messagePublicID: string;
+  uiState: object;
+}
+
+export interface MessageUIStateResponseDoc {
+  data: MessageUIStateResponse;
+  errorMsg: string;
+}
+
 export interface ModelCatalogReasoningResponse {
   /** Default 为未显式选择时使用的档位。 */
-  default: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  default:
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | "ultra";
   format:
     | "openai"
     | "anthropic_effort"
@@ -2501,7 +2552,16 @@ export interface ModelCatalogReasoningResponse {
     | "qwen"
     | "toggle";
   /** Levels 为可选规范档位，按由低到高排列。 */
-  levels: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
+  levels: (
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | "ultra"
+  )[];
   /** Source 为 inferred（由旧版思考参数推断）或 catalog（models.dev 目录）。 */
   source: "inferred" | "catalog";
 }
@@ -2761,7 +2821,16 @@ export interface ModelReasoningTemplateResponse {
     | "qwen"
     | "toggle";
   /** Levels 为该格式可声明的规范档位，按由低到高排列。 */
-  levels: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
+  levels: (
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | "ultra"
+  )[];
 }
 
 export interface ModelResponse {
@@ -3544,9 +3613,26 @@ export interface PublicModelReasoningResponse {
   /** ControlPath 为推断来源的原生参数路径（高级参数面板需隐藏该控件）；显式声明时为 null。 */
   controlPath: string | null;
   /** Default 为未显式选择时使用的档位。 */
-  default: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  default:
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | "ultra";
   /** Levels 为可选规范档位，按由低到高排列。 */
-  levels: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
+  levels: (
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | "ultra"
+  )[];
   /** Locked 为 true 时档位被管理员锁定为 default，客户端传入的档位不生效。 */
   locked: boolean;
   /** Source 为能力来源。catalog 表示由 models.dev 目录自动识别：未显式选择档位时不下发推理参数，由上游决定默认行为。 */
@@ -3650,6 +3736,7 @@ export interface PublicSharedMessageResponse {
     | "high"
     | "xhigh"
     | "max"
+    | "ultra"
     | null;
   reasoningTokens: number;
   role: string;
@@ -3923,6 +4010,7 @@ export interface RunResponse {
     | "high"
     | "xhigh"
     | "max"
+    | "ultra"
     | null;
   reasoningTokens: number;
   requestID: string;
@@ -3971,10 +4059,23 @@ export interface SendMessageRequest {
   /** @maxLength 32 */
   sourceMessagePublicID?: string;
   /**
+   * UIBlockVersion 是客户端能渲染的 deeix-ui 块格式版本：缺省或 1 只用静态组件，2 允许可交互块（state、computed、原语）。
+   * @min 1
+   * @max 2
+   */
+  uiBlockVersion?: number;
+  /**
    * UIComponentIDs 是本次会话勾选的交互式组件；后端据此注入组件目录提示词，不可见的 ID 被忽略。
    * @maxItems 32
    */
   uiComponentIDs?: number[];
+  /**
+   * UIStates 是用户在当前分支的交互式组件里设定的状态（只含与初始值不同的键），作为本轮上下文发给模型，不落库。
+   * 条数与字段长度超过这里声明的上限时按请求体不合法拒绝；除此之外，不在当前分支上的消息、
+   * 状态内容不合法或超出注入预算的条目只是被忽略，不会让发送失败。
+   * @maxItems 32
+   */
+  uiStates?: MessageUIStateInputRequest[];
 }
 
 export interface SendMessageResponse {
@@ -4061,6 +4162,14 @@ export interface SetGroupUsersRequest {
 
 export interface SetMessageFeedbackRequest {
   feedback?: "up" | "down";
+}
+
+export interface SetMessageUIStateRequest {
+  /**
+   * Blocks 以组件块 id 为键、该块的状态对象为值（只含与初始值不同的键）。
+   * 出现的块整块替换；值为 null 或空对象表示清除该块；没出现的块保持不变。
+   */
+  blocks: object;
 }
 
 export interface SetModelPermissionGroupsRequest {
@@ -4298,10 +4407,34 @@ export interface TemporaryChatMessageRequest {
   /** @maxItems 128 */
   skillIDs?: number[];
   /**
+   * UIBlockVersion 语义同 SendMessageRequest.uiBlockVersion。
+   * @min 1
+   * @max 2
+   */
+  uiBlockVersion?: number;
+  /**
    * UIComponentIDs 是本次会话勾选的交互式组件。
    * @maxItems 32
    */
   uiComponentIDs?: number[];
+  /**
+   * UIStates 是用户在本次临时对话的交互式组件里设定的状态；语义同 SendMessageRequest.uiStates。
+   * @maxItems 32
+   */
+  uiStates?: TemporaryChatUIStateRequest[];
+}
+
+export interface TemporaryChatUIStateRequest {
+  /** @maxLength 128 */
+  blockID: string;
+  /**
+   * @min 0
+   * @max 99
+   */
+  messageIndex: number;
+  state?: object;
+  /** @maxLength 200 */
+  title?: string;
 }
 
 export interface ToolListResponse {
@@ -9932,10 +10065,16 @@ export namespace Conversations {
       id: string;
     };
     export type RequestQuery = {
+      /** 返回该消息 id 之前的 page_size 条消息 */
+      before_id?: number;
       /** 页码（从 1 开始，默认 1） */
       page?: number;
       /** 每页数量（1-1000，默认 20） */
       page_size?: number;
+      /** 为 true 时返回最近的 page_size 条消息 */
+      tail?: boolean;
+      /** summary：已完成消息的思考与工具过程只带摘要，完整内容通过 /messages/{id}/trace 获取 */
+      trace?: "summary";
     };
     export type RequestBody = never;
     export type RequestHeaders = {};
@@ -10039,6 +10178,27 @@ export namespace Conversations {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = ConversationUpdateResponseDoc;
+  }
+
+  /**
+   * @description 按块保存 assistant 消息里交互式组件的当前状态快照（只保存与块初始值不同的键）。blocks 以块 id 为键：出现的块整块替换，值为 null 或空对象表示清除，没出现的块保持不变
+   * @tags chat
+   * @name MessagesUiStateUpdate
+   * @summary 保存消息内交互式组件的状态
+   * @request PUT:/conversations/{id}/messages/{message_id}/ui-state
+   * @secure
+   */
+  export namespace MessagesUiStateUpdate {
+    export type RequestParams = {
+      /** 会话 public_id */
+      id: string;
+      /** 消息 public_id */
+      messageId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = SetMessageUIStateRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = MessageUIStateResponseDoc;
   }
 
   /**
@@ -11333,6 +11493,25 @@ export namespace Messages {
     export type RequestBody = SetMessageFeedbackRequest;
     export type RequestHeaders = {};
     export type ResponseBody = MessageFeedbackResponseDoc;
+  }
+
+  /**
+   * @description 返回当前用户一条助手消息的完整处理轨迹（思考全文与工具输入输出）；消息列表以 trace=summary 查询时只带摘要
+   * @tags chat
+   * @name TraceList
+   * @summary 查询消息处理轨迹
+   * @request GET:/messages/{id}/trace
+   * @secure
+   */
+  export namespace TraceList {
+    export type RequestParams = {
+      /** 消息 public_id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = MessageProcessTraceDetailResponseDoc;
   }
 }
 

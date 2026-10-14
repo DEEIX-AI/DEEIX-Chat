@@ -521,7 +521,7 @@ func (s *Service) sendMessageInternal(
 		return nil, err
 	}
 	conversationAttachments = bindAttachmentMessageRoles(conversationAttachments, promptMessages)
-	conversationAttachments, err = s.hydrateAttachmentsForSend(ctx, input.UserID, conversationAttachments, input.OnEvent)
+	conversationAttachments, err = s.hydrateAttachmentsForSend(ctx, input.UserID, conversationAttachments, resolveNativeInputPolicy(route), input.OnEvent)
 	if err != nil {
 		retErr = err
 		return nil, err
@@ -582,6 +582,8 @@ func (s *Service) sendMessageInternal(
 
 	contextAssembler := NewContextAssembler(0)
 	userCtx := userContextInput{ImageAnalyses: imageProcessing.Analyses}
+	// 组件状态只认本轮实际发送的历史：被压缩快照覆盖的消息已不在提示词里，其上的组件状态不再注入。
+	userCtx.UIStates = resolveBranchUIStates(cfg, promptMessages, input.UIStates)
 	var prefixMemories []domainmemory.UserMemory
 	preferencePrompt := ""
 	if promptScope.Snapshot != nil {
@@ -686,6 +688,7 @@ func (s *Service) sendMessageInternal(
 		ProjectSystemPrompt:     conversation.ProjectSystemPrompt,
 		HTMLVisualPromptEnabled: input.HTMLVisualPromptEnabled,
 		UIComponents:            uiComponents,
+		UIBlockVersion:          input.UIBlockVersion,
 		DomainMessages:          promptScope.activeMessages(),
 		ConversationFiles:       fileContextPlan.Attachments,
 		NativeInputs:            nativeInputCache,

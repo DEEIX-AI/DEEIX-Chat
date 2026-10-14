@@ -12,6 +12,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"go.uber.org/zap"
 )
 
 // Service 封装 settings 业务逻辑。
@@ -22,6 +23,7 @@ type Service struct {
 	vectorStore vectorStoreAvailabilityService
 	auditWriter auditWriter
 	runtime     *config.Runtime
+	logger      *zap.Logger
 }
 
 type authSafetyService interface {
@@ -54,6 +56,11 @@ func (s *Service) SetAuditWriter(writer auditWriter) {
 	s.auditWriter = writer
 }
 
+// SetLogger 注入结构化日志记录器。
+func (s *Service) SetLogger(logger *zap.Logger) {
+	s.logger = logger
+}
+
 // AuditInput 描述系统设置审计写入。
 type AuditInput struct {
 	UserID    uint
@@ -80,9 +87,15 @@ func (s *Service) RecordAudit(ctx context.Context, input AuditInput) {
 	})
 }
 
-// Seed 将注册表中的默认配置写入数据库（仅插入不存在的 key），并清理已废弃的配置项。
+// Seed 将注册表中的默认配置写入数据库（仅插入不存在的 key），并清理重复行与已废弃的配置项。
 func (s *Service) Seed(ctx context.Context) error {
-	items, err := s.encryptSettingsForStorage(defaultSettings())
+	existing, err := s.repo.ListAll(ctx)
+	if err != nil {
+		return err
+	}
+	existing, duplicates := resolveDuplicateSettings(existing)
+	s.repairDuplicateSettings(ctx, duplicates)
+	items, err := s.encryptSettingsForStorage(missingSettings(defaultSettings(), existing))
 	if err != nil {
 		return err
 	}
@@ -104,7 +117,7 @@ func (s *Service) Seed(ctx context.Context) error {
 
 // ListAll 查询全部配置，按 namespace 分组。
 func (s *Service) ListAll(ctx context.Context) (map[string][]SettingItem, error) {
-	items, err := s.repo.ListAll(ctx)
+	items, err := listAllSettings(ctx, s.repo)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +126,7 @@ func (s *Service) ListAll(ctx context.Context) (map[string][]SettingItem, error)
 
 // ListByNamespace 查询指定 namespace 的配置。
 func (s *Service) ListByNamespace(ctx context.Context, namespace string) ([]SettingItem, error) {
-	items, err := s.repo.ListByNamespace(ctx, namespace)
+	items, err := listNamespaceSettings(ctx, s.repo, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +139,7 @@ func (s *Service) ListByNamespace(ctx context.Context, namespace string) ([]Sett
 
 // RuntimeValuesByNamespace 返回服务端运行时使用的配置值，敏感项会被解密。
 func (s *Service) RuntimeValuesByNamespace(ctx context.Context, namespace string) (map[string]string, error) {
-	items, err := s.repo.ListByNamespace(ctx, namespace)
+	items, err := listNamespaceSettings(ctx, s.repo, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +155,7 @@ func (s *Service) RuntimeValuesByNamespace(ctx context.Context, namespace string
 }
 
 func (s *Service) migrateDefaultAllowedMIMETypes(ctx context.Context) error {
-	items, err := s.repo.ListByNamespace(ctx, "file")
+	items, err := listNamespaceSettings(ctx, s.repo, "file")
 	if err != nil {
 		return err
 	}
@@ -178,7 +191,7 @@ func (s *Service) resetToRegistryDefault(ctx context.Context, namespace string, 
 }
 
 func (s *Service) migrateDefaultModelOptionAllowedPaths(ctx context.Context) error {
-	items, err := s.repo.ListByNamespace(ctx, "chat")
+	items, err := listNamespaceSettings(ctx, s.repo, "chat")
 	if err != nil {
 		return err
 	}

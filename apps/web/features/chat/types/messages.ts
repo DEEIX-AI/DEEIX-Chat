@@ -1,4 +1,5 @@
 import type { UpstreamDebugInfo } from "@/shared/api/conversation-types";
+import type { UIBlockState } from "@/shared/components/markdown/ui-blocks/ui-block-state";
 import type { ReasoningEffortLevel } from "@/entities/model";
 
 export type MessageAttachment = {
@@ -111,6 +112,8 @@ export type ChatMessageProcessTrace = {
   upstreamThink?: ChatTraceBlock;
   promptTrace?: ChatPromptTrace;
   events?: ChatTraceEvent[];
+  /** Summary from the message list: thinking and tool inputs/outputs are cut; the full trace loads on expand. */
+  detailOmitted?: boolean;
 };
 
 export type ChatInlineAlert = {
@@ -160,6 +163,9 @@ export type ChatAreaMessage = {
   activityLabel?: string;
   imageAspectRatio?: ImageLoadingAspectRatio;
   myFeedback?: "up" | "down" | null;
+  // Persisted per-block state of the interactive components in this message,
+  // only the keys the user changed; absent when nothing was changed.
+  uiState?: UIBlockState;
   thumbsUpCount?: number;
   thumbsDownCount?: number;
   branchNavigator?: ChatMessageBranchNavigator;

@@ -14,6 +14,7 @@ import type {
   ConversationDTO,
   ConversationOptions,
   MessageDTO,
+  MessageUIStateInput,
 } from "@/shared/api/conversation-types";
 import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 
@@ -63,6 +64,7 @@ export function useChatSubmitStream({
   onConversationRunFinished,
   onConversationRunStarted,
   resumeGenerationActive,
+  collectUIStates,
 }: {
   conversationID: string | null;
   conversationScopeKey: string;
@@ -109,6 +111,7 @@ export function useChatSubmitStream({
   onConversationRunFinished?: (runID: string) => void;
   onConversationRunStarted?: (runID: string, conversationPublicID: string) => void;
   resumeGenerationActive?: boolean;
+  collectUIStates?: (messages: readonly ChatAreaMessage[]) => MessageUIStateInput[];
 }) {
   const streamBuffer = useChatStreamBuffer({
     setPendingExchanges,
@@ -167,6 +170,7 @@ export function useChatSubmitStream({
     onConversationRunFinished,
     onConversationRunStarted,
     resumeGenerationActive,
+    collectUIStates,
   });
 
   return messageSubmit;

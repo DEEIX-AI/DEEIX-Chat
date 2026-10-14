@@ -154,6 +154,7 @@
       "itemCount": "{count} items",
       "unknownComponent": "Unsupported component {component}",
       "invalidProps": "Component {component} data is incomplete; showing the raw content",
+      "renderFailed": "Component {component} failed to render; showing the raw content",
       "reset": "Reset",
       "back": "Back",
       "missingNode": "Node {id} not found",
@@ -193,7 +194,33 @@
       "diffPrevChange": "Previous change",
       "diffNextChange": "Next change",
       "diffCopyAfter": "Copy result",
-      "quizNext": "Next"
+      "quizNext": "Next",
+      "askHint": "Send this follow-up (Enter to send, Shift+Enter for a new line)",
+      "askBusy": "Available when the current reply finishes",
+      "askUnavailable": "Messages can't be sent here",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Copy failed",
+      "formulaIssues": "{count, plural, one {# formula or data issue} other {# formula or data issues}}",
+      "prefilled": "Added to the message box; review it and send",
+      "prefillSkipped": "The message box already has text, so the component's text was not added",
+      "openInPanel": "Open in side panel",
+      "panelTitle": "Interactive block",
+      "closePanel": "Close side panel",
+      "widgetGenerating": "Drawing the illustration…",
+      "widgetGeneratingTitled": "Drawing “{title}”…",
+      "widgetTitle": "Interactive illustration",
+      "widgetUnavailable": "Illustrations can't run here; showing the source",
+      "widgetTooLarge": "This illustration is too large to run; showing the source",
+      "viewSource": "View source",
+      "hideSource": "Hide source",
+      "askLabel": "Follow-up question",
+      "askPlaceholder": "Type a follow-up question",
+      "askSend": "Send follow-up",
+      "askRestore": "Restore the suggested question",
+      "imageCount": "{count, plural, one {# image} other {# images}}",
+      "previousImage": "Previous image",
+      "nextImage": "Next image"
     },
     "copyLatex": "Copy formula source",
     "latexCopied": "Formula source copied",
@@ -257,6 +284,7 @@
     "close": "Close",
     "resize": "Resize Artifact",
     "empty": "This artifact is empty and cannot be previewed yet.",
+    "generating": "Generating… the preview appears once the code is complete.",
     "security": "The preview runs in an isolated sandbox with external network, forms, popups, parent page access, and storage access restricted."
   },
   "messages": {
@@ -345,6 +373,7 @@
     "autoTruncated": "Attachments truncated automatically",
     "autoTruncatedDescription": "Kept the first {max} attachments and ignored {count} files over the limit.",
     "uploadFailed": "Upload failed",
+    "processingFailed": "Couldn't process {name}",
     "uploadSignInRequired": "Sign in before uploading files.",
     "dropTitle": "Drop files to attach",
     "duplicateReused": "Duplicate file detected and reused",
@@ -834,7 +863,10 @@
       "toolCalls": "{count} tool calls",
       "thinkRounds": "{count} deep-reasoning rounds",
       "duration": "{duration}",
-      "labelSeparator": " · "
+      "labelSeparator": " · ",
+      "detailLoading": "Loading run details",
+      "detailFailed": "Couldn't load run details",
+      "detailRetry": "Retry"
     },
     "promptTrace": {
       "modes": {
@@ -1128,10 +1160,7 @@
     "default": "Default",
     "auto": "Auto",
     "levelWithDefault": "{level} (default)",
-    "dialogDescription": "Unified reasoning level; the server maps it to this model's native parameter.",
-    "regenerate": "Regenerate",
-    "regenerateWith": "Regenerate with reasoning effort",
-    "usedByReply": "This reply"
+    "dialogDescription": "Unified reasoning level; the server maps it to this model's native parameter."
   },
   "modelControls": {
     "title": "Chat parameters",

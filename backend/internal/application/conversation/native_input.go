@@ -124,6 +124,17 @@ func (p nativeInputPolicy) accepts(att AttachmentInput) bool {
 	return false
 }
 
+// readsWithoutExtraction 判断本轮 PDF 在文本提取失败时能否改为原生发送，从而不必拒绝这次发送。
+// 只检查单个文件的上限；与其他原生文件合计超出预算时，该文件按「无法读取」说明提供。
+func (p nativeInputPolicy) readsWithoutExtraction(att AttachmentInput) bool {
+	return p.PDF &&
+		nativeInputKindOf(att) == nativeInputPDF &&
+		strings.TrimSpace(att.StoragePath) != "" &&
+		att.FileSize > 0 &&
+		att.FileSize <= maxNativePDFTotalBytes &&
+		att.PageCount <= maxNativePDFTotalPages
+}
+
 // nativeProtocolSupport 是路由能原生发送的内容块，已按上游可信度收敛（见文件开头第 3 条）。
 type nativeProtocolSupport struct {
 	pdf        bool
@@ -212,7 +223,7 @@ func isUserSubmittedAttachment(att AttachmentInput) bool {
 
 // isNativeInputCandidate 判断附件是否可以原生发送（不含路由策略与整体预算）。
 //
-// PDF 只替换系统本来就会提供全文的文件，以及没有可用提取文本的文件（如扫描件）；
+// PDF 只替换系统本来就会提供全文的文件，以及没有可用提取文本的文件（如扫描件，包括提取失败的文件）；
 // 走检索或因过长被跳过的 PDF 保持原有处理，避免原生发送绕开上下文预算。音频与视频没有提取文本，用户提交即可。
 func isNativeInputCandidate(att AttachmentInput) bool {
 	if !isUserSubmittedAttachment(att) || strings.TrimSpace(att.StoragePath) == "" {
@@ -221,7 +232,8 @@ func isNativeInputCandidate(att AttachmentInput) bool {
 	if att.FileSize <= 0 || att.FileSize > maxNativeInputTotalBytes {
 		return false
 	}
-	if strings.EqualFold(strings.TrimSpace(att.ProcessingStatus), "failed") {
+	// 提取失败的 PDF（扫描件、图片型 PDF 等）没有文本可用，但模型可以直接阅读原文件。
+	if strings.EqualFold(strings.TrimSpace(att.ProcessingStatus), "failed") && nativeInputKindOf(att) != nativeInputPDF {
 		return false
 	}
 	switch nativeInputKindOf(att) {

@@ -284,7 +284,7 @@ func stableAttachmentSourceRefs(attachments []AttachmentInput, currentArtifacts 
 
 // dynamicContextSourceRefs 提取本轮动态上下文的来源引用。
 func dynamicContextSourceRefs(input userContextInput) []PromptSourceRef {
-	refs := make([]PromptSourceRef, 0, len(input.RAGChunks)+len(input.RecallChunks)+len(input.Memory)+len(input.Attachments)+len(input.Files)+len(input.UnretrievedFiles)+1)
+	refs := make([]PromptSourceRef, 0, len(input.RAGChunks)+len(input.RecallChunks)+len(input.Memory)+len(input.Attachments)+len(input.Files)+len(input.UnretrievedFiles)+len(input.UIStates)+1)
 	ragArtifacts := contextArtifactsByKindAndSourceID(input.CurrentArtifacts, domainconversation.ContextArtifactFileRAGChunk)
 	recallArtifacts := contextArtifactsByKindAndSourceID(input.CurrentArtifacts, domainconversation.ContextArtifactSemanticRecall)
 	memoryArtifacts := contextArtifactsByKindAndSourceID(input.CurrentArtifacts, domainconversation.ContextArtifactUserMemory)
@@ -313,7 +313,7 @@ func dynamicContextSourceRefs(input userContextInput) []PromptSourceRef {
 	for _, item := range input.UnretrievedFiles {
 		refs = appendPromptSourceRef(refs, "file_metadata", stableAttachmentSourceID(item.Attachment), item.Attachment.FileName)
 	}
-	return refs
+	return uiStateSourceRefs(refs, input.UIStates)
 }
 
 // contextArtifactsByKindAndSourceID 按类型和来源 ID 建立索引，用于把已落库证据回填到 PromptTrace 来源。

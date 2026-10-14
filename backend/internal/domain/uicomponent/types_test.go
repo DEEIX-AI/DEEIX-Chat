@@ -7,10 +7,12 @@ import (
 
 // 内置目录与前端 shared/components/markdown/ui-blocks/registry.tsx 按 name@version 配对。
 // 新增或改版内置组件时，两侧必须同时更新；本测试固定后端一侧，避免单边漂移。
+// panel 与 widget 是块格式能力，前端由 LiveBlock 与 widget-host 渲染，不在注册表里。
 func TestBuiltinCatalogMatchesFrontendRegistry(t *testing.T) {
 	want := map[string]int{
 		"card-grid":     1,
 		"stat-grid":     1,
+		"image-gallery": 1,
 		"chart":         1,
 		"function-plot": 1,
 		"data-table":    1,
@@ -19,6 +21,8 @@ func TestBuiltinCatalogMatchesFrontendRegistry(t *testing.T) {
 		"calculator":    1,
 		"decision-tree": 1,
 		"quiz":          1,
+		"panel":         1,
+		"widget":        1,
 	}
 	namePattern := regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 	got := Builtin()

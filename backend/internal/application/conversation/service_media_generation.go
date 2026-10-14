@@ -39,6 +39,11 @@ const (
 
 const maxMediaImageEditInputImages = 16
 
+// maxGeneratedImageBytes 是单张生成图片的上限，独立于管理员配置的上传上限：
+// 上传上限约束用户提交的文件，而 4K PNG 输出通常就有 20 MiB 以上。
+// 与历史图片的读取上限保持一致，保存下来的图片在后续对话和编辑中都能再次读取。
+const maxGeneratedImageBytes = maxConversationImageSourceBytes
+
 type mediaImageCapabilities struct {
 	Image struct {
 		Stream *bool `json:"stream"`
@@ -468,6 +473,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 			MimeType:     mimeType,
 			DeclaredSize: int64(len(data)),
 			Reader:       bytes.NewReader(data),
+			MaxBytes:     maxGeneratedImageBytes,
 		})
 		if uploadErr != nil {
 			retErr = uploadErr
@@ -630,6 +636,15 @@ func mediaImageRunningMessage(taskType MediaImageTaskType) string {
 	return "generating image"
 }
 
+// EnsureGeneratedMediaStorage 在媒体任务开始前确认生成结果还能保存。
+// 存储空间已满时生成的图片或视频必然保存失败，而上游调用已经计费，所以在调用上游之前拒绝。
+func (s *Service) EnsureGeneratedMediaStorage(ctx context.Context, userID uint) error {
+	if s.uploadSvc == nil {
+		return nil
+	}
+	return s.uploadSvc.EnsureStorageAvailable(ctx, userID)
+}
+
 // resolveMediaImageEditInputs 读取图片编辑输入图，确保只有图片文件进入图片编辑协议。
 func (s *Service) resolveMediaImageEditInputs(ctx context.Context, input MediaImageInput) ([]AttachmentInput, []llm.ContentPart, error) {
 	if input.TaskType != MediaImageTaskEdit {
@@ -678,10 +693,8 @@ func (s *Service) readMediaImageEditFile(ctx context.Context, userID uint, fileI
 	}
 	defer content.Reader.Close() //nolint:errcheck
 
-	limit := s.cfg.Snapshot().MaxUploadFileBytes
-	if limit <= 0 {
-		limit = 20 * 1024 * 1024
-	}
+	// 编辑输入可能是之前生成的图片，按生成图片的上限读取，管理员配置得更大时以其为准。
+	limit := max(s.cfg.Snapshot().MaxUploadFileBytes, maxGeneratedImageBytes)
 	data, err := io.ReadAll(io.LimitReader(content.Reader, limit+1))
 	if err != nil {
 		return llm.ContentPart{}, err
@@ -804,6 +817,9 @@ func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedIma
 		if err != nil {
 			return nil, mimeType, newGeneratedMediaArtifactError("image", "decode", err)
 		}
+		if len(data) > maxGeneratedImageBytes {
+			return nil, mimeType, ErrFileTooLarge
+		}
 		validated, detectedMIME, validationErr := validateGeneratedImageBytes(data, mimeType)
 		if validationErr != nil {
 			return nil, mimeType, newGeneratedMediaArtifactError("image", "validation", validationErr)
@@ -818,12 +834,7 @@ func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedIma
 	if downloader == nil {
 		return nil, mimeType, newGeneratedMediaArtifactError("image", "configuration", fmt.Errorf("generated media downloader is not configured"))
 	}
-	cfg := s.cfg.Snapshot()
-	limit := cfg.MaxUploadFileBytes
-	if limit <= 0 {
-		limit = 20 * 1024 * 1024
-	}
-	data, downloadedMIME, err := downloader.DownloadImage(ctx, url, source.endpoint, limit)
+	data, downloadedMIME, err := downloader.DownloadImage(ctx, url, source.endpoint, maxGeneratedImageBytes)
 	if err != nil {
 		if isMediaArtifactResponseTooLarge(err) {
 			return nil, mimeType, ErrFileTooLarge

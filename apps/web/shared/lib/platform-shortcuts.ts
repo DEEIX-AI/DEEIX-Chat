@@ -27,6 +27,19 @@ export function platformSendShortcut(): "ctrl_enter" | "meta_enter" {
   return isApplePlatform() ? "meta_enter" : "ctrl_enter";
 }
 
+/**
+ * True while an IME is still composing, when Enter belongs to the candidate
+ * list rather than to the field. `composing` covers the browsers that end the
+ * composition before the Enter keydown reaches the handler; `Process` and
+ * `keyCode` 229 are the older reports of the same state.
+ */
+export function isImeComposingKeyEvent(
+  event: { key: string; keyCode?: number; nativeEvent?: { isComposing?: boolean } },
+  composing = false,
+): boolean {
+  return composing || event.nativeEvent?.isComposing === true || event.key === "Process" || event.keyCode === 229;
+}
+
 export function isSendShortcutEvent(
   shortcut: "enter" | "ctrl_enter" | "meta_enter",
   event: {

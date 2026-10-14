@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { UIBlockDefinition, UIBlockRenderProps } from "./block";
+import { joinTextBlocks, textTable, textTitle, textValue } from "./block-text";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
 
@@ -52,7 +53,8 @@ export type ChartProps = {
   x?: (string | number)[];
   // `type` lets one series differ from the chart (bars + a trend line);
   // `axis: "right"` puts it on a second y axis when units differ.
-  series: { name: string; data: number[]; type?: SeriesType; axis?: "left" | "right" }[];
+  // A null point is a gap: per-point formulas yield null where they fail.
+  series: { name: string; data: (number | null)[]; type?: SeriesType; axis?: "left" | "right" }[];
   unit?: string;
   stacked?: boolean;
   // With `stacked`, normalises every x to 100%.
@@ -100,7 +102,7 @@ function Chart({ id, props }: UIBlockRenderProps<ChartProps>) {
       const row: Record<string, string | number> = { x: props.x?.[pointIndex] ?? pointIndex + 1 };
       props.series.forEach((series, seriesIndex) => {
         const value = series.data[pointIndex];
-        if (value !== undefined) {
+        if (typeof value === "number") {
           row[seriesKey(seriesIndex)] = value;
         }
       });
@@ -296,6 +298,18 @@ function ChartSkeleton() {
   );
 }
 
+// One row per x, one column per series; a gap (null) stays an empty cell.
+function chartText(props: ChartProps): string {
+  const length = Math.max(props.x?.length ?? 0, ...props.series.map((series) => series.data.length));
+  const unit = props.unit?.trim() ? ` (${props.unit.trim()})` : "";
+  const headers = ["", ...props.series.map((series) => `${series.name}${unit}`)];
+  const rows = Array.from({ length }, (_, index) => [
+    textValue(props.x?.[index] ?? index + 1),
+    ...props.series.map((series) => textValue(series.data[index] ?? null)),
+  ]);
+  return joinTextBlocks([...textTitle(props.title), textTable(headers, rows).join("\n")]);
+}
+
 export const chartDefinition: UIBlockDefinition<ChartProps> = {
   name: "chart",
   version: 1,
@@ -305,7 +319,7 @@ export const chartDefinition: UIBlockDefinition<ChartProps> = {
       type: s.string({ enum: CHART_TYPES }),
       x: s.array(s.cell()),
       series: s.array(
-        s.object({ name: s.string(), data: s.array(s.number(), { minItems: 1 }), type: s.string({ enum: SERIES_TYPES }), axis: s.string({ enum: ["left", "right"] }) }, ["name", "data"]),
+        s.object({ name: s.string(), data: s.array(s.oneOf([s.number(), s.null()]), { minItems: 1 }), type: s.string({ enum: SERIES_TYPES }), axis: s.string({ enum: ["left", "right"] }) }, ["name", "data"]),
         { minItems: 1 },
       ),
       unit: s.string(),
@@ -316,4 +330,5 @@ export const chartDefinition: UIBlockDefinition<ChartProps> = {
   ),
   Component: Chart,
   Skeleton: ChartSkeleton,
+  toText: chartText,
 };

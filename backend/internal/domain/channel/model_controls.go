@@ -582,8 +582,16 @@ func ResolveModelControls(capabilitiesJSON string, protocolKeys []string, reason
 				reasoningPaths[path] = struct{}{}
 			}
 		}
-		if reasoning != nil && reasoning.ControlPath != "" {
-			reasoningPaths[reasoning.ControlPath] = struct{}{}
+		if reasoning != nil {
+			if reasoning.ControlPath != "" {
+				reasoningPaths[reasoning.ControlPath] = struct{}{}
+			}
+			// 由思考强度翻译接管的原生参数，单独调整不会生效。
+			for _, protocolKey := range protocolKeys {
+				for _, path := range ReasoningOwnedOptionPaths(reasoning.Format, protocolKey) {
+					reasoningPaths[path] = struct{}{}
+				}
+			}
 		}
 	}
 	for _, control := range compileLegacyModelControls(payload, lockedPaths) {

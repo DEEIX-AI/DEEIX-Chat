@@ -8,10 +8,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import katex from "katex";
 
-import { type CompiledExpression, compileExpression, expressionToLatex } from "@/shared/lib/safe-expression";
+import { type CompiledExpression, compileExpression, expressionToLatex } from "@deeix/core";
 import type { UIBlockDefinition, UIBlockRenderProps } from "./block";
+import { joinTextBlocks, textTitle } from "./block-text";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
+import { type UIBlockState, useUIBlockStatePersistence } from "./ui-block-state";
 
 type FunctionPlotProps = {
   title?: string;
@@ -138,6 +140,40 @@ function compileRow(row: FunctionRow): CompiledRow {
 // Row keys only grow so a row keeps its colour when others are removed.
 function rowsFromProps(functions: FunctionPlotProps["functions"]): FunctionRow[] {
   return functions.slice(0, MAX_FUNCTIONS).map((fn, index) => ({ key: index, expr: fn.expr, hidden: false }));
+}
+
+// Stored state: the expressions as the user left them and which rows are hidden
+// (by position). The viewport is not stored: zoom is a way of looking, not a choice.
+type FunctionPlotState = { expressions: string[]; hidden: number[] };
+
+const MAX_STORED_EXPRESSION_LENGTH = 200;
+
+function functionPlotDefaults(functions: FunctionPlotProps["functions"]): FunctionPlotState {
+  return { expressions: functions.slice(0, MAX_FUNCTIONS).map((fn) => fn.expr), hidden: [] };
+}
+
+function restoreFunctionPlotState(saved: UIBlockState | undefined, defaults: FunctionPlotState): FunctionPlotState {
+  const storedExpressions = saved?.expressions;
+  const expressions =
+    Array.isArray(storedExpressions) && storedExpressions.length <= MAX_FUNCTIONS && storedExpressions.every((expr) => typeof expr === "string")
+      ? storedExpressions.filter((expr): expr is string => typeof expr === "string").map((expr) => expr.slice(0, MAX_STORED_EXPRESSION_LENGTH))
+      : defaults.expressions;
+  const storedHidden = saved?.hidden;
+  const hidden = Array.isArray(storedHidden)
+    ? storedHidden.filter((index): index is number => typeof index === "number" && Number.isInteger(index) && index >= 0 && index < expressions.length)
+    : defaults.hidden;
+  return { expressions, hidden };
+}
+
+function rowsFromState(state: FunctionPlotState): FunctionRow[] {
+  return state.expressions.map((expr, index) => ({ key: index, expr, hidden: state.hidden.includes(index) }));
+}
+
+function stateFromRows(rows: FunctionRow[]): FunctionPlotState {
+  return {
+    expressions: rows.map((row) => row.expr.slice(0, MAX_STORED_EXPRESSION_LENGTH)),
+    hidden: rows.flatMap((row, index) => (row.hidden ? [index] : [])),
+  };
 }
 
 function rangeOr(range: number[] | undefined, fallback: readonly [number, number]): [number, number] {
@@ -298,7 +334,23 @@ function FunctionPlot({ id, props }: UIBlockRenderProps<FunctionPlotProps>) {
   const t = useTranslations("chat.markdown.uiBlock");
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [width, setWidth] = React.useState(0);
-  const [rows, setRows] = React.useState<FunctionRow[]>(() => rowsFromProps(props.functions));
+  const { initial, save } = useUIBlockStatePersistence<FunctionPlotState>(id, {
+    defaults: functionPlotDefaults(props.functions),
+    restore: restoreFunctionPlotState,
+    title: props.title,
+  });
+  const [rows, setRowsState] = React.useState<FunctionRow[]>(() => rowsFromState(initial));
+  // Rows are stored only after the user edits them; restoring alone writes nothing.
+  const rowsChangedRef = React.useRef(false);
+  const setRows = React.useCallback((update: React.SetStateAction<FunctionRow[]>) => {
+    rowsChangedRef.current = true;
+    setRowsState(update);
+  }, []);
+  React.useEffect(() => {
+    if (rowsChangedRef.current) {
+      save(stateFromRows(rows));
+    }
+  }, [rows, save]);
   const nextKeyRef = React.useRef(rows.length);
   const compiledRows = React.useMemo(() => rows.map(compileRow), [rows]);
   const [view, setView] = React.useState<Viewport | null>(null);
@@ -648,6 +700,13 @@ function FunctionPlotSkeleton() {
   );
 }
 
+// The expressions as the user left them; hidden ones are left out.
+function functionPlotText(props: FunctionPlotProps, state: UIBlockState | undefined): string {
+  const { expressions, hidden } = restoreFunctionPlotState(state, functionPlotDefaults(props.functions));
+  const lines = expressions.flatMap((expr, index) => (hidden.includes(index) || !expr.trim() ? [] : [`- \`${expr.trim()}\``]));
+  return joinTextBlocks([...textTitle(props.title), lines.join("\n")]);
+}
+
 export const functionPlotDefinition: UIBlockDefinition<FunctionPlotProps> = {
   name: "function-plot",
   version: 1,
@@ -662,4 +721,5 @@ export const functionPlotDefinition: UIBlockDefinition<FunctionPlotProps> = {
   ),
   Component: FunctionPlot,
   Skeleton: FunctionPlotSkeleton,
+  toText: functionPlotText,
 };

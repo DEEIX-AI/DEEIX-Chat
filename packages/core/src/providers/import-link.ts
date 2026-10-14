@@ -1,22 +1,19 @@
-// One-click provider import links.
+// Provider import links.
 //
-// Format (the fragment is never sent to the server, so the key stays out of
-// access logs, proxies and Referer headers):
+//   v=1: /import#v=1&url=<base URL>&key=<API key>[&protocol=<protocol>][&name=<name>]
+//   v=2: /import#v=2&url=…&key=…[&protocol=…][&name=…]&url=…&key=…
 //
-//   https://chat.example.com/import#v=1&url=<base URL>&key=<API key>[&protocol=<protocol>][&name=<name>]
+// Parameters live in the fragment, which is never sent to the server, so keys
+// stay out of access logs, proxies and Referer headers. In v=2 each entry
+// starts at `url` and runs to the next `url`.
 //
-// New API and One API sites render it from their chat-link template:
-//
-//   {"DEEIX Chat": "https://chat.example.com/import#v=1&url={address}&key={key}"}
-//
-// Parsing is strict on purpose: unknown parameters, repeated parameters, an
-// unknown version or out-of-range values reject the whole link instead of
-// guessing. The server re-validates everything; this only decides what the
-// confirmation screen shows.
+// Parsing is strict: any unknown, repeated or invalid parameter rejects the
+// whole link. The server validates again on save.
 
 import { normalizeApiBaseUrl } from "../server/url.ts";
 
 const PROVIDER_IMPORT_LINK_VERSION = "1";
+const PROVIDER_IMPORT_MULTI_LINK_VERSION = "2";
 const SLASH = "/".charCodeAt(0);
 
 /** Route of the import page on the web client. */
@@ -33,6 +30,9 @@ export const PROVIDER_IMPORT_PROTOCOLS = [
   "openrouter_chat_completions",
   "openrouter_responses",
 ] as const;
+
+/** Matches the highest per-user provider limit. */
+export const MAX_PROVIDER_IMPORT_ENTRIES = 50;
 
 export type ProviderImportProtocol = (typeof PROVIDER_IMPORT_PROTOCOLS)[number];
 
@@ -58,29 +58,36 @@ export type ProviderImportLinkError =
   | "missing_key"
   | "invalid_key"
   | "invalid_protocol"
-  | "invalid_name";
+  | "invalid_name"
+  | "too_many_entries"
+  | "duplicate_entry";
 
 export type ProviderImportLinkResult =
-  | { ok: true; link: ProviderImportLink }
-  | { ok: false; error: ProviderImportLinkError };
+  | { ok: true; links: ProviderImportLink[] }
+  | {
+      ok: false;
+      error: ProviderImportLinkError;
+      /** 1-based entry index; v=2 only. */
+      entry?: number;
+    };
+
+type EntryResult = { ok: true; link: ProviderImportLink } | { ok: false; error: ProviderImportLinkError };
 
 const ALLOWED_PARAMETERS = new Set(["v", "url", "key", "protocol", "name"]);
-const MAX_FRAGMENT_LENGTH = 4096;
+/** Bounds parsing work; fields have their own limits. */
+const MAX_FRAGMENT_LENGTH = 64 * 1024;
 const MAX_URL_LENGTH = 512;
 const MAX_KEY_LENGTH = 512;
 const MAX_NAME_LENGTH = 64;
 
-/**
- * Parse the fragment of an import link. Accepts the raw `location.hash`
- * (with or without the leading `#`).
- */
+/** Parses an import-link fragment, with or without the leading `#`. */
 export function parseProviderImportLink(fragment: string): ProviderImportLinkResult {
   const raw = fragment.startsWith("#") ? fragment.slice(1) : fragment;
   if (!raw.trim() || raw.length > MAX_FRAGMENT_LENGTH) {
     return { ok: false, error: "empty" };
   }
 
-  const values = new Map<string, string>();
+  const pairs: Array<[string, string]> = [];
   for (const pair of raw.split("&")) {
     if (!pair) continue;
     const separator = pair.indexOf("=");
@@ -97,18 +104,75 @@ export function parseProviderImportLink(fragment: string): ProviderImportLinkRes
     if (!ALLOWED_PARAMETERS.has(name)) {
       return { ok: false, error: "unknown_parameter" };
     }
-    if (values.has(name)) {
-      return { ok: false, error: "duplicate_parameter" };
+    pairs.push([name, value]);
+  }
+
+  const versions = pairs.filter(([name]) => name === "v");
+  if (versions.length > 1) {
+    return { ok: false, error: "duplicate_parameter" };
+  }
+  const fields = pairs.filter(([name]) => name !== "v");
+  // A missing version means v1.
+  const version = versions[0]?.[1] ?? PROVIDER_IMPORT_LINK_VERSION;
+  if (version === PROVIDER_IMPORT_LINK_VERSION) {
+    const values = new Map<string, string>();
+    for (const [name, value] of fields) {
+      if (values.has(name)) {
+        return { ok: false, error: "duplicate_parameter" };
+      }
+      values.set(name, value);
     }
-    values.set(name, value);
+    const entry = parseEntry(values);
+    return entry.ok ? { ok: true, links: [entry.link] } : entry;
+  }
+  if (version === PROVIDER_IMPORT_MULTI_LINK_VERSION) {
+    return parseMultiEntryFields(fields);
+  }
+  return { ok: false, error: "unsupported_version" };
+}
+
+function parseMultiEntryFields(fields: ReadonlyArray<[string, string]>): ProviderImportLinkResult {
+  const groups: Array<Map<string, string>> = [];
+  for (const [name, value] of fields) {
+    if (name === "url") {
+      groups.push(new Map());
+    }
+    const current = groups[groups.length - 1];
+    // Parameters before the first `url` belong to no entry.
+    if (!current) {
+      return { ok: false, error: "missing_url", entry: 1 };
+    }
+    if (current.has(name)) {
+      return { ok: false, error: "duplicate_parameter", entry: groups.length };
+    }
+    current.set(name, value);
+  }
+  if (groups.length === 0) {
+    return { ok: false, error: "missing_url" };
+  }
+  if (groups.length > MAX_PROVIDER_IMPORT_ENTRIES) {
+    return { ok: false, error: "too_many_entries" };
   }
 
-  // A missing version is accepted as v1 so links rendered from older templates keep working.
-  const version = values.get("v");
-  if (version !== undefined && version !== PROVIDER_IMPORT_LINK_VERSION) {
-    return { ok: false, error: "unsupported_version" };
+  const links: ProviderImportLink[] = [];
+  const seen = new Set<string>();
+  for (const [index, values] of groups.entries()) {
+    const entry = parseEntry(values);
+    if (!entry.ok) {
+      return { ...entry, entry: index + 1 };
+    }
+    // The server rejects a repeated URL and key pair.
+    const identity = `${entry.link.baseURL}\n${entry.link.apiKey}`;
+    if (seen.has(identity)) {
+      return { ok: false, error: "duplicate_entry", entry: index + 1 };
+    }
+    seen.add(identity);
+    links.push(entry.link);
   }
+  return { ok: true, links };
+}
 
+function parseEntry(values: ReadonlyMap<string, string>): EntryResult {
   const urlValue = values.get("url")?.trim() ?? "";
   if (!urlValue) {
     return { ok: false, error: "missing_url" };
@@ -151,23 +215,36 @@ export type ProviderImportLinkInput = {
 };
 
 /**
- * Build an import link on this deployment. A missing base URL or key becomes
- * the `{address}` / `{key}` placeholder New API and One API substitute, so no
- * input yields their chat-link template; with both given, parseProviderImportLink
- * reads the link back unchanged.
+ * Builds an import link. A missing URL or key is written as the `{address}` /
+ * `{key}` placeholder. A single entry stays v=1 so older clients can open it.
  */
-export function formatProviderImportLink(origin: string, input: ProviderImportLinkInput = {}): string {
+export function formatProviderImportLink(
+  origin: string,
+  input: ProviderImportLinkInput | readonly ProviderImportLinkInput[] = {},
+): string {
+  const entries = isEntryList(input) ? input : [input];
+  const version = entries.length > 1 ? PROVIDER_IMPORT_MULTI_LINK_VERSION : PROVIDER_IMPORT_LINK_VERSION;
+  const params = [`v=${version}`, ...(entries.length > 0 ? entries : [{}]).flatMap(entryParams)];
+  return `${trimOrigin(origin)}${PROVIDER_IMPORT_PATH}#${params.join("&")}`;
+}
+
+function entryParams(input: ProviderImportLinkInput): string[] {
   const baseURL = input.baseURL?.trim();
   const apiKey = input.apiKey?.trim();
   const name = input.name?.trim();
   const params = [
-    `v=${PROVIDER_IMPORT_LINK_VERSION}`,
     `url=${baseURL ? encodeURIComponent(baseURL) : "{address}"}`,
     `key=${apiKey ? encodeURIComponent(apiKey) : "{key}"}`,
   ];
   if (input.protocol) params.push(`protocol=${encodeURIComponent(input.protocol)}`);
   if (name) params.push(`name=${encodeURIComponent(name)}`);
-  return `${trimOrigin(origin)}${PROVIDER_IMPORT_PATH}#${params.join("&")}`;
+  return params;
+}
+
+function isEntryList(
+  input: ProviderImportLinkInput | readonly ProviderImportLinkInput[],
+): input is readonly ProviderImportLinkInput[] {
+  return Array.isArray(input);
 }
 
 /** Drop trailing slashes in one pass. A regex like /\/+$/ backtracks quadratically on a long run of slashes. */

@@ -126,6 +126,7 @@ func migrate(db *gorm.DB, cfg config.Config) error {
 		"chat_conversation_shares":       "会话公开分享快照表",
 		"chat_messages":                  "会话消息表",
 		"chat_feedback":                  "会话消息反馈表",
+		"chat_message_ui_states":         "会话消息交互组件状态表",
 		"chat_attachments":               "多模态附件元信息表",
 		"file_objects":                   "文件对象与处理结果表",
 		"file_storage_quotas":            "用户文件配额表",

@@ -15,6 +15,7 @@ type messageRoutePromptInput struct {
 	ProjectSystemPrompt      string
 	HTMLVisualPromptEnabled  bool
 	UIComponents             []domainuicomponent.Component
+	UIBlockVersion           int
 	ReasoningContentPassback bool
 	DomainMessages           []model.Message
 	// ConversationFiles 是本轮文件规划结果（含历史轮次与本轮，已带 ContextMode）。
@@ -102,7 +103,7 @@ func (s *Service) buildMessageRoutePrompt(ctx context.Context, route *channel.Re
 	// ContextAssembler 只负责稳定的槽位排序与去重；最终模型窗口由完整请求预算器
 	// 统一约束，避免旧的固定 32K 上限提前丢弃偏好等系统上下文。
 	assembler := NewContextAssembler(0)
-	systemPrompt := resolveMessageSystemPromptInjection(input.Config, route, input.ProjectSystemPrompt, requestPromptOptions{HTMLVisual: input.HTMLVisualPromptEnabled, UIComponents: input.UIComponents})
+	systemPrompt := resolveMessageSystemPromptInjection(input.Config, route, input.ProjectSystemPrompt, requestPromptOptions{HTMLVisual: input.HTMLVisualPromptEnabled, UIComponents: input.UIComponents, UIBlockVersion: input.UIBlockVersion})
 	if systemPrompt.Content != "" {
 		if systemPrompt.InlineToUser {
 			historyMessages = inlineSystemPromptIntoLatestUserMessage(historyMessages, systemPrompt.Content)

@@ -22,13 +22,14 @@ func (e *FeatureDisabledError) Error() string { return ErrFeatureDisabled.Error(
 
 func (e *FeatureDisabledError) Unwrap() error { return ErrFeatureDisabled }
 
-// lockedSettings 列出能力位关闭时不可修改的设置项。这些键决定门禁是否存在，
-// 而不是门禁的参数；本地模式固定为自用计费，改了也没有对象。
+// lockedSettings 列出能力位关闭时不可修改的设置项：这些键只服务于该能力，能力关闭时改了也没有对象。
+// 计费门禁的键决定门禁是否存在，本地模式固定为自用计费；下载入口只对网页端用户可见。
 var lockedSettings = []struct {
 	feature string
 	keys    []string
 }{
 	{feature: "billingGating", keys: []string{"billing.mode", "billing.payment_providers"}},
+	{feature: "desktopDownload", keys: []string{"desktop.download_enabled", "desktop.download_url"}},
 }
 
 // SetRuntime 注入运行时配置，锁定键按其能力位判断；未注入时不锁定任何键。
@@ -71,7 +72,7 @@ func (s *Service) rejectLockedSettings(ctx context.Context, patches []PatchItem)
 }
 
 func (s *Service) currentValue(ctx context.Context, namespace, key string) (string, error) {
-	items, err := s.repo.ListByNamespace(ctx, namespace)
+	items, err := listNamespaceSettings(ctx, s.repo, namespace)
 	if err != nil {
 		return "", err
 	}

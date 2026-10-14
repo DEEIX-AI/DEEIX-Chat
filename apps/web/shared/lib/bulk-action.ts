@@ -206,3 +206,11 @@ export async function runSettledItemsWithConcurrency<TItem, TValue>({
 
   return results.filter((result): result is SettledBulkItemResult<TItem, TValue> => result !== undefined);
 }
+
+// Items in one batch usually fail for the same reason (storage full, type not allowed),
+// so the first failure explains the batch better than a bare count.
+export function firstSettledFailureReason<TItem, TValue>(
+  results: Array<SettledBulkItemResult<TItem, TValue>>,
+): unknown {
+  return results.find((result) => result.status === "rejected")?.reason;
+}

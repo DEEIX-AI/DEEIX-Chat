@@ -7,10 +7,12 @@ import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-import { type CompiledExpression, compileExpression } from "@/shared/lib/safe-expression";
+import { type CompiledExpression, compileExpression } from "@deeix/core";
 import type { UIBlockDefinition, UIBlockRenderProps } from "./block";
+import { joinTextBlocks, textPair, textTitle } from "./block-text";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
+import { type UIBlockState, useUIBlockState } from "./ui-block-state";
 
 export type CalculatorProps = {
   title?: string;
@@ -29,10 +31,25 @@ function formatNumber(value: number, precision: number): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: precision, minimumFractionDigits: 0 }).format(value);
 }
 
+// Stored state is one key per input with the value the user set; a value outside
+// the input's range (props changed since) is clamped back into it.
+function restoreCalculatorValues(inputs: CalculatorProps["inputs"], saved: UIBlockState | undefined): Record<string, number> {
+  const values: Record<string, number> = {};
+  for (const input of inputs) {
+    const stored = saved?.[input.key];
+    values[input.key] = typeof stored === "number" && Number.isFinite(stored) ? Math.min(input.max, Math.max(input.min, stored)) : input.default;
+  }
+  return values;
+}
+
 function Calculator({ id, props }: UIBlockRenderProps<CalculatorProps>) {
   const t = useTranslations("chat.markdown.uiBlock");
   const defaults = React.useMemo(() => Object.fromEntries(props.inputs.map((input) => [input.key, input.default])), [props.inputs]);
-  const [values, setValues] = React.useState<Record<string, number>>(defaults);
+  const [values, setValues] = useUIBlockState<Record<string, number>>(id, {
+    defaults,
+    restore: (saved) => restoreCalculatorValues(props.inputs, saved),
+    title: props.title,
+  });
   const outputs = React.useMemo<CompiledOutput[]>(
     () =>
       props.outputs.map((output) => {
@@ -68,7 +85,7 @@ function Calculator({ id, props }: UIBlockRenderProps<CalculatorProps>) {
           {props.description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{props.description}</p> : null}
         </div>
         {dirty ? (
-          <button type="button" onClick={() => setValues(defaults)} className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+          <button type="button" onClick={() => setValues(null)} className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
             <RotateCcw className="size-3" strokeWidth={1.8} />
             {t("reset")}
           </button>
@@ -97,7 +114,7 @@ function Calculator({ id, props }: UIBlockRenderProps<CalculatorProps>) {
                   max={input.max}
                   step={step > 0 ? step : 1}
                   value={[value]}
-                  onValueChange={([next]) => setValues((current) => ({ ...current, [input.key]: next ?? value }))}
+                  onValueChange={([next]) => setValues({ [input.key]: next ?? value })}
                 />
               </div>
             );
@@ -155,6 +172,23 @@ function CalculatorSkeleton() {
   );
 }
 
+// Inputs as the user set them, outputs computed from those values.
+function calculatorText(props: CalculatorProps, state: UIBlockState | undefined): string {
+  const values = restoreCalculatorValues(props.inputs, state);
+  const inputs = props.inputs.map((input) => `- ${textPair(input.label, formatNumber(values[input.key] ?? input.default, 4), input.unit)}`);
+  const outputs = props.outputs.map((output) => {
+    let value = "—";
+    try {
+      value = formatNumber(compileExpression(output.expr).evaluate(values), output.precision ?? 2);
+    } catch {
+      // A broken formula reads as a dash, as on screen.
+    }
+    const label = output.highlight ? `**${output.label}**` : output.label;
+    return `- ${textPair(label, value, output.unit)}`;
+  });
+  return joinTextBlocks([...textTitle(props.title), props.description ?? "", inputs.join("\n"), outputs.join("\n")]);
+}
+
 export const calculatorDefinition: UIBlockDefinition<CalculatorProps> = {
   name: "calculator",
   version: 1,
@@ -178,4 +212,5 @@ export const calculatorDefinition: UIBlockDefinition<CalculatorProps> = {
   ),
   Component: Calculator,
   Skeleton: CalculatorSkeleton,
+  toText: calculatorText,
 };

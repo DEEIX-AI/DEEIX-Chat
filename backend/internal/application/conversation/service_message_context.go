@@ -629,6 +629,8 @@ type userContextInput struct {
 	Snapshot            *snapshotContext
 	Memory              []domainmemory.UserMemory
 	RecallChunks        []domainconversation.MessageChunk
+	// UIStates 是用户在此前回复的交互式组件里当前设定的状态，只随本轮发送。
+	UIStates []uiStateContextBlock
 }
 
 type snapshotContext struct {
@@ -822,7 +824,8 @@ func injectUserContext(
 		len(input.Memory) == 0 &&
 		len(input.RecallChunks) == 0 &&
 		len(input.Files) == 0 &&
-		len(input.UnretrievedFiles) == 0 {
+		len(input.UnretrievedFiles) == 0 &&
+		len(input.UIStates) == 0 {
 		return messages
 	}
 
@@ -957,6 +960,7 @@ type userContextXML struct {
 	rag       []string
 	ragNotice string
 	recall    []string
+	uiStates  []string
 }
 
 func (x userContextXML) empty() bool {
@@ -968,7 +972,8 @@ func (x userContextXML) empty() bool {
 		len(x.evidence) == 0 &&
 		len(x.rag) == 0 &&
 		strings.TrimSpace(x.ragNotice) == "" &&
-		len(x.recall) == 0
+		len(x.recall) == 0 &&
+		len(x.uiStates) == 0
 }
 
 func buildUserContextXML(input userContextInput) userContextXML {
@@ -982,6 +987,7 @@ func buildUserContextXML(input userContextInput) userContextXML {
 		rag:       formatRAGFileContext(input.RAGChunks),
 		ragNotice: strings.TrimSpace(input.RAGNotice),
 		recall:    formatRecallContext(input.RecallChunks),
+		uiStates:  formatUIStateContext(input.UIStates),
 	}
 }
 
@@ -1157,6 +1163,14 @@ func buildUserContextPrompt(userRequest string, contextXML userContextXML) strin
 		builder.WriteString("\n<recall>\n")
 		builder.WriteString(strings.Join(contextXML.recall, "\n"))
 		builder.WriteString("\n</recall>")
+	}
+	// 组件状态放在最后：它描述的是用户此刻的界面，离问题最近。
+	if len(contextXML.uiStates) > 0 {
+		builder.WriteString("\n<ui_state>\n<notice>")
+		builder.WriteString(uiStateContextNotice)
+		builder.WriteString("</notice>\n")
+		builder.WriteString(strings.Join(contextXML.uiStates, "\n"))
+		builder.WriteString("\n</ui_state>")
 	}
 	builder.WriteString("\n</ctx>")
 

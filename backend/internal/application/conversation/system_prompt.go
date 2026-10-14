@@ -76,6 +76,37 @@ const htmlVisualPromptFormatInstruction = `<format>
 
 const htmlVisualPromptDefaultRequire = `更积极的使用html-visual为用户提供更好的回复质量和效果。`
 
+// htmlVisualPromptComponentRouting 只在 html-visual 与交互式组件同时启用时注入。format 层的优先级高于
+// ui-components 层，default-trigger 里「必须用 HTML」的条款会压过组件目录，所以分工写在 format 层并声明优先。
+// 目录可能只勾选了部分组件，因此按「目录里有对应组件才用」表述，避免模型调用不存在的组件。
+const htmlVisualPromptComponentRouting = `<routing>
+  <rule>本次同时启用了交互式组件（见 ui-components 层）。选择表达方式时以本节为准；与上面的 default-trigger、vision-plus 冲突时，按本节执行。</rule>
+  <use target="markdown">普通文字、列表、简单表格。</use>
+  <use target="html-visual">说明性的静态版式：流程图、架构图、状态机、树状层级、对比矩阵、优劣势对照、信息卡、时间线、折叠收纳。</use>
+  <use target="ui-components">需要用户操作或读数的数据：图表、KPI 指标、同构条目、十行以上的表格、计算与调参、排期、逐步引导、测验、文本对比。优先用 ui-components 目录里对应的组件，不要用 HTML 手绘图表或数据卡片；目录里没有对应组件时才用 HTML。</use>
+  <use target="artifact">用户明确要完整网页、小游戏或可运行的前端代码：输出到语言为 html 的代码块，客户端会在侧栏预览；不要内联渲染。</use>
+  <rule>判断口径：同样是对比或卡片，内容是要操作、读数的数据就用组件，是给人看的版式就用 HTML。</rule>
+</routing>`
+
+// htmlVisualPromptLiveComponentUse 生成可交互格式下 routing 的 ui-components 一行。何时用组件交给组件层的
+// <when>，这里不写数字门槛，免得 format 层的优先级把它压回去；只列出本次勾选的 panel 与 widget。
+func htmlVisualPromptLiveComponentUse(panel, widget bool) string {
+	content := "图表、指标、同类条目与表格、计算与调参、排期、逐步引导、测验、文本对比"
+	var blocks []string
+	if panel {
+		blocks = append(blocks, "需要联动的可交互 panel（包括讲解公式时能拖动参数的演示与示意图）")
+	}
+	if widget {
+		blocks = append(blocks, "讲解过程用的内联交互图解（widget：动画、三维示意、流场）")
+	}
+	if len(blocks) > 0 {
+		content += "，以及" + strings.Join(blocks, "和")
+	}
+	return `  <use target="ui-components">需要用户操作或读数的内容：` + content + `。何时用、用哪种以 ui-components 层的 <when> 为准，命中时优先于 html-visual；不要用 HTML 手绘图表、数据卡片或表单控件，目录里没有对应组件时才用 HTML。</use>`
+}
+
+const htmlVisualPromptComponentRequire = `按 routing 的分工选择表达方式：说明性版式积极使用 html-visual，数据与交互使用组件。`
+
 type systemPromptInjection struct {
 	Content      string
 	InlineToUser bool
@@ -102,6 +133,8 @@ type requestPromptOptions struct {
 	HTMLVisual bool
 	// UIComponents 是本次会话可用的交互式组件，为空时不注入目录层。
 	UIComponents []domainuicomponent.Component
+	// UIBlockVersion 是客户端能渲染的块格式版本，决定目录层是否说明可交互块。
+	UIBlockVersion int
 }
 
 // resolveMessageSystemPromptInjection 合并平台、模型、项目和本次请求级系统提示词，并按路由能力决定注入方式。
@@ -134,25 +167,44 @@ func buildResolvedMessageSystemPrompt(globalPrompt string, modelPrompt string, p
 			content:  projectPrompt,
 		},
 	}
+	// 静态格式的客户端只勾选了 panel 或 widget 时没有可用的目录，两层都按没有组件处理。
+	catalog := ""
+	if len(options.UIComponents) > 0 {
+		catalog = appuicomponent.CatalogPrompt(options.UIComponents, options.UIBlockVersion)
+	}
 	if options.HTMLVisual {
+		live := options.UIBlockVersion >= domainuicomponent.BlockFormatLive
+		panel, widget := appuicomponent.Capabilities(options.UIComponents)
 		layers = append(layers, systemPromptLayer{
 			tag:     "format",
 			scope:   "request",
-			content: buildHTMLVisualPromptInstruction(),
+			content: buildHTMLVisualPromptInstruction(catalog != "", live, live && panel, live && widget),
 		})
 	}
-	if len(options.UIComponents) > 0 {
+	if catalog != "" {
 		layers = append(layers, systemPromptLayer{
 			tag:     "ui-components",
 			scope:   "request",
-			content: appuicomponent.CatalogPrompt(options.UIComponents),
+			content: catalog,
 		})
 	}
 	return buildSystemPromptLayers(layers)
 }
 
-func buildHTMLVisualPromptInstruction() string {
-	return htmlVisualPromptFormatInstruction + "\n<require>\n  " + htmlVisualPromptDefaultRequire + "\n</require>"
+// buildHTMLVisualPromptInstruction 生成 html-visual 格式层；同时启用交互式组件时追加分工说明。
+// 只开 html-visual 时的输出必须逐字稳定，否则该路径的提示词缓存会失效。
+func buildHTMLVisualPromptInstruction(withUIComponents bool, live bool, panel bool, widget bool) string {
+	if !withUIComponents {
+		return htmlVisualPromptFormatInstruction + "\n<require>\n  " + htmlVisualPromptDefaultRequire + "\n</require>"
+	}
+	routing := htmlVisualPromptComponentRouting
+	if live {
+		_, after, _ := strings.Cut(routing, `  <use target="ui-components">`)
+		_, rest, _ := strings.Cut(after, "</use>")
+		before, _, _ := strings.Cut(routing, `  <use target="ui-components">`)
+		routing = before + htmlVisualPromptLiveComponentUse(panel, widget) + rest
+	}
+	return htmlVisualPromptFormatInstruction + "\n" + routing + "\n<require>\n  " + htmlVisualPromptComponentRequire + "\n</require>"
 }
 
 func buildSystemPromptLayers(layers []systemPromptLayer) string {

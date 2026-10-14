@@ -61,6 +61,11 @@ func (r *Repo) DeleteMessageAndReparentChildren(ctx context.Context, userID uint
 		if err := tx.Delete(&target).Error; err != nil {
 			return err
 		}
+		// 组件状态是挂在这条消息上的旁路数据，消息删除后不再可达，随删除一并清掉。
+		if err := tx.Where("message_id = ?", target.ID).
+			Delete(&models.ConversationMessageUIState{}).Error; err != nil {
+			return err
+		}
 
 		result = tx.Model(&models.Conversation{}).
 			Where("id = ?", conversationID).

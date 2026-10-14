@@ -7,16 +7,17 @@
 
   Values are written to SOFTWARE\Policies\DEEIX\Chat under HKLM (Computer
   Configuration) or HKCU (User Configuration). The app reads them at start-up;
-  a value set under HKLM wins over the same value under HKCU.
+  a value set under HKLM wins over the same value under HKCU. The three proxy
+  values are one setting: whichever hive sets ProxyMode decides all three.
 -->
 <policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                   revision="1.0" schemaVersion="1.0"
+                   revision="1.1" schemaVersion="1.0"
                    xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
   <policyNamespaces>
     <target prefix="deeixchat" namespace="DEEIX.Policies.Chat" />
   </policyNamespaces>
-  <resources minRequiredRevision="1.0" />
+  <resources minRequiredRevision="1.1" />
   <supportedOn>
     <definitions>
       <definition name="SUPPORTED_Windows10" displayName="$(string.SUPPORTED_Windows10)" />
@@ -81,6 +82,37 @@
       <disabledValue>
         <decimal value="0" />
       </disabledValue>
+    </policy>
+
+    <!-- Value names and modes follow Chrome's ProxySettings policy. -->
+    <policy name="ProxySettings" class="Both"
+            displayName="$(string.ProxySettings)"
+            explainText="$(string.ProxySettings_Explain)"
+            presentation="$(presentation.ProxySettings)"
+            key="SOFTWARE\Policies\DEEIX\Chat">
+      <parentCategory ref="DEEIXChat" />
+      <supportedOn ref="SUPPORTED_Windows10" />
+      <elements>
+        <enum id="ProxyMode" valueName="ProxyMode" required="true">
+          <item displayName="$(string.ProxyMode_System)">
+            <value>
+              <string>system</string>
+            </value>
+          </item>
+          <item displayName="$(string.ProxyMode_Direct)">
+            <value>
+              <string>direct</string>
+            </value>
+          </item>
+          <item displayName="$(string.ProxyMode_FixedServers)">
+            <value>
+              <string>fixed_servers</string>
+            </value>
+          </item>
+        </enum>
+        <text id="ProxyServer" valueName="ProxyServer" maxLength="2048" />
+        <text id="ProxyBypassList" valueName="ProxyBypassList" maxLength="8192" />
+      </elements>
     </policy>
   </policies>
 </policyDefinitions>

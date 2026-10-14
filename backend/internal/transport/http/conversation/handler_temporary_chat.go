@@ -55,6 +55,8 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 		KnowledgeBaseIDs:         append([]string(nil), req.KnowledgeBaseIDs...),
 		HTMLVisualPromptEnabled:  req.HTMLVisualPrompt,
 		UIComponentIDs:           req.UIComponentIDs,
+		UIBlockVersion:           req.UIBlockVersion,
+		UIStates:                 toTemporaryChatUIStateInputs(req.UIStates),
 		Messages:                 make([]appconversation.TemporaryChatMessage, 0, len(req.Messages)),
 		Attachments:              attachments,
 		ReleaseAttachmentSources: closeAttachments,

@@ -25,19 +25,23 @@ type TemporaryChatMessage struct {
 
 // TemporaryChatInput 描述不创建会话、消息和运行记录的临时推理请求。
 type TemporaryChatInput struct {
-	UserID                   uint
-	RequestID                string
-	SessionID                string
-	ClientRunID              string
-	Model                    string
-	Options                  map[string]any
-	Controls                 map[string]any
-	AllowRawOptions          bool
-	SelectedToolIDs          []uint
-	SkillIDs                 []uint
-	KnowledgeBaseIDs         []string
-	HTMLVisualPromptEnabled  bool
-	UIComponentIDs           []uint
+	UserID                  uint
+	RequestID               string
+	SessionID               string
+	ClientRunID             string
+	Model                   string
+	Options                 map[string]any
+	Controls                map[string]any
+	AllowRawOptions         bool
+	SelectedToolIDs         []uint
+	SkillIDs                []uint
+	KnowledgeBaseIDs        []string
+	HTMLVisualPromptEnabled bool
+	UIComponentIDs          []uint
+	// UIBlockVersion 是客户端能渲染的块格式版本；0 按静态格式处理。
+	UIBlockVersion int
+	// UIStates 是用户在本次临时对话的交互式组件里设定的状态，按 Messages 下标定位。
+	UIStates                 []TemporaryChatUIStateInput
 	Messages                 []TemporaryChatMessage
 	Attachments              []TemporaryChatAttachment
 	ReleaseAttachmentSources func()
@@ -105,7 +109,7 @@ func (s *Service) StreamTemporaryChat(
 	if err != nil {
 		return nil, err
 	}
-	systemPrompt := resolveMessageSystemPromptInjection(cfg, route, "", requestPromptOptions{HTMLVisual: input.HTMLVisualPromptEnabled, UIComponents: uiComponents})
+	systemPrompt := resolveMessageSystemPromptInjection(cfg, route, "", requestPromptOptions{HTMLVisual: input.HTMLVisualPromptEnabled, UIComponents: uiComponents, UIBlockVersion: input.UIBlockVersion})
 	if systemPrompt.Content != "" {
 		if systemPrompt.InlineToUser {
 			messages = inlineSystemPromptIntoLatestUserMessage(messages, systemPrompt.Content)
@@ -137,6 +141,7 @@ func (s *Service) StreamTemporaryChat(
 		traceRecorder.fail(err)
 		return nil, err
 	}
+	knowledgeContext.UIStates = resolveTemporaryUIStates(cfg, input.Messages, input.UIStates)
 	promptPlan := buildPromptPlan(ctx, promptPlanInput{
 		BaseMessages:   messages,
 		TurnDocuments:  attachmentContext.documents,

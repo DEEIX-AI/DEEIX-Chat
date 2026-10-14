@@ -737,7 +737,6 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs leading-5 text-muted-foreground">{t("sheet.displayGroupDescription")}</p>
               </div>
 
               <div className="min-w-0 space-y-1">

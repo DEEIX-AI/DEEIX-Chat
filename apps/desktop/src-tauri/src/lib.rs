@@ -1,11 +1,14 @@
-// DEEIX Chat desktop shell: window/tray lifecycle, OAuth loopback, updater and
-// session storage. No business logic — everything else is the apps/web build.
+// DEEIX Chat desktop shell: window/tray/menu lifecycle, OAuth loopback, updater
+// and session storage. No business logic — everything else is the apps/web build.
 
 mod dialog;
 mod distribution;
+#[cfg(target_os = "macos")]
+mod menu;
 mod oauth_loopback;
 mod paths;
 mod policy;
+mod proxy;
 mod session;
 mod sidecar;
 mod tabs;
@@ -24,7 +27,7 @@ pub fn run() {
     let distribution = distribution::bootstrap(&mut context);
     let portable = distribution.portable.clone();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             tray::show_main_window(app);
         }))
@@ -33,6 +36,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         // Rust-side only: no `shell:*` permission is granted to the webview.
         .plugin(tauri_plugin_shell::init())
         .manage(distribution)
@@ -41,7 +45,10 @@ pub fn run() {
         .manage(tabs::TabsState::default())
         .invoke_handler(tauri::generate_handler![
             distribution::get_distribution,
+            distribution::check_update,
             distribution::check_update_notice,
+            proxy::get_network_proxy,
+            proxy::set_network_proxy,
             session::get_server,
             session::set_remote_server,
             session::set_local_server,
@@ -57,13 +64,33 @@ pub fn run() {
             tabs::tabs_activate,
             tabs::tabs_close,
             tabs::tabs_move,
-        ])
+        ]);
+
+    // macOS only: replaces Tauri's default menu, whose ⌘W hides the whole tab container.
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .menu(menu::build)
+        .on_menu_event(|app, event| menu::on_event(app, event.id().as_ref()));
+
+    builder
         .setup(move |app| {
             // Plugins are set up first, so a second instance has already
             // handed over and exited by now.
             let paths = paths::AppPaths::resolve(app.handle(), portable.as_ref())?;
             paths.reset_tmp();
             app.manage(paths);
+            // Before any webview or the sidecar exists: both take their proxy
+            // when they are created.
+            let proxy_policy = app
+                .state::<distribution::Distribution>()
+                .policy
+                .proxy
+                .clone();
+            app.manage(proxy::ProxyState::load(
+                &paths::config_dir(app.handle()),
+                &app.config().identifier,
+                proxy_policy.as_ref(),
+            ));
             distribution::grant_updater(app.handle())?;
             tabs::init(app.handle()).map_err(|e| e.0)?;
             #[cfg(desktop)]

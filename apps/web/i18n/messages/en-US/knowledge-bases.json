@@ -126,7 +126,7 @@
   "tooManyFiles": "Select or upload up to {max} files at a time",
   "uploadSucceededAddFailed": "Files uploaded but could not be added to the knowledge base",
   "partialUploadFailed": "Some files failed to upload",
-  "partialUploadDescription": "{success} succeeded and {failed} failed.",
+  "partialUploadDescription": "{success} succeeded and {failed} failed. {reason}",
   "deletePlatformFile": "Delete",
   "deletePlatformFileTitle": "Delete platform source",
   "deletePlatformFileDescription": "Delete “{name}”? This action cannot be undone.",

@@ -32,7 +32,7 @@ import {
   useFileProcessingStatusPolling,
 } from "@/entities/file";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
-import { runBulkActionInChunks, runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
+import { firstSettledFailureReason, runBulkActionInChunks, runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
 import { patchByID, replaceByID, upsertByID } from "@/shared/lib/optimistic-list";
 
 const FILES_PAGE_SIZE = 100;
@@ -540,9 +540,14 @@ export function useFilePage(): UseFilePageResult {
         }
 
         if (failedCount > 0) {
-          toast.error(t("toasts.partialUploadFailed"), {
-            description: t("toasts.partialUploadDescription", { success: successResults.length, failed: failedCount }),
-          });
+          const reason = resolveErrorMessage(firstSettledFailureReason(results), t("toasts.uploadFailed"));
+          if (successResults.length === 0) {
+            toast.error(t("toasts.uploadFailed"), { description: reason });
+          } else {
+            toast.error(t("toasts.partialUploadFailed"), {
+              description: t("toasts.partialUploadDescription", { success: successResults.length, failed: failedCount, reason }),
+            });
+          }
         }
       } catch (error) {
         if (requestController.signal.aborted || !isMountedRef.current) {

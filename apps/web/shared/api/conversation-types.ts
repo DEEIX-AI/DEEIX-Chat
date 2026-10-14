@@ -16,6 +16,8 @@ import type {
   SetConversationProjectRequest as ContractSetConversationProjectRequest,
   SetConversationStarRequest as ContractSetConversationStarRequest,
   SetMessageFeedbackRequest as ContractSetMessageFeedbackRequest,
+  MessageUIStateInputRequest as ContractMessageUIStateInputRequest,
+  TemporaryChatUIStateRequest as ContractTemporaryChatUIStateRequest,
   UpdateConversationLabelsRequest as ContractUpdateConversationLabelsRequest,
   UpdateConversationProjectRequest as ContractUpdateConversationProjectRequest,
   UpdateMessageRequest as ContractUpdateMessageRequest,
@@ -32,6 +34,8 @@ import type {
   MessageBillingCostResponse,
   MessageDeleteResponse,
   MessageFeedbackResponse,
+  MessageUIStateResponse,
+  MessageProcessTraceDetailResponse,
   MessageProcessTraceResponse,
   MessagePromptTraceBlockResponse,
   MessagePromptTraceResponse,
@@ -156,6 +160,10 @@ export type MessageProcessTraceDTO = Omit<
 
 export type TraceEventDTO = MessageTraceEventResponse;
 
+export type MessageProcessTraceDetailDTO = Omit<MessageProcessTraceDetailResponse, "processTrace"> & {
+  processTrace: MessageProcessTraceDTO | null;
+};
+
 export type CreateConversationRequest = ContractCreateConversationRequest;
 
 export type CreateConversationProjectRequest = Omit<ContractCreateConversationProjectRequest, "mcpDefaultMode"> & {
@@ -214,8 +222,30 @@ export type MessageFeedbackResult = Omit<MessageFeedbackResponse, "myFeedback"> 
   myFeedback: "up" | "down" | "";
 };
 
-export type SendMessageRequest = Omit<ContractSendMessageRequest, "options"> & {
+// Block state is a JSON object per block id: only the keys the user changed.
+// The contract types it as `object`; the client narrows it with isUIBlockState.
+type MessageUIStateValue = Record<string, unknown>;
+
+// `null` clears a block; blocks left out of the map are not touched.
+export type SetMessageUIStateRequest = {
+  blocks: Record<string, MessageUIStateValue | null>;
+};
+
+export type MessageUIStateResult = Omit<MessageUIStateResponse, "uiState"> & {
+  uiState: Record<string, MessageUIStateValue>;
+};
+
+export type MessageUIStateInput = Omit<ContractMessageUIStateInputRequest, "state"> & {
+  state: MessageUIStateValue;
+};
+
+export type TemporaryChatUIStateInput = Omit<ContractTemporaryChatUIStateRequest, "state"> & {
+  state: MessageUIStateValue;
+};
+
+export type SendMessageRequest = Omit<ContractSendMessageRequest, "options" | "uiStates"> & {
   options?: ConversationOptions;
+  uiStates?: MessageUIStateInput[];
 };
 
 export type MediaImageRequest = {
@@ -256,9 +286,10 @@ export type TemporaryChatHistoryMessage = Omit<ContractTemporaryChatHistoryMessa
   content: string;
 };
 
-export type TemporaryChatMessageRequest = Omit<ContractTemporaryChatMessageRequest, "messages" | "options"> & {
+export type TemporaryChatMessageRequest = Omit<ContractTemporaryChatMessageRequest, "messages" | "options" | "uiStates"> & {
   options?: ConversationOptions;
   messages: TemporaryChatHistoryMessage[];
+  uiStates?: TemporaryChatUIStateInput[];
 };
 
 export type StreamMessageEvent =

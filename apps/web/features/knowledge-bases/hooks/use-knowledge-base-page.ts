@@ -56,7 +56,7 @@ import {
   subscribeKnowledgeBaseInvalidated,
 } from "@/features/knowledge-bases/events/knowledge-base-events";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { runSettledBulkItems, runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
+import { firstSettledFailureReason, runSettledBulkItems, runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
 
 const FILE_ACTION_LIMIT = 100;
 const FILE_PAGE_SIZE = 100;
@@ -705,6 +705,7 @@ export function useKnowledgeBasePage(mode: KnowledgeBaseMode) {
     let token = "";
     let fileIDs: string[] = [];
     let failedCount = 0;
+    let failureReason = "";
     try {
       token = await requireAccessToken();
       if (requestController.signal.aborted) return;
@@ -728,8 +729,11 @@ export function useKnowledgeBasePage(mode: KnowledgeBaseMode) {
       const failed = uploadResults.length - uploaded.length;
       fileIDs = Array.from(new Set(uploaded.map((result) => result.file.fileID)));
       failedCount = failed;
+      if (failed > 0) {
+        failureReason = resolveErrorMessage(firstSettledFailureReason(uploadResults), t("uploadFailed"));
+      }
       if (fileIDs.length === 0) {
-        toast.error(t("uploadFailed"));
+        toast.error(t("uploadFailed"), { description: failureReason || undefined });
         return;
       }
     } catch (error) {
@@ -761,7 +765,7 @@ export function useKnowledgeBasePage(mode: KnowledgeBaseMode) {
       toast.success(t("uploadedAndAdded", { count: fileIDs.length }));
       if (failedCount > 0) {
         toast.error(t("partialUploadFailed"), {
-          description: t("partialUploadDescription", { success: fileIDs.length, failed: failedCount }),
+          description: t("partialUploadDescription", { success: fileIDs.length, failed: failedCount, reason: failureReason }),
         });
       }
     } catch (error) {

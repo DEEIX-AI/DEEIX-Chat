@@ -31,7 +31,7 @@
       "propsSummary": "Props summary",
       "propsSummaryHint": "Compact props description for the model, e.g. '{'symbol, name?'}'",
       "rendererSource": "Renderer",
-      "rendererSourceHint": "HTML and script run in a sandboxed iframe with no network access; receive data with deeix.onProps and theme variables with deeix.onTheme",
+      "rendererSourceHint": "HTML and script run in a sandboxed iframe with no network access; receive data with deeix.onProps and theme variables with deeix.onTheme; read and write state saved with the conversation (up to 4 KB) with deeix.onState / setState; deeix.ask(text) puts text in the message box for the user to send",
       "propsSchema": "Props schema",
       "propsSchemaHint": "Optional JSON Schema used to validate model output; leave empty to skip validation",
       "enabled": "Enabled"
@@ -74,6 +74,10 @@
       "title": "Stat cards",
       "summary": "Side-by-side KPIs; sparkline with hover readout"
     },
+    "image-gallery": {
+      "title": "Image gallery",
+      "summary": "Several images side by side; click to enlarge, step through, see captions and sources"
+    },
     "gantt": {
       "title": "Gantt",
       "summary": "Schedule, milestones, dependencies; scale switch, chain highlight, group collapse"
@@ -97,6 +101,14 @@
     "quiz": {
       "title": "Quiz",
       "summary": "Instant grading with explanations; branch on answers"
+    },
+    "panel": {
+      "title": "Interactive panel",
+      "summary": "Formulas, sliders and diagrams that recompute as you drag; replaces the calculator"
+    },
+    "widget": {
+      "title": "Interactive illustration",
+      "summary": "Animations, 3D sketches and processes you can play, pause and scrub"
     }
   }
 }

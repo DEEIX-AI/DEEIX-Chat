@@ -319,6 +319,8 @@
     "invalidContent": "Invalid message content.",
     "invalidFeedback": "Invalid message feedback.",
     "invalidId": "Invalid message ID.",
+    "invalidUiState": "The component state is invalid or too large.",
+    "uiStateTargetInvalid": "Component state cannot be saved for this message right now.",
     "multipleImageProcessors": "Select only one image attachment processor.",
     "notFound": "Message not found.",
     "tooManyFiles": "Too many files in one message.",
@@ -350,7 +352,7 @@
     "webhookNotConfigured": "Payment webhook is not configured."
   },
   "quota": {
-    "exceeded": "Quota exceeded."
+    "exceeded": "Storage is full. Delete unused files in Files."
   },
   "rateLimit": {
     "authenticationExceeded": "Too many authentication attempts. Try again later.",

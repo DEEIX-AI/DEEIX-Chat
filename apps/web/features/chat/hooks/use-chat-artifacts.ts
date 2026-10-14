@@ -124,6 +124,10 @@ export function useChatArtifacts({ scopeKey, transient = false, messages }: UseC
   const [dismissedArtifactID, setDismissedArtifactID] = React.useState<string | null>(null);
   const [lastActiveArtifact, setLastActiveArtifact] = React.useState<ChatArtifact | null>(null);
   const [customArtifactRatio, setCustomArtifactRatio] = React.useState<number | null>(null);
+  // An interactive block opened in the panel. The panel shows one thing at a
+  // time: opening a code artifact (or one auto-opening while it streams)
+  // replaces the block, and opening a block closes the artifact.
+  const [activeBlock, setActiveBlock] = React.useState<{ messageKey: string; blockKey: string } | null>(null);
   const dismissedArtifactRef = React.useRef<ChatArtifact | null>(null);
   const previousScopeRef = React.useRef({ key: scopeKey, transient });
   const artifactRatio = customArtifactRatio ?? resolveDefaultRatio(inlineLayout);
@@ -150,6 +154,7 @@ export function useChatArtifacts({ scopeKey, transient = false, messages }: UseC
       return;
     }
     previousScopeRef.current = { key: scopeKey, transient };
+    setActiveBlock(null);
     setLastActiveArtifact(null);
     dismissedArtifactRef.current = null;
     setActiveArtifactID(null);
@@ -210,6 +215,26 @@ export function useChatArtifacts({ scopeKey, transient = false, messages }: UseC
     setActiveArtifactID(null);
   }, [activeArtifact, latestArtifact]);
 
+  React.useEffect(() => {
+    if (activeArtifactID) {
+      setActiveBlock(null);
+    }
+  }, [activeArtifactID]);
+
+  const openBlock = React.useCallback(
+    (message: ChatAreaMessage, blockKey: string) => {
+      if (activeArtifactID) {
+        closeArtifact();
+      }
+      setActiveBlock({ messageKey: message.key, blockKey });
+    },
+    [activeArtifactID, closeArtifact],
+  );
+
+  const closeBlock = React.useCallback(() => {
+    setActiveBlock(null);
+  }, []);
+
   const selectArtifact = React.useCallback((artifactID: string) => {
     setActiveArtifactID(artifactID);
   }, []);
@@ -224,6 +249,9 @@ export function useChatArtifacts({ scopeKey, transient = false, messages }: UseC
 
   return {
     activeArtifact,
+    activeBlock: activeArtifact ? null : activeBlock,
+    closeBlock,
+    openBlock,
     artifactRatio,
     artifacts,
     closeArtifact,

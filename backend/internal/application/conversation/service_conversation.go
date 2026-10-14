@@ -174,6 +174,9 @@ func (s *Service) ListMessages(ctx context.Context, userID uint, conversationID 
 	if err = s.hydrateMessageProcessTraces(ctx, items); err != nil {
 		return nil, 0, err
 	}
+	if err = s.hydrateMessageUIStates(ctx, userID, items); err != nil {
+		return nil, 0, err
+	}
 	return items, total, nil
 }
 
@@ -197,6 +200,9 @@ func (s *Service) ListMessagesBeforeID(ctx context.Context, userID uint, convers
 	if err = s.hydrateMessageProcessTraces(ctx, items); err != nil {
 		return nil, 0, err
 	}
+	if err = s.hydrateMessageUIStates(ctx, userID, items); err != nil {
+		return nil, 0, err
+	}
 	return items, total, nil
 }
 
@@ -215,6 +221,9 @@ func (s *Service) ExportConversation(ctx context.Context, userID uint, publicID 
 		return nil, err
 	}
 	if err = s.hydrateMessageProcessTraces(ctx, items); err != nil {
+		return nil, err
+	}
+	if err = s.hydrateMessageUIStates(ctx, userID, items); err != nil {
 		return nil, err
 	}
 
@@ -306,6 +315,9 @@ func (s *Service) ListRecentMessages(ctx context.Context, userID uint, conversat
 		return nil, 0, err
 	}
 	if err = s.hydrateMessageProcessTraces(ctx, items); err != nil {
+		return nil, 0, err
+	}
+	if err = s.hydrateMessageUIStates(ctx, userID, items); err != nil {
 		return nil, 0, err
 	}
 	return items, total, nil
@@ -434,6 +446,9 @@ func (s *Service) UpdateMessageContent(
 		return nil, err
 	}
 	if err = s.hydrateMessageProcessTraces(ctx, items); err != nil {
+		return nil, err
+	}
+	if err = s.hydrateMessageUIStates(ctx, userID, items); err != nil {
 		return nil, err
 	}
 	updated = &items[0]

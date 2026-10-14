@@ -35,6 +35,7 @@ import {
 } from "@/features/admin/model/update-check";
 import { type AdminUpdateDialogState, useAdminAboutUpdateCheck } from "@/features/admin/hooks/use-admin-about-update-check";
 import { IdentityProviderIcon } from "@/entities/identity-provider";
+import { FeatureGate } from "@/shared/capabilities";
 import { AboutSettingsContent } from "@/shared/components/about-settings-content";
 import { SettingsFieldItem, SettingsFieldList, SettingsSection } from "@/shared/components/settings-layout";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
@@ -210,7 +211,11 @@ export function AdminAboutPage() {
       versionBadgeContent={<AdminAboutVersionBadge updateRelease={updateRelease} />}
       versionBadgeTooltip={<AdminUpdateTooltipContent updateRelease={updateRelease} />}
       versionActions={<AdminUpdateCheck />}
-      extraSections={<AdminAboutDesktopDownload />}
+      extraSections={(
+        <FeatureGate feature="desktopDownload">
+          <AdminAboutDesktopDownload />
+        </FeatureGate>
+      )}
       labels={{
         details: t("details"),
         official: t("official"),

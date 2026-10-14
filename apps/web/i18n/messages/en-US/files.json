@@ -139,7 +139,7 @@
     "uploadedMany": "{count} files uploaded",
     "duplicateReused": "Duplicate file detected and reused",
     "partialUploadFailed": "Some files failed to upload",
-    "partialUploadDescription": "{success} succeeded, {failed} failed.",
+    "partialUploadDescription": "{success} succeeded, {failed} failed. {reason}",
     "uploadFailed": "File upload failed",
     "deleteSucceeded": "File deleted",
     "deleteFailed": "Failed to delete file",

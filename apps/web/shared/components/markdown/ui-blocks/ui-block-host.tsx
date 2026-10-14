@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronDown, LayoutGrid } from "lucide-react";
+import { parseBlockSource } from "@deeix/core";
+import { ChevronDown, LayoutGrid, PanelRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 
@@ -8,9 +9,12 @@ import { HeightTransition } from "@/components/ui/height-transition";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
-import { type UIBlockSkeletonProps, parseUIBlock, resolveDefinition } from "./block";
+import { resolveDefinition, type UIBlockRegistry, type UIBlockSkeletonProps } from "./block";
+import { LiveBlock } from "./live/live-block";
+import { useUIBlockOpen } from "./ui-block-actions";
 import { useUIBlockRegistry } from "./registry";
 import type { Issue } from "./schema";
+import { UIBlockErrorBoundary } from "./ui-block-error-boundary";
 import { UIBlockFrame } from "./ui-block-frame";
 
 type UIBlockHostProps = {
@@ -20,40 +24,96 @@ type UIBlockHostProps = {
 
 // The host owns the block's outer spacing and animates every height change —
 // the skeleton growing as items stream in, and the swap to the real component —
-// so nothing below the block jumps.
+// so nothing below the block jumps. A component that throws while rendering is
+// contained here and falls back to the raw source like an invalid block.
 export function UIBlockHost({ raw, streaming }: UIBlockHostProps) {
   return (
     <HeightTransition className="my-3">
-      <UIBlockBody raw={raw} streaming={streaming} />
+      <UIBlockErrorBoundary resetKey={raw} fallback={<UIBlockFallback reason="crashed" component={peekComponentName(raw)} raw={raw} />}>
+        <UIBlockBody raw={raw} streaming={streaming} />
+      </UIBlockErrorBoundary>
     </HeightTransition>
   );
 }
 
 function UIBlockBody({ raw, streaming }: UIBlockHostProps) {
   const registry = useUIBlockRegistry();
-  const parsed = React.useMemo(() => parseUIBlock(raw, streaming), [raw, streaming]);
+  const parsed = React.useMemo(() => parseBlockSource(raw, streaming), [raw, streaming]);
 
   if (parsed.status === "incomplete") {
-    const Skeleton = resolveDefinition(registry, peekComponentName(raw), 1)?.Skeleton;
-    const items = peekItemCount(raw);
-    return Skeleton ? <Skeleton items={items} /> : <GenericSkeleton items={items} />;
+    return <UIBlockSkeleton registry={registry} raw={raw} />;
   }
   if (parsed.status === "invalid") {
-    return <UIBlockFallback reason="invalid" component={peekComponentName(raw)} issues={parsed.issues} raw={parsed.raw} />;
+    return <UIBlockFallback reason="invalid" component={peekComponentName(raw)} issues={[{ path: "$", message: parsed.message }]} raw={raw} />;
   }
 
-  const { envelope } = parsed;
-  const definition = resolveDefinition(registry, envelope.component, envelope.version);
+  const { block } = parsed;
+  // A block with state, computed values or children renders node by node while
+  // it streams in; a static block waits until it is complete.
+  if (block.live) {
+    return (
+      <UIBlockOpenable blockKey={streaming ? "" : block.key}>
+        <UIBlockFrame>
+          <LiveBlock block={block} streaming={streaming} />
+        </UIBlockFrame>
+      </UIBlockOpenable>
+    );
+  }
+  if (!block.root.closed) {
+    // A finished message whose block was cut off will never complete.
+    if (!streaming) {
+      return <UIBlockFallback reason="invalid" component={block.component} issues={[{ path: "$", message: "incomplete JSON" }]} raw={raw} />;
+    }
+    return <UIBlockSkeleton registry={registry} raw={raw} />;
+  }
+  const definition = resolveDefinition(registry, block.component, block.version);
   if (!definition) {
-    return <UIBlockFallback reason="unknown" component={envelope.component} version={envelope.version} raw={parsed.raw} />;
+    return <UIBlockFallback reason="unknown" component={block.component} version={block.version} raw={raw} />;
   }
 
-  const rendered = definition.render(envelope.id, envelope.props);
+  const rendered = definition.render(block.key, block.root.props);
   if (!rendered.ok) {
-    return <UIBlockFallback reason="invalid" component={envelope.component} issues={rendered.issues} raw={parsed.raw} />;
+    return <UIBlockFallback reason="invalid" component={block.component} issues={rendered.issues} raw={raw} />;
   }
 
-  return <UIBlockFrame>{rendered.element}</UIBlockFrame>;
+  return (
+    <UIBlockOpenable blockKey={streaming ? "" : block.key}>
+      <UIBlockFrame>{rendered.element}</UIBlockFrame>
+    </UIBlockOpenable>
+  );
+}
+
+// A finished block in a message can be opened in the side panel, which shows
+// the same block with the same state. The control sits under the block, not on
+// it, so it never covers the component's own controls; on pointer devices it
+// appears on hover.
+function UIBlockOpenable({ blockKey, children }: { blockKey: string; children: React.ReactNode }) {
+  const t = useTranslations("chat.markdown.uiBlock");
+  const open = useUIBlockOpen();
+  if (!open || !blockKey) {
+    return children;
+  }
+  return (
+    <div className="group/ui-block">
+      {children}
+      <div className="mt-1 flex justify-end">
+        <button
+          type="button"
+          onClick={() => open(blockKey)}
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-[opacity,color,background-color] hover:bg-accent hover:text-accent-foreground focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/ui-block:opacity-100"
+        >
+          <PanelRight className="size-3" strokeWidth={1.8} />
+          {t("openInPanel")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UIBlockSkeleton({ registry, raw }: { registry: UIBlockRegistry; raw: string }) {
+  const Skeleton = resolveDefinition(registry, peekComponentName(raw), 1)?.Skeleton;
+  const items = peekItemCount(raw);
+  return Skeleton ? <Skeleton items={items} /> : <GenericSkeleton items={items} />;
 }
 
 // While streaming, the component name is usually the first key to arrive;
@@ -115,7 +175,7 @@ function GenericSkeleton({ items = 0 }: UIBlockSkeletonProps) {
 }
 
 type UIBlockFallbackProps = {
-  reason: "invalid" | "unknown";
+  reason: "invalid" | "unknown" | "crashed";
   component?: string;
   version?: number;
   issues?: Issue[];
@@ -126,9 +186,7 @@ function UIBlockFallback({ reason, component, version, issues, raw }: UIBlockFal
   const t = useTranslations("chat.markdown.uiBlock");
   const [open, setOpen] = React.useState(false);
   const contentID = React.useId();
-  const title = reason === "unknown"
-    ? t("unknownComponent", { component: `${component ?? "?"}@${version ?? "?"}` })
-    : t("invalidProps", { component: component ?? "" });
+  const title = fallbackTitle(t, reason, component, version);
 
   return (
     <UIBlockFrame>
@@ -160,4 +218,20 @@ function UIBlockFallback({ reason, component, version, issues, raw }: UIBlockFal
       </CollapsibleMotionContent>
     </UIBlockFrame>
   );
+}
+
+function fallbackTitle(
+  t: ReturnType<typeof useTranslations<"chat.markdown.uiBlock">>,
+  reason: UIBlockFallbackProps["reason"],
+  component: string | undefined,
+  version: number | undefined,
+): string {
+  switch (reason) {
+    case "unknown":
+      return t("unknownComponent", { component: `${component ?? "?"}@${version ?? "?"}` });
+    case "crashed":
+      return t("renderFailed", { component: component ?? "" });
+    default:
+      return t("invalidProps", { component: component ?? "" });
+  }
 }

@@ -32,6 +32,8 @@ import type {
   MessageDeleteDTO,
   MessageDTO,
   MessageFeedbackResult,
+  MessageUIStateResult,
+  MessageProcessTraceDetailDTO,
   MessageProcessTraceDTO,
   PromptTraceBlockDTO,
   PromptTraceDTO,
@@ -47,6 +49,7 @@ import type {
   SetConversationProjectRequest,
   SetConversationStarRequest,
   SetMessageFeedbackRequest,
+  SetMessageUIStateRequest,
   StreamMessageEvent,
   TemporaryChatMessageRequest,
   TraceBlockDTO,
@@ -1056,6 +1059,8 @@ type ListMessagesOptions = {
   pageSize?: number;
   tail?: boolean;
   beforeID?: number;
+  /** "summary" cuts finished messages' thinking and tool inputs/outputs; load them with getMessageProcessTrace. */
+  trace?: "summary";
 };
 
 export async function listMessagesPage(
@@ -1074,6 +1079,9 @@ export async function listMessagesPage(
   }
   if (options.beforeID && options.beforeID > 0) {
     params.set("before_id", String(options.beforeID));
+  }
+  if (options.trace) {
+    params.set("trace", options.trace);
   }
   const data = await authedRequest<PagePayload<MessageDTO>>(
     `/api/v1/conversations/${pathParam(conversationPublicID)}/messages?${params.toString()}`,
@@ -1192,6 +1200,22 @@ export async function setMessageFeedback(
   );
 }
 
+export async function getMessageProcessTrace(
+  accessToken: string,
+  messagePublicID: string,
+  signal?: AbortSignal,
+): Promise<MessageProcessTraceDTO | null> {
+  const data = await authedRequest<MessageProcessTraceDetailDTO>(
+    `/api/v1/messages/${pathParam(messagePublicID)}/trace`,
+    {
+      accessToken,
+      signal,
+    },
+    true,
+  );
+  return data.processTrace ?? null;
+}
+
 export async function updateMessage(
   accessToken: string,
   messagePublicID: string,
@@ -1233,6 +1257,27 @@ export async function deleteConversationMessage(
     {
       method: "DELETE",
       accessToken,
+    },
+    true,
+  );
+}
+
+// Saves the interactive component state of one assistant message. Blocks in the
+// map replace their stored state, `null` clears one, absent blocks are untouched.
+export async function setMessageUIState(
+  accessToken: string,
+  conversationPublicID: string,
+  messagePublicID: string,
+  payload: SetMessageUIStateRequest,
+  { keepalive = false }: { keepalive?: boolean } = {},
+): Promise<MessageUIStateResult> {
+  return authedRequest<MessageUIStateResult>(
+    `/api/v1/conversations/${pathParam(conversationPublicID)}/messages/${pathParam(messagePublicID)}/ui-state`,
+    {
+      method: "PUT",
+      accessToken,
+      body: payload,
+      keepalive,
     },
     true,
   );

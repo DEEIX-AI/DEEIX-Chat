@@ -217,10 +217,14 @@ type SendMessageInput struct {
 	KnowledgeBaseIDs        []string
 	HTMLVisualPromptEnabled bool
 	UIComponentIDs          []uint
-	ParentMessagePublicID   string
-	SourceMessagePublicID   string
-	BranchReason            string
-	Cancelable              bool
+	// UIBlockVersion 是客户端能渲染的块格式版本；0 按静态格式处理。
+	UIBlockVersion int
+	// UIStates 是用户在当前分支的交互式组件里设定的状态；只用于本轮上下文，不落库。
+	UIStates              []MessageUIStateInput
+	ParentMessagePublicID string
+	SourceMessagePublicID string
+	BranchReason          string
+	Cancelable            bool
 	// UsageAuthorization 是请求级计费授权；提示词形状确定后据此把预算预留抬高到预估成本。
 	UsageAuthorization *domainbilling.UsageAuthorization
 	// OnEvent 用于向调用方推送中间事件（如 rag_search），流式场景使用。

@@ -1,5 +1,6 @@
 "use client";
 
+import { UI_BLOCK_FORMAT_VERSION } from "@deeix/core";
 import { splitControlSelections } from "@/features/chat/model/chat-model-controls";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -26,6 +27,7 @@ import type {
   MediaImageRequest,
   MediaVideoExtensionRequest,
   MediaVideoRequest,
+  MessageUIStateInput,
   SendMessageRequest,
   SendMessageResult,
   StreamMessageEvent,
@@ -75,6 +77,7 @@ export function useChatRunStream({
       selectedSkills,
       selectedKnowledgeBaseIDs,
       uiComponentIDs,
+      uiStates,
       htmlVisualPromptEnabled,
       parentMessagePublicID,
       sourceMessagePublicID,
@@ -95,6 +98,7 @@ export function useChatRunStream({
       selectedSkills: SkillSummaryDTO[];
       selectedKnowledgeBaseIDs: string[];
       uiComponentIDs: number[];
+      uiStates?: MessageUIStateInput[];
       htmlVisualPromptEnabled: boolean;
       parentMessagePublicID: string | null;
       sourceMessagePublicID: string | null;
@@ -259,6 +263,8 @@ export function useChatRunStream({
           knowledgeBaseIDs: selectedKnowledgeBaseIDs,
           htmlVisualPrompt: htmlVisualPromptEnabled || undefined,
           uiComponentIDs: uiComponentIDs.length > 0 ? uiComponentIDs : undefined,
+          uiBlockVersion: uiComponentIDs.length > 0 ? UI_BLOCK_FORMAT_VERSION : undefined,
+          uiStates: uiStates && uiStates.length > 0 ? uiStates : undefined,
         };
         completed = await streamConversationMessage(token, conversationID, chatPayload, streamOptions);
       } else if (submitTask === "video_generation") {

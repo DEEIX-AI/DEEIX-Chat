@@ -48,7 +48,7 @@ import {
 import {
   containsMarkdownMath,
   normalizeContent,
-  normalizeCurrencyDollars,
+  escapeNonMathDollars,
   normalizeEscapedHTMLAttributeQuotes,
   normalizeHTMLBlockBlankLines,
   normalizeHTMLVisualMarkdownFences,
@@ -80,7 +80,12 @@ import {
   StreamdownDownloadIcon,
   StreamdownMaximizeIcon,
 } from "./streamdown-icons";
+import { escapeUnsupportedInlineHTMLRehypePlugin } from "./streamdown-raw-html";
 import { normalizeBareURLRehypePlugin } from "./streamdown-url-normalize";
+import { scanUIBlockFences, UI_WIDGET_FENCE_LANGUAGE, widgetKey } from "@deeix/core";
+import { UIWidgetCompletionProvider } from "./ui-blocks";
+import { UIBlockOpenProvider } from "./ui-blocks/ui-block-actions";
+import { type UIBlockStateBinding, UIBlockStateProvider, useMessageUIBlockStateBinding } from "./ui-blocks/ui-block-state";
 import { useMarkdownCopy } from "./use-markdown-copy";
 
 type StreamdownRenderProps = {
@@ -92,7 +97,19 @@ type StreamdownRenderProps = {
   autoExpandThinking?: boolean;
   imageActions?: MarkdownImageActions;
   artifactActions?: MarkdownArtifactActions;
+  // Persisted state of the interactive component blocks in this content; absent
+  // when the surface has no conversation to restore from (share page, preview).
+  uiBlockState?: UIBlockStateBinding;
 };
+
+// Interactive component blocks read and write their own state through this
+// context; without a binding they stay local to the component instance.
+function UIBlockStateHost({ uiBlockState, children }: { uiBlockState?: UIBlockStateBinding; children: React.ReactNode }) {
+  if (!uiBlockState) {
+    return children;
+  }
+  return <UIBlockStateProvider binding={uiBlockState}>{children}</UIBlockStateProvider>;
+}
 
 type StreamdownFeatureFlags = {
   code: boolean;
@@ -271,6 +288,7 @@ function buildStreamdownRehypePlugins(includeSourcePositions = false): Streamdow
 
   return [
     renderRawHTMLMathRehypePlugin,
+    [escapeUnsupportedInlineHTMLRehypePlugin, tagNames],
     defaultRehypePlugins.raw,
     sanitizeWithHTMLTags,
     ...(includeSourcePositions ? [markdownSourcePositionRehypePlugin] : []),
@@ -436,7 +454,7 @@ function normalizeStreamdownContent(
   preserveSourceLines = false,
   streaming = false,
 ): string {
-  const escapedContent = normalizeCurrencyDollars(
+  const escapedContent = escapeNonMathDollars(
     normalizeEscapedHTMLAttributeQuotes(normalizeContent(content)),
   );
   const normalizedContent = normalizeMermaidBlocks(
@@ -732,11 +750,26 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   autoExpandThinking = true,
   imageActions,
   artifactActions,
+  uiBlockState,
 }: StreamdownRenderProps) {
   const normalizedContent = React.useMemo(() => {
     const normalized = normalizeStreamdownContent(content, sourcePositions, streaming);
     return variant === "user" ? normalizeUserLineBreaks(normalized) : normalized;
   }, [content, sourcePositions, streaming, variant]);
+  // Read from the text the blocks are rendered from, so keys match the host's.
+  const messageUIBlockState = useMessageUIBlockStateBinding(uiBlockState, normalizedContent);
+  // Illustrations whose fence is closed render while the rest still streams.
+  const completeWidgets = React.useMemo(
+    () =>
+      new Set(
+        normalizedContent.includes(UI_WIDGET_FENCE_LANGUAGE)
+          ? scanUIBlockFences(normalizedContent)
+              .filter((fence) => fence.kind === "widget" && fence.closed)
+              .map((fence) => widgetKey(fence.body))
+          : [],
+      ),
+    [normalizedContent],
+  );
   const { plugins, mermaidPending } = useStreamdownPlugins(normalizedContent);
   const segments = React.useMemo(
     () =>
@@ -816,34 +849,40 @@ export const StreamdownRender = React.memo(function StreamdownRender({
           {markdownSegments.map((segment, index) => (
             <MarkdownArtifactActionsContext.Provider key={`markdown-${index}`} value={artifactActions ?? null}>
               <MarkdownImageActionsContext.Provider value={imageActions ?? null}>
-                <HTMLInlineMarkdownProvider
-                  className={activeMarkdownClassName}
-                  components={components}
-                  plugins={plugins}
-                >
-                  <Streamdown
+                <UIWidgetCompletionProvider complete={completeWidgets}>
+                <UIBlockOpenProvider open={artifactActions?.onOpenUIBlock ?? null}>
+                <UIBlockStateHost uiBlockState={messageUIBlockState}>
+                  <HTMLInlineMarkdownProvider
                     className={activeMarkdownClassName}
-                    codeBlockMaxHeight={STREAMDOWN_CODE_BLOCK_MAX_HEIGHT}
                     components={components}
-                    controls={STREAMDOWN_CONTROLS}
-                    icons={icons}
                     plugins={plugins}
-                    rehypePlugins={rehypePlugins}
-                    remend={STREAMDOWN_REMEND}
-                    mermaid={STREAMDOWN_MERMAID_OPTIONS}
-                    linkSafety={STREAMDOWN_LINK_SAFETY}
-                    caret={streaming ? STREAMDOWN_CARET : undefined}
-                    mode={streaming ? "streaming" : "static"}
-                    normalizeHtmlIndentation
-                    parseIncompleteMarkdown={streaming}
-                    shikiTheme={["github-light", "github-dark"]}
-                    animated={false}
-                    isAnimating={streaming}
-                    translations={translations}
                   >
-                    {segment.content}
-                  </Streamdown>
-                </HTMLInlineMarkdownProvider>
+                    <Streamdown
+                      className={activeMarkdownClassName}
+                      codeBlockMaxHeight={STREAMDOWN_CODE_BLOCK_MAX_HEIGHT}
+                      components={components}
+                      controls={STREAMDOWN_CONTROLS}
+                      icons={icons}
+                      plugins={plugins}
+                      rehypePlugins={rehypePlugins}
+                      remend={STREAMDOWN_REMEND}
+                      mermaid={STREAMDOWN_MERMAID_OPTIONS}
+                      linkSafety={STREAMDOWN_LINK_SAFETY}
+                      caret={streaming ? STREAMDOWN_CARET : undefined}
+                      mode={streaming ? "streaming" : "static"}
+                      normalizeHtmlIndentation
+                      parseIncompleteMarkdown={streaming}
+                      shikiTheme={["github-light", "github-dark"]}
+                      animated={false}
+                      isAnimating={streaming}
+                      translations={translations}
+                    >
+                      {segment.content}
+                    </Streamdown>
+                  </HTMLInlineMarkdownProvider>
+                </UIBlockStateHost>
+                </UIBlockOpenProvider>
+                </UIWidgetCompletionProvider>
               </MarkdownImageActionsContext.Provider>
             </MarkdownArtifactActionsContext.Provider>
           ))}

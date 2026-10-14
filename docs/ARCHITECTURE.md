@@ -53,6 +53,7 @@ apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagge
 - **本地用户无密码。** `PasswordEnabled=false`，密码登录对它天然不可用；也不会触发首次登录引导。
 - **模式切换即登出。** 本地与远程各自一个 keychain 条目，切换时删除另一方，token 不会被重放到另一家运营方。
 - **功能边界由服务器声明，客户端不判断平台。** 本地模式没有对象的功能（账号管理、权限组、公告、身份提供商、账户安全、计费门禁、内容审核）由 `GET /api/v1/capabilities` 声明为关闭，对应端点返回 `404 feature.disabled`，前端据此隐藏入口；用量计量保留。桌面端连远程服务器时能力来自远程，与 Web 端完全一致。详见第 4 节「服务器能力声明」。
+- **代理由桌面壳决定，经环境变量交给后端。** 后端"代理只来自部署环境"的约定不变：本地模式下桌面壳就是部署方，它把解析出的代理（企业策略 → 应用设置 → 进程环境变量 → 系统设置）写成 `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` 交给 sidecar，后端不读系统代理、不新增代理配置项。回环地址永不经代理。详见 `apps/desktop/README.md`「Network proxy」。
 
 ### 多标签页（桌面端）
 
@@ -71,6 +72,7 @@ apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagge
 - **不做 I/O。** 不直接调用 `fetch`、`localStorage`、`SecureStore`、Tauri command。所有 I/O 通过接口注入，由宿主应用实现。
 - **可在 Node 里单测。** `pnpm --filter @deeix/core test` 使用 Node 内置 test runner，不需要浏览器或设备。
 - **按需增长。** 只在第二个客户端真的需要时才把逻辑从 `apps/web` 抽进来，不预建空目录。
+  - 例外：`ui-block`（交互式组件引擎：宽容 JSON 解析、表达式、模板与状态求值）目前只有 Web 使用，仍放在 core。它是纯逻辑，且与后端提示词共享契约（函数表、原语与示例须与 `backend/internal/application/uicomponent` 的提示词一致）；渲染（React 组件）留在 `apps/web/shared/components/markdown/ui-blocks`。
 
 ### UI 不共享，逻辑必须共享
 
@@ -104,6 +106,7 @@ apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagge
 | `usageMetering` | 记录用量与费用 | ✅ | —— |
 | `contentModeration` | 内容审核 | ❌ | `/admin/content-moderation*` |
 | `sharing` | 对话公开分享 | ❌ | `/conversations/:id/share*`、`/conversations/shares/revoke`、`/shared-conversations/*` |
+| `desktopDownload` | 向网页端用户推荐下载桌面端 | ❌ | 无路由；`desktop.download_enabled` 与 `desktop.download_url` 两个设置项锁定，`/settings/feature-policy` 不返回下载入口 |
 
 服务器模式全部为 `true`；"当前是否配置了 X"由各功能自己的端点回答，不进能力位。
 

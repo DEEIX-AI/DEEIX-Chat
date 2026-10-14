@@ -60,6 +60,7 @@ The app reads `HKLM\SOFTWARE\Policies\DEEIX\Chat` and `HKCU\SOFTWARE\Policies\DE
 | Allow only the default server | `LockServerUrl` (REG_DWORD 1) | Users can only connect to `DefaultServerUrl` (ignored when that is not set). Also disables the built-in local server. Previously saved tabs for other servers are removed together with their stored sign-in. |
 | Disable the built-in local server | `DisableLocalMode` (REG_DWORD 1) | Users cannot run the bundled local server. |
 | Disable update checks | `DisableAutoUpdate` (REG_DWORD 1) | No update checks or notifications in any package. |
+| Configure the network proxy | `ProxyMode` (REG_SZ `system`, `direct` or `fixed_servers`), `ProxyServer` (REG_SZ), `ProxyBypassList` (REG_SZ) | Replaces the user's proxy choice for the local server's requests, the app's own requests and the app window. `fixed_servers` needs `ProxyServer` (`host:port`, `http://host:port` or `socks5://host:port`; no credentials). The bypass list takes host names, `*.example.com`, addresses and ranges (`192.168.*`, `10.0.0.0/8`); this computer is always reached directly. The hive that sets `ProxyMode` decides all three values. |
 
 The app enforces these itself; the UI only shows them (read-only address, hidden options, "managed by your organization").
 
@@ -74,7 +75,7 @@ Import the ADMX under **Devices → Configuration → Import ADMX**, then create
 
 ### Registry file
 
-[`policies/DEEIXChat.example.reg`](policies/DEEIXChat.example.reg) sets all four values under HKLM. Edit it, then run `reg import DEEIXChat.example.reg` from an elevated prompt.
+[`policies/DEEIXChat.example.reg`](policies/DEEIXChat.example.reg) sets the four server and update values under HKLM, with the proxy values commented out. Edit it, then run `reg import DEEIXChat.example.reg` from an elevated prompt.
 
 ## Where data lives
 
@@ -83,4 +84,4 @@ Import the ADMX under **Devices → Configuration → Import ADMX**, then create
 | MSI / setup | `%APPDATA%\com.deeix.chat.desktop`, `%LOCALAPPDATA%\com.deeix.chat.desktop` | Windows Credential Manager, service `com.deeix.chat.desktop` |
 | Portable | `data\` next to `DEEIX Chat.exe` | Windows Credential Manager, service `com.deeix.chat.desktop.portable-<id>` (id in `data\instance-id`) |
 
-Refresh tokens are never written to disk in plain text. Removing a portable copy: sign out in the app, then delete the folder.
+The user's proxy choice is in `network.json` in the app data folder; a proxy password, if any, is in Credential Manager under the same service (account `proxy-password`). Refresh tokens and proxy passwords are never written to disk in plain text. Removing a portable copy: sign out in the app, then delete the folder.

@@ -52,6 +52,8 @@ func TestGetFeaturePolicyHidesDesktopDownloadEntry(t *testing.T) {
 		"invalid url":     {DesktopDownloadEnabled: true, DesktopDownloadURL: "javascript:alert(1)"},
 		"credentials url": {DesktopDownloadEnabled: true, DesktopDownloadURL: "https://user:pass@example.com/download"},
 		"empty url":       {DesktopDownloadEnabled: true, DesktopDownloadURL: ""},
+		// 本地模式只有桌面端自己连接，没有网页端用户可推荐。
+		"local mode": {LocalMode: true, DesktopDownloadEnabled: true, DesktopDownloadURL: "https://example.com/download"},
 	}
 	for name, cfg := range cases {
 		t.Run(name, func(t *testing.T) {

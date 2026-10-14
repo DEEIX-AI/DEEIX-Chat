@@ -7,14 +7,15 @@ import (
 )
 
 func TestValidateReasoningCapabilityFormatsAndAllowedLevels(t *testing.T) {
-	allLevels := []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"}
+	allLevels := []string{"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}
+	sharedLevels := []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 	allowed := map[string][]string{
 		ReasoningFormatOpenAI:          allLevels,
 		ReasoningFormatAnthropicEffort: {"none", "low", "medium", "high", "xhigh", "max"},
-		ReasoningFormatAnthropicBudget: allLevels,
+		ReasoningFormatAnthropicBudget: sharedLevels,
 		ReasoningFormatGeminiLevel:     {"minimal", "low", "medium", "high"},
-		ReasoningFormatGeminiBudget:    allLevels,
-		ReasoningFormatQwen:            allLevels,
+		ReasoningFormatGeminiBudget:    sharedLevels,
+		ReasoningFormatQwen:            sharedLevels,
 	}
 	for format, levels := range allowed {
 		allowedSet := map[string]bool{}
@@ -255,6 +256,7 @@ func TestReasoningCapabilityResolveLevel(t *testing.T) {
 		"medium":  "low", // 与 low、high 等距时取较低档
 		"xhigh":   "high",
 		"max":     "max",
+		"ultra":   "max",
 	}
 	for requested, want := range tests {
 		if got := capability.ResolveLevel(requested); got != want {

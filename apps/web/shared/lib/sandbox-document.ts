@@ -17,7 +17,6 @@ export const SANDBOX_CSP = [
   "worker-src 'none'",
   "connect-src 'none'",
   "manifest-src 'none'",
-  "prefetch-src 'none'",
   "img-src data: blob:",
   "media-src data: blob:",
   "font-src data:",

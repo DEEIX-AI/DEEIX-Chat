@@ -8,6 +8,9 @@
 //   LockServerUrl      REG_DWORD  1 = only DefaultServerUrl may be used
 //   DisableLocalMode   REG_DWORD  1 = no bundled local server
 //   DisableAutoUpdate  REG_DWORD  1 = no update checks at all
+//   ProxyMode          REG_SZ     system | direct | fixed_servers (Chrome's names)
+//   ProxyServer        REG_SZ     host:port, http://host:port or socks5://host:port
+//   ProxyBypassList    REG_SZ     hosts, addresses and ranges that skip the proxy
 //
 // Policy is read once at startup (like most desktop apps; a change applies on
 // the next launch) and enforced here in Rust. The web UI only reflects it.
@@ -15,6 +18,7 @@
 
 use serde::Serialize;
 
+use crate::proxy::{self, PolicyProxy};
 use crate::session::normalize_origin;
 use crate::tabs::Server;
 
@@ -33,17 +37,34 @@ pub struct RawPolicy {
     pub lock_server_url: Option<bool>,
     pub disable_local_mode: Option<bool>,
     pub disable_auto_update: Option<bool>,
+    pub proxy_mode: Option<String>,
+    pub proxy_server: Option<String>,
+    pub proxy_bypass: Option<String>,
 }
 
 impl RawPolicy {
     /// Per-value precedence: a value configured in `self` (machine) wins over
     /// the same value in `lower` (user); unset values fall through.
     pub fn over(self, lower: RawPolicy) -> RawPolicy {
+        // The proxy values are one setting spread over three values, so the
+        // machine's ProxyMode decides the whole group: mixing a mode from one
+        // hive with an address from the other would apply neither.
+        let proxy = match self.proxy_mode {
+            Some(_) => (self.proxy_mode, self.proxy_server, self.proxy_bypass),
+            None => (
+                lower.proxy_mode,
+                lower.proxy_server.or(self.proxy_server),
+                lower.proxy_bypass.or(self.proxy_bypass),
+            ),
+        };
         RawPolicy {
             default_server_url: self.default_server_url.or(lower.default_server_url),
             lock_server_url: self.lock_server_url.or(lower.lock_server_url),
             disable_local_mode: self.disable_local_mode.or(lower.disable_local_mode),
             disable_auto_update: self.disable_auto_update.or(lower.disable_auto_update),
+            proxy_mode: proxy.0,
+            proxy_server: proxy.1,
+            proxy_bypass: proxy.2,
         }
     }
 }
@@ -60,6 +81,11 @@ pub struct Policy {
     /// a lock means "only this server", which excludes the bundled one.
     pub local_mode_allowed: bool,
     pub auto_update_disabled_by_policy: bool,
+    /// Enterprise proxy policy; `None` leaves the choice to the user.
+    #[serde(skip)]
+    pub proxy: Option<PolicyProxy>,
+    /// Serialised counterpart of `proxy`, which the web app only needs as a flag.
+    pub proxy_managed_by_policy: bool,
 }
 
 impl Default for Policy {
@@ -83,11 +109,18 @@ impl Policy {
         if raw.lock_server_url == Some(true) && !server_url_locked {
             eprintln!("[policy] LockServerUrl has no effect without a valid DefaultServerUrl");
         }
+        let proxy = proxy::policy_from_raw(
+            raw.proxy_mode.as_deref().unwrap_or_default(),
+            raw.proxy_server.as_deref().unwrap_or_default(),
+            raw.proxy_bypass.as_deref().unwrap_or_default(),
+        );
         Self {
             default_server_url,
             server_url_locked,
             local_mode_allowed: raw.disable_local_mode != Some(true) && !server_url_locked,
             auto_update_disabled_by_policy: raw.disable_auto_update == Some(true),
+            proxy_managed_by_policy: proxy.is_some(),
+            proxy,
         }
     }
 
@@ -158,15 +191,20 @@ fn read_hive(hive: Hive) -> RawPolicy {
             Err(_) => None,
         }
     };
-    RawPolicy {
-        default_server_url: key
-            .get_string("DefaultServerUrl")
+    let string = |name: &str| {
+        key.get_string(name)
             .ok()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty()),
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+    };
+    RawPolicy {
+        default_server_url: string("DefaultServerUrl"),
         lock_server_url: flag("LockServerUrl"),
         disable_local_mode: flag("DisableLocalMode"),
         disable_auto_update: flag("DisableAutoUpdate"),
+        proxy_mode: string("ProxyMode"),
+        proxy_server: string("ProxyServer"),
+        proxy_bypass: string("ProxyBypassList"),
     }
 }
 
@@ -190,7 +228,57 @@ mod tests {
             lock_server_url: lock,
             disable_local_mode: local,
             disable_auto_update: update,
+            ..RawPolicy::default()
         }
+    }
+
+    fn proxy_raw(mode: &str, server: &str, bypass: &str) -> RawPolicy {
+        RawPolicy {
+            proxy_mode: Some(mode.to_string()),
+            proxy_server: Some(server.to_string()),
+            proxy_bypass: Some(bypass.to_string()),
+            ..RawPolicy::default()
+        }
+    }
+
+    #[test]
+    fn proxy_policy_is_one_setting_across_two_hives() {
+        // HKLM sets the mode, so it decides the whole group: an address from
+        // HKCU would otherwise be paired with a mode that never chose it.
+        let merged = proxy_raw("fixed_servers", "http://hklm.corp:3128", "").over(proxy_raw(
+            "direct",
+            "http://hkcu.corp:9999",
+            "hkcu.example",
+        ));
+        assert_eq!(merged.proxy_mode.as_deref(), Some("fixed_servers"));
+        let policy = Policy::from_raw(merged);
+        assert_eq!(
+            policy.proxy,
+            Some(PolicyProxy::Fixed {
+                address: "http://hklm.corp:3128".into(),
+                bypass: String::new(),
+            })
+        );
+        assert!(policy.proxy_managed_by_policy);
+        assert!(policy.is_active());
+
+        // Only HKCU configures it: HKCU applies.
+        let merged = RawPolicy::default().over(proxy_raw("direct", "", ""));
+        assert_eq!(Policy::from_raw(merged).proxy, Some(PolicyProxy::Direct));
+
+        // An unusable combination is treated as no policy at all.
+        let merged = RawPolicy::default().over(proxy_raw("fixed_servers", "", ""));
+        let policy = Policy::from_raw(merged);
+        assert_eq!(policy.proxy, None);
+        assert!(!policy.proxy_managed_by_policy);
+    }
+
+    #[test]
+    fn proxy_policy_is_not_serialised_but_its_flag_is() {
+        let policy = Policy::from_raw(proxy_raw("direct", "", ""));
+        let json = serde_json::to_value(&policy).unwrap();
+        assert_eq!(json["proxyManagedByPolicy"], serde_json::json!(true));
+        assert!(json.get("proxy").is_none());
     }
 
     #[test]

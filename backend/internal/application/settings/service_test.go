@@ -45,6 +45,10 @@ func (r *testSettingsRepo) Delete(ctx context.Context, namespace, key string) er
 	return nil
 }
 
+func (r *testSettingsRepo) RemoveDuplicates(ctx context.Context, ids []uint) error {
+	return nil
+}
+
 func TestApplyEmbeddingDependentCascadesDisablesRAGAndSemanticFeatures(t *testing.T) {
 	repo := &testSettingsRepo{byNamespace: map[string][]domainsettings.SystemSetting{
 		"chat": {

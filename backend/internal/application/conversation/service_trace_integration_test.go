@@ -57,6 +57,14 @@ func (r *assistantEditTraceRepository) GetMessageFeedbackCounts(
 	return map[uint]map[string]int64{}, nil
 }
 
+func (r *assistantEditTraceRepository) GetMessageUIStateMap(
+	context.Context,
+	uint,
+	[]uint,
+) (map[uint]map[string]string, error) {
+	return map[uint]map[string]string{r.message.ID: {"loan": `{"amount":300}`}}, nil
+}
+
 func (r *assistantEditTraceRepository) ListConversationMessageTracesByMessageIDs(
 	context.Context,
 	[]uint,
@@ -120,6 +128,10 @@ func TestAssistantEditResponseRetainsProcessTrace(t *testing.T) {
 	}
 	if len(updated.ProcessTrace.Events) != 1 || updated.ProcessTrace.Events[0].EventID != "event_tool_1" {
 		t.Fatalf("edited response lost execution events: %#v", updated.ProcessTrace)
+	}
+	// 前端用编辑响应替换本地消息：组件状态必须一并返回，否则编辑一次正文就丢了界面状态。
+	if updated.UIState["loan"] != `{"amount":300}` {
+		t.Fatalf("edited response lost ui state: %#v", updated.UIState)
 	}
 }
 

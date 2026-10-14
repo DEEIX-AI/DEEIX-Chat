@@ -1,11 +1,11 @@
 "use client";
 
+import { UI_BLOCK_FORMAT_VERSION } from "@deeix/core";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 
 import { mergeChatOptionsOverride, splitControlSelections } from "@/features/chat/model/chat-model-controls";
-import { withChatReasoningEffortOverride } from "@/features/chat/model/chat-reasoning-effort";
 import { mapServerMessage } from "@/features/chat/model/chat-thread";
 import { mergeProcessTraceSnapshot, toPendingProcessTrace } from "@/features/chat/model/message-submit";
 import {
@@ -26,9 +26,13 @@ import {
   TEMPORARY_CHAT_MAX_IMAGE_ATTACHMENTS,
 } from "@/shared/api/conversation";
 import type { TemporaryChatRequestAttachment } from "@/shared/api/conversation";
-import type { ConversationOptions, TemporaryChatHistoryMessage } from "@/shared/api/conversation-types";
+import type {
+  ConversationOptions,
+  MessageUIStateInput,
+  TemporaryChatHistoryMessage,
+  TemporaryChatUIStateInput,
+} from "@/shared/api/conversation-types";
 import type { FileContentLoader } from "@/entities/file";
-import type { ReasoningEffortLevel } from "@/entities/model";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { createSecureUUID } from "@/shared/lib/secure-id";
 
@@ -70,6 +74,9 @@ type TemporaryChatRuntimeInput = {
   onDraftChange: (value: string) => void;
   onAttachmentsConsumed: (items: PendingAttachment[]) => void;
   releaseAttachments: (items: PendingAttachment[]) => void;
+  // Interactive component state of earlier replies, attached to the next turn.
+  // Temporary chats are never stored, so this is the only place it goes.
+  collectUIStates?: (messages: readonly ChatAreaMessage[]) => MessageUIStateInput[];
 };
 
 type SubmitTemporaryTurnInput = {
@@ -100,6 +107,58 @@ function toMessageAttachment(item: PendingAttachment): MessageAttachment {
     ragReason: item.ragReason,
     ocrUsed: item.ocrUsed,
   };
+}
+
+function toAreaMessage(message: TemporaryMessage): ChatAreaMessage {
+  return {
+    key: message.id,
+    publicID: message.id,
+    parentPublicID: message.parentID ?? null,
+    sourcePublicID: null,
+    role: message.role,
+    content: message.content,
+    branchReason: "default",
+    status: message.failed ? "failed" : message.streaming ? "processing" : "completed",
+    isStreaming: message.streaming,
+    platformModelName: message.model,
+    runID: message.runID,
+    inputTokens: message.inputTokens,
+    outputTokens: message.outputTokens,
+    latencyMS: message.latencyMS,
+    reasoningEffort: message.reasoningEffort,
+    activityLabel: message.activityLabel,
+    processTrace: message.processTrace,
+    knowledgeSources: message.knowledgeSources,
+    inlineAlert: message.inlineAlert,
+    attachments: message.attachments,
+  };
+}
+
+// Temporary chats have no message ids on the server: a block is located by the
+// index of its reply in the request's `messages`. A reply sits right after its
+// user turn in the history; the request may drop the oldest entries, so indexes
+// shift by however many were dropped.
+function toTemporaryUIStates(
+  entries: readonly MessageUIStateInput[],
+  messages: readonly TemporaryMessage[],
+  fullHistory: readonly TemporaryHistoryMessage[],
+  requestLength: number,
+): TemporaryChatUIStateInput[] {
+  const dropped = fullHistory.length - requestLength;
+  const result: TemporaryChatUIStateInput[] = [];
+  for (const entry of entries) {
+    const message = messages.find((item) => item.id === entry.messagePublicID && item.role === "assistant");
+    if (!message) {
+      continue;
+    }
+    const historyIndex = message.historyOffset + 1;
+    const messageIndex = historyIndex - dropped;
+    if (messageIndex < 0 || messageIndex >= requestLength || fullHistory[historyIndex]?.role !== "assistant") {
+      continue;
+    }
+    result.push({ messageIndex, blockID: entry.blockID, title: entry.title, state: entry.state });
+  }
+  return result;
 }
 
 function isImageAttachment(item: PendingAttachment): boolean {
@@ -182,6 +241,7 @@ export function useChatTemporaryRuntime({
   onDraftChange,
   onAttachmentsConsumed,
   releaseAttachments,
+  collectUIStates,
 }: TemporaryChatRuntimeInput) {
   const t = useTranslations("chat.temporary");
   const tSubmit = useTranslations("chat.submit");
@@ -400,7 +460,16 @@ export function useChatTemporaryRuntime({
       content: normalizedContent,
       attachments: localAttachments,
     };
-    const preparedRequest = prepareTemporaryRequestHistory([...baseHistory, userHistory]);
+    const fullHistory = [...baseHistory, userHistory];
+    const preparedRequest = prepareTemporaryRequestHistory(fullHistory);
+    const turnUIStates = collectUIStates
+      ? toTemporaryUIStates(
+          collectUIStates(currentMessages.slice(0, insertionIndex).map(toAreaMessage)),
+          currentMessages,
+          fullHistory,
+          preparedRequest.messages.length,
+        )
+      : [];
     let streamedAssistantText = "";
     let moderationBlocked = false;
 
@@ -419,6 +488,8 @@ export function useChatTemporaryRuntime({
           knowledgeBaseIDs: selectedKnowledgeBaseIDs.length > 0 ? selectedKnowledgeBaseIDs : undefined,
           htmlVisualPrompt: htmlVisualPromptEnabled || undefined,
           uiComponentIDs: uiComponentIDs.length > 0 ? uiComponentIDs : undefined,
+          uiBlockVersion: uiComponentIDs.length > 0 ? UI_BLOCK_FORMAT_VERSION : undefined,
+          uiStates: turnUIStates.length > 0 ? turnUIStates : undefined,
           messages: preparedRequest.messages,
         },
         {
@@ -542,6 +613,7 @@ export function useChatTemporaryRuntime({
     return true;
   }, [
     active,
+    collectUIStates,
     finishSending,
     htmlVisualPromptEnabled,
     model,
@@ -573,6 +645,24 @@ export function useChatTemporaryRuntime({
     });
   }, [attachments, draft, submitTurn, t]);
 
+  // An interactive block's `ask`: the text becomes the next turn; the draft and
+  // its attachments are left alone.
+  const sendText = React.useCallback(
+    async (text: string) => {
+      const content = text.trim();
+      if (!content || sendingRef.current) {
+        return false;
+      }
+      return submitTurn({
+        content,
+        localAttachments: [],
+        baseHistory: [...historyRef.current],
+        consumeComposer: false,
+      });
+    },
+    [submitTurn],
+  );
+
   const resolveUserTurn = React.useCallback((message: ChatAreaMessage) => {
     const messageIndex = messagesRef.current.findIndex((item) => item.id === message.publicID);
     if (messageIndex < 0) {
@@ -591,8 +681,8 @@ export function useChatTemporaryRuntime({
     return null;
   }, []);
 
-  // reasoningEffort overrides the level for this single regeneration; the composer selection is unchanged.
-  const retryMessage = React.useCallback(async (message: ChatAreaMessage, reasoningEffort?: ReasoningEffortLevel) => {
+  // Retries the turn with the composer's current settings, including its reasoning effort.
+  const retryMessage = React.useCallback(async (message: ChatAreaMessage) => {
     const turn = resolveUserTurn(message);
     if (!turn) {
       toast.error(t("failed"));
@@ -604,7 +694,6 @@ export function useChatTemporaryRuntime({
       baseHistory: historyRef.current.slice(0, turn.message.historyOffset),
       replaceFromIndex: turn.index,
       consumeComposer: false,
-      optionsOverride: reasoningEffort ? withChatReasoningEffortOverride({}, reasoningEffort) : undefined,
     });
   }, [resolveUserTurn, submitTurn, t]);
 
@@ -672,36 +761,13 @@ export function useChatTemporaryRuntime({
     return true;
   }, [replaceMessageTail, resolveUserTurn, t, updateMessage]);
 
-  const areaMessages = React.useMemo<ChatAreaMessage[]>(
-    () => messages.map((message): ChatAreaMessage => ({
-      key: message.id,
-      publicID: message.id,
-      parentPublicID: message.parentID ?? null,
-      sourcePublicID: null,
-      role: message.role,
-      content: message.content,
-      branchReason: "default",
-      status: message.failed ? "failed" : message.streaming ? "processing" : "completed",
-      isStreaming: message.streaming,
-      platformModelName: message.model,
-      runID: message.runID,
-      inputTokens: message.inputTokens,
-      outputTokens: message.outputTokens,
-      latencyMS: message.latencyMS,
-      reasoningEffort: message.reasoningEffort,
-      activityLabel: message.activityLabel,
-      processTrace: message.processTrace,
-      knowledgeSources: message.knowledgeSources,
-      inlineAlert: message.inlineAlert,
-      attachments: message.attachments,
-    })),
-    [messages],
-  );
+  const areaMessages = React.useMemo<ChatAreaMessage[]>(() => messages.map(toAreaMessage), [messages]);
 
   return {
     messages: areaMessages,
     sending,
     send,
+    sendText,
     stop,
     loadAttachmentContent,
     onRetryUserMessage: retryMessage,

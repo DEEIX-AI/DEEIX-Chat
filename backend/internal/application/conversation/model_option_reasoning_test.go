@@ -462,3 +462,47 @@ func TestClampAnthropicThinkingBudget(t *testing.T) {
 		t.Fatalf("expected default max tokens, got %d", got)
 	}
 }
+
+// 控件列表按 ReasoningOwnedOptionPaths 隐藏原生参数；这里确认翻译确实覆盖或删除了这些参数，
+// 两边不一致时隐藏的控件会变成用户无法再调整、却仍然生效的参数。
+func TestReasoningOwnedOptionPathsAreOverriddenByTranslation(t *testing.T) {
+	const sentinel = "sentinel"
+	budgets := map[string]int{"high": 8192}
+	cases := []struct {
+		format   string
+		protocol string
+	}{
+		{domainchannel.ReasoningFormatOpenAI, domainchannel.ReasoningProtocolOpenAIChat},
+		{domainchannel.ReasoningFormatOpenAI, domainchannel.ReasoningProtocolOpenAIResponses},
+		{domainchannel.ReasoningFormatAnthropicEffort, domainchannel.ReasoningProtocolAnthropic},
+		{domainchannel.ReasoningFormatAnthropicBudget, domainchannel.ReasoningProtocolAnthropic},
+		{domainchannel.ReasoningFormatGeminiLevel, domainchannel.ReasoningProtocolGeminiGenerate},
+		{domainchannel.ReasoningFormatGeminiLevel, domainchannel.ReasoningProtocolGeminiInteractions},
+		{domainchannel.ReasoningFormatGeminiBudget, domainchannel.ReasoningProtocolGeminiGenerate},
+		{domainchannel.ReasoningFormatQwen, domainchannel.ReasoningProtocolOpenAIChat},
+		{domainchannel.ReasoningFormatToggle, domainchannel.ReasoningProtocolOpenAIChat},
+	}
+	for _, tc := range cases {
+		paths := domainchannel.ReasoningOwnedOptionPaths(tc.format, tc.protocol)
+		if len(paths) == 0 {
+			t.Fatalf("%s on %s: expected owned paths", tc.format, tc.protocol)
+		}
+		options := map[string]any{}
+		for _, path := range paths {
+			value := sentinel
+			// thinking.type 的 enabled / adaptive 会透传，用 disabled 验证翻译会改写它。
+			if path == "thinking.type" {
+				value = "disabled"
+			}
+			writeModelOptionPath(options, splitModelOptionPath(path), value)
+		}
+		capability := domainchannel.ReasoningCapability{Format: tc.format, Levels: []string{"high"}, Default: "high", Budgets: budgets}
+		result := applyReasoningEffortTranslation(options, tc.protocol, capability, "high")
+		for _, path := range paths {
+			value, _ := readModelOptionPath(result, splitModelOptionPath(path))
+			if value == sentinel || (path == "thinking.type" && value == "disabled") {
+				t.Fatalf("%s on %s: %s kept the user value %#v", tc.format, tc.protocol, path, value)
+			}
+		}
+	}
+}

@@ -154,6 +154,7 @@
       "itemCount": "{count} 条",
       "unknownComponent": "不支持的组件 {component}",
       "invalidProps": "组件 {component} 的数据不完整，已显示原始内容",
+      "renderFailed": "组件 {component} 渲染出错，已显示原始内容",
       "reset": "重置",
       "back": "返回",
       "missingNode": "找不到节点 {id}",
@@ -193,7 +194,33 @@
       "diffPrevChange": "上一处修改",
       "diffNextChange": "下一处修改",
       "diffCopyAfter": "复制修改后内容",
-      "quizNext": "下一题"
+      "quizNext": "下一题",
+      "askHint": "发送这条追问（Enter 发送，Shift+Enter 换行）",
+      "askBusy": "等当前回复完成后再发送",
+      "askUnavailable": "这里不能发送消息",
+      "copy": "复制",
+      "copied": "已复制",
+      "copyFailed": "复制失败",
+      "formulaIssues": "{count} 处公式或数据未能处理",
+      "prefilled": "已填入输入框，确认后发送",
+      "prefillSkipped": "输入框里已有内容，组件的文字没有填入",
+      "openInPanel": "在侧栏打开",
+      "panelTitle": "交互组件",
+      "closePanel": "关闭侧栏",
+      "widgetGenerating": "正在绘制交互图解…",
+      "widgetGeneratingTitled": "正在绘制「{title}」…",
+      "widgetTitle": "交互图解",
+      "widgetUnavailable": "当前环境无法运行交互图解，以下是源码",
+      "widgetTooLarge": "交互图解过大，未运行，以下是源码",
+      "viewSource": "查看源码",
+      "hideSource": "收起源码",
+      "askLabel": "追问",
+      "askPlaceholder": "输入要追问的内容",
+      "askSend": "发送追问",
+      "askRestore": "恢复为建议的问题",
+      "imageCount": "{count} 张",
+      "previousImage": "上一张",
+      "nextImage": "下一张"
     },
     "copyLatex": "复制公式源码",
     "latexCopied": "已复制公式源码",
@@ -257,6 +284,7 @@
     "close": "关闭",
     "resize": "调整 Artifact 宽度",
     "empty": "当前 Artifact 为空，暂无法预览。",
+    "generating": "正在生成，代码完成后显示预览。",
     "security": "预览运行在隔离沙箱中，外部网络、表单、弹窗、父页面访问和存储访问均受限制。"
   },
   "messages": {
@@ -345,6 +373,7 @@
     "autoTruncated": "附件已自动截断",
     "autoTruncatedDescription": "最多保留前 {max} 个附件，已忽略 {count} 个超出上限的文件。",
     "uploadFailed": "上传失败",
+    "processingFailed": "“{name}”处理失败",
     "uploadSignInRequired": "未登录，无法上传文件。",
     "dropTitle": "松开以添加附件",
     "duplicateReused": "检测到文件重复，已复用",
@@ -834,7 +863,10 @@
       "toolCalls": "{count} 次工具调用",
       "thinkRounds": "{count} 轮深度思考",
       "duration": "{duration}",
-      "labelSeparator": " · "
+      "labelSeparator": " · ",
+      "detailLoading": "正在加载执行过程",
+      "detailFailed": "执行过程加载失败",
+      "detailRetry": "重试"
     },
     "promptTrace": {
       "modes": {
@@ -1128,10 +1160,7 @@
     "default": "默认",
     "auto": "自动",
     "levelWithDefault": "{level}（默认）",
-    "dialogDescription": "统一的思考强度，服务器会映射为该模型的原生参数。",
-    "regenerate": "重新生成",
-    "regenerateWith": "以指定思考强度重新生成",
-    "usedByReply": "本次回复"
+    "dialogDescription": "统一的思考强度，服务器会映射为该模型的原生参数。"
   },
   "modelControls": {
     "title": "对话参数",

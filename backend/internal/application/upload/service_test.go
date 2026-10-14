@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"image"
+	"image/png"
 	"io"
 	"os"
 	"strings"
@@ -371,6 +373,29 @@ func TestUploadFileAllowsUnlimitedUserStorageQuota(t *testing.T) {
 	}
 }
 
+func TestEnsureStorageAvailableRejectsOnlyFullStorage(t *testing.T) {
+	ctx := context.Background()
+	repo := newUploadTestRepo()
+	service := newUploadTestService(repo, newUploadTestStore())
+	cfg := service.cfg.Snapshot()
+	cfg.UserStorageQuotaBytes = 100
+	service.cfg.Store(cfg)
+
+	repo.quota.UsedBytes = 99
+	if err := service.EnsureStorageAvailable(ctx, 1); err != nil {
+		t.Fatalf("storage with space left was rejected: %v", err)
+	}
+	repo.quota.UsedBytes = 100
+	if err := service.EnsureStorageAvailable(ctx, 1); !errors.Is(err, repository.ErrConflict) {
+		t.Fatalf("expected full storage to be rejected, got %v", err)
+	}
+	cfg.UserStorageQuotaBytes = 0
+	service.cfg.Store(cfg)
+	if err := service.EnsureStorageAvailable(ctx, 1); err != nil {
+		t.Fatalf("unlimited storage was rejected: %v", err)
+	}
+}
+
 func TestNormalizeDetectedMIMEDowngradesActiveContent(t *testing.T) {
 	tests := []struct {
 		detected string
@@ -476,6 +501,49 @@ func TestUploadFileAllowsMP4WhenVideoMP4IsAllowed(t *testing.T) {
 	}
 	if result.File.ProcessingStatus != "uploaded" || !result.File.ProcessingReady {
 		t.Fatalf("video processing state = %q ready=%v, want uploaded ready=true", result.File.ProcessingStatus, result.File.ProcessingReady)
+	}
+}
+
+// 平台生成的制品使用调用方给出的上限，不受管理员为用户上传配置的上限约束。
+func TestUploadFileMaxBytesOverridesConfiguredLimits(t *testing.T) {
+	ctx := context.Background()
+	repo := newUploadTestRepo()
+	store := newUploadTestStore()
+	service := newUploadTestService(repo, store)
+	cfg := service.cfg.Snapshot()
+	cfg.MaxUploadFileBytes = 16
+	cfg.FileImageMaxBytes = 16
+	service.cfg.Store(cfg)
+
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 32, 32))); err != nil {
+		t.Fatalf("encode png: %v", err)
+	}
+	content := encoded.Bytes()
+	input := func(maxBytes int64) UploadFileInput {
+		return UploadFileInput{
+			UserID:       1,
+			Purpose:      "generated_image",
+			FileName:     "generated.png",
+			MimeType:     "image/png",
+			DeclaredSize: int64(len(content)),
+			Reader:       bytes.NewReader(content),
+			MaxBytes:     maxBytes,
+		}
+	}
+
+	if _, err := service.UploadFile(ctx, input(0)); !errors.Is(err, repository.ErrInvalidInput) {
+		t.Fatalf("expected configured limit to reject the image, got %v", err)
+	}
+	if _, err := service.UploadFile(ctx, input(int64(len(content))-1)); !errors.Is(err, repository.ErrInvalidInput) {
+		t.Fatalf("expected MaxBytes to stay enforced, got %v", err)
+	}
+	result, err := service.UploadFile(ctx, input(int64(len(content))))
+	if err != nil {
+		t.Fatalf("expected MaxBytes to replace configured limits: %v", err)
+	}
+	if result.File.FileCategory != fileCategoryImage || result.File.SizeBytes != int64(len(content)) {
+		t.Fatalf("unexpected stored file: %#v", result.File)
 	}
 }
 

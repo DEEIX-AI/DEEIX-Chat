@@ -4,10 +4,12 @@ import * as React from "react";
 import { useChatBranchState } from "@/features/chat/hooks/use-chat-branch-state";
 import { useChatSubmitStream } from "@/features/chat/hooks/use-chat-submit-stream";
 import type { ChatModelOption, PendingAttachment, PendingExchangeMap } from "@/features/chat/types/chat-runtime";
+import type { ChatAreaMessage } from "@/features/chat/types/messages";
 import type {
   ConversationDTO,
   ConversationOptions,
   MessageDTO,
+  MessageUIStateInput,
 } from "@/shared/api/conversation-types";
 import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 
@@ -121,6 +123,7 @@ export function useChatRuntime({
   onConversationRunStarted,
   resumingRunID = "",
   resumingActivityLabel = "",
+  collectUIStates,
 }: {
   conversationID: string | null;
   resetToken: number;
@@ -158,6 +161,8 @@ export function useChatRuntime({
   onConversationRunStarted?: (runID: string, conversationPublicID: string) => void;
   resumingRunID?: string;
   resumingActivityLabel?: string;
+  // Interactive component state on the branch being continued, attached to chat turns.
+  collectUIStates?: (messages: readonly ChatAreaMessage[]) => MessageUIStateInput[];
 }) {
   const [showConversationLayout, setShowConversationLayout] = React.useState(false);
   const previousResetTokenRef = React.useRef(resetToken);
@@ -247,6 +252,7 @@ export function useChatRuntime({
     onConversationRunFinished,
     onConversationRunStarted,
     resumeGenerationActive: visibleResumeGenerationActive,
+    collectUIStates,
   });
 
   React.useEffect(() => {
@@ -278,6 +284,7 @@ export function useChatRuntime({
     onRetryAssistantMessage: submitState.onRetryAssistantMessage,
     onRetryUserMessage: submitState.onRetryUserMessage,
     onSendMessage: submitState.onSendMessage,
+    onSendText: submitState.onSendText,
     onStopMessage: submitState.onStopMessage,
     onDeleteQueuedMessage: submitState.onDeleteQueuedMessage,
     onEditQueuedMessage: submitState.onEditQueuedMessage,

@@ -14,6 +14,7 @@ type ConversationRepository interface {
 	ConversationForkRepository
 	MessageRepository
 	MessageFeedbackRepository
+	MessageUIStateRepository
 	ConversationTraceRepository
 	ContextArtifactRepository
 	MessageEmbeddingRepository

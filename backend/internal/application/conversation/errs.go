@@ -85,6 +85,10 @@ var (
 	ErrMessageNotFound = apperr.New("message.not_found", "message not found")
 	// ErrContextArtifactNotFound 上下文证据不存在或无权限。
 	ErrContextArtifactNotFound = apperr.New("context_artifact.not_found", "context artifact not found")
+	// ErrInvalidMessageUIState 消息组件状态快照不合法。
+	ErrInvalidMessageUIState = apperr.New("message.invalid_ui_state", "invalid message ui state")
+	// ErrMessageUIStateTargetInvalid 组件状态的目标消息不合法（非助手消息或不属于当前会话）。
+	ErrMessageUIStateTargetInvalid = apperr.NewMasked("message.ui_state_target_invalid", "message ui state target invalid", "invalid message ui state target")
 	// ErrInvalidMessageFeedback 消息反馈值不合法。
 	ErrInvalidMessageFeedback = apperr.New("message.invalid_feedback", "invalid message feedback")
 	// ErrMessageFeedbackTargetInvalid 反馈目标消息不合法。

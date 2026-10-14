@@ -1,0 +1,58 @@
+{
+  "title": "Network proxy",
+  "mode": {
+    "title": "Proxy",
+    "description": "Used by the built-in local server for model requests, and by the app for sign-in renewal and update checks.",
+    "system": "Use system settings",
+    "manual": "Manual",
+    "direct": "No proxy"
+  },
+  "fields": {
+    "scheme": "Protocol",
+    "schemeDescription": "HTTP for most proxy apps; SOCKS5 when the proxy only offers that.",
+    "host": "Address",
+    "hostDescription": "Host name or IP address of the proxy.",
+    "port": "Port",
+    "portDescription": "Clash and v2rayN usually listen on 7890 or 10809.",
+    "username": "Username",
+    "usernameDescription": "Only for proxies that require sign-in.",
+    "password": "Password",
+    "passwordDescription": "Stored in the system keychain.",
+    "removePassword": "Remove saved password",
+    "bypass": "Proxy bypass list",
+    "bypassDescription": "One per line, or separated by commas. Host names, *.example.com, IP addresses and ranges such as 192.168.* or 10.0.0.0/8. This computer is always reached directly."
+  },
+  "effective": {
+    "title": "In use",
+    "direct": "Direct connection",
+    "sources": {
+      "policy": "Set by your organization",
+      "manual": "Manual setting",
+      "direct": "No proxy",
+      "environment": "Environment variables",
+      "system": "System settings",
+      "none": "System settings (no proxy configured)"
+    }
+  },
+  "notices": {
+    "managed": "Your organization manages the network proxy for this app.",
+    "restart": "Changes apply after the app restarts. Replies in progress on this computer will stop.",
+    "restartAction": "Restart now",
+    "systemChanged": "The system proxy settings have changed since the app started. Restart to use them.",
+    "pacIgnored": "Your system uses an automatic configuration script (PAC), which the app cannot apply. Requests connect directly; choose Manual to use a proxy.",
+    "webviewNotApplied": "The app window itself keeps following the system proxy settings; this setting covers the local server and the app's own requests."
+  },
+  "toasts": {
+    "saved": "Proxy settings saved",
+    "savedDescription": "They apply after the app restarts.",
+    "saveFailed": "Could not save the proxy settings",
+    "loadFailed": "Could not read the proxy settings"
+  },
+  "errors": {
+    "host": "Enter a host name or IP address, without http:// or a path.",
+    "port": "Enter a port between 1 and 65535.",
+    "bypass": "\"{value}\" is not a host name, address or range.",
+    "policy": "Your organization manages the network proxy for this app.",
+    "storage": "The settings could not be stored: {message}"
+  }
+}

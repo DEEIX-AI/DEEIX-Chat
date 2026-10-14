@@ -160,6 +160,7 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	engine.Use(middleware.AccessLog(log, modules.ErrorRecorder))
 	engine.Use(middleware.SecurityHeaders())
 	engine.Use(middleware.CORS(snapshot.CORSAllowOrigin))
+	engine.Use(middleware.Compress())
 
 	engine.GET("/healthz", func(c *gin.Context) {
 		info := buildinfo.Snapshot()

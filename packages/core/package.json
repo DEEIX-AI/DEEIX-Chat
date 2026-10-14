@@ -1,6 +1,6 @@
 {
   "name": "@deeix/core",
-  "version": "0.4.4-beta.5",
+  "version": "0.4.4",
   "private": true,
   "type": "module",
   "description": "Platform-agnostic client logic shared by web, desktop and mobile. No React, no DOM, no React Native.",
@@ -18,8 +18,7 @@
     "check": "pnpm lint && pnpm typecheck",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
-    "typecheck": "tsc --noEmit --pretty false -p tsconfig.json && tsc --noEmit --pretty false -p tsconfig.test.json",
-    "test": "node --test \"src/**/*.test.ts\""
+    "typecheck": "tsc --noEmit --pretty false -p tsconfig.json"
   },
   "dependencies": {
     "@deeix/api-contract": "workspace:*"

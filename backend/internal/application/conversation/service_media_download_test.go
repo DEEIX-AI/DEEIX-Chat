@@ -1,14 +1,20 @@
 package conversation
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
+	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstorage"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
@@ -57,7 +63,8 @@ func TestReadGeneratedImageDelegatesURLDownloadAndValidatesBytes(t *testing.T) {
 		cfg: config.NewRuntime(config.Config{MaxUploadFileBytes: 1024}),
 		mediaDownloader: generatedMediaDownloaderStub{
 			downloadImage: func(_ context.Context, sourceURL string, trustedProviderEndpoint string, maxBytes int64) ([]byte, string, error) {
-				if sourceURL != "https://cdn.example.test/image" || trustedProviderEndpoint != "http://model.internal:8080/v1" || maxBytes != 1024 {
+				// 生成图片按 maxGeneratedImageBytes 下载，不受用户上传上限约束。
+				if sourceURL != "https://cdn.example.test/image" || trustedProviderEndpoint != "http://model.internal:8080/v1" || maxBytes != maxGeneratedImageBytes {
 					t.Fatalf("unexpected download input: URL=%q trustedEndpoint=%q maxBytes=%d", sourceURL, trustedProviderEndpoint, maxBytes)
 				}
 				return pngHeader, "image/png", nil
@@ -74,6 +81,53 @@ func TestReadGeneratedImageDelegatesURLDownloadAndValidatesBytes(t *testing.T) {
 	}
 	if string(data) != string(pngHeader) || mimeType != "image/png" {
 		t.Fatalf("unexpected generated image: data=%q MIME=%q", data, mimeType)
+	}
+}
+
+// generatedImageUploadRepository 只实现保存一张新文件需要的仓储方法。
+type generatedImageUploadRepository struct {
+	repository.UploadRepository
+}
+
+func (generatedImageUploadRepository) GetUserByID(context.Context, uint) (*domainuser.User, error) {
+	return &domainuser.User{ID: 1, PublicID: "user_1", Status: domainuser.StatusActive}, nil
+}
+
+func (generatedImageUploadRepository) GetLatestActiveFileObjectBySHA(context.Context, uint, string, int64) (*model.FileObject, error) {
+	return nil, nil
+}
+
+func (generatedImageUploadRepository) CreateFileObjectAndConsumeQuota(_ context.Context, item *model.FileObject, quotaLimit int64) (*model.StorageQuota, error) {
+	return &model.StorageQuota{UserID: item.UserID, QuotaBytes: quotaLimit, UsedBytes: item.SizeBytes}, nil
+}
+
+func (generatedImageUploadRepository) GetOrInitUserStorageQuota(_ context.Context, userID uint, quotaLimit int64) (*model.StorageQuota, error) {
+	return &model.StorageQuota{UserID: userID, QuotaBytes: quotaLimit}, nil
+}
+
+// 4K PNG 输出常超过 20 MiB 的默认上传上限；生成图片按自身上限保存，不受用户上传上限约束。
+func TestSaveAssistantImagesIgnoresUserUploadLimits(t *testing.T) {
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 64, 64))); err != nil {
+		t.Fatalf("encode png: %v", err)
+	}
+	runtimeCfg := config.NewRuntime(config.Config{MaxUploadFileBytes: 16, FileImageMaxBytes: 16})
+	uploadSvc := appupload.NewServiceWithRuntime(runtimeCfg, generatedImageUploadRepository{}, nil, appupload.Hooks{}, appupload.ErrorSet{
+		FileTooLarge: ErrFileTooLarge,
+	}, "test")
+	uploadSvc.SetObjectStoreProvider(&conversationTestStoreProvider{store: objectstorage.NewLocal(t.TempDir())})
+	service := &Service{cfg: runtimeCfg, uploadSvc: uploadSvc}
+
+	result, err := service.saveAssistantImages(t.Context(), assistantImageSaveInput{
+		UserID:    1,
+		ModelName: "image-model",
+		Images:    []assistantImagePayload{{Bytes: encoded.Bytes(), MIMEType: "image/png"}},
+	})
+	if err != nil {
+		t.Fatalf("save generated image: %v", err)
+	}
+	if result == nil || len(result.AttachmentRows) != 1 || result.AttachmentRows[0].FileSize != int64(encoded.Len()) {
+		t.Fatalf("unexpected saved image: %#v", result)
 	}
 }
 

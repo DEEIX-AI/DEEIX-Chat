@@ -223,6 +223,21 @@ func TestResolveMessageSystemPromptInjectionAddsUIComponentsCatalog(t *testing.T
 	}
 }
 
+func TestResolveMessageSystemPromptInjectionUsesDeclaredBlockFormat(t *testing.T) {
+	route := &channel.ResolvedRoute{Protocol: llm.AdapterOpenAIResponses}
+	cfg := config.Config{UIComponentsEnabled: true}
+
+	static := resolveMessageSystemPromptInjection(cfg, route, "", requestPromptOptions{UIComponents: domainuicomponent.Builtin()})
+	live := resolveMessageSystemPromptInjection(cfg, route, "", requestPromptOptions{UIComponents: domainuicomponent.Builtin(), UIBlockVersion: domainuicomponent.BlockFormatLive})
+
+	if strings.Contains(static.Content, "<live>") || !strings.Contains(static.Content, `<component name="calculator">`) {
+		t.Fatal("a client without a declared block format keeps the static catalog")
+	}
+	if !strings.Contains(live.Content, "<live>") || strings.Contains(live.Content, `<component name="calculator">`) {
+		t.Fatal("an interactive-format client gets live blocks instead of calculator")
+	}
+}
+
 func TestResolveMessageSystemPromptInjectionOrdersFormatBeforeUIComponents(t *testing.T) {
 	route := &channel.ResolvedRoute{Protocol: llm.AdapterOpenAIResponses}
 
@@ -235,6 +250,46 @@ func TestResolveMessageSystemPromptInjectionOrdersFormatBeforeUIComponents(t *te
 	}
 }
 
+func TestResolveMessageSystemPromptInjectionRoutesBetweenHTMLVisualAndUIComponents(t *testing.T) {
+	route := &channel.ResolvedRoute{Protocol: llm.AdapterOpenAIResponses}
+
+	got := resolveMessageSystemPromptInjection(config.Config{UIComponentsEnabled: true}, route, "", requestPromptOptions{HTMLVisual: true, UIComponents: domainuicomponent.Builtin()})
+
+	format := strings.Index(got.Content, "<format p=")
+	routing := strings.Index(got.Content, "<routing>")
+	components := strings.Index(got.Content, "<ui-components p=")
+	if format < 0 || routing < format || routing > components {
+		t.Fatalf("expected routing inside the format layer, ahead of the catalog, got %q", got.Content)
+	}
+	for _, want := range []string{`<use target="ui-components">`, `<use target="html-visual">`, `<use target="artifact">`, "目录里没有对应组件时才用 HTML", htmlVisualPromptComponentRequire} {
+		if !strings.Contains(got.Content, want) {
+			t.Fatalf("expected routing to contain %q, got %q", want, got.Content)
+		}
+	}
+	if strings.Contains(got.Content, htmlVisualPromptDefaultRequire) {
+		t.Fatal("with ui-components on, html-visual must not be pushed over the components")
+	}
+}
+
+func TestResolveMessageSystemPromptInjectionKeepsHTMLVisualOnlyPromptUnchanged(t *testing.T) {
+	route := &channel.ResolvedRoute{Protocol: llm.AdapterOpenAIResponses}
+
+	cases := []struct {
+		name    string
+		cfg     config.Config
+		options requestPromptOptions
+	}{
+		{name: "no components declared", cfg: config.Config{UIComponentsEnabled: true}, options: requestPromptOptions{HTMLVisual: true}},
+		{name: "components disabled by admin", cfg: config.Config{UIComponentsEnabled: false}, options: requestPromptOptions{HTMLVisual: true, UIComponents: domainuicomponent.Builtin()}},
+	}
+	for _, tc := range cases {
+		got := resolveMessageSystemPromptInjection(tc.cfg, route, "", tc.options)
+		if strings.Contains(got.Content, "<routing>") || !strings.Contains(got.Content, htmlVisualPromptDefaultRequire) {
+			t.Fatalf("%s: expected the html-visual-only prompt, got %q", tc.name, got.Content)
+		}
+	}
+}
+
 func TestResolveMessageSystemPromptInjectionHonorsUIComponentsSetting(t *testing.T) {
 	route := &channel.ResolvedRoute{Protocol: llm.AdapterOpenAIResponses}
 
@@ -242,5 +297,25 @@ func TestResolveMessageSystemPromptInjectionHonorsUIComponentsSetting(t *testing
 
 	if strings.Contains(got.Content, "<ui-components") {
 		t.Fatal("admin setting off must suppress the catalog even when the client declares support")
+	}
+}
+
+// 可交互格式的 routing 把组件门槛交给组件层 <when>；静态格式的 routing 逐字不变。
+func TestHTMLVisualRoutingDefersToComponentRulesForLiveClients(t *testing.T) {
+	route := &channel.ResolvedRoute{Protocol: llm.AdapterOpenAIResponses}
+	cfg := config.Config{UIComponentsEnabled: true}
+	static := resolveMessageSystemPromptInjection(cfg, route, "", requestPromptOptions{HTMLVisual: true, UIComponents: domainuicomponent.Builtin()})
+	live := resolveMessageSystemPromptInjection(cfg, route, "", requestPromptOptions{HTMLVisual: true, UIComponents: domainuicomponent.Builtin(), UIBlockVersion: domainuicomponent.BlockFormatLive})
+
+	if !strings.Contains(static.Content, htmlVisualPromptComponentRouting) {
+		t.Fatal("static routing must stay byte for byte")
+	}
+	if strings.Contains(live.Content, "十行以上的表格") || !strings.Contains(live.Content, "以 ui-components 层的 <when> 为准") {
+		t.Fatal("interactive routing must defer the thresholds to the component layer")
+	}
+	for _, target := range []string{`target="markdown"`, `target="html-visual"`, `target="artifact"`, "判断口径"} {
+		if !strings.Contains(live.Content, target) {
+			t.Fatalf("interactive routing lost %q", target)
+		}
 	}
 }

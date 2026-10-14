@@ -319,6 +319,8 @@
     "invalidContent": "消息内容无效。",
     "invalidFeedback": "消息反馈无效。",
     "invalidId": "消息 ID 无效。",
+    "invalidUiState": "组件状态无效或超出大小限制。",
+    "uiStateTargetInvalid": "该消息暂时无法保存组件状态。",
     "notFound": "消息不存在。",
     "multipleImageProcessors": "一条消息只能选择一个图片处理器。",
     "tooManyFiles": "单条消息包含的文件过多。",
@@ -350,7 +352,7 @@
     "webhookNotConfigured": "支付回调尚未配置。"
   },
   "quota": {
-    "exceeded": "额度已用尽。"
+    "exceeded": "存储空间已满，请前往“文件”删除无用文件。"
   },
   "rateLimit": {
     "authenticationExceeded": "认证尝试次数过多，请稍后再试。",

@@ -101,6 +101,9 @@ func (r *Repo) CreateForkedConversation(ctx context.Context, input repository.Cr
 		if err := cloneForkedAttachments(tx, target.UserID, input.SourceConversationID, createdConversation.ID, targetMessageIDs); err != nil {
 			return err
 		}
+		if err := cloneForkedMessageUIStates(tx, target.UserID, input.SourceConversationID, createdConversation.ID, targetMessageIDs); err != nil {
+			return err
+		}
 		return cloneForkedDisplayTraces(tx, target.UserID, input.SourceConversationID, createdConversation.ID, targetMessageIDs)
 	})
 	if err != nil {

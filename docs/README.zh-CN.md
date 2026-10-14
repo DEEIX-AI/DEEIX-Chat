@@ -289,6 +289,8 @@ docker compose -f docker-compose.full.yml up -d
 | PostgreSQL 数据 | `/var/lib/postgresql/data`，仅全量安装 |
 | Redis 数据 | `/data`，仅全量安装 |
 
+PostgreSQL 迁移到其他机器时，请用 `pg_dump` 导出，再导入新初始化的数据库。不要在 C 库或 locale 不同的镜像之间直接拷贝数据目录或数据卷（例如 `postgres:*-alpine` 与基于 Debian 的 `pgvector/pgvector`）：文本索引按建立时的排序规则排列，这样迁移后唯一索引会查不到已有行，从而产生重复数据。已经这样迁移过的数据库，请执行 `REINDEX DATABASE <库名>;`；若服务端提示排序规则版本不一致，再执行 `ALTER DATABASE <库名> REFRESH COLLATION VERSION;`。存在重复行时重建会失败，需要先清理重复行。应用启动时会自动清理 `system_settings` 的重复行并重建该表索引，同时输出警告日志。
+
 默认应用镜像为 `ghcr.io/deeix-ai/deeix-chat:latest`。Compose 文件只引用镜像，不定义构建步骤。测试本地构建时先在仓库根目录生成镜像，再通过 `DEEIX_CHAT_IMAGE` 选择它：
 
 ```bash
@@ -467,7 +469,7 @@ docker compose logs app
 
 生产环境启用 SSRF 防护后，管理员保存的模型、MCP、Embedding、OIDC/OAuth2 和自定义 Turnstile endpoint 均按精确 origin（协议、主机和端口）获得局部授权，不需要加入全局白名单。模型、MCP 与 Embedding 保留标准重定向兼容性：跨 origin 的公网目标可以继续访问，跨 origin 的私网目标必须命中 `SSRF_ALLOWED_HOSTS` 或 `SSRF_ALLOWED_CIDRS`；OIDC/OAuth2 与 Turnstile 继续维持更严格的身份边界。模型生成的图片或视频由后端下载、校验并转存：私网制品 URL 只有与本次选中的模型 endpoint 同 origin 时才继承该局部信任；跨 origin 的公网制品仍按严格公网策略下载，跨 origin 的私网制品会被拦截。全局白名单也继续用于无法绑定管理员保存 endpoint 的部署级集成，例如部分 GeoIP 或提取服务部署。链路本地、组播、未指定地址和已知云元数据目标始终禁止。白名单配置不合法会阻止后端启动；全局白名单修改后需重启生效。
 
-出站请求遵守标准代理环境变量 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY`，开启 SSRF 防护时同样生效。代理地址本身视为部署方授权；选择代理前仍会按 SSRF 策略校验目标 URL，元数据地址等禁止目标照样拒绝；不走代理的请求（命中 `NO_PROXY` 或回环地址）仍走完整的 DNS 校验拨号流程。请求经代理发出时，目标域名由代理解析；交给代理前，后端会拒绝 `127.1`、`2130706433` 这类数字主机名，并在本地预解析一次域名，任一解析结果被策略禁止即拒绝，本地解析失败则交由代理处理。这无法防御代理侧的 DNS rebinding，DNS 层面的出口控制仍由部署方的代理负责。`config.yaml` 中没有代理配置项，代理地址与凭据只放在部署环境变量里。Go 不读取 `ALL_PROXY`，使用 SOCKS 代理时请把 `HTTP_PROXY` 和 `HTTPS_PROXY` 设为 `socks5://` 地址；只设置了 `ALL_PROXY` 时，后端启动会记录 `outbound_proxy_ignored` 告警并直连。修改代理环境变量需要重启后端。
+出站请求遵守标准代理环境变量 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY`，开启 SSRF 防护时同样生效。代理地址本身视为部署方授权；选择代理前仍会按 SSRF 策略校验目标 URL，元数据地址等禁止目标照样拒绝；不走代理的请求（命中 `NO_PROXY` 或回环地址）仍走完整的 DNS 校验拨号流程。请求经代理发出时，目标域名由代理解析；交给代理前，后端会拒绝 `127.1`、`2130706433` 这类数字主机名，并在本地预解析一次域名，任一解析结果被策略禁止即拒绝，本地解析失败则交由代理处理。这无法防御代理侧的 DNS rebinding，DNS 层面的出口控制仍由部署方的代理负责。`config.yaml` 中没有代理配置项，代理地址与凭据只放在部署环境变量里。Go 不读取 `ALL_PROXY`，使用 SOCKS 代理时请把 `HTTP_PROXY` 和 `HTTPS_PROXY` 设为 `socks5://` 地址；只设置了 `ALL_PROXY` 时，后端启动会记录 `outbound_proxy_ignored` 告警并直连。修改代理环境变量需要重启后端。桌面端本地模式下，这些变量由桌面应用根据「设置 › 网络」中的选择（默认跟随系统代理）为内置服务设置，详见 [apps/desktop/README.md](../apps/desktop/README.md#network-proxy)。
 
 ### Web、App 与桌面端 OAuth 回调
 

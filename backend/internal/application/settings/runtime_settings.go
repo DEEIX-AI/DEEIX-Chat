@@ -30,7 +30,7 @@ func NewRuntimeSettings(repo repository.SettingsRepository, cache repository.Set
 
 // ApplyTo 从 DB 加载动态配置并覆盖到 cfg，同时写入 Redis 缓存。
 func (r *RuntimeSettings) ApplyTo(ctx context.Context, runtime *config.Runtime) error {
-	items, err := r.repo.ListAll(ctx)
+	items, err := listAllSettings(ctx, r.repo)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,11 @@
+{"component": "panel", "id": "gravity", "title": "重力 F = mg",
+ "state": {"m": 9, "g": 9.8},
+ "children": [
+   {"component": "formula", "name": "F_g", "expr": "m * g", "unit": "N", "precision": 1},
+   {"component": "slider", "bind": "m", "label": "质量 m", "min": 1, "max": 20, "unit": "kg"},
+   {"component": "slider", "bind": "g", "label": "重力加速度 g", "min": 1, "max": 25, "step": 0.1, "unit": "m/s²"},
+   {"component": "scene", "width": 240, "height": 220, "shapes": [
+     {"type": "rect", "x": 80, "y": 20, "w": 80, "h": 50, "label": "{m} kg", "tone": "info"},
+     {"type": "arrow", "x1": 120, "y1": 70, "x2": 120, "y2": "{70 + min(m * g, 260) / 2}", "label": "{round(m * g, 1)} N", "tone": "negative"},
+     {"type": "line", "x1": 20, "y1": 205, "x2": 220, "y2": 205, "tone": "muted"}]},
+   {"component": "button", "ask": "质量 {m} kg、g = {g} 时，从 10 米高处落下要多久？"}]}

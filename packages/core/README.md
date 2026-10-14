@@ -9,6 +9,7 @@ Platform-agnostic client logic shared by `apps/web`, `apps/desktop` and `apps/mo
 | `auth/errors` | `classifyAuthError`, `SESSION_TERMINATING_ERROR_CODES` | Map `{status, errorCode}` to `unauthorized` / `session_terminated` / `other`. Contract with `backend/.../auth/errors.go`. |
 | `auth/refresh` | `createAuthClient(host)` | Refresh state machine: in-flight dedup, optional cross-tab lock, revision guard, 401 → refresh → single retry → clear on terminal error. |
 | `server/url` | `normalizeApiBaseUrl`, `resolveApiBaseUrl` | Strict http(s) base URL validation and runtime → build-time → same-origin resolution. |
+| `ui-block` | `parseBlockSource`, `compileBlock`, `resolveBlock`, `readMessageUIBlocks`, `replaceUIBlockFences`, `formulaToLatex`, `isUIPrimitive`, `UI_BLOCK_FORMAT_VERSION` | Interactive `deeix-ui` blocks without running model code: streaming-tolerant JSON, a whitelisted expression language, `{formula}` templates, computed values, bindings, actions and per-point data. Rendering stays in the host. |
 
 A host implements `AuthHost` (`SessionStore`, `refreshSession`, `classifyError`, optional `lock`).
 Web: `apps/web/shared/auth/auth-client.ts`. Desktop/mobile add their own host; the policy is never copied.
@@ -25,11 +26,3 @@ SSE parsing and message stream reducers (when a second client needs them).
 
 Hosts inject I/O through interfaces defined here. `tsconfig.json` has no `DOM` lib and
 `biome.jsonc` blocks framework imports, so violations fail `pnpm check`.
-
-## Testing
-
-Tests run with Node's built-in runner and must not need a browser or device:
-
-```bash
-pnpm --filter @deeix/core test
-```

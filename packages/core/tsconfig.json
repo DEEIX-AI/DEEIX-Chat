@@ -8,13 +8,12 @@
     "target": "ES2022",
     // Deliberately no "DOM" lib and no ambient types: `window`, `document`,
     // `localStorage`, `process` etc. must fail to typecheck here.
-    // Platform I/O is injected by the host app. Tests use tsconfig.test.json.
+    // Platform I/O is injected by the host app.
     "lib": ["ES2022"],
     "types": [],
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts"]
+  "include": ["src/**/*.ts"]
 }

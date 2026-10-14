@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ChatArtifactSVGPreview } from "@/features/chat/components/sections/chat-artifact-svg-preview";
@@ -38,6 +39,8 @@ import {
 
 type ChatArtifactWorkspaceProps = {
   artifact: ChatArtifact | null;
+  // An interactive block shown in the panel instead of a code artifact.
+  blockPanel?: React.ReactNode;
   artifacts: ChatArtifact[];
   isInlineViewport: boolean;
   onArtifactChange: (artifactID: string) => void;
@@ -64,6 +67,7 @@ const workspaceTransition = {
   ease: [0.16, 1, 0.3, 1] as const,
 };
 const DESKTOP_SHELL_GUTTER_PX = 16;
+const LIVE_SOURCE_FOLLOW_THRESHOLD_PX = 24;
 
 function artifactLanguageLabel(artifact: ChatArtifact): string {
   if (artifact.kind === "javascript") return "JS";
@@ -129,6 +133,41 @@ function ArtifactPreviewFrame({ documentHTML, title }: ArtifactPreviewFrameProps
   );
 }
 
+// Shown in the preview tab while the code block is still streaming. Follows the newest line
+// unless the user has scrolled up to read.
+function ArtifactLiveSource({ code, notice }: { code: string; notice: string }) {
+  const scrollRef = React.useRef<HTMLPreElement | null>(null);
+  const followRef = React.useRef(true);
+
+  React.useEffect(() => {
+    const node = scrollRef.current;
+    if (node && followRef.current) {
+      node.scrollTop = node.scrollHeight;
+    }
+  }, [code]);
+
+  const handleScroll = React.useCallback((event: React.UIEvent<HTMLPreElement>) => {
+    const node = event.currentTarget;
+    followRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < LIVE_SOURCE_FOLLOW_THRESHOLD_PX;
+  }, []);
+
+  return (
+    <div className="flex h-full min-h-[320px] flex-col">
+      <p className="flex shrink-0 items-center gap-1.5 border-b border-border/40 px-4 py-2 text-xs text-muted-foreground">
+        <Spinner className="size-3" />
+        {notice}
+      </p>
+      <pre
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="min-h-0 flex-1 overflow-auto bg-muted/20 p-4 text-xs leading-5 text-foreground"
+      >
+        <code className="font-mono">{code}</code>
+      </pre>
+    </div>
+  );
+}
+
 function ChatArtifactPanel({
   artifact,
   artifacts,
@@ -150,21 +189,18 @@ function ChatArtifactPanel({
     setPreviewTheme(captureHTMLVisualThemeSnapshot(resolvedTheme));
   }, [chatFont, chatFontWeight, fontSize, preset, resolvedTheme]);
 
-  const artifactPreview = React.useMemo(
-    () =>
-      artifact.kind === "svg"
-        ? ({ mode: "svg" } as const)
-        : ({
-            documentHTML: buildArtifactPreviewDocument(
-              artifact.kind,
-              artifact.code,
-              previewTheme,
-            ),
-            mode: "frame",
-          } as const),
-    [artifact.code, artifact.kind, previewTheme],
-  );
+  // A document is only built once its code block has closed: rebuilding srcdoc on every
+  // streamed chunk reloads the frame and re-runs a half-written page each time.
+  const artifactPreview = React.useMemo(() => {
+    if (!artifact.complete) return { mode: "pending" } as const;
+    if (artifact.kind === "svg") return { mode: "svg" } as const;
+    return {
+      documentHTML: buildArtifactPreviewDocument(artifact.kind, artifact.code, previewTheme),
+      mode: "frame",
+    } as const;
+  }, [artifact.code, artifact.complete, artifact.kind, previewTheme]);
   const canPreview = artifact.code.trim().length > 0;
+  const canDownload = canPreview && artifactPreview.mode !== "pending";
   const artifactOptions = React.useMemo(
     () => artifacts.map((item, index) => ({ item, label: artifactLabel(item, index) })),
     [artifacts],
@@ -179,10 +215,12 @@ function ChatArtifactPanel({
       );
       return;
     }
-    downloadBlob(
-      new Blob([artifactPreview.documentHTML], { type: "text/html;charset=utf-8" }),
-      resolveArtifactDownloadName(artifact.kind),
-    );
+    if (artifactPreview.mode === "frame") {
+      downloadBlob(
+        new Blob([artifactPreview.documentHTML], { type: "text/html;charset=utf-8" }),
+        resolveArtifactDownloadName(artifact.kind),
+      );
+    }
   }, [artifact.kind, artifact.code, artifactPreview, canPreview]);
 
   return (
@@ -239,7 +277,7 @@ function ChatArtifactPanel({
             </Tooltip>
             <ArtifactActionButton
               label={artifact.kind === "svg" ? t("downloadSvg") : t("downloadHtml")}
-              disabled={!canPreview}
+              disabled={!canDownload}
               onClick={handleDownload}
             >
               <Download className="size-3" />
@@ -251,26 +289,26 @@ function ChatArtifactPanel({
         </div>
 
         <TabsContent value="preview" className="mt-0 min-h-0 flex-1 overflow-hidden">
-          {canPreview ? (
-            artifactPreview.mode === "svg" ? (
-              <ChatArtifactSVGPreview
-                complete={artifact.complete}
-                invalidMessage={t("invalidSvg")}
-                source={artifact.code}
-                theme={previewTheme}
-                title={t("previewTitle")}
-              />
-            ) : (
-              <ArtifactPreviewFrame
-                key={artifact.id}
-                documentHTML={artifactPreview.documentHTML}
-                title={t("previewTitle")}
-              />
-            )
-          ) : (
+          {!canPreview ? (
             <div className="flex h-full min-h-[320px] items-center justify-center bg-muted/15 px-6 text-center text-sm text-muted-foreground">
               {t("empty")}
             </div>
+          ) : artifactPreview.mode === "pending" ? (
+            <ArtifactLiveSource code={artifact.code} notice={t("generating")} />
+          ) : artifactPreview.mode === "svg" ? (
+            <ChatArtifactSVGPreview
+              complete={artifact.complete}
+              invalidMessage={t("invalidSvg")}
+              source={artifact.code}
+              theme={previewTheme}
+              title={t("previewTitle")}
+            />
+          ) : (
+            <ArtifactPreviewFrame
+              key={artifact.id}
+              documentHTML={artifactPreview.documentHTML}
+              title={t("previewTitle")}
+            />
           )}
         </TabsContent>
 
@@ -286,6 +324,7 @@ function ChatArtifactPanel({
 
 export function ChatArtifactWorkspace({
   artifact,
+  blockPanel = null,
   artifacts,
   isInlineViewport,
   onArtifactChange,
@@ -294,7 +333,8 @@ export function ChatArtifactWorkspace({
   onResizeStart,
 }: ChatArtifactWorkspaceProps) {
   const t = useTranslations("chat.artifacts");
-  const isDesktopOpen = Boolean(artifact && isInlineViewport);
+  const open = Boolean(artifact || blockPanel);
+  const isDesktopOpen = open && isInlineViewport;
   const desktopBleedWidth = `calc(100% + ${DESKTOP_SHELL_GUTTER_PX}px)`;
 
   return (
@@ -314,7 +354,7 @@ export function ChatArtifactWorkspace({
         }}
       >
         <AnimatePresence initial={false}>
-          {artifact ? (
+          {open ? (
             <motion.div
               key="artifact-panel-desktop"
               className="relative h-full min-h-0 overflow-hidden"
@@ -334,20 +374,22 @@ export function ChatArtifactWorkspace({
               >
                 <span className="h-9 w-1 translate-x-2 rounded-full bg-foreground/20 opacity-0 transition-[background-color,opacity] group-hover:bg-foreground/32 group-hover:opacity-100 group-focus-visible:bg-foreground/32 group-focus-visible:opacity-100" />
               </button>
-              <ChatArtifactPanel
-                artifact={artifact}
-                artifacts={artifacts}
-                className="h-full"
-                onArtifactChange={onArtifactChange}
-                onClose={onClose}
-              />
+              {blockPanel ?? (artifact ? (
+                <ChatArtifactPanel
+                  artifact={artifact}
+                  artifacts={artifacts}
+                  className="h-full"
+                  onArtifactChange={onArtifactChange}
+                  onClose={onClose}
+                />
+              ) : null)}
             </motion.div>
           ) : null}
         </AnimatePresence>
       </motion.div>
 
       <AnimatePresence initial={false}>
-        {artifact ? (
+        {open ? (
           <motion.div
             key="artifact-panel-mobile"
             className="absolute inset-0 z-30 min-h-0 overflow-hidden md:hidden"
@@ -357,13 +399,15 @@ export function ChatArtifactWorkspace({
             transition={workspaceTransition}
             style={{ willChange: "transform, opacity" }}
           >
-            <ChatArtifactPanel
-              artifact={artifact}
-              artifacts={artifacts}
-              className="h-full"
-              onArtifactChange={onArtifactChange}
-              onClose={onClose}
-            />
+            {blockPanel ?? (artifact ? (
+              <ChatArtifactPanel
+                artifact={artifact}
+                artifacts={artifacts}
+                className="h-full"
+                onArtifactChange={onArtifactChange}
+                onClose={onClose}
+              />
+            ) : null)}
           </motion.div>
         ) : null}
       </AnimatePresence>

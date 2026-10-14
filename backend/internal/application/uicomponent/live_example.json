@@ -1,0 +1,12 @@
+{"component": "panel", "id": "loan", "title": "房贷计算器",
+ "state":    {"amount": 100, "years": 30},
+ "computed": {"r": "3.5 / 1200", "n": "years * 12",
+              "monthly": "amount * 10000 * r * (1+r)^n / ((1+r)^n - 1)"},
+ "children": [
+   {"component": "slider", "bind": "amount", "label": "贷款金额（万）", "min": 10, "max": 500},
+   {"component": "slider", "bind": "years",  "label": "贷款年限", "min": 5, "max": 30},
+   {"component": "stat",   "label": "每月还款", "value": "{round(monthly)}", "unit": "元"},
+   {"component": "chart",  "type": "line", "x": "{range(1, years)}",
+    "series": [{"name": "剩余本金（万）", "data": "{amount * ((1+r)^n - (1+r)^(x*12)) / ((1+r)^n - 1)}"}]},
+   {"component": "button", "ask": "按 {amount} 万、{years} 年，列出逐年还款计划"}
+ ]}

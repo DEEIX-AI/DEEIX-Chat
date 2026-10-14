@@ -50,6 +50,10 @@ var (
 	ErrMessageDeleteRootInvalid = errors.New("message delete root invalid")
 	// ErrMessageParentDeleted 父消息已被删除，无法再挂在其下创建新消息。
 	ErrMessageParentDeleted = errors.New("message parent deleted")
+	// ErrMessageUIStateInvalid 组件状态快照不合法（块 ID 或状态内容非法）。
+	ErrMessageUIStateInvalid = errors.New("message ui state invalid")
+	// ErrMessageUIStateLimitExceeded 单条消息保存的组件块数量达到上限。
+	ErrMessageUIStateLimitExceeded = errors.New("message ui state limit exceeded")
 
 	// 上游与模型仓储语义错误。
 	ErrUpstreamNotFound           = errors.New("upstream not found")

@@ -126,7 +126,7 @@
   "tooManyFiles": "单次最多选择或上传 {max} 个文件",
   "uploadSucceededAddFailed": "文件已上传，但加入知识库失败",
   "partialUploadFailed": "部分文件上传失败",
-  "partialUploadDescription": "成功 {success} 个，失败 {failed} 个。",
+  "partialUploadDescription": "成功 {success} 个，失败 {failed} 个。{reason}",
   "deletePlatformFile": "删除",
   "deletePlatformFileTitle": "删除平台资料",
   "deletePlatformFileDescription": "确定删除「{name}」？此操作无法撤销。",

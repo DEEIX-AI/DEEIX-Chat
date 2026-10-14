@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Sparkles } from "lucide-react";
+import { CircleAlert, Sparkles } from "lucide-react";
 
 import { AgentTraceStep } from "@/features/chat/components/message/message-agent-trace-step";
 import { ChevronDown } from "@/components/animate-ui/icons/chevron-down";
@@ -13,6 +13,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Marker, MarkerContent } from "@/components/ui/marker";
+import { Spinner } from "@/components/ui/spinner";
 import type { ChatTraceBlock, ChatTraceEvent } from "@/features/chat/types/messages";
 import {
   useChatTraceLabels,
@@ -354,6 +355,42 @@ function AgentTraceTimeline({
   );
 }
 
+// Laid out like a timeline row (icon column, then text) so it sits where the steps will appear.
+function TraceDetailStatus({
+  failed,
+  labels,
+  onRetry,
+}: {
+  failed: boolean;
+  labels: ProcessTraceLabels;
+  onRetry?: () => void;
+}) {
+  return (
+    <div
+      role={failed ? undefined : "status"}
+      className="grid grid-cols-[0.875rem_minmax(0,1fr)] items-center gap-x-3 pb-1.5 text-[12px] leading-5 text-muted-foreground max-sm:gap-x-2"
+    >
+      <span className="flex justify-center">
+        {failed ? <CircleAlert className="size-3 text-destructive/85" /> : <Spinner className="size-3" />}
+      </span>
+      {failed ? (
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span>{labels.run.detailFailed}</span>
+          <button
+            type="button"
+            className="rounded-sm text-foreground/80 underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/30"
+            onClick={onRetry}
+          >
+            {labels.run.detailRetry}
+          </button>
+        </span>
+      ) : (
+        <span>{labels.run.detailLoading}</span>
+      )}
+    </div>
+  );
+}
+
 export function MessageAgentTrace({
   events: traceEvents,
   activeToolBlock,
@@ -364,6 +401,9 @@ export function MessageAgentTrace({
   autoExpandToolCalls = true,
   runID,
   allowFullToolResults = false,
+  detailPending = false,
+  detailFailed = false,
+  onLoadDetail,
 }: {
   events: ChatTraceEvent[];
   activeToolBlock?: ChatTraceBlock;
@@ -374,6 +414,10 @@ export function MessageAgentTrace({
   autoExpandToolCalls?: boolean;
   runID?: string;
   allowFullToolResults?: boolean;
+  /** The events are a summary: the header can be built from them, the expanded steps need the full trace. */
+  detailPending?: boolean;
+  detailFailed?: boolean;
+  onLoadDetail?: () => void;
 }) {
   const labels = useChatTraceLabels();
   const displayEvents = React.useMemo(() => buildTraceDisplayEvents(traceEvents), [traceEvents]);
@@ -422,6 +466,12 @@ export function MessageAgentTrace({
     autoExpand: true,
     collapseReady: autoCollapseReady || !messageStreaming,
   });
+  const shouldLoadDetail = open && detailPending && !detailFailed;
+  React.useEffect(() => {
+    if (shouldLoadDetail) {
+      onLoadDetail?.();
+    }
+  }, [onLoadDetail, shouldLoadDetail]);
 
   if (items.length === 0) {
     return null;
@@ -485,14 +535,18 @@ export function MessageAgentTrace({
             />
           </AccordionTrigger>
           <AccordionContent className="px-0 pb-0 pt-1.5 duration-[350ms] ease-in-out">
-            <AgentTraceTimeline
-              items={items}
-              labels={labels}
-              autoExpandThinking={autoExpandThinking}
-              autoExpandToolCalls={autoExpandToolCalls}
-              runID={runID}
-              allowFullToolResults={allowFullToolResults}
-            />
+            {detailPending ? (
+              <TraceDetailStatus failed={detailFailed} labels={labels} onRetry={onLoadDetail} />
+            ) : (
+              <AgentTraceTimeline
+                items={items}
+                labels={labels}
+                autoExpandThinking={autoExpandThinking}
+                autoExpandToolCalls={autoExpandToolCalls}
+                runID={runID}
+                allowFullToolResults={allowFullToolResults}
+              />
+            )}
           </AccordionContent>
         </AccordionItem>
       </Accordion>

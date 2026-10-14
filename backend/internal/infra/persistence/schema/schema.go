@@ -38,6 +38,7 @@ func Models() []any {
 		&models.ConversationShare{},
 		&models.Message{},
 		&models.ConversationMessageFeedback{},
+		&models.ConversationMessageUIState{},
 		&models.Attachment{},
 		&models.FileObject{},
 		&models.UserStorageQuota{},

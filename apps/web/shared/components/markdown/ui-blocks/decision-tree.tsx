@@ -9,8 +9,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { SlideSwitch } from "@/shared/components/slide-switch";
 import type { UIBlockDefinition, UIBlockRenderProps } from "./block";
+import { joinTextBlocks, textTitle } from "./block-text";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
+import { type UIBlockState, useUIBlockState } from "./ui-block-state";
 
 type DecisionNode = {
   id: string;
@@ -27,16 +29,46 @@ export type DecisionTreeProps = {
 
 const MAX_DEPTH = 64;
 
+type DecisionTreeState = { path: string[] };
+
+// Keeps the stored path only as far as every step still follows an option of
+// the node before it; the tree may have changed since it was saved.
+function restoreDecisionPath(byID: ReadonlyMap<string, DecisionNode>, startID: string, saved: UIBlockState | undefined): string[] {
+  const stored = saved?.path;
+  if (!Array.isArray(stored) || stored[0] !== startID) {
+    return [startID];
+  }
+  const path = [startID];
+  for (let index = 1; index < Math.min(stored.length, MAX_DEPTH); index += 1) {
+    const step = stored[index];
+    const previous = byID.get(path[path.length - 1]);
+    if (typeof step !== "string" || !byID.has(step) || !previous?.options?.some((option) => option.next === step)) {
+      break;
+    }
+    path.push(step);
+  }
+  return path;
+}
+
+// The label of the option that led from one step to the next.
+function choiceLabel(byID: ReadonlyMap<string, DecisionNode>, fromID: string, toID: string | undefined): string {
+  return byID.get(fromID)?.options?.find((option) => option.next === toID)?.label ?? "";
+}
+
 function DecisionTree({ id, props }: UIBlockRenderProps<DecisionTreeProps>) {
   const t = useTranslations("chat.markdown.uiBlock");
   const byID = React.useMemo(() => new Map(props.nodes.map((node) => [node.id, node])), [props.nodes]);
   const startID = props.start ?? props.nodes[0]?.id ?? "";
-  const [path, setPath] = React.useState<{ nodeID: string; choice?: string }[]>([{ nodeID: startID }]);
+  const [{ path }, setState] = useUIBlockState<DecisionTreeState>(id, {
+    defaults: { path: [startID] },
+    restore: (saved) => ({ path: restoreDecisionPath(byID, startID, saved) }),
+    title: props.title,
+  });
   // Choosing slides forward (from the right); back / reset slide backward.
   const [direction, setDirection] = React.useState<1 | -1>(1);
 
-  const current = path[path.length - 1];
-  const node = current ? byID.get(current.nodeID) : undefined;
+  const currentID = path[path.length - 1] ?? "";
+  const node = byID.get(currentID);
   const terminal = !node?.options || node.options.length === 0;
 
   const choose = (option: { label: string; next: string }) => {
@@ -44,7 +76,7 @@ function DecisionTree({ id, props }: UIBlockRenderProps<DecisionTreeProps>) {
       return;
     }
     setDirection(1);
-    setPath((currentPath) => [...currentPath.slice(0, -1), { ...currentPath[currentPath.length - 1], choice: option.label }, { nodeID: option.next }]);
+    setState((current) => ({ path: [...current.path, option.next] }));
   };
 
   return (
@@ -53,13 +85,13 @@ function DecisionTree({ id, props }: UIBlockRenderProps<DecisionTreeProps>) {
         {props.title ? <h3 className="text-lg font-semibold leading-7">{props.title}</h3> : <span />}
         <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
           {path.length > 1 ? (
-            <button type="button" onClick={() => { setDirection(-1); setPath((currentPath) => currentPath.slice(0, -1).map((step, index, all) => (index === all.length - 1 ? { nodeID: step.nodeID } : step))); }} className="inline-flex items-center gap-1 hover:text-foreground">
+            <button type="button" onClick={() => { setDirection(-1); setState((current) => ({ path: current.path.slice(0, -1) })); }} className="inline-flex items-center gap-1 hover:text-foreground">
               <ArrowLeft className="size-3" strokeWidth={1.8} />
               {t("back")}
             </button>
           ) : null}
           {path.length > 1 ? (
-            <button type="button" onClick={() => { setDirection(-1); setPath([{ nodeID: startID }]); }} className="inline-flex items-center gap-1 hover:text-foreground">
+            <button type="button" onClick={() => { setDirection(-1); setState(null); }} className="inline-flex items-center gap-1 hover:text-foreground">
               <RotateCcw className="size-3" strokeWidth={1.8} />
               {t("reset")}
             </button>
@@ -70,16 +102,16 @@ function DecisionTree({ id, props }: UIBlockRenderProps<DecisionTreeProps>) {
       <HeightTransition className="mt-3" contentClassName="flex flex-col gap-3">
       {path.length > 1 ? (
         <ol className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-          {path.slice(0, -1).map((step, index) => (
+          {path.slice(0, -1).map((stepID, index) => (
             <li key={`${id}-crumb-${index}`} className="inline-flex items-center gap-1">
-              <span className="rounded-md bg-muted px-1.5 py-0.5">{step.choice}</span>
+              <span className="rounded-md bg-muted px-1.5 py-0.5">{choiceLabel(byID, stepID, path[index + 1])}</span>
               <span aria-hidden="true">›</span>
             </li>
           ))}
         </ol>
       ) : null}
 
-      <SlideSwitch itemKey={`${path.length}:${current?.nodeID ?? ""}`} direction={direction}>
+      <SlideSwitch itemKey={`${path.length}:${currentID}`} direction={direction}>
       {node ? (
         <div className={cn(terminal && "rounded-lg border-[0.5px] border-primary/40 bg-primary/5 p-4")}>
           <div className="flex items-start gap-2">
@@ -106,7 +138,7 @@ function DecisionTree({ id, props }: UIBlockRenderProps<DecisionTreeProps>) {
           ) : null}
         </div>
       ) : (
-        <p className="text-xs text-destructive">{t("missingNode", { id: current?.nodeID ?? "" })}</p>
+        <p className="text-xs text-destructive">{t("missingNode", { id: currentID })}</p>
       )}
       </SlideSwitch>
       </HeightTransition>
@@ -125,6 +157,32 @@ function DecisionTreeSkeleton() {
       </div>
     </UIBlockFrame>
   );
+}
+
+// The path the user took: each step with the choice made, then where it ended
+// (or the open question with its options).
+function decisionTreeText(props: DecisionTreeProps, state: UIBlockState | undefined): string {
+  const byID = new Map(props.nodes.map((node) => [node.id, node]));
+  const startID = props.start ?? props.nodes[0]?.id ?? "";
+  const path = restoreDecisionPath(byID, startID, state);
+  const lines: string[] = [];
+  path.forEach((nodeID, index) => {
+    const node = byID.get(nodeID);
+    if (!node) {
+      return;
+    }
+    const next = path[index + 1];
+    lines.push(next ? `${index + 1}. ${node.text} → **${choiceLabel(byID, nodeID, next)}**` : `${index + 1}. ${node.text}`);
+    if (!next) {
+      if (node.detail?.trim()) {
+        lines.push(`   ${node.detail.trim()}`);
+      }
+      for (const option of node.options ?? []) {
+        lines.push(`   - ${option.label}`);
+      }
+    }
+  });
+  return joinTextBlocks([...textTitle(props.title), lines.join("\n")]);
 }
 
 export const decisionTreeDefinition: UIBlockDefinition<DecisionTreeProps> = {
@@ -146,4 +204,5 @@ export const decisionTreeDefinition: UIBlockDefinition<DecisionTreeProps> = {
   ),
   Component: DecisionTree,
   Skeleton: DecisionTreeSkeleton,
+  toText: decisionTreeText,
 };

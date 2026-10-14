@@ -15,7 +15,9 @@ apps/desktop/src-tauri (Rust)
         ├── tabs               src/tabs.rs       one window, one webview per server, tab strip webview
         ├── sidecar            src/sidecar.rs    bundled Go server for local mode (loopback, SQLite)
         ├── session            src/session.rs    server choice + keychain + refresh (token never exposed to JS)
+        ├── proxy              src/proxy.rs      network proxy: OS settings or the app's own, for sidecar, shell and webviews
         ├── tray               src/tray.rs       show / quit, left click restores the window
+        ├── menu               src/menu.rs       macOS menu bar: File ▸ Close Tab ⌘W / Close Window ⇧⌘W
         ├── OAuth loopback     src/oauth_loopback.rs  RFC 8252 receiver on 127.0.0.1:<ephemeral>
         ├── updater            tauri-plugin-updater + apps/web/shared/platform/desktop-updater.ts
         └── CSP                no inline/remote scripts; network open to http(s) (user picks the server)
@@ -56,6 +58,23 @@ close hides the window and the app stays behind the tray — a second launch
 focuses the running copy (`tauri-plugin-single-instance`) rather than starting
 another sidecar on the same database. On Linux close quits: a tray icon is not
 guaranteed there, so a hidden window could be unreachable.
+
+Because one window holds every tab, macOS gets its own menu bar
+(`src/menu.rs`): Tauri's default menu binds ⌘W to Close Window, and with a close
+turned into a hide a stray ⌘W would make the whole app disappear instead of
+closing a tab. The menu replaces that binding the way browsers do — ⌘W closes
+the tab that is showing and ⇧⌘W the window — with one deviation: the last tab is
+never closed, since closing it would forget its server (token deleted, sidecar
+stopped). ⌘W there closes the window instead, and the item says so: with a
+single tab File reads `Close Window ⌘W`, with more it reads `Close Tab ⌘W` and
+adds `Close Window ⇧⌘W`. The red traffic light and the tray still close/hide the
+window.
+
+⇧⌘W needs a nudge: AppKit matches it against the shifted key equivalent `W`,
+while a Tauri accelerator string only ever produces the unshifted `w`, which
+would leave the item printed but inert. `menu::promote_shifted_shortcut` fixes
+the installed item through AppKit. (Tauri's own `Edit ▸ Redo` ⇧⌘Z has the same
+defect and is not touched here.)
 
 Every tab is a full instance of the web app with its own DOM, caches, SSE
 connections and in-memory session, so the app never has to model "several
@@ -137,6 +156,48 @@ Which features the local server offers is declared by `GET /api/v1/capabilities`
 and enforced by the server (`404 feature.disabled`); the web app renders from
 those flags and never checks the platform. See `docs/ARCHITECTURE.md` §4.
 
+## Network proxy
+
+`src/proxy.rs` decides one proxy per launch and hands it to everything that
+leaves the machine. Settings › Network (desktop only) offers three modes:
+follow the system (default), a manual `http://` or `socks5://` proxy with an
+optional sign-in, or no proxy.
+
+| Consumer | How it gets the proxy |
+| --- | --- |
+| Bundled server (local mode) | `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` on the child process, every spelling set so nothing inherited survives. The server keeps its contract: proxy settings only ever come from its environment, and in local mode the shell is its deployer. |
+| Shell requests (session refresh, update checks) | `proxy::apply` on each reqwest client. Loopback origins are always direct. |
+| Webviews | Windows: WebView2 `--proxy-server` / `--proxy-bypass-list` / `--no-proxy-server`. macOS and Linux follow the OS: a per-webview proxy needs macOS 14, and Tauri gives WebKitGTK no bypass list, so even the local server's loopback traffic would go to the proxy. |
+
+Where the proxy comes from, highest first: enterprise policy (`ProxyMode` and
+friends, below), the app setting, the process's `HTTP(S)_PROXY` / `ALL_PROXY`,
+then the OS — Windows through `WinHttpGetIEProxyConfigForCurrentUser`, macOS
+through the dynamic store (`SCDynamicStoreCopyProxies`); Linux has no OS source
+besides the environment.
+
+The OS bypass lists are translated, because Go and reqwest read `NO_PROXY`
+syntax only: `127.*` / `192.168.*` become CIDR blocks, `*.corp` becomes
+`.corp`, macOS's `169.254/16` is padded. `<local>` (dotless host names) has no
+equivalent and is dropped. Loopback is always added.
+
+Deliberate limits:
+
+- **PAC and WPAD are not applied** to the shell or the bundled server: there is
+  no proxy address to hand over. The settings page says so; the webviews still
+  use the script, through the OS.
+- **An unreachable proxy is not bypassed.** Requests fail as they do in the
+  system browser; silently connecting directly would route around a proxy the
+  user or the administrator chose.
+- **The webviews never get proxy credentials.** Neither engine takes them up
+  front and Tauri forwards no sign-in prompt, so a manual proxy that needs a
+  password leaves the window on the OS settings; the shell and the bundled
+  server use the password.
+- **Changes apply at the next launch.** The sidecar and the webviews take their
+  proxy when they are created; the page shows "restart required" and a button.
+
+The setting is stored in `network.json` next to `tabs.json`; the password in the
+keychain (see [Keychain entries](#keychain-entries)).
+
 ## Credential model
 
 The browser build keeps the refresh token in an HttpOnly cookie, so page script
@@ -149,6 +210,9 @@ cannot read it. The desktop shell reproduces that property in Rust:
 | Who sends it | browser, to the cookie's origin | `session.rs`, to the pinned origin only |
 | Readable by page script | no | no — `store_session` is write-once, there is no read command |
 | Server address | page origin | bound per tab, persisted in `tabs.json`; closing the tab drops that session |
+
+The shell never routes a request to a loopback server through a proxy, so the
+local-mode grant and the refresh token stay on the machine.
 
 The webview holds the refresh token exactly once, in the login response, and
 hands it to `store_session` immediately. After that the only session commands
@@ -192,6 +256,12 @@ A local Windows build of a prerelease version (`x.y.z-beta.n`) fails at the MSI
 step, because MSI versions must be numeric. Build the setup only
 (`pnpm tauri build --bundles nsis`) or pass the config CI uses:
 `node scripts/release-config.mjs --channel beta` prints the `--config` argument.
+
+The macOS app requires macOS 12 (`bundle.macOS.minimumSystemVersion`, which
+becomes `LSMinimumSystemVersion`; Go 1.26 supports nothing older). Tauri builds
+the Rust binary for it, and `build-sidecar.mjs` passes the same version to cgo;
+otherwise the sidecar would require the macOS of the build machine, and local
+mode would not start on older systems that can still install the app.
 
 Building is not enough to ship: macOS packages must be **notarized** and Windows
 packages **code-signed**, otherwise users cannot install them. Signing keys and
@@ -338,6 +408,9 @@ only reflects it.
 | `LockServerUrl` | REG_DWORD `1` | Only `DefaultServerUrl` may be used (requires a valid `DefaultServerUrl`); also disables local mode. Saved tabs for other servers are dropped with their credentials. |
 | `DisableLocalMode` | REG_DWORD `1` | The bundled local server cannot be used. |
 | `DisableAutoUpdate` | REG_DWORD `1` | No update checks in any form. |
+| `ProxyMode` | REG_SZ `system` / `direct` / `fixed_servers` | Replaces the user's proxy choice ([Network proxy](#network-proxy)). The hive that sets it decides `ProxyServer` and `ProxyBypassList` too. |
+| `ProxyServer` | REG_SZ | `host:port`, `http://host:port` or `socks5://host:port`, for `fixed_servers`. No credentials; an invalid value makes the policy ignored. |
+| `ProxyBypassList` | REG_SZ | Hosts, `*.example.com`, addresses and ranges that skip the proxy, `;` or `,` separated. |
 
 Group Policy templates and an example `.reg` live in
 [`deploy/windows/`](../../deploy/windows/README.md).
@@ -387,13 +460,23 @@ signs the exe inside each installer and the sidecar; the portable exe is signed
 separately with signtool. A CI step then requires a valid Authenticode signature
 on the setup, MSI, portable exe and sidecar whenever a certificate is configured.
 
+On macOS, `scripts/verify-macos-bundle.sh` checks the app as it ships, inside the
+final DMG and inside the updater archive, before CI uploads the DMG: the app
+binary and the sidecar must be built for the leg's architecture and must not
+require a newer macOS than the app declares, and the bundle must pass
+`codesign --verify --deep --strict`. With a Developer ID it also requires the
+certificate's team id on the app and the DMG, a stapled notarization ticket on
+both, and a Gatekeeper assessment of `Notarized Developer ID`.
+`pnpm build:signed` runs the same check.
+
 Only the updater key is mandatory. Platform signing switches on by itself once
-its secrets exist. Without a Developer ID the macOS app is signed **ad-hoc**
-(`APPLE_SIGNING_IDENTITY=-`); Tauri would otherwise skip `codesign` and leave
-only the linker's signature, which macOS reports as *damaged* on Apple silicon.
-Ad-hoc builds still need the user to allow the app under System Settings →
-Privacy & Security and are for internal testing, not public releases. Signing
-keys never enter the repository.
+its secrets exist; CI fails when only some of the macOS secrets are set instead
+of quietly building an unnotarized app. Without a Developer ID the macOS app is
+signed **ad-hoc** (`APPLE_SIGNING_IDENTITY=-`); Tauri would otherwise skip
+`codesign` and leave only the linker's signature, which macOS reports as
+*damaged* on Apple silicon. Ad-hoc builds still need the user to allow the app
+under System Settings → Privacy & Security and are for internal testing, not
+public releases. Signing keys never enter the repository.
 
 To obtain the .p12 on macOS: Keychain Access → My Certificates → right-click the
 "Developer ID Application" cert → Export → base64 it (`base64 -i cert.p12 | pbcopy`).
@@ -404,8 +487,10 @@ To obtain the .p12 on macOS: Keychain Access → My Certificates → right-click
 | --- | --- |
 | Service | `com.deeix.chat.desktop` |
 | Account | `refresh-token:<origin>` (e.g. `refresh-token:https://chat.example.com`) |
+| Account | `proxy-password`: the manual proxy's password, only while a username is set |
 
-One entry per origin; switching servers deletes the previous entry rather than
-leaving dormant credentials behind. A Windows portable copy uses the service
+One refresh token per origin; switching servers deletes the previous entry
+rather than leaving dormant credentials behind. The proxy password is removed
+the same way when the username is cleared. A Windows portable copy uses the service
 `com.deeix.chat.desktop.portable-<instance-id>` instead (see
 [Portable edition](#portable-edition)).

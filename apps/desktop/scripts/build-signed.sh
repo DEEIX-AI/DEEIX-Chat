@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local signed build: loads deploy/secrets/desktop-signing.env, builds, packages
-# the DMG and verifies the result with Gatekeeper. Same inputs as CI.
+# the DMG and verifies what ships (verify-macos-bundle.sh). Same inputs as CI.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -42,21 +42,23 @@ elif [[ "$(uname)" == "Darwin" && -z "${APPLE_SIGNING_IDENTITY:-}" ]]; then
 fi
 
 cd "$root"
+bundle="$root/apps/desktop/src-tauri/target/release/bundle"
+if [[ "$(uname)" == "Darwin" ]]; then
+  # Tauri leaves the bundles of earlier builds in place; start clean so only
+  # this build is packaged and verified.
+  rm -rf "$bundle/dmg" "$bundle/macos"
+fi
+
 pnpm --filter @deeix/desktop build
 
 if [[ "$(uname)" == "Darwin" ]]; then
   shopt -s nullglob
-  for dmg in "$root"/apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg; do
-    bash "$root/apps/desktop/scripts/package-dmg.sh" "$dmg"
-  done
-fi
-
-if [[ "$(uname)" == "Darwin" ]]; then
-  app="$root/apps/desktop/src-tauri/target/release/bundle/macos/DEEIX Chat.app"
-  echo "--- codesign"
-  codesign --verify --deep --strict --verbose=2 "$app"
-  if [[ -n "${APPLE_TEAM_ID:-}" ]]; then
-    echo "--- Gatekeeper (expect: source=Notarized Developer ID)"
-    spctl --assess --type execute --verbose=2 "$app"
+  dmgs=("$bundle"/dmg/*.dmg)
+  archives=("$bundle"/macos/*.app.tar.gz)
+  if ((${#dmgs[@]} != 1 || ${#archives[@]} != 1)); then
+    echo "expected one DMG and one updater archive under $bundle, found ${#dmgs[@]} and ${#archives[@]}" >&2
+    exit 1
   fi
+  bash "$root/apps/desktop/scripts/package-dmg.sh" "${dmgs[0]}"
+  bash "$root/apps/desktop/scripts/verify-macos-bundle.sh" --arch "$(uname -m)" "${dmgs[0]}" "${archives[0]}"
 fi

@@ -181,15 +181,6 @@ export function ChatModelControls({
   const { toolbar } = React.useMemo(() => splitComposerControlItems(items, placements), [items, placements]);
   const toolbarIDs = React.useMemo(() => new Set(toolbar.map((item) => item.id)), [toolbar]);
 
-  // Unpinned controls first, pinned ones collected at the bottom (a filled pin marks them).
-  const { unpinnedItems, pinnedItems } = React.useMemo(() => {
-    const pinned: ComposerItem[] = [];
-    const unpinned: ComposerItem[] = [];
-    for (const item of items) {
-      (toolbarIDs.has(item.id) ? pinned : unpinned).push(item);
-    }
-    return { unpinnedItems: unpinned, pinnedItems: pinned };
-  }, [items, toolbarIDs]);
 
   const valueLabel = React.useCallback((control: ModelControl, value: ModelControlValue | null) => {
     if (value === null) return t("unset");
@@ -489,8 +480,8 @@ export function ChatModelControls({
               </div>
               {items.length > 0 ? (
                 <div className="min-h-0 max-h-80 space-y-0.5 overflow-y-auto px-0.5">
-                  {unpinnedItems.map(renderMenuItem)}
-                  {pinnedItems.map(renderMenuItem)}
+                  {/* Server order (reasoning effort first); pinning only fills the pin, so rows never jump. */}
+                  {items.map(renderMenuItem)}
                 </div>
               ) : (
                 <p className="px-2.5 pb-1 text-[11px] leading-4 text-muted-foreground">{t("empty")}</p>

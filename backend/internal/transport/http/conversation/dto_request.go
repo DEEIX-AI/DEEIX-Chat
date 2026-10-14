@@ -1,5 +1,7 @@
 package conversation
 
+import "encoding/json"
+
 // CreateConversationRequest 创建会话请求。
 type CreateConversationRequest struct {
 	Title     string `json:"title,omitempty" binding:"max=255"`
@@ -129,6 +131,24 @@ type SendMessageRequest struct {
 
 	// UIComponentIDs 是本次会话勾选的交互式组件；后端据此注入组件目录提示词，不可见的 ID 被忽略。
 	UIComponentIDs []uint `json:"uiComponentIDs,omitempty" binding:"max=32"`
+
+	// UIBlockVersion 是客户端能渲染的 deeix-ui 块格式版本：缺省或 1 只用静态组件，2 允许可交互块（state、computed、原语）。
+	UIBlockVersion int `json:"uiBlockVersion,omitempty" binding:"omitempty,min=1,max=2"`
+
+	// UIStates 是用户在当前分支的交互式组件里设定的状态（只含与初始值不同的键），作为本轮上下文发给模型，不落库。
+	// 条数与字段长度超过这里声明的上限时按请求体不合法拒绝；除此之外，不在当前分支上的消息、
+	// 状态内容不合法或超出注入预算的条目只是被忽略，不会让发送失败。
+	UIStates []MessageUIStateInputRequest `json:"uiStates,omitempty" binding:"max=32,dive"`
+}
+
+// MessageUIStateInputRequest 是随发送请求提交的单个组件块当前状态。
+type MessageUIStateInputRequest struct {
+	// MessagePublicID 是组件所在 assistant 消息的 public_id。
+	MessagePublicID string `json:"messagePublicID" binding:"max=64"`
+	BlockID         string `json:"blockID" binding:"max=128"`
+	// Title 是组件标题，帮助模型对应到具体组件；超过 40 个字符的部分被截断。
+	Title string          `json:"title,omitempty" binding:"max=200"`
+	State json.RawMessage `json:"state,omitempty" swaggertype:"object"`
 }
 
 // TemporaryChatMessageRequest 是仅在当前页面内维护的临时对话请求。
@@ -147,6 +167,21 @@ type TemporaryChatMessageRequest struct {
 
 	// UIComponentIDs 是本次会话勾选的交互式组件。
 	UIComponentIDs []uint `json:"uiComponentIDs,omitempty" binding:"max=32"`
+
+	// UIBlockVersion 语义同 SendMessageRequest.uiBlockVersion。
+	UIBlockVersion int `json:"uiBlockVersion,omitempty" binding:"omitempty,min=1,max=2"`
+
+	// UIStates 是用户在本次临时对话的交互式组件里设定的状态；语义同 SendMessageRequest.uiStates。
+	UIStates []TemporaryChatUIStateRequest `json:"uiStates,omitempty" binding:"max=32,dive"`
+}
+
+// TemporaryChatUIStateRequest 是临时对话里单个组件块的当前状态。
+// 临时对话没有消息记录，用 messages 数组的下标定位组件所在的 assistant 消息。
+type TemporaryChatUIStateRequest struct {
+	MessageIndex int             `json:"messageIndex" binding:"min=0,max=99"`
+	BlockID      string          `json:"blockID" binding:"max=128"`
+	Title        string          `json:"title,omitempty" binding:"max=200"`
+	State        json.RawMessage `json:"state,omitempty" swaggertype:"object"`
 }
 
 // TemporaryChatHistoryMessage 是临时对话可提交的消息。
@@ -195,6 +230,13 @@ type MediaVideoExtensionRequest struct {
 // SetMessageFeedbackRequest 设置消息反馈请求。
 type SetMessageFeedbackRequest struct {
 	Feedback string `json:"feedback,omitempty" binding:"omitempty,oneof=up down"`
+}
+
+// SetMessageUIStateRequest 保存助手消息内交互式组件的状态快照。
+type SetMessageUIStateRequest struct {
+	// Blocks 以组件块 id 为键、该块的状态对象为值（只含与初始值不同的键）。
+	// 出现的块整块替换；值为 null 或空对象表示清除该块；没出现的块保持不变。
+	Blocks map[string]json.RawMessage `json:"blocks" binding:"required,min=1,max=32" swaggertype:"object"`
 }
 
 // UpdateMessageRequest 更新消息内容请求。

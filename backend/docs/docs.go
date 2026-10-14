@@ -12578,6 +12578,27 @@ const docTemplate = `{
                         "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "为 true 时返回最近的 page_size 条消息",
+                        "name": "tail",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "返回该消息 id 之前的 page_size 条消息",
+                        "name": "before_id",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "summary"
+                        ],
+                        "type": "string",
+                        "description": "summary：已完成消息的思考与工具过程只带摘要，完整内容通过 /messages/{id}/trace 获取",
+                        "name": "trace",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -12902,6 +12923,83 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ConversationUpdateResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/conversations/{id}/messages/{message_id}/ui-state": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "按块保存 assistant 消息里交互式组件的当前状态快照（只保存与块初始值不同的键）。blocks 以块 id 为键：出现的块整块替换，值为 null 或空对象表示清除，没出现的块保持不变",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "保存消息内交互式组件的状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 public_id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "消息 public_id",
+                        "name": "message_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "组件状态",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/SetMessageUIStateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/MessageUIStateResponseDoc"
                         }
                     },
                     "400": {
@@ -16686,6 +16784,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/messages/{id}/trace": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "返回当前用户一条助手消息的完整处理轨迹（思考全文与工具输入输出）；消息列表以 trace=summary 查询时只带摘要",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "查询消息处理轨迹",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "消息 public_id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/MessageProcessTraceDetailResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/models": {
             "get": {
                 "security": [
@@ -20251,6 +20401,7 @@ const docTemplate = `{
                 "announcements",
                 "billingGating",
                 "contentModeration",
+                "desktopDownload",
                 "identityProviders",
                 "multiUser",
                 "registration",
@@ -20272,6 +20423,10 @@ const docTemplate = `{
                 },
                 "contentModeration": {
                     "description": "ContentModeration 内容审核。",
+                    "type": "boolean"
+                },
+                "desktopDownload": {
+                    "description": "DesktopDownload 向网页端用户推荐下载桌面端；只监听回环的服务器只会被桌面端自己连接。",
                     "type": "boolean"
                 },
                 "identityProviders": {
@@ -25687,6 +25842,38 @@ const docTemplate = `{
                 }
             }
         },
+        "MessageProcessTraceDetailResponse": {
+            "type": "object",
+            "required": [
+                "processTrace"
+            ],
+            "properties": {
+                "processTrace": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/MessageProcessTraceResponse"
+                        }
+                    ],
+                    "x-nullable": true,
+                    "x-omitempty": false
+                }
+            }
+        },
+        "MessageProcessTraceDetailResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/MessageProcessTraceDetailResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "MessageProcessTraceResponse": {
             "type": "object",
             "required": [
@@ -25694,6 +25881,10 @@ const docTemplate = `{
                 "status"
             ],
             "properties": {
+                "detailOmitted": {
+                    "description": "DetailOmitted 为 true 时是消息列表的摘要：思考只保留开头、工具调用不含完整输入输出，完整轨迹通过 GET /messages/{id}/trace 获取。",
+                    "type": "boolean"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -25969,7 +26160,8 @@ const docTemplate = `{
                         "medium",
                         "high",
                         "xhigh",
-                        "max"
+                        "max",
+                        "ultra"
                     ],
                     "x-nullable": true,
                     "x-omitempty": false
@@ -26002,6 +26194,10 @@ const docTemplate = `{
                 },
                 "tokenUsage": {
                     "type": "integer"
+                },
+                "uiState": {
+                    "description": "UIState 是交互式组件块已保存的状态快照，键为块 id、值为该块的差量状态；没有状态时省略。",
+                    "type": "object"
                 },
                 "updatedAt": {
                     "type": "string"
@@ -26133,6 +26329,66 @@ const docTemplate = `{
                 }
             }
         },
+        "MessageUIStateInputRequest": {
+            "type": "object",
+            "required": [
+                "blockID",
+                "messagePublicID"
+            ],
+            "properties": {
+                "blockID": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "messagePublicID": {
+                    "description": "MessagePublicID 是组件所在 assistant 消息的 public_id。",
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "state": {
+                    "type": "object"
+                },
+                "title": {
+                    "description": "Title 是组件标题，帮助模型对应到具体组件；超过 40 个字符的部分被截断。",
+                    "type": "string",
+                    "maxLength": 200
+                }
+            }
+        },
+        "MessageUIStateResponse": {
+            "type": "object",
+            "required": [
+                "messageID",
+                "messagePublicID",
+                "uiState"
+            ],
+            "properties": {
+                "messageID": {
+                    "type": "integer"
+                },
+                "messagePublicID": {
+                    "type": "string"
+                },
+                "uiState": {
+                    "type": "object"
+                }
+            }
+        },
+        "MessageUIStateResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/MessageUIStateResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "ModelCatalogReasoningResponse": {
             "type": "object",
             "required": [
@@ -26152,7 +26408,8 @@ const docTemplate = `{
                         "medium",
                         "high",
                         "xhigh",
-                        "max"
+                        "max",
+                        "ultra"
                     ]
                 },
                 "format": {
@@ -26179,7 +26436,8 @@ const docTemplate = `{
                             "medium",
                             "high",
                             "xhigh",
-                            "max"
+                            "max",
+                            "ultra"
                         ]
                     }
                 },
@@ -27070,7 +27328,8 @@ const docTemplate = `{
                             "medium",
                             "high",
                             "xhigh",
-                            "max"
+                            "max",
+                            "ultra"
                         ]
                     }
                 }
@@ -29464,7 +29723,8 @@ const docTemplate = `{
                         "medium",
                         "high",
                         "xhigh",
-                        "max"
+                        "max",
+                        "ultra"
                     ]
                 },
                 "levels": {
@@ -29479,7 +29739,8 @@ const docTemplate = `{
                             "medium",
                             "high",
                             "xhigh",
-                            "max"
+                            "max",
+                            "ultra"
                         ]
                     }
                 },
@@ -29840,7 +30101,8 @@ const docTemplate = `{
                         "medium",
                         "high",
                         "xhigh",
-                        "max"
+                        "max",
+                        "ultra"
                     ],
                     "x-nullable": true,
                     "x-omitempty": false
@@ -30684,7 +30946,8 @@ const docTemplate = `{
                         "medium",
                         "high",
                         "xhigh",
-                        "max"
+                        "max",
+                        "ultra"
                     ],
                     "x-nullable": true,
                     "x-omitempty": false
@@ -30835,12 +31098,26 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 32
                 },
+                "uiBlockVersion": {
+                    "description": "UIBlockVersion 是客户端能渲染的 deeix-ui 块格式版本：缺省或 1 只用静态组件，2 允许可交互块（state、computed、原语）。",
+                    "type": "integer",
+                    "maximum": 2,
+                    "minimum": 1
+                },
                 "uiComponentIDs": {
                     "description": "UIComponentIDs 是本次会话勾选的交互式组件；后端据此注入组件目录提示词，不可见的 ID 被忽略。",
                     "type": "array",
                     "maxItems": 32,
                     "items": {
                         "type": "integer"
+                    }
+                },
+                "uiStates": {
+                    "description": "UIStates 是用户在当前分支的交互式组件里设定的状态（只含与初始值不同的键），作为本轮上下文发给模型，不落库。\n条数与字段长度超过这里声明的上限时按请求体不合法拒绝；除此之外，不在当前分支上的消息、\n状态内容不合法或超出注入预算的条目只是被忽略，不会让发送失败。",
+                    "type": "array",
+                    "maxItems": 32,
+                    "items": {
+                        "$ref": "#/definitions/MessageUIStateInputRequest"
                     }
                 }
             }
@@ -31113,6 +31390,18 @@ const docTemplate = `{
                         "up",
                         "down"
                     ]
+                }
+            }
+        },
+        "SetMessageUIStateRequest": {
+            "type": "object",
+            "required": [
+                "blocks"
+            ],
+            "properties": {
+                "blocks": {
+                    "description": "Blocks 以组件块 id 为键、该块的状态对象为值（只含与初始值不同的键）。\n出现的块整块替换；值为 null 或空对象表示清除该块；没出现的块保持不变。",
+                    "type": "object"
                 }
             }
         },
@@ -31818,6 +32107,12 @@ const docTemplate = `{
                         "type": "integer"
                     }
                 },
+                "uiBlockVersion": {
+                    "description": "UIBlockVersion 语义同 SendMessageRequest.uiBlockVersion。",
+                    "type": "integer",
+                    "maximum": 2,
+                    "minimum": 1
+                },
                 "uiComponentIDs": {
                     "description": "UIComponentIDs 是本次会话勾选的交互式组件。",
                     "type": "array",
@@ -31825,6 +32120,39 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "uiStates": {
+                    "description": "UIStates 是用户在本次临时对话的交互式组件里设定的状态；语义同 SendMessageRequest.uiStates。",
+                    "type": "array",
+                    "maxItems": 32,
+                    "items": {
+                        "$ref": "#/definitions/TemporaryChatUIStateRequest"
+                    }
+                }
+            }
+        },
+        "TemporaryChatUIStateRequest": {
+            "type": "object",
+            "required": [
+                "blockID",
+                "messageIndex"
+            ],
+            "properties": {
+                "blockID": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "messageIndex": {
+                    "type": "integer",
+                    "maximum": 99,
+                    "minimum": 0
+                },
+                "state": {
+                    "type": "object"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 200
                 }
             }
         },
@@ -35152,7 +35480,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.4.4-beta.5",
+	Version:          "0.4.4",
 	Host:             "",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},

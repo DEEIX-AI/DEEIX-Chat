@@ -18,6 +18,7 @@ use tauri_plugin_updater::UpdaterExt;
 use crate::dialog;
 use crate::paths::{self, PortableLayout};
 use crate::policy::{self, Policy};
+use crate::proxy;
 
 /// Download page when the updater endpoint is not a GitHub release URL.
 const DEFAULT_REPOSITORY_URL: &str = "https://github.com/DEEIX-AI/DEEIX-Chat";
@@ -230,7 +231,10 @@ pub fn grant_updater<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     app.add_capability(
         tauri::ipc::CapabilityBuilder::new(UPDATER_CAPABILITY)
             .webview("tab-*")
-            .permission("updater:default"),
+            .permission("updater:default")
+            // The web app checks through Rust so the proxy is ours, not the
+            // updater plugin's.
+            .permission("allow-check-update"),
     )
 }
 
@@ -337,6 +341,58 @@ pub fn get_distribution<R: Runtime>(app: AppHandle<R>) -> DistributionInfo {
     }
 }
 
+/// Check for an update through our proxy settings, and keep the result in the
+/// webview's resource table so the plugin's `download`/`install` can use it.
+/// The plugin's own `check` command would read the system proxy with its own
+/// bypass rules, and would ignore a manual proxy entirely.
+#[tauri::command]
+pub async fn check_update<R: Runtime>(
+    app: AppHandle<R>,
+    webview: tauri::Webview<R>,
+) -> Result<Option<UpdaterMetadata>, String> {
+    let (mode, by_policy) = {
+        let distribution = app.state::<Distribution>();
+        (
+            distribution.update_mode,
+            distribution.policy.auto_update_disabled_by_policy,
+        )
+    };
+    if mode != UpdateMode::Auto {
+        return Err(if by_policy {
+            policy::UPDATES_DISABLED.to_string()
+        } else {
+            "update checks are disabled for this distribution".to_string()
+        });
+    }
+    let effective = proxy::effective(&app);
+    // No timeout: the plugin keeps it on the `Update`, and a constrained proxy
+    // makes downloads slow.
+    let update = tauri_plugin_updater::UpdaterExt::updater_builder(&webview)
+        .configure_client(move |builder| proxy::apply(builder, &effective))
+        .build()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(update.map(|update| UpdaterMetadata {
+        rid: webview.resources_table().add(update.clone()),
+        current_version: update.current_version,
+        version: update.version,
+        raw_json: update.raw_json,
+    }))
+}
+
+/// The fields the web app needs to rebuild the plugin's `Update` object
+/// (its JavaScript constructor takes exactly this shape).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdaterMetadata {
+    pub rid: tauri::ResourceId,
+    pub current_version: String,
+    pub version: String,
+    pub raw_json: serde_json::Value,
+}
+
 /// Whether the updater endpoint announces a newer version. Checks only: the
 /// payload is neither downloaded nor verified here. Uses the updater plugin so
 /// the endpoint (including a beta build's override), proxy and version rules
@@ -360,9 +416,11 @@ pub async fn check_update_notice<R: Runtime>(
             "update checks are disabled for this distribution".to_string()
         });
     }
+    let effective = proxy::effective(&app);
     let update = app
         .updater_builder()
         .timeout(UPDATE_CHECK_TIMEOUT)
+        .configure_client(move |builder| proxy::apply(builder, &effective))
         .build()
         .map_err(|e| e.to_string())?
         .check()
@@ -482,7 +540,8 @@ mod tests {
                     "defaultServerUrl": null,
                     "serverUrlLocked": false,
                     "localModeAllowed": true,
-                    "autoUpdateDisabledByPolicy": false
+                    "autoUpdateDisabledByPolicy": false,
+                    "proxyManagedByPolicy": false
                 }
             })
         );

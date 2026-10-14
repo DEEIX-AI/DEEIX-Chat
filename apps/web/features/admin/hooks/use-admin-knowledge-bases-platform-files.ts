@@ -12,7 +12,7 @@ import {
 import type { KnowledgeBaseFileDTO } from "@/shared/api/knowledge-bases-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import type { PreviewDialogFile } from "@/entities/file";
-import { runSettledBulkItems, runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
+import { firstSettledFailureReason, runSettledBulkItems, runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
 
 const PAGE_SIZE = 50;
 const UPLOAD_LIMIT = 100;
@@ -184,9 +184,14 @@ export function useAdminKnowledgeBasesPlatformFiles({ open }: { open: boolean })
         refresh();
       }
       if (failed > 0) {
-        toast.error(t("partialUploadFailed"), {
-          description: t("partialUploadDescription", { success: uploaded, failed }),
-        });
+        const reason = resolveErrorMessage(firstSettledFailureReason(results), t("uploadFailed"));
+        if (uploaded === 0) {
+          toast.error(t("uploadFailed"), { description: reason });
+        } else {
+          toast.error(t("partialUploadFailed"), {
+            description: t("partialUploadDescription", { success: uploaded, failed, reason }),
+          });
+        }
       }
     } catch (error) {
       if (requestController.signal.aborted) return;

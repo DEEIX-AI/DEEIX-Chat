@@ -16,19 +16,15 @@ import {
   type ArtifactPreviewKind,
   resolveArtifactPreviewKind,
 } from "@/shared/lib/artifact-preview";
-import {
-  downloadMarkdownImageSource,
-  loadProtectedMarkdownImageBlobURL,
-  resolveMarkdownImageDownloadName,
-  resolveMarkdownImageSource,
-  resolveProtectedMarkdownImageSource,
-} from "@/shared/lib/markdown-image-source";
+import { useImageDisplaySource } from "@/shared/hooks/use-image-display-source";
+import { downloadMarkdownImageSource, resolveMarkdownImageDownloadName } from "@/shared/lib/markdown-image-source";
 import { MarkdownTableStreamingContext } from "./adaptive-markdown-table";
 import { MarkdownFootnotesContext } from "./streamdown-html";
 import { StreamdownCheckIcon, StreamdownCopyIcon } from "./streamdown-icons";
 import { MarkdownMermaidLoading, MarkdownMermaidPendingContext } from "./streamdown-mermaid";
 import { sanitizeHTMLStyle } from "./streamdown-style";
-import { UI_BLOCK_FENCE_LANGUAGE, UIBlockHost } from "./ui-blocks";
+import { UI_WIDGET_FENCE_LANGUAGE } from "@deeix/core";
+import { MarkdownWidgetHost, UI_BLOCK_FENCE_LANGUAGE, UIBlockHost } from "./ui-blocks";
 
 // Fences without a language are treated as plain text: the label shows text as-is, so content isn't wrongly highlighted as Markdown.
 const DEFAULT_CODE_BLOCK_LANGUAGE = "text";
@@ -76,6 +72,8 @@ export type MarkdownArtifactActions = {
     language: string;
     kind: ArtifactPreviewKind;
   }) => void;
+  // Opens an interactive block of this message in the side panel, by block key.
+  onOpenUIBlock?: (blockKey: string) => void;
 };
 
 type MarkdownParagraphProps = React.HTMLAttributes<HTMLParagraphElement> & {
@@ -525,6 +523,14 @@ export function MarkdownCodePre({ children, node: _node, "data-markdown-source-l
     );
   }
 
+  if (language === UI_WIDGET_FENCE_LANGUAGE) {
+    return (
+      <div className="w-full" data-markdown-source-line={sourceLine}>
+        <MarkdownWidgetHost raw={codeContent} streaming={streaming} />
+      </div>
+    );
+  }
+
   const codeBlock = React.cloneElement(childElement, { "data-block": "true" });
 
   // Only `mermaid` fences become diagrams in Streamdown; `mmd` stays a plain code block.
@@ -693,61 +699,17 @@ export function MarkdownImage({ alt, className, onError, onLoad, src: srcProp, .
   const t = useTranslations("chat.markdown");
   const insideLink = React.useContext(StreamdownLinkContext);
   const imageActions = React.useContext(MarkdownImageActionsContext);
-  const [loaded, setLoaded] = React.useState(false);
-  const [failed, setFailed] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
-  const resolvedSrc = React.useMemo(() => (src ? resolveMarkdownImageSource(src) : ""), [src]);
-  const protectedSrc = React.useMemo(() => (src ? resolveProtectedMarkdownImageSource(src) : null), [src]);
-  const [displaySrc, setDisplaySrc] = React.useState(() => (protectedSrc ? "" : resolvedSrc));
-
-  React.useEffect(() => {
-    setLoaded(false);
-    setFailed(false);
-    if (!src) {
-      setDisplaySrc("");
-      return undefined;
-    }
-
-    if (!protectedSrc) {
-      setDisplaySrc(resolvedSrc);
-      return undefined;
-    }
-    setDisplaySrc("");
-
-    const controller = new AbortController();
-    let blobURL = "";
-    let active = true;
-    void loadProtectedMarkdownImageBlobURL(protectedSrc, controller.signal)
-      .then((nextBlobURL) => {
-        blobURL = nextBlobURL;
-        if (active) {
-          setFailed(false);
-          setDisplaySrc(blobURL);
-        } else {
-          URL.revokeObjectURL(blobURL);
-        }
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-        setDisplaySrc("");
-        setFailed(true);
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-      if (blobURL) {
-        URL.revokeObjectURL(blobURL);
-      }
-    };
-  }, [protectedSrc, resolvedSrc, src]);
+  const { displaySrc, resolvedSrc, protectedSrc, fetchFailed } = useImageDisplaySource(src);
+  // Keyed by the src they belong to, so a new src starts out neither loaded nor failed.
+  const [loadedSrc, setLoadedSrc] = React.useState("");
+  const [erroredSrc, setErroredSrc] = React.useState("");
+  const loaded = Boolean(displaySrc) && loadedSrc === displaySrc;
+  const failed = fetchFailed || (Boolean(displaySrc) && erroredSrc === displaySrc);
 
   const handleLoad = React.useCallback(
     (event: React.SyntheticEvent<HTMLImageElement>) => {
-      setLoaded(true);
-      setFailed(false);
+      setLoadedSrc(event.currentTarget.getAttribute("src") ?? "");
       onLoad?.(event);
     },
     [onLoad],
@@ -755,8 +717,7 @@ export function MarkdownImage({ alt, className, onError, onLoad, src: srcProp, .
 
   const handleError = React.useCallback(
     (event: React.SyntheticEvent<HTMLImageElement>) => {
-      setLoaded(false);
-      setFailed(true);
+      setErroredSrc(event.currentTarget.getAttribute("src") ?? "");
       onError?.(event);
     },
     [onError],

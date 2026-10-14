@@ -9,6 +9,7 @@ import { HeightTransition } from "@/components/ui/height-transition";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { UIBlockDefinition, UIBlockRenderProps, UIBlockSkeletonProps } from "./block";
+import { joinTextBlocks, textPair, textTitle } from "./block-text";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
 
@@ -494,6 +495,18 @@ function GanttSkeleton({ items = 0 }: UIBlockSkeletonProps) {
   );
 }
 
+function ganttText(props: GanttProps): string {
+  const day = (time: number) => new Date(time).toISOString().slice(0, 10);
+  const { items } = resolveTasks(props.tasks);
+  const lines = items.map((item) => {
+    const name = item.group ? `${item.group} · ${item.name}` : item.name;
+    const span = item.milestone ? `${day(item.start)} ◆` : `${day(item.start)} → ${day(item.end)}`;
+    const progress = item.progress > 0 ? ` (${item.progress}%)` : "";
+    return `- ${textPair(name, span)}${progress}`;
+  });
+  return joinTextBlocks([...textTitle(props.title), lines.join("\n")]);
+}
+
 export const ganttDefinition: UIBlockDefinition<GanttProps> = {
   name: "gantt",
   version: 1,
@@ -522,4 +535,5 @@ export const ganttDefinition: UIBlockDefinition<GanttProps> = {
   ),
   Component: Gantt,
   Skeleton: GanttSkeleton,
+  toText: ganttText,
 };

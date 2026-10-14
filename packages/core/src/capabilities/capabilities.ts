@@ -12,6 +12,7 @@ export const FEATURE_NAMES = [
   "usageMetering",
   "contentModeration",
   "sharing",
+  "desktopDownload",
 ] as const;
 
 export type Feature = (typeof FEATURE_NAMES)[number];

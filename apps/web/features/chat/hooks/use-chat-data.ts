@@ -9,7 +9,8 @@ import { cancelMessageGeneration, listMessagesPage, resumeMessageGenerationStrea
 import type { MessageDTO } from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
-const MESSAGE_PAGE_SIZE = 100;
+// The first page covers recent turns; older ones load as the user scrolls up.
+const MESSAGE_PAGE_SIZE = 30;
 
 type ChatDataState = {
   conversationPublicID: string;
@@ -119,6 +120,7 @@ export function useChatData(
           page: 1,
           pageSize: MESSAGE_PAGE_SIZE,
           tail: true,
+          trace: "summary",
         });
         if (cancelled) {
           return;
@@ -217,6 +219,7 @@ export function useChatData(
       const data = await listMessagesPage(token, conversationID, {
         pageSize: MESSAGE_PAGE_SIZE,
         beforeID,
+        trace: "summary",
       });
       if (previousConversationIDRef.current !== conversationID) {
         return false;

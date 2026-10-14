@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { writeClipboardText } from "@/shared/lib/clipboard";
 import { type DiffLine, type DiffSegment, diffLines, diffWords, lineSimilarity } from "@/shared/lib/line-diff";
 import type { UIBlockDefinition, UIBlockRenderProps } from "./block";
+import { joinTextBlocks, textTitle } from "./block-text";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
 
@@ -326,6 +327,14 @@ function DiffSkeleton() {
   );
 }
 
+// A unified diff in a fence longer than any backtick run in the text.
+function diffText(props: DiffProps): string {
+  const lines = diffLines(props.before, props.after).map((line) => `${line.kind === "added" ? "+" : line.kind === "removed" ? "-" : " "} ${line.text}`);
+  const longest = Math.max(2, ...Array.from(`${props.before}\n${props.after}`.matchAll(/`+/g), (match) => match[0].length));
+  const fence = "`".repeat(longest + 1);
+  return joinTextBlocks([...textTitle(props.title), `${fence}diff\n${lines.join("\n")}\n${fence}`]);
+}
+
 export const diffDefinition: UIBlockDefinition<DiffProps> = {
   name: "diff",
   version: 1,
@@ -342,4 +351,5 @@ export const diffDefinition: UIBlockDefinition<DiffProps> = {
   ),
   Component: Diff,
   Skeleton: DiffSkeleton,
+  toText: diffText,
 };

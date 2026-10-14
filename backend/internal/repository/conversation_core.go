@@ -149,6 +149,15 @@ type MessageFeedbackRepository interface {
 	GetMessageFeedbackCounts(ctx context.Context, messageIDs []uint) (map[uint]map[string]int64, error)
 }
 
+// MessageUIStateRepository 封装交互式组件状态的持久化能力。
+type MessageUIStateRepository interface {
+	// UpsertMessageUIStates 按块写入状态快照；值为空串的块表示删除该块的状态。
+	// 写入后单条消息的块数超过上限时返回 ErrMessageUIStateLimitExceeded，且不落任何行。
+	UpsertMessageUIStates(ctx context.Context, userID uint, conversationID uint, messageID uint, blocks map[string]string) error
+	// GetMessageUIStateMap 批量读取消息的组件状态，按消息 ID 聚合块状态。
+	GetMessageUIStateMap(ctx context.Context, userID uint, messageIDs []uint) (map[uint]map[string]string, error)
+}
+
 // ConversationTraceRepository 封装附件、运行轨迹与工具调用能力。
 type ConversationTraceRepository interface {
 	CreateAttachments(ctx context.Context, items []domainconversation.Attachment) error

@@ -305,14 +305,14 @@ func (h *Handler) GetFeaturePolicy(c *gin.Context) {
 	response.Success(c, featurePolicyResponse(h.runtime.Snapshot()))
 }
 
-// featurePolicyResponse 把运行时配置映射为用户侧功能开关；下载地址不合法时一并关闭下载入口。
+// featurePolicyResponse 把运行时配置映射为用户侧功能开关；没有下载入口能力或下载地址不合法时一并关闭下载入口。
 func featurePolicyResponse(cfg config.Config) FeaturePolicyResponse {
 	resp := FeaturePolicyResponse{
 		KnowledgeBaseEnabled: cfg.KnowledgeBaseEnabled,
 		ProcessTraceEnabled:  cfg.ProcessTraceEnabled,
 	}
 	downloadURL := strings.TrimSpace(cfg.DesktopDownloadURL)
-	if cfg.DesktopDownloadEnabled && appsettings.IsValidDesktopDownloadURL(downloadURL) {
+	if cfg.Capabilities().DesktopDownload && cfg.DesktopDownloadEnabled && appsettings.IsValidDesktopDownloadURL(downloadURL) {
 		resp.DesktopDownloadEnabled = true
 		resp.DesktopDownloadURL = downloadURL
 	}

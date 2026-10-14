@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema"
                            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                           revision="1.0" schemaVersion="1.0"
+                           revision="1.1" schemaVersion="1.0"
                            xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
   <displayName>DEEIX Chat</displayName>
   <description>Group Policy settings for the DEEIX Chat desktop app.</description>
@@ -11,7 +11,7 @@
       <string id="Category_DEEIXChat">DEEIX Chat</string>
       <string id="Category_DEEIXChat_Explain">Settings for the DEEIX Chat desktop app (installer, MSI and portable editions).
 
-A setting configured under Computer Configuration takes precedence over the same setting under User Configuration. For the on/off settings this applies whether they are enabled or disabled. "Default server address" is the exception: disabling it removes the computer-wide value, so a value set under User Configuration applies again. DEEIX Chat reads these settings when it starts; restart the app to apply a change.</string>
+A setting configured under Computer Configuration takes precedence over the same setting under User Configuration. For the on/off settings this applies whether they are enabled or disabled. "Default server address" is the exception: disabling it removes the computer-wide value, so a value set under User Configuration applies again. The three values of "Configure the network proxy" count as one setting: the configuration that sets the proxy mode decides all of them. DEEIX Chat reads these settings when it starts; restart the app to apply a change.</string>
 
       <string id="DefaultServerUrl">Default server address</string>
       <string id="DefaultServerUrl_Explain">Specifies the server address DEEIX Chat suggests on its setup screen, for example https://chat.example.com.
@@ -50,11 +50,36 @@ If you enable this policy setting, DEEIX Chat never checks for, downloads or ins
 If you disable or do not configure this policy setting, the per-user installer edition updates itself and the portable edition shows a notice when a new version is available.
 
 The MSI edition never updates itself, whatever this setting.</string>
+      <string id="ProxySettings">Configure the network proxy</string>
+      <string id="ProxySettings_Explain">Sets the proxy DEEIX Chat uses, replacing the user's own choice in the app. It applies to model and web requests of the built-in local server, to the app's sign-in renewal and update checks, and to the app window.
+
+Proxy:
+- Use system proxy settings: follow the proxy configured in Windows (Internet Options). An automatic configuration script (PAC) is not applied to requests the app makes itself.
+- Never use a proxy: connect directly.
+- Use a fixed proxy server: use "Proxy server", for example proxy.corp.example:3128 or socks5://proxy.corp.example:1080. Only http:// and socks5:// proxies are supported; credentials cannot be set by policy.
+
+"Proxy bypass list" takes host names, *.example.com patterns, IP addresses and ranges (192.168.* or 10.0.0.0/8), separated by semicolons or commas. This computer (localhost, 127.0.0.0/8, ::1) is always reached directly.
+
+A fixed proxy without a valid "Proxy server" is ignored, as if this policy setting were not configured.
+
+If you disable or do not configure this policy setting, users choose the proxy in the app's settings; the default follows the system.</string>
+      <string id="ProxyMode_System">Use system proxy settings</string>
+      <string id="ProxyMode_Direct">Never use a proxy</string>
+      <string id="ProxyMode_FixedServers">Use a fixed proxy server</string>
     </stringTable>
     <presentationTable>
       <presentation id="DefaultServerUrl">
         <textBox refId="DefaultServerUrl">
           <label>Server address (for example https://chat.example.com):</label>
+        </textBox>
+      </presentation>
+      <presentation id="ProxySettings">
+        <dropdownList refId="ProxyMode" noSort="true" defaultItem="0">Proxy:</dropdownList>
+        <textBox refId="ProxyServer">
+          <label>Proxy server (for a fixed proxy), for example proxy.corp.example:3128:</label>
+        </textBox>
+        <textBox refId="ProxyBypassList">
+          <label>Proxy bypass list:</label>
         </textBox>
       </presentation>
     </presentationTable>

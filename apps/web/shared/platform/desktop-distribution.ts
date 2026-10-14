@@ -23,6 +23,8 @@ export type DistributionPolicy = {
   serverUrlLocked: boolean;
   localModeAllowed: boolean;
   autoUpdateDisabledByPolicy: boolean;
+  /** The network proxy is set by the organization; the app setting does not apply. */
+  proxyManagedByPolicy: boolean;
 };
 
 export type DistributionInfo = {
@@ -45,7 +47,8 @@ function isDistributionPolicy(value: unknown): value is DistributionPolicy {
     (value.defaultServerUrl === null || isString(value.defaultServerUrl)) &&
     isBoolean(value.serverUrlLocked) &&
     isBoolean(value.localModeAllowed) &&
-    isBoolean(value.autoUpdateDisabledByPolicy)
+    isBoolean(value.autoUpdateDisabledByPolicy) &&
+    isBoolean(value.proxyManagedByPolicy)
   );
 }
 
@@ -76,6 +79,7 @@ export const FALLBACK_DISTRIBUTION: DistributionInfo = {
     serverUrlLocked: false,
     localModeAllowed: true,
     autoUpdateDisabledByPolicy: false,
+    proxyManagedByPolicy: false,
   },
 };
 
@@ -127,7 +131,8 @@ export function hasActivePolicy(policy: DistributionPolicy): boolean {
     policy.defaultServerUrl !== null ||
     policy.serverUrlLocked ||
     !policy.localModeAllowed ||
-    policy.autoUpdateDisabledByPolicy
+    policy.autoUpdateDisabledByPolicy ||
+    policy.proxyManagedByPolicy
   );
 }
 

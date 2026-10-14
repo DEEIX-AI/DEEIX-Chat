@@ -11,6 +11,9 @@ export type ApiRequestOptions = {
   body?: unknown;
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  // Lets a small write outlive the page (sent while it is being hidden or
+  // unloaded). Browsers cap keepalive bodies at 64 KB in total.
+  keepalive?: boolean;
 };
 
 export class ApiError extends Error {
@@ -163,6 +166,7 @@ function buildRequestInit(options: ApiRequestOptions): RequestInit {
     headers,
     body,
     signal: options.signal,
+    keepalive: options.keepalive,
     credentials: "include",
     cache: "no-store",
   };

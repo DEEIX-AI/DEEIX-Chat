@@ -361,6 +361,12 @@ fn content_webview<R: Runtime>(
         Some(dir) => builder.data_directory(dir),
         None => builder,
     };
+    // Proxy arguments must be identical for every webview: WebView2 refuses
+    // webviews that share a user data folder but not their environment options.
+    let builder = app
+        .state::<crate::proxy::ProxyState>()
+        .webview()
+        .configure(builder);
     builder
         .on_navigation(is_app_url)
         .on_new_window(move |url, _| {
@@ -532,6 +538,9 @@ fn persist<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
 }
 
 fn changed<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
+    // macOS: the File menu's ⌘W item follows the tab count (src/menu.rs).
+    #[cfg(target_os = "macos")]
+    crate::menu::sync(app);
     persist(app)?;
     app.emit_to(
         EventTarget::webview(CHROME_LABEL),

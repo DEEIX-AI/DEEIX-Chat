@@ -1,0 +1,58 @@
+{
+  "title": "网络代理",
+  "mode": {
+    "title": "代理",
+    "description": "用于内置本地服务的模型请求，以及应用自身的登录续期和检查更新。",
+    "system": "跟随系统设置",
+    "manual": "手动配置",
+    "direct": "不使用代理"
+  },
+  "fields": {
+    "scheme": "协议",
+    "schemeDescription": "大多数代理软件选 HTTP；代理只提供 SOCKS5 时再选它。",
+    "host": "地址",
+    "hostDescription": "代理服务器的主机名或 IP 地址。",
+    "port": "端口",
+    "portDescription": "Clash、v2rayN 通常是 7890 或 10809。",
+    "username": "用户名",
+    "usernameDescription": "仅用于需要登录的代理。",
+    "password": "密码",
+    "passwordDescription": "保存在系统钥匙串中。",
+    "removePassword": "删除已保存的密码",
+    "bypass": "禁用代理地址",
+    "bypassDescription": "每行一个，或用逗号分隔。支持主机名、*.example.com、IP 地址，以及 192.168.* 或 10.0.0.0/8 这样的网段。本机地址始终直连。"
+  },
+  "effective": {
+    "title": "当前生效",
+    "direct": "直接连接",
+    "sources": {
+      "policy": "由你的组织设置",
+      "manual": "手动配置",
+      "direct": "不使用代理",
+      "environment": "环境变量",
+      "system": "系统设置",
+      "none": "系统设置（未配置代理）"
+    }
+  },
+  "notices": {
+    "managed": "此应用的网络代理由你的组织管理。",
+    "restart": "更改将在应用重启后生效。本机上正在生成的回复会中断。",
+    "restartAction": "立即重启",
+    "systemChanged": "应用启动后系统代理设置已更改，重启应用后生效。",
+    "pacIgnored": "你的系统使用自动配置脚本（PAC），应用无法使用它，请求将直接连接；如需代理请选择「手动配置」。",
+    "webviewNotApplied": "应用窗口本身仍跟随系统代理设置；此设置用于本地服务和应用自身的请求。"
+  },
+  "toasts": {
+    "saved": "代理设置已保存",
+    "savedDescription": "重启应用后生效。",
+    "saveFailed": "无法保存代理设置",
+    "loadFailed": "无法读取代理设置"
+  },
+  "errors": {
+    "host": "请输入主机名或 IP 地址，不要包含 http:// 或路径。",
+    "port": "请输入 1 到 65535 之间的端口。",
+    "bypass": "「{value}」不是有效的主机名、地址或网段。",
+    "policy": "此应用的网络代理由你的组织管理。",
+    "storage": "无法保存设置：{message}"
+  }
+}

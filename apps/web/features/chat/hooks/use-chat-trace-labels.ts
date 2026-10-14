@@ -92,6 +92,9 @@ export type ProcessTraceLabels = {
     thinkRounds: (count: number) => string;
     duration: (duration: string) => string;
     labelSeparator: string;
+    detailLoading: string;
+    detailFailed: string;
+    detailRetry: string;
   };
   promptTrace: {
     modes: {
@@ -233,6 +236,9 @@ export function useChatTraceLabels(): ProcessTraceLabels {
         thinkRounds: (count: number) => t("run.thinkRounds", { count }),
         duration: (duration: string) => t("run.duration", { duration }),
         labelSeparator: t("run.labelSeparator"),
+        detailLoading: t("run.detailLoading"),
+        detailFailed: t("run.detailFailed"),
+        detailRetry: t("run.detailRetry"),
       },
       promptTrace: {
         modes: {

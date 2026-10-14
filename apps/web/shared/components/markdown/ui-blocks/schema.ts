@@ -9,6 +9,7 @@ export type Schema =
   | { kind: "string"; enum?: readonly string[] }
   | { kind: "number" }
   | { kind: "boolean" }
+  | { kind: "null" }
   | { kind: "cell" }
   | { kind: "any" }
   | { kind: "oneOf"; options: Schema[] }
@@ -23,6 +24,8 @@ export const s = {
   string: (options?: { enum?: readonly string[] }): Schema => ({ kind: "string", enum: options?.enum }),
   number: (): Schema => ({ kind: "number" }),
   boolean: (): Schema => ({ kind: "boolean" }),
+  // Only meaningful inside an array or oneOf: an object field set to null counts as absent.
+  null: (): Schema => ({ kind: "null" }),
   cell: (): Schema => ({ kind: "cell" }),
   any: (): Schema => ({ kind: "any" }),
   // First option that validates wins; issues are reported only when none does.
@@ -67,6 +70,13 @@ function walk(schema: Schema, input: unknown, path: string, issues: Issue[]): un
         return undefined;
       }
       return input;
+    }
+    case "null": {
+      if (input !== null) {
+        issues.push({ path, message: "expected null" });
+        return undefined;
+      }
+      return null;
     }
     case "any":
       return input;
