@@ -377,6 +377,10 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGN_AND_NOTARIZE_SCRIPT_URL: ${{ secrets.SIGN_AND_NOTARIZE_SCRIPT_URL }}
+          SIGN_AND_NOTARIZE_BASE_URL: ${{ secrets.SIGN_AND_NOTARIZE_BASE_URL }}
+          SIGN_AND_NOTARIZE_API_TOKEN: ${{ secrets.SIGN_AND_NOTARIZE_API_TOKEN }}
+          SIGN_AND_NOTARIZE_HELPER_URL: ${{ secrets.SIGN_AND_NOTARIZE_HELPER_URL }}
         run: |
           set -euo pipefail
           shopt -s nullglob

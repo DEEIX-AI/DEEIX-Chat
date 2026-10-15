@@ -425,7 +425,7 @@ What a local `pnpm build` costs once caches are warm, and where it goes:
 | Web (`next build`) | **0.3 s** | ~35 s | runs through `turbo`, so an untouched frontend is a cache hit |
 | Rust app crate | ~1 s | ~60 s | recompiles whenever `out/` changed (assets are embedded); fat LTO, the shipped profile |
 | `.app` | ~1 s | | |
-| `.dmg` | ~25 s | | `hdiutil` + Finder layout; `scripts/package-dmg.sh` then re-encodes with lzfse and (when signing is configured) re-signs and notarizes |
+| `.dmg` | ~25 s + signing time | | `hdiutil` + Finder layout; `scripts/package-dmg.sh` re-encodes with lzfse and signs with the configured Apple credentials, or uses the external service to sign and notarize both the embedded app and the DMG |
 
 `pnpm build:signed` produces exactly what CI ships. Use `pnpm build:app` while
 iterating: it relaxes LTO (~17 s link) and stops at the `.app`.
@@ -449,6 +449,7 @@ app icon.
 | Platform | What is needed | CI secrets |
 | --- | --- | --- |
 | macOS | Developer ID Application certificate (.p12) + Apple ID app-specific password for notarization; identity and team id are derived from the certificate (`scripts/apple-signing-env.sh`) | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD` |
+| macOS DMG post-processing | Optional external signing and notarization script; takes priority when all four values are set | `SIGN_AND_NOTARIZE_SCRIPT_URL`, `SIGN_AND_NOTARIZE_BASE_URL`, `SIGN_AND_NOTARIZE_API_TOKEN`, `SIGN_AND_NOTARIZE_HELPER_URL` |
 | Windows | Code-signing certificate (.pfx) | `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` |
 | All | Updater keypair (`tauri signer generate`); the private key is kept git-ignored in `deploy/secrets/` (see its README) | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` |
 
@@ -469,9 +470,26 @@ certificate's team id on the app and the DMG, a stapled notarization ticket on
 both, and a Gatekeeper assessment of `Notarized Developer ID`.
 `pnpm build:signed` runs the same check.
 
-Only the updater key is mandatory. Platform signing switches on by itself once
-its secrets exist; CI fails when only some of the macOS secrets are set instead
-of quietly building an unnotarized app. Without a Developer ID the macOS app is
+`scripts/package-dmg.sh <file.dmg>` reads the four `SIGN_AND_NOTARIZE_*`
+variables from its caller (local builds load `deploy/secrets/desktop-signing.env`;
+CI reads the matching secrets). When all four are non-empty, the remote service
+takes priority over Apple credentials. Otherwise, it uses the original flow:
+re-encode with lzfse and, when `APPLE_TEAM_ID` is configured, sign, notarize and
+staple the DMG with the Apple credentials. Remote download or signing failures
+stop the build rather than falling back to the original flow.
+
+With all four values set, it downloads `SIGN_AND_NOTARIZE_SCRIPT_URL` once
+and runs the script with `API_BASE_URL`, `API_TOKEN` and `RESULT_HELPER_URL`
+mapped from the other three values, passing an input and output path for each
+request. It signs and notarizes the app inside a writable copy of the DMG,
+preserves the Finder layout, compresses the image with lzfse, then signs and
+notarizes that image. The original DMG is replaced only after success. The
+standalone app and updater archive remain Tauri outputs; when Apple credentials
+are configured, the external service must use the same team for verification.
+
+Only the updater key is mandatory. Tauri's platform signing switches on once
+its secrets exist; CI fails when only some of the Apple credentials are
+set. Without a Developer ID configured in Tauri, its macOS app is
 signed **ad-hoc** (`APPLE_SIGNING_IDENTITY=-`); Tauri would otherwise skip
 `codesign` and leave only the linker's signature, which macOS reports as
 *damaged* on Apple silicon. Ad-hoc builds still need the user to allow the app
