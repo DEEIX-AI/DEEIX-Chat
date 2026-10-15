@@ -20,6 +20,21 @@ if [[ -n "${SIGN_AND_NOTARIZE_SCRIPT_URL:-}" &&
 
   [[ -f "$dmg" ]] || fail "$dmg does not exist"
   dmg="$(cd "$(dirname "$dmg")" && pwd)/$(basename "$dmg")"
+  # Match rename-release-assets.mjs, using the artifact's version and target.
+  # The remote script derives its upload ZIP name from the input basename.
+  dmg_name="$(basename "$dmg")"
+  if [[ "$dmg_name" =~ ^(.+)_([^_]+)_(aarch64|arm64|x64|x86_64|amd64)\.dmg$ ]]; then
+    version="${BASH_REMATCH[2]}"
+    case "${BASH_REMATCH[3]}" in
+      aarch64|arm64) arch=arm64 ;;
+      x64|x86_64|amd64) arch=x64 ;;
+    esac
+    release_stem="DEEIX-Chat-$version-macos-$arch"
+  elif [[ "$dmg_name" =~ ^DEEIX-Chat-(.+)-macos-(arm64|x64)\.dmg$ ]]; then
+    release_stem="${dmg_name%.dmg}"
+  else
+    fail "cannot derive a versioned release name from $dmg_name"
+  fi
   # Keep the final rename on the same filesystem, and leave the original intact
   # until both signing requests and the repackaging have succeeded.
   workdir="$(mktemp -d "$(dirname "$dmg")/.package-dmg.XXXXXX")"
@@ -59,20 +74,23 @@ if [[ -n "${SIGN_AND_NOTARIZE_SCRIPT_URL:-}" &&
   ((${#apps[@]} == 1)) || fail "expected one .app in $dmg, found ${#apps[@]}"
   app="${apps[0]}"
   [[ -d "$app" ]] || fail "$app is not an app bundle"
+  staged_app="$workdir/$release_stem.app"
   signed_app="$workdir/signed/$(basename "$app")"
 
-  echo "Signing and notarizing $(basename "$app")"
-  sign_and_notarize "$app" "$signed_app"
+  ditto "$app" "$staged_app"
+  echo "Signing and notarizing $(basename "$staged_app")"
+  sign_and_notarize "$staged_app" "$signed_app"
   [[ -d "$signed_app" ]] || fail "the signing script did not produce $signed_app"
   rm -rf "$app"
   ditto "$signed_app" "$app"
   hdiutil detach -quiet "$mount"
   mounted=false
 
-  hdiutil convert "$workdir/writable.dmg" -format ULFO -o "$workdir/unsigned.dmg" -quiet
+  unsigned_dmg="$workdir/$release_stem.dmg"
+  hdiutil convert "$workdir/writable.dmg" -format ULFO -o "$unsigned_dmg" -quiet
   signed_dmg="$workdir/signed/$(basename "$dmg")"
-  echo "Signing and notarizing $(basename "$dmg")"
-  sign_and_notarize "$workdir/unsigned.dmg" "$signed_dmg"
+  echo "Signing and notarizing $(basename "$unsigned_dmg")"
+  sign_and_notarize "$unsigned_dmg" "$signed_dmg"
   [[ -s "$signed_dmg" ]] || fail "the signing script did not produce $signed_dmg"
   mv -f "$signed_dmg" "$dmg"
 else
