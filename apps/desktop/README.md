@@ -551,6 +551,9 @@ require a newer macOS than the app declares, and the bundle must pass
 `codesign --verify --deep --strict`. With a Developer ID it also requires the
 certificate's team id on the app and the DMG, a stapled notarization ticket on
 both, and a Gatekeeper assessment of `Notarized Developer ID`.
+The DMG signer is checked against Apple's Developer ID Application certificate
+chain and its certificate's Team ID (`subject.OU`), because a signed disk image
+can report `TeamIdentifier=not set` in `codesign -dv` output.
 `pnpm build:signed` runs the same check.
 
 Only the updater key is mandatory. Platform signing switches on by itself once

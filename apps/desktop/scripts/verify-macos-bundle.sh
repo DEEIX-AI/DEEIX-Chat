@@ -81,6 +81,18 @@ check_team() {
   [[ "$team" == "$APPLE_TEAM_ID" ]] || fail "$1 is signed by team '${team:-none}', expected $APPLE_TEAM_ID"
 }
 
+verify_dmg_signature() {
+  local requirement
+  # Disk images can report TeamIdentifier=not set even with a valid Developer
+  # ID signature. Validate the signing certificate's OU (the Team ID) instead
+  # of the CodeDirectory field, and require Apple's Developer ID chain.
+  [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || fail "APPLE_TEAM_ID must contain 10 uppercase letters or digits"
+  requirement="=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists \
+and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"$APPLE_TEAM_ID\""
+  codesign --verify --strict --verbose=2 --test-requirement "$requirement" "$1" \
+    || fail "$1 must be signed by a Developer ID Application certificate for team $APPLE_TEAM_ID"
+}
+
 verify_app() {
   local app="$1" plist minimum executable binary archs minos
   plist="$app/Contents/Info.plist"
@@ -122,8 +134,7 @@ for artifact in "${artifacts[@]}"; do
   case "$artifact" in
     *.dmg)
       if $signed; then
-        codesign --verify --strict --verbose=2 "$artifact"
-        check_team "$artifact"
+        verify_dmg_signature "$artifact"
         xcrun stapler validate "$artifact"
         assess --type open --context context:primary-signature "$artifact"
       fi
