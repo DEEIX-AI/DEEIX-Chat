@@ -2,10 +2,10 @@
 //
 // Tauri's `bundle.externalBin` expects `<name>-<rust-target-triple>` next to
 // the config (e.g. binaries/deeix-chat-server-aarch64-apple-darwin) and strips
-// the suffix when bundling. The server links SQLite through cgo, so CI builds
-// it natively on each target's runner. Pass --target <triple> for local
-// cross-builds on macOS (x86_64 on an arm64 host works because Apple ships both
-// toolchains).
+// the suffix when bundling. The server links SQLite through cgo, so builds
+// need a C toolchain for the target. CI builds both macOS targets on arm64
+// runners. Pass --target <triple> for cross-builds on macOS (x86_64 on an
+// arm64 host works because Apple ships both toolchains).
 //
 // Usage: node scripts/build-sidecar.mjs [--target <rust-triple>]
 

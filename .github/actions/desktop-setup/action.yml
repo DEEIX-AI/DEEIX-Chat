@@ -3,7 +3,7 @@ description: Restore target-specific toolchains and caches, and consume the shar
 
 inputs:
   target:
-    description: Rust target triple; also separates Go and Rust caches.
+    description: Rust target triple; also separates cross-compiled Go and Rust caches.
     required: true
   source-sha:
     description: Immutable source commit used to refresh the Go compilation cache.
@@ -43,18 +43,18 @@ runs:
       run: |
         echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
         echo "modules=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-    # Separate host toolchains and target packages; the source SHA refreshes
-    # compiled sidecar packages while retaining reusable dependency caches.
+    # Both macOS targets run on arm64, so key compiled packages by target
+    # triple; the source SHA refreshes builds while retaining dependency caches.
     - name: Cache Go sidecar build
       uses: actions/cache@v5
       with:
         path: |
           ${{ steps.go-paths.outputs.build }}
           ${{ steps.go-paths.outputs.modules }}
-        key: desktop-go-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-${{ inputs.source-sha }}
+        key: desktop-go-${{ runner.os }}-${{ inputs.target }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-${{ inputs.source-sha }}
         restore-keys: |
-          desktop-go-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-
-          desktop-go-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-${{ steps.go.outputs.go-version }}-
+          desktop-go-${{ runner.os }}-${{ inputs.target }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-
+          desktop-go-${{ runner.os }}-${{ inputs.target }}-${{ steps.go.outputs.go-version }}-
     - name: Install desktop CLI
       shell: bash
       run: pnpm --filter @deeix/desktop install --frozen-lockfile

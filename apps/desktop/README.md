@@ -356,7 +356,7 @@ verification live in that platform's file.
 | Workflow | Responsibility |
 | --- | --- |
 | [`desktop-prepare.yml`](../../.github/workflows/desktop-prepare.yml) | Verify the run's source commit and tag, check version consistency, then build the frontend and refresh catalog snapshots once, in parallel. |
-| [`desktop-macos.yml`](../../.github/workflows/desktop-macos.yml) | Build arm64 on `macos-26` and x64 on `macos-26-intel` natively; sign the app, create the final DMG and updater archive, then verify both. |
+| [`desktop-macos.yml`](../../.github/workflows/desktop-macos.yml) | Build arm64 natively and cross-compile x64 on ARM `macos-26` runners; sign the app, create the final DMG and updater archive, then verify both. |
 | [`desktop-linux.yml`](../../.github/workflows/desktop-linux.yml) | Build x64 sidecar/executable, bundle deb/AppImage and verify the Wayland library exclusion. |
 | [`desktop-windows.yml`](../../.github/workflows/desktop-windows.yml) | Build x64 sidecar/executable, sign and verify NSIS/MSI/portable packages, and attest their provenance. |
 
@@ -377,9 +377,9 @@ the same tag reuse its caches. Successive tags cannot restore caches written by
 each other, so their first native builds may need recompilation. Publication
 verifies the tag has not moved, and Windows provenance records the matching
 workflow and desktop source commits. Rust is pinned in the setup action, and
-Rust/Go cache keys include the target triple, and Go keys also include the runner
-architecture, so different hosts and targets cannot overwrite one another's
-cache. Dependency changes or cache eviction can also cause rebuilds.
+Rust/Go cache keys include the target triple so the two macOS targets sharing
+ARM runners cannot overwrite one another's cache. Dependency changes or cache
+eviction can also cause rebuilds.
 
 To build an existing tag containing these workflows and scripts:
 
