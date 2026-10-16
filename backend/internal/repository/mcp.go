@@ -8,21 +8,23 @@ import (
 
 // CreateMCPServerInput 定义创建 MCP 服务字段。
 type CreateMCPServerInput struct {
-	Name         string
-	BaseURL      string
-	AuthTokenEnc string
-	HeadersJSON  string
-	Status       string
+	Name              string
+	BaseURL           string
+	AuthTokenEnc      string
+	HeadersJSON       string
+	Status            string
+	FileCreateEnabled bool
 }
 
 // UpdateMCPServerInput 定义更新 MCP 服务字段。
 type UpdateMCPServerInput struct {
-	Name         *string
-	BaseURL      *string
-	AuthTokenEnc *string
-	HeadersJSON  *string
-	Status       *string
-	LastError    *string
+	Name              *string
+	BaseURL           *string
+	AuthTokenEnc      *string
+	HeadersJSON       *string
+	Status            *string
+	LastError         *string
+	FileCreateEnabled *bool
 }
 
 // UpdateMCPToolInput 定义更新 MCP 工具字段。

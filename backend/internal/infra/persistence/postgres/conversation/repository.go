@@ -2940,7 +2940,12 @@ func getOrInitQuotaForUpdate(tx *gorm.DB, userID uint, defaultQuotaBytes int64) 
 			UsedBytes:     0,
 			ReservedBytes: 0,
 		}
-		if err := tx.Select("UserID", "QuotaBytes", "UsedBytes", "ReservedBytes").Create(&quota).Error; err != nil {
+		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}}, DoNothing: true}).
+			Select("UserID", "QuotaBytes", "UsedBytes", "ReservedBytes").Create(&quota).Error; err != nil {
+			return nil, dberror.Translate(err)
+		}
+		// A concurrent first upload may have initialized this account while we waited.
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", userID).First(&quota).Error; err != nil {
 			return nil, dberror.Translate(err)
 		}
 	} else {

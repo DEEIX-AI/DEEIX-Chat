@@ -2,15 +2,18 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	appmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/mcpauth"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 )
 
 // ExecuteToolInput 定义工具执行入参。
@@ -21,6 +24,10 @@ type ExecuteToolInput struct {
 	ToolName       string
 	ArgumentsJSON  string
 	MCPConfig      *mcp.CallConfig
+	ServerID       uint
+	ToolID         uint
+	Ephemeral      bool
+	CallID         string
 }
 
 func (s *Service) executeToolCall(ctx context.Context, input ExecuteToolInput) (string, error) {
@@ -35,24 +42,43 @@ func (s *Service) executeToolCall(ctx context.Context, input ExecuteToolInput) (
 		return "", fmt.Errorf("mcp client is not configured")
 	}
 	cfg := s.cfg.Snapshot()
-	mcpCfg, err := applySignedUserContext(cfg, *input.MCPConfig, input)
-	if err != nil {
-		return "", err
-	}
-
 	limit := cfg.MCPMaxConcurrentCalls
 	if limit <= 0 {
 		limit = 8
 	}
 
 	return s.executeWithToolLimiter(ctx, limit, func() (string, error) {
-		return s.callMCPWithRetry(ctx, mcpCfg, mcp.CallInput{
+		input.CallID = uuid.NewString()
+		mcpCfg, err := applySignedUserContext(cfg, *input.MCPConfig, input)
+		if err != nil {
+			return "", err
+		}
+		// No grants for temporary chats or attachment preprocessors.
+		mcpCfg.FileCreateToken = ""
+		if !input.Ephemeral && input.ServerID != 0 && s.mcpFileCreate != nil {
+			mcpCfg.FileCreateToken, err = s.mcpFileCreate.IssueFileCreateGrant(ctx, appmcp.FileCreateCall{
+				ServerID: input.ServerID, ToolID: input.ToolID, UserID: input.UserID,
+				BaseURL: mcpCfg.BaseURL, CallID: input.CallID, RequestID: input.RequestID,
+				Epoch: mcpCfg.FileCreateEpoch,
+			})
+			if err != nil {
+				return "", fmt.Errorf("MCP file capability issuance failed")
+			}
+		}
+		output, callErr := s.callMCPWithRetry(ctx, mcpCfg, mcp.CallInput{
 			ToolName:       toolName,
 			ArgumentsJSON:  strings.TrimSpace(input.ArgumentsJSON),
 			UserID:         input.UserID,
 			ConversationID: input.ConversationID,
 			RequestID:      strings.TrimSpace(input.RequestID),
 		}, cfg.MCPToolRetryCount)
+		if token := mcpCfg.FileCreateToken; token != "" {
+			output = toolresult.RedactSecret(output, token)
+			if callErr != nil {
+				callErr = errors.New(toolresult.RedactSecret(callErr.Error(), token))
+			}
+		}
+		return output, callErr
 	})
 }
 
@@ -81,7 +107,7 @@ func applySignedUserContext(cfg config.Config, base mcp.CallConfig, input Execut
 		ConversationID: input.ConversationID,
 		RequestID:      strings.TrimSpace(input.RequestID),
 		Audience:       base.BaseURL,
-		JTI:            uuid.NewString(),
+		JTI:            toolCallJTI(input.CallID),
 		ExpiresAt:      time.Now().Add(mcpauth.DefaultTTL).Unix(),
 	})
 	if err != nil || token == "" {
@@ -97,6 +123,13 @@ func applySignedUserContext(cfg config.Config, base mcp.CallConfig, input Execut
 	}
 	base.Headers = expanded
 	return base, nil
+}
+
+func toolCallJTI(callID string) string {
+	if callID != "" {
+		return callID
+	}
+	return uuid.NewString()
 }
 
 func (s *Service) resolveMaxToolCallsPerRun() int {

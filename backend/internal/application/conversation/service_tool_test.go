@@ -12,11 +12,15 @@ import (
 	"testing"
 	"time"
 
+	appmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/mcp"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/mcpauth"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"go.uber.org/zap"
 )
 
 type capturingMCPClient struct {
@@ -27,7 +31,8 @@ type capturingMCPClient struct {
 	// failures 是返回成功前先失败的次数，用于覆盖重试路径。
 	failures int
 	// attempts 记录每次尝试收到的请求头。
-	attempts []map[string]string
+	attempts   []map[string]string
+	fileTokens []string
 }
 
 func (c *capturingMCPClient) CallTool(_ context.Context, cfg mcp.CallConfig, input mcp.CallInput) (string, error) {
@@ -35,6 +40,7 @@ func (c *capturingMCPClient) CallTool(_ context.Context, cfg mcp.CallConfig, inp
 	c.cfg = cfg
 	c.input = input
 	c.attempts = append(c.attempts, maps.Clone(cfg.Headers))
+	c.fileTokens = append(c.fileTokens, cfg.FileCreateToken)
 	if len(c.attempts) <= c.failures {
 		return "", fmt.Errorf("attempt %d failed", len(c.attempts))
 	}
@@ -243,6 +249,57 @@ func TestExecuteToolCallRejectsToolsNotEnabledForRun(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "not enabled for this run") {
 		t.Fatalf("expected disabled tool error, got %v", err)
+	}
+}
+
+type fileCreateServerStub struct {
+	repository.MCPRepository
+	enabled bool
+}
+
+func (s fileCreateServerStub) GetServer(context.Context, uint) (*domainmcp.Server, error) {
+	return &domainmcp.Server{ID: 1, BaseURL: "https://generator.example/mcp", Status: "active", FileCreateEnabled: s.enabled}, nil
+}
+
+type fileCreateGrantStub struct {
+	repository.MCPFileCreateRepository
+	grants []domainmcp.FileCreateGrant
+}
+
+func (r *fileCreateGrantStub) CreateFileCreateGrant(_ context.Context, grant *domainmcp.FileCreateGrant, _ string) error {
+	r.grants = append(r.grants, *grant)
+	return nil
+}
+
+func TestExecuteToolCallFileCapabilityRetryAndScope(t *testing.T) {
+	for _, mode := range []string{"enabled", "disabled", "temporary"} {
+		t.Run(mode, func(t *testing.T) {
+			client := &capturingMCPClient{output: "ok", failures: 1}
+			cfg := config.NewRuntime(config.Config{MCPEnable: true, MCPToolRetryCount: 1, MCPUserContextSecret: "secret"})
+			repo := &fileCreateGrantStub{}
+			svc := &Service{cfg: cfg, mcpClient: client}
+			svc.SetMCPFileCreateService(appmcp.NewFileCreateService(cfg, fileCreateServerStub{enabled: mode != "disabled"}, repo, nil, nil, zap.NewNop()))
+			_, err := svc.executeToolCall(context.Background(), ExecuteToolInput{
+				UserID: 42, ServerID: 1, ToolID: 7, ToolName: "generate", ArgumentsJSON: `{}`, Ephemeral: mode == "temporary",
+				MCPConfig: &mcp.CallConfig{BaseURL: "https://generator.example/mcp", Headers: map[string]string{mcpauth.HeaderName: mcpauth.TemplateSignedUserContext}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode != "enabled" {
+				if len(repo.grants) != 0 || client.fileTokens[0] != "" {
+					t.Fatal("unexpected file capability")
+				}
+				return
+			}
+			if len(repo.grants) != 1 || client.fileTokens[0] == "" || client.fileTokens[0] != client.fileTokens[1] {
+				t.Fatal("retry minted a second grant")
+			}
+			payload, err := verifyUserContextForTest("secret", client.attempts[0][mcpauth.HeaderName])
+			if err != nil || payload.JTI != repo.grants[0].CallID || repo.grants[0].UserID != 42 || repo.grants[0].ToolID != 7 {
+				t.Fatalf("call binding mismatch: %v", err)
+			}
+		})
 	}
 }
 
