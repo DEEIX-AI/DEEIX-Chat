@@ -149,7 +149,7 @@ test("dry-run publication assembles metadata without invoking GitHub", (t) => {
   assert.equal(JSON.parse(readFileSync(join(f.out, "latest.json"), "utf8")).version, version);
 });
 
-test("publication creates one draft after validation and blocks moved tags, published or stale assets", { skip: process.platform === "win32" }, (t) => {
+test("publication uses a verified tag without workflow-write permission and blocks unsafe retries", { skip: process.platform === "win32" }, (t) => {
   const f = fixture(t);
   f.collectAll();
   f.write(join(f.root, "VERSION"), version);
@@ -162,19 +162,33 @@ const args = process.argv.slice(2);
 const input = args.includes('--input') ? JSON.parse(fs.readFileSync(0, 'utf8')) : null;
 fs.appendFileSync(process.env.TEST_LOG, JSON.stringify({ args, input }) + '\\n');
 if (args[0] === 'release') process.exit(0);
-if (args[1].includes('/commits/')) console.log(JSON.stringify({ sha: process.env.TEST_COMMIT }));
-else if (args.includes('POST')) console.log(JSON.stringify({ id: 123, html_url: 'https://example.invalid/draft', ...input }));
+if (args[1].includes('/commits/')) {
+  // A same-named branch can still resolve when the actual tag is missing.
+  if (args[1].includes('/commits/refs%2Ftags%2F') && process.env.TEST_MISSING_TAG === '1') {
+    console.error('gh: Not Found (HTTP 404)');
+    process.exit(1);
+  }
+  console.log(JSON.stringify({ sha: process.env.TEST_COMMIT }));
+} else if (args.includes('POST')) {
+  // GitHub checks workflow-write permission for an explicit target commit
+  // with workflow changes, even when contents: write has been granted.
+  if (input.target_commitish) {
+    console.error('gh: Resource not accessible by integration (HTTP 403)');
+    process.exit(1);
+  }
+  console.log(JSON.stringify({ id: 123, html_url: 'https://example.invalid/draft', ...input }));
+}
 else console.log(JSON.stringify([JSON.parse(process.env.TEST_RELEASES)]));
 `, { mode: 0o755 });
-  const run = (commit, releases) => {
+  const run = (commit, releases, extraEnv = {}) => {
     writeFileSync(log, "");
     const result = spawnSync(process.execPath, [script, "--tag", tag, "--sha", sha, "--dir", f.out], {
       cwd: f.root, encoding: "utf8",
       env: { ...process.env, GH_REPO: repository, GITHUB_STEP_SUMMARY: "", PATH: `${bin}:${process.env.PATH}`,
-        TEST_COMMIT: commit, TEST_RELEASES: JSON.stringify(releases), TEST_LOG: log },
+        TEST_COMMIT: commit, TEST_RELEASES: JSON.stringify(releases), TEST_LOG: log, TEST_MISSING_TAG: "", ...extraEnv },
     });
     const calls = readFileSync(log, "utf8").trim().split("\n").map(JSON.parse);
-    return { result, writes: calls.filter(({ args }) => args[0] === "release" || args.includes("POST")) };
+    return { result, calls, writes: calls.filter(({ args }) => args[0] === "release" || args.includes("POST")) };
   };
   const draft = { tag_name: tag, draft: true, assets: [] };
   for (const [commit, releases, message] of [
@@ -187,11 +201,12 @@ else console.log(JSON.stringify([JSON.parse(process.env.TEST_RELEASES)]));
     assert.match(result.stderr, message);
     assert.deepEqual(writes, []);
   }
-  const { result, writes } = run(sha, []);
+  const { result, calls, writes } = run(sha, []);
   assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(calls[0].args, ["api", `repos/${repository}/commits/${encodeURIComponent(`refs/tags/${tag}`)}`]);
   assert.equal(writes.length, 2, "one draft creation and one asset upload");
   assert.equal(writes[0].input.tag_name, tag);
-  assert.equal(writes[0].input.target_commitish, sha);
+  assert.equal(Object.hasOwn(writes[0].input, "target_commitish"), false);
   assert.equal(writes[0].input.draft, true);
   assert.equal(writes[0].input.prerelease, true);
   assert.ok(writes[1].args.includes(join(f.out, "SHA256SUMS")));
@@ -199,4 +214,9 @@ else console.log(JSON.stringify([JSON.parse(process.env.TEST_RELEASES)]));
   const retry = run(sha, [draft]);
   assert.equal(retry.result.status, 0, retry.result.stderr);
   assert.equal(retry.writes.length, 1, "retry uploads to the existing draft without creating another one");
+  const missing = run(sha, [], { TEST_MISSING_TAG: "1" });
+  assert.notEqual(missing.result.status, 0);
+  assert.match(missing.result.stderr, /Not Found/);
+  assert.deepEqual(missing.writes, [], "a missing tag must never create a release or a new tag");
+  assert.equal(missing.calls.length, 1);
 });

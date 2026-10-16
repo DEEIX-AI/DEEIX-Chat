@@ -91,7 +91,8 @@ async function main() {
     return;
   }
   const gh = (args, input) => execFileSync("gh", args, { encoding: "utf8", input, maxBuffer: 16 * 1024 * 1024 });
-  const commit = JSON.parse(gh(["api", `repos/${repository}/commits/${encodeURIComponent(tag)}`]));
+  // Resolve the actual tag, including annotated tags, never a same-named branch.
+  const commit = JSON.parse(gh(["api", `repos/${repository}/commits/${encodeURIComponent(`refs/tags/${tag}`)}`]));
   if (commit.sha !== sha) throw new Error(`${tag} moved since the build started (${sha} -> ${commit.sha})`);
   const pages = JSON.parse(gh(["api", `repos/${repository}/releases?per_page=100`, "--paginate", "--slurp"]));
   let release = existingDraft(pages.flat(), tag);
@@ -100,8 +101,10 @@ async function main() {
     throw new Error(`draft contains assets outside this build; remove or reconcile them before retrying: ${unexpected.map(({ name }) => name).join(", ")}`);
   }
   if (!release) {
+    // The tag already exists and was verified above. An explicit target_commitish
+    // can require workflow-write permission, which GITHUB_TOKEN cannot grant.
     release = JSON.parse(gh(["api", "--method", "POST", `repos/${repository}/releases`, "--input", "-"], JSON.stringify({
-      tag_name: tag, target_commitish: sha, name: tag, draft: true,
+      tag_name: tag, name: tag, draft: true,
       prerelease: version.includes("-"), body: releaseNotes(version),
     })));
   }
