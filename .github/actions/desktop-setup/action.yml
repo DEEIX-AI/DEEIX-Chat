@@ -17,10 +17,10 @@ runs:
       env:
         SOURCE_SHA: ${{ inputs.source-sha }}
       run: node apps/desktop/scripts/desktop-source.mjs
-    - uses: pnpm/action-setup@v4
+    - uses: pnpm/action-setup@v5
       with:
         version: 10.17.0
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v5
       with:
         node-version: 24
         cache: pnpm
@@ -32,7 +32,7 @@ runs:
       with:
         workspaces: apps/desktop/src-tauri
         shared-key: desktop-release-${{ inputs.target }}
-    - uses: actions/setup-go@v5
+    - uses: actions/setup-go@v6
       id: go
       with:
         go-version-file: backend/go.mod
@@ -46,7 +46,7 @@ runs:
     # setup-go keys by the host architecture. Both macOS targets run on arm64,
     # so their compiled packages need separate keys and source refreshes.
     - name: Cache Go sidecar build
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ${{ steps.go-paths.outputs.build }}
@@ -59,12 +59,12 @@ runs:
       shell: bash
       run: pnpm --filter @deeix/desktop install --frozen-lockfile
     - name: Download frontend
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: desktop-web
         path: apps/web/out
     - name: Download catalog snapshots
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: desktop-catalog
         path: backend/internal/infra/catalogdata/data

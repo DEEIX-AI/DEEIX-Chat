@@ -64,7 +64,7 @@ test("the normal all-target version command also checks and synchronizes Cargo.l
   const check = f.run("--check");
   assert.notEqual(check.status, 0);
   assert.match(check.stderr, /Cargo\.lock/);
-  assert.match(check.stderr, /Run: node scripts\/sync-version\.mjs\s*$/);
+  assert.match(check.stderr, /Run: pnpm api:generate\s*$/);
   const sync = f.run();
   assert.equal(sync.status, 0, sync.stderr);
   assert.equal(f.run("--check").status, 0);

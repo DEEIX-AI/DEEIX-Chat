@@ -335,9 +335,12 @@ Publishing the draft is the step that ships the update; until then existing
 installs see nothing. Pushing the tag by hand does the same.
 
 Before tagging, update `VERSION`, run `make version` and commit the synchronized
-version files, including the desktop root package entry in `Cargo.lock`.
-`make version-check` checks that entry too, so a stale lockfile fails before
-the native release builds use `--locked`; dependency versions stay pinned.
+version files, including the desktop root package entry in `Cargo.lock` and the
+generated Swagger/TypeScript API contracts. This uses the same generation
+pipeline as `pnpm api:generate`; Go and workspace JS dependencies are required.
+`make version-check` runs the full API contract drift check as well as version
+checks, so stale manifests, lock metadata or generated API versions fail before
+release. Dependency versions stay pinned.
 
 Windows assets: `-windows-x64-setup.exe`, `-windows-x64.msi`,
 `-windows-x64-portable.zip` (and `-portable-offline.zip` when built). Every

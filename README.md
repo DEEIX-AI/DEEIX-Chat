@@ -225,7 +225,7 @@ repository root and routes to pnpm / turbo / cargo / go underneath.
 | `make build-desktop` / `make release-desktop` | Quick local `.app` / signed release bundle. |
 | `make verify` | check + test + build, what CI runs. |
 | `make api-docs` | Regenerate Swagger artifacts and TypeScript API types. |
-| `make version` | Propagate `VERSION` to every package manifest. |
+| `make version` / `make version-check` | Synchronize/check versions, Cargo.lock and generated Swagger/TypeScript API contracts. |
 
 The same verbs exist as pnpm scripts (`pnpm dev:api`, `pnpm check`, …) for
 tooling that prefers them; CI uses those directly.

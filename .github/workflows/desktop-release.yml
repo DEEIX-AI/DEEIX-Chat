@@ -95,7 +95,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.sha }}
       - name: Verify publication source
@@ -103,11 +103,12 @@ jobs:
           SOURCE_SHA: ${{ needs.prepare.outputs.source-sha }}
           RELEASE_TAG: ${{ needs.prepare.outputs.release-tag }}
         run: node apps/desktop/scripts/desktop-source.mjs
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
+          package-manager-cache: false
       - name: Download verified release assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: desktop-release-*
           path: release-assets

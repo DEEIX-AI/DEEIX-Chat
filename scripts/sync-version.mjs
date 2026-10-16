@@ -7,8 +7,8 @@ const args = process.argv.slice(2);
 const checkOnly = args.includes("--check");
 const mode = args.find((arg) => !arg.startsWith("--")) ?? "all";
 
-// Every versioned target in the workspace. Adding a new app (desktop, mobile)
-// means adding one entry here; nothing else in the release pipeline changes.
+// Low-level manifest synchronization, also called by the API generator.
+// `make version` completes it by regenerating Swagger and TypeScript contracts.
 const targets = {
   workspace: () => {
     syncPackageVersion();
@@ -135,7 +135,7 @@ if (checkOnly && mismatches.length > 0) {
   for (const filePath of mismatches) {
     console.error(`- ${filePath}`);
   }
-  const fixCommand = `node scripts/sync-version.mjs${mode === "all" ? "" : ` ${mode}`}`;
+  const fixCommand = mode === "all" || mode === "backend" ? "pnpm api:generate" : `node scripts/sync-version.mjs ${mode}`;
   console.error(`Run: ${fixCommand}`);
   process.exit(1);
 }

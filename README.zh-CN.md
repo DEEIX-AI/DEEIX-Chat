@@ -223,7 +223,7 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 | `make build-desktop` / `make release-desktop` | 本地快速 `.app` / 签名发版包。 |
 | `make verify` | check + test + build，即 CI 跑的内容。 |
 | `make api-docs` | 重新生成 Swagger 与 TypeScript API 类型。 |
-| `make version` | 把 `VERSION` 同步到所有包清单。 |
+| `make version` / `make version-check` | 同步或检查版本、Cargo.lock 和生成的 Swagger/TypeScript API 契约。 |
 
 同一组动作也以 pnpm 脚本存在（`pnpm dev:api`、`pnpm check` …），CI 直接用它们。
 

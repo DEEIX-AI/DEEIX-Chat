@@ -30,7 +30,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.sha }}
       - name: Validate architecture
@@ -97,7 +97,7 @@ jobs:
         run: |
           node apps/desktop/scripts/collect-release-assets.mjs --platform "macos-$ARCH" \
             --bundle "apps/desktop/src-tauri/target/$TARGET/release/bundle" --out "$RUNNER_TEMP/release-assets"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: desktop-release-macos-${{ inputs.arch }}
           path: ${{ runner.temp }}/release-assets
@@ -106,7 +106,7 @@ jobs:
           overwrite: true
       - name: Upload compilation timings
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: desktop-timings-macos-${{ inputs.arch }}
           path: apps/desktop/src-tauri/target/cargo-timings
