@@ -246,15 +246,18 @@ trigger it. The parent workflow delegates to reusable workflows:
 | [`desktop-windows.yml`](.github/workflows/desktop-windows.yml) | Build x64 NSIS/MSI/portable packages, verify signatures and attest their provenance. |
 
 The four native jobs run in parallel after preparation and reuse the same
-frontend/catalog artifacts. Releases run on the default branch with a
-`release_tag` input so successive tags share a cache scope; builds still check
-out the tag's immutable commit. Rust is pinned, Rust/Go caches are separated by
+frontend/catalog artifacts. Releases run in their tag's context and every job
+checks out the run's immutable commit. Tag caches remain isolated from the
+default branch and other tags, while compatible default-branch CI caches can
+still be restored. Rust is pinned, Rust/Go caches are separated by
 target, and the fat LTO release profile is unchanged. macOS packages are created
 from the same final signed app, avoiding DMG recompression.
 
 Only after every target passes does the parent assemble `latest.json` and
 `SHA256SUMS` and upload a **draft** release. Publishing the draft ships the update.
-Manual runs with an empty `release_tag` only upload workflow artifacts. See the
+Manual branch runs with an empty `release_tag` only upload workflow artifacts;
+manual tag runs create a draft release. A branch run with `release_tag` set
+dispatches the build onto that tag. See the
 [desktop release guide](apps/desktop/README.md#release-workflows) for manual tag
 builds, signing secrets, cache behavior and compilation timing reports.
 

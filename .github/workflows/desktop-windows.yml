@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source-sha }}
+          ref: ${{ github.sha }}
       - uses: ./.github/actions/desktop-setup
         with:
           target: ${{ env.TARGET }}
@@ -162,8 +162,7 @@ jobs:
           SOURCE_SHA: ${{ inputs.source-sha }}
         run: node apps/desktop/scripts/desktop-provenance.mjs > "$RUNNER_TEMP/desktop-provenance.json"
       - name: Attest Windows build provenance
-        # The workflow runs on the default branch; attest the checked-out
-        # release commit as well as the workflow commit.
+        # The workflow and checked-out source share the run's immutable commit.
         uses: actions/attest-build-provenance@v4
         with:
           predicate-type: https://slsa.dev/provenance/v1

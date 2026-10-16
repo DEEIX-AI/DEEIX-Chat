@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source-sha }}
+          ref: ${{ github.sha }}
       - name: Validate architecture
         run: '[[ "$ARCH" == arm64 || "$ARCH" == x64 ]]'
       - uses: ./.github/actions/desktop-setup

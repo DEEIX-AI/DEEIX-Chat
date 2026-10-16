@@ -1,13 +1,9 @@
-// GitHub's automatic predicate records the workflow commit. Releases execute
-// on the default branch but check out a tag: retain both commits as inputs.
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+// Record the workflow and source at the same immutable branch or tag commit.
 import { pathToFileURL } from "node:url";
+import { currentDesktopSource, desktopSource } from "./desktop-source.mjs";
 
 export function desktopProvenance({ env, sourceSha, releaseTag = "" }) {
-  for (const sha of [sourceSha, env.GITHUB_SHA]) {
-    if (!/^[0-9a-f]{40}$/.test(sha ?? "")) throw new Error("provenance requires immutable source and workflow commits");
-  }
+  const { releaseTag: tag } = desktopSource({ env, sourceSha, releaseTag });
   const repository = `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}`;
   const prefix = `${env.GITHUB_REPOSITORY}/`;
   const suffix = `@${env.GITHUB_REF}`;
@@ -29,7 +25,7 @@ export function desktopProvenance({ env, sourceSha, releaseTag = "" }) {
       },
       resolvedDependencies: [
         { name: "workflow", uri: `git+${repository}@${env.GITHUB_REF}`, digest: { gitCommit: env.GITHUB_SHA } },
-        { name: "desktop-source", uri: `git+${repository}@${releaseTag ? `refs/tags/${releaseTag}` : sourceSha}`, digest: { gitCommit: sourceSha } },
+        { name: "desktop-source", uri: `git+${repository}@${tag ? `refs/tags/${tag}` : sourceSha}`, digest: { gitCommit: sourceSha } },
       ],
     },
     runDetails: {
@@ -42,8 +38,6 @@ export function desktopProvenance({ env, sourceSha, releaseTag = "" }) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const sourceSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  if (sourceSha !== process.env.SOURCE_SHA) throw new Error("checkout does not match the requested source commit");
-  const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
-  console.log(JSON.stringify(desktopProvenance({ env: process.env, sourceSha, releaseTag: event.inputs?.release_tag })));
+  const { sha: sourceSha, releaseTag } = currentDesktopSource();
+  console.log(JSON.stringify(desktopProvenance({ env: process.env, sourceSha, releaseTag })));
 }

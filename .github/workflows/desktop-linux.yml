@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source-sha }}
+          ref: ${{ github.sha }}
       - uses: ./.github/actions/desktop-setup
         with:
           target: ${{ env.TARGET }}

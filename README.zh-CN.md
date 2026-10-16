@@ -242,17 +242,17 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 
 公共准备完成后，四个 OS + arch 任务并行运行，Node.js 侧只安装桌面 CLI 所需的依赖，并下载同一份前端和模型目录产物。四个平台验证通过后，主 workflow 统一生成 `latest.json`、`SHA256SUMS`，上传安装包和更新签名到一个 **GitHub Release 草稿**。手动发布草稿后，已安装的客户端才会收到更新。
 
-发布任务在仓库的**默认分支**上运行，通过 `release_tag` 指定源码标签。构建始终 checkout 已解析的固定提交，上传前再次确认标签没有移动；这样不同版本可以复用默认分支缓存。公共 [desktop-setup action](.github/actions/desktop-setup/action.yml) 固定 Rust 版本，并按目标平台和架构隔离 Rust、Go 缓存，避免两个 macOS 任务争用缓存。首次运行仍需要预热；Rust 的 fat LTO 等发布优化参数保持不变。
+发布任务在目标标签的运行上下文中执行，所有任务始终 checkout 本次运行的固定提交，并在上传前再次确认标签没有移动。标签写入的缓存与默认分支及其他标签隔离，仍可恢复默认分支 CI 生成的兼容缓存；同一标签重跑可以复用自己的缓存，不同标签首次运行可能需要重新编译。公共 [desktop-setup action](.github/actions/desktop-setup/action.yml) 固定 Rust 版本，并按目标平台和架构隔离 Rust、Go 缓存，避免两个 macOS 任务争用缓存。Rust 的 fat LTO 等发布优化参数保持不变。
 
 macOS 先完成 `.app` 的签名和公证，再从同一份最终应用生成 ULFO DMG 和更新压缩包，避免先生成 DMG 再解压、替换应用和重新压缩。编译、打包、签名、公证与验证分别显示为独立步骤；`desktop-timings-*` 附件保留七天，可用于查看 Rust 编译耗时。外部签名服务和 Apple 公证的等待时间仍计入相应步骤。
 
-手动构建已有标签（默认分支和目标标签均需包含这些 workflow 与构建脚本）：
+手动构建已有标签（目标标签需包含这些 workflow 与构建脚本）：
 
 ```bash
-gh workflow run desktop-release.yml --ref "$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)" -f release_tag=v1.2.3
+gh workflow run desktop-release.yml --ref refs/tags/v1.2.3
 ```
 
-在 Actions 页面手动运行且留空 `release_tag` 时，只构建所选分支并上传 workflow 附件。公共产物保留七天，期间可以重跑失败的平台任务。签名密钥、更新通道和平台打包细节见 [桌面端说明](apps/desktop/README.md#release-workflows)。
+在 Actions 页面选择分支且留空 `release_tag` 时，只构建所选分支并上传 workflow 附件；选择标签则创建发布草稿。在分支上填写 `release_tag` 会把构建调度到该标签，标签运行中填写的值必须与当前标签一致。旧标签沿用其原始 workflow 的重跑方式。公共产物保留七天，期间可以重跑失败的平台任务。签名密钥、更新通道和平台打包细节见 [桌面端说明](apps/desktop/README.md#release-workflows)。
 
 ### Docker 部署
 

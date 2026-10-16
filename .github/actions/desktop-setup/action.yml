@@ -12,6 +12,11 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Verify source commit
+      shell: bash
+      env:
+        SOURCE_SHA: ${{ inputs.source-sha }}
+      run: node apps/desktop/scripts/desktop-source.mjs
     - uses: pnpm/action-setup@v4
       with:
         version: 10.17.0

@@ -347,7 +347,7 @@ verification live in that platform's file.
 
 | Workflow | Responsibility |
 | --- | --- |
-| [`desktop-prepare.yml`](../../.github/workflows/desktop-prepare.yml) | Resolve the requested tag, check version consistency, then build the frontend and refresh catalog snapshots once, in parallel. |
+| [`desktop-prepare.yml`](../../.github/workflows/desktop-prepare.yml) | Verify the run's source commit and tag, check version consistency, then build the frontend and refresh catalog snapshots once, in parallel. |
 | [`desktop-macos.yml`](../../.github/workflows/desktop-macos.yml) | Called separately for arm64 and x64; build the sidecar/app, sign it, create the final DMG and updater archive, then verify both. |
 | [`desktop-linux.yml`](../../.github/workflows/desktop-linux.yml) | Build x64 sidecar/executable, bundle deb/AppImage and verify the Wayland library exclusion. |
 | [`desktop-windows.yml`](../../.github/workflows/desktop-windows.yml) | Build x64 sidecar/executable, sign and verify NSIS/MSI/portable packages, and attest their provenance. |
@@ -360,27 +360,33 @@ Compilation, bundling, notarization and verification have separate steps. Rust
 `--timings` reports are retained as `desktop-timings-*` artifacts for seven days.
 The shipped Rust optimization profile, including fat LTO, is unchanged.
 
-Release-tag runs dispatch `desktop-release.yml` on the repository's **default
-branch**, with the tag supplied as `release_tag`. This gives successive releases
-the same GitHub cache scope instead of creating a separate scope per tag. The
-jobs still check out the tag's resolved commit, and publication verifies the tag
-has not moved. Windows provenance records both the workflow commit and the
-actual desktop source commit. Rust is pinned in the setup action, and Rust/Go
-cache keys include the target triple so the two macOS architectures cannot
-overwrite one another's cache. The first run after a cache/toolchain change is
-still cold; dependency changes or cache eviction can also cause rebuilds.
+Release-tag runs dispatch `desktop-release.yml` on the **release tag**. Every
+job checks out the run's immutable `github.sha`; source inputs are verified
+against that commit and cannot select code from a different ref. Tag code writes
+only to its own cache scope, keeping the default branch and other tags isolated.
+Compatible caches from default-branch CI can still be restored, and reruns of
+the same tag reuse its caches. Successive tags cannot restore caches written by
+each other, so their first native builds may need recompilation. Publication
+verifies the tag has not moved, and Windows provenance records the matching
+workflow and desktop source commits. Rust is pinned in the setup action, and
+Rust/Go cache keys include the target triple so the two macOS architectures
+cannot overwrite one another's cache. Dependency changes or cache eviction can
+also cause rebuilds.
 
-To build an existing tag, after these workflows exist on the default branch:
+To build an existing tag containing these workflows and scripts:
 
 ```bash
-gh workflow run desktop-release.yml --ref "$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)" -f release_tag=v1.2.3
+gh workflow run desktop-release.yml --ref refs/tags/v1.2.3
 ```
 
-The tag must contain the reusable build scripts and setup action. A manual run
-with an empty `release_tag` builds the selected branch and only uploads workflow
-artifacts. A release run creates the draft only after all four targets succeed;
-publishing the draft remains a separate human step. Failed jobs can be retried
-while the shared artifacts are retained (seven days).
+The tag must contain the reusable workflows, build scripts and setup action;
+rerun the original workflow for historical tags. A manual branch run with an
+empty `release_tag` only uploads workflow artifacts; a manual tag run creates a
+draft. Setting `release_tag` on a branch dispatches the workflow onto that tag
+without building it in the branch's context. On a tag run, a nonempty input must
+match the current tag. A release run creates the draft only after all four
+targets succeed; publishing the draft remains a separate human step. Failed
+jobs can be retried while the shared artifacts are retained (seven days).
 
 ### Channels
 

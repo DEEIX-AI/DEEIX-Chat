@@ -23,12 +23,12 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       source-sha: ${{ steps.source.outputs.sha }}
-      release-tag: ${{ inputs.release-tag }}
+      release-tag: ${{ steps.source.outputs.release-tag }}
       channel: ${{ steps.source.outputs.channel }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release-tag && format('refs/tags/{0}', inputs.release-tag) || github.sha }}
+          ref: ${{ github.sha }}
       - name: Verify source
         id: source
         env:
@@ -38,16 +38,16 @@ jobs:
             echo "::error::This source predates the reusable desktop build. Rerun its original workflow, or choose a tag containing the new build scripts."
             exit 1
           fi
-          node scripts/sync-version.mjs --check
           node --input-type=module <<'JS'
           import { appendFileSync, readFileSync } from 'node:fs';
           import { execFileSync } from 'node:child_process';
+          import { currentDesktopSource } from './apps/desktop/scripts/desktop-source.mjs';
+          const { sha, releaseTag: tag } = currentDesktopSource();
+          execFileSync(process.execPath, ['scripts/sync-version.mjs', '--check'], { stdio: 'inherit' });
           const version = readFileSync('VERSION', 'utf8').trim();
-          const tag = process.env.RELEASE_TAG;
           if (tag && tag !== `v${version}`) throw new Error(`Tag ${tag} does not match VERSION ${version}`);
-          const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
           const channel = version.includes('-') ? 'beta' : 'stable';
-          appendFileSync(process.env.GITHUB_OUTPUT, `sha=${sha}\nchannel=${channel}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `sha=${sha}\nrelease-tag=${tag}\nchannel=${channel}\n`);
           appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Source: ${sha}\n\nVersion: ${version} (${channel})\n`);
           JS
 
@@ -58,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve.outputs.source-sha }}
+          ref: ${{ github.sha }}
       - uses: pnpm/action-setup@v4
         with:
           version: 10.17.0
@@ -67,7 +67,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Same namespace as the web CI job on the default branch.
+      # Restore compatible default-branch CI caches; new entries stay ref-scoped.
       - name: Cache Next.js build
         uses: actions/cache@v4
         with:
@@ -92,7 +92,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve.outputs.source-sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod

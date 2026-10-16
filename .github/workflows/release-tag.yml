@@ -54,9 +54,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           RELEASE_TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          # Keep the desktop cache in the default branch's scope across tags.
-          gh workflow run desktop-release.yml --ref "$DEFAULT_BRANCH" -f release_tag="$RELEASE_TAG"
+          gh workflow run desktop-release.yml --ref "refs/tags/$RELEASE_TAG"
           gh workflow run image.yml --ref "$RELEASE_TAG"
