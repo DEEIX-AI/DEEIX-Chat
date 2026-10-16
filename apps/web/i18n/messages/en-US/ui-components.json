@@ -74,6 +74,10 @@
       "title": "Stat cards",
       "summary": "Side-by-side KPIs; sparkline with hover readout"
     },
+    "image-gallery": {
+      "title": "Image gallery",
+      "summary": "Several images side by side; click to enlarge, step through, see captions and sources"
+    },
     "gantt": {
       "title": "Gantt",
       "summary": "Schedule, milestones, dependencies; scale switch, chain highlight, group collapse"

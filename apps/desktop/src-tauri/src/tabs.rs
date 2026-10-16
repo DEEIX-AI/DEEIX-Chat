@@ -361,7 +361,13 @@ fn content_webview<R: Runtime>(
         Some(dir) => builder.data_directory(dir),
         None => builder,
     };
-    builder
+    // Proxy arguments must be identical for every webview: WebView2 refuses
+    // webviews that share a user data folder but not their environment options.
+    let builder = app
+        .state::<crate::proxy::ProxyState>()
+        .webview()
+        .configure(builder);
+    crate::downloads::configure(builder)
         .on_navigation(is_app_url)
         .on_new_window(move |url, _| {
             if matches!(url.scheme(), "http" | "https") {

@@ -112,6 +112,8 @@ export type ChatMessageProcessTrace = {
   upstreamThink?: ChatTraceBlock;
   promptTrace?: ChatPromptTrace;
   events?: ChatTraceEvent[];
+  /** Summary from the message list: thinking and tool inputs/outputs are cut; the full trace loads on expand. */
+  detailOmitted?: boolean;
 };
 
 export type ChatInlineAlert = {

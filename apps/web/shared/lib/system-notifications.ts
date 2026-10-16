@@ -2,6 +2,7 @@
 
 import { getBrandingSnapshot } from "@/shared/config/branding";
 import { normalizeTrimmedString } from "@/shared/lib/string";
+import { showDesktopNotification, usesDesktopNotifications } from "@/shared/platform/desktop-notifications";
 
 const RESPONSE_COMPLETION_NOTIFICATIONS_STORAGE_KEY = "deeix-chat:response-completion-notifications";
 const NOTIFICATION_BODY_MAX_LENGTH = 140;
@@ -23,12 +24,21 @@ function normalizeNotificationBody(value: string) {
   return `${compactValue.slice(0, NOTIFICATION_BODY_MAX_LENGTH - 1)}…`;
 }
 
-export function isBrowserNotificationSupported() {
+function isWebNotificationSupported() {
   return typeof window !== "undefined" && "Notification" in window;
 }
 
-export function getBrowserNotificationPermission(): NotificationPermission | "unsupported" {
-  if (!isBrowserNotificationSupported()) {
+// Browsers use the Web Notifications API and its per-site permission; the desktop shell
+// shows native notifications and has no permission to ask for.
+export function isSystemNotificationSupported() {
+  return usesDesktopNotifications() || isWebNotificationSupported();
+}
+
+export function getSystemNotificationPermission(): NotificationPermission | "unsupported" {
+  if (usesDesktopNotifications()) {
+    return "granted";
+  }
+  if (!isWebNotificationSupported()) {
     return "unsupported";
   }
   return Notification.permission;
@@ -49,7 +59,14 @@ export function writeResponseCompletionNotificationsEnabled(enabled: boolean) {
 }
 
 export async function enableResponseCompletionNotifications() {
-  if (!isBrowserNotificationSupported()) {
+  if (usesDesktopNotifications()) {
+    writeResponseCompletionNotificationsEnabled(true);
+    return {
+      enabled: true,
+      permission: "granted" as const,
+    };
+  }
+  if (!isWebNotificationSupported()) {
     writeResponseCompletionNotificationsEnabled(false);
     return {
       enabled: false,
@@ -76,10 +93,7 @@ export function disableResponseCompletionNotifications() {
 }
 
 export function notifyResponseCompletion(input: ResponseCompletionNotificationInput) {
-  if (!isBrowserNotificationSupported()) {
-    return false;
-  }
-  if (!readResponseCompletionNotificationsEnabled() || Notification.permission !== "granted") {
+  if (!readResponseCompletionNotificationsEnabled() || getSystemNotificationPermission() !== "granted") {
     return false;
   }
   if (typeof document !== "undefined" && document.visibilityState === "visible" && document.hasFocus()) {
@@ -88,8 +102,15 @@ export function notifyResponseCompletion(input: ResponseCompletionNotificationIn
 
   const conversationTitle = normalizeTrimmedString(input.conversationTitle);
   const branding = getBrandingSnapshot();
-  const notification = new Notification(conversationTitle || branding.title, {
-    body: normalizeNotificationBody(normalizeTrimmedString(input.content)),
+  const title = conversationTitle || branding.title;
+  const body = normalizeNotificationBody(normalizeTrimmedString(input.content));
+  if (usesDesktopNotifications()) {
+    showDesktopNotification(title, body);
+    return true;
+  }
+
+  const notification = new Notification(title, {
+    body,
     tag: normalizeTrimmedString(input.conversationPublicID, `response-completion:${Date.now()}`),
     icon: branding.pwaIcon192URL,
   });

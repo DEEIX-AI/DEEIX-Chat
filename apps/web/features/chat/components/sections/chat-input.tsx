@@ -97,7 +97,7 @@ import {
   resolveFileProcessingBadge,
 } from "@/entities/file";
 import { isModelOptionPathFiltered, type ModelControlValue, type ModelOptionPolicy } from "@/entities/model";
-import { isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
+import { isImeComposingKeyEvent, isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
 
 const TEMPORARY_NOTICE_TRANSITION = {
   duration: 0.22,
@@ -876,6 +876,13 @@ function ChatInputComponent({
                   const failed = badge.tone === "danger" || badge.tone === "warning";
                   const backgroundProcessing = !failed && isFileProcessing(item);
                   const meta = formatAttachmentMeta(item.fileName, item.sizeBytes);
+                  const statusDetail = failed || backgroundProcessing ? badge.detail : undefined;
+                  const trigger = (
+                    <AttachmentTrigger
+                      onClick={() => setPreviewAttachment(item)}
+                      aria-label={tComposer("previewAttachment", { name: item.fileName })}
+                    />
+                  );
                   return (
                     <Attachment
                       key={item.fileID}
@@ -884,7 +891,7 @@ function ChatInputComponent({
                       size="sm"
                       className="h-12 w-full border-0 bg-muted/35 px-2 text-left hover:bg-muted/50 dark:bg-white/[0.06] dark:hover:bg-white/[0.09] sm:w-[228px] sm:px-2.5"
                     >
-                      <AttachmentMedia className="size-6 bg-transparent text-muted-foreground">
+                      <AttachmentMedia className="size-8 bg-transparent text-muted-foreground">
                         <FileIcon className="size-5" strokeWidth={1.6} />
                       </AttachmentMedia>
                       <AttachmentContent className="flex min-w-0 flex-1 flex-col justify-center px-0 py-0">
@@ -895,10 +902,7 @@ function ChatInputComponent({
                           {backgroundProcessing ? (
                             <LoaderCircle className="size-3 shrink-0 animate-spin" strokeWidth={1.8} />
                           ) : null}
-                          <span
-                            className="min-w-0 shrink truncate"
-                            title={failed || backgroundProcessing ? badge.detail : undefined}
-                          >
+                          <span className="min-w-0 shrink truncate">
                             {failed || backgroundProcessing ? `${badge.label} · ${meta}` : meta}
                           </span>
                           {item.ragOptOut && item.fileCategory !== "image" ? (
@@ -911,10 +915,17 @@ function ChatInputComponent({
                           ) : null}
                         </AttachmentDescription>
                       </AttachmentContent>
-                      <AttachmentTrigger
-                        onClick={() => setPreviewAttachment(item)}
-                        aria-label={tComposer("previewAttachment", { name: item.fileName })}
-                      />
+                      {statusDetail ? (
+                        // The trigger covers the whole chip, so the status reason is anchored to it.
+                        <Tooltip>
+                          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-72 leading-5 text-pretty">
+                            {statusDetail}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        trigger
+                      )}
                       <AttachmentActions>
                         {pastedTexts.has(item.fileID) ? (
                           <Tooltip>
@@ -960,7 +971,7 @@ function ChatInputComponent({
                     className="h-12 w-full border-0 bg-muted/35 px-2.5 dark:bg-white/[0.06] sm:w-[228px]"
                     aria-label={tComposer("uploadingAttachment", { name: item.fileName })}
                   >
-                    <AttachmentMedia className="size-6 bg-transparent text-muted-foreground">
+                    <AttachmentMedia className="size-8 bg-transparent text-muted-foreground">
                       <LoaderCircle className="size-5 animate-spin" strokeWidth={1.8} />
                     </AttachmentMedia>
                     <AttachmentContent className="flex min-w-0 flex-1 flex-col justify-center px-0 py-0">
@@ -1080,7 +1091,7 @@ function ChatInputComponent({
               composingRef.current = false;
             }}
             onKeyDown={(event) => {
-              if (event.nativeEvent.isComposing || composingRef.current || event.key === "Process" || event.keyCode === 229) {
+              if (isImeComposingKeyEvent(event, composingRef.current)) {
                 return;
               }
               const shouldSend = isSendShortcutEvent(sendShortcut, event);

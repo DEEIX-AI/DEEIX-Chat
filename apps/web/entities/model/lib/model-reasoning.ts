@@ -14,6 +14,7 @@ const REASONING_EFFORT_LEVELS = [
   "high",
   "xhigh",
   "max",
+  "ultra",
 ] as const satisfies readonly ReasoningEffortLevel[];
 
 export const isReasoningEffortLevel = isOneOf(REASONING_EFFORT_LEVELS);

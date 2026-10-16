@@ -1,11 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
-  "description": "Content tabs (one webview per server). Deliberately minimal: session commands (store once / refresh / clear — the refresh token is never readable), distribution/policy info and the update notice, relaunch, and opening http(s) URLs in the system browser for OAuth. No shell, no filesystem, no HTTP plugin. The JS updater (updater:default) is granted at runtime only when this build may install updates itself (distribution::grant_updater).",
+  "description": "Content tabs (one webview per server). Deliberately minimal: session commands (store once / refresh / clear — the refresh token is never readable), distribution/policy info and the update notice, network proxy settings, relaunch, native notifications (show only; the permission query is what the plugin's Notification shim runs at start), and opening http(s) URLs in the system browser for OAuth. No shell, no filesystem, no HTTP plugin. The JS updater (updater:default plus check_update, which applies the app's proxy) is granted at runtime only when this build may install updates itself (distribution::grant_updater).",
   "permissions": [
     "core:default",
     "core:window:allow-set-focus",
     "process:default",
+    "notification:allow-notify",
+    "notification:allow-is-permission-granted",
     {
       "identifier": "opener:allow-open-url",
       "allow": [
@@ -19,6 +21,8 @@
     },
     "allow-get-distribution",
     "allow-check-update-notice",
+    "allow-get-network-proxy",
+    "allow-set-network-proxy",
     "allow-get-server",
     "allow-set-remote-server",
     "allow-set-local-server",

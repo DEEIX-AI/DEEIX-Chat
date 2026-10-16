@@ -32,6 +32,10 @@ export function isFileProcessing(file: FileProcessingView): boolean {
     || ["uploaded", "queued", "extracting", "embedding"].includes(file.processingStatus ?? "");
 }
 
+export function isFileProcessingFailed(file: Pick<FileProcessingView, "processingStatus" | "processingErrorCode">): boolean {
+  return file.processingStatus === "failed" || Boolean(file.processingErrorCode);
+}
+
 export function canManuallyVectorizeFile(file: FileProcessingView): boolean {
   return file.canVectorize === true;
 }
@@ -65,7 +69,7 @@ export function resolveFileProcessingBadge(
   file: FileProcessingView,
   translate?: FileProcessingTranslator,
 ): FileProcessingBadge {
-  if (file.processingStatus === "failed" || file.processingErrorCode) {
+  if (isFileProcessingFailed(file)) {
     const code = file.processingErrorCode?.trim();
     return {
       label: translateFileProcessing(translate, "processingFailed", "Processing failed"),

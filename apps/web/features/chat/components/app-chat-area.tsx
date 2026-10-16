@@ -53,9 +53,6 @@ import { useChatConversationDefaults } from "@/features/chat/hooks/use-chat-conv
 import { useChatTemporaryRuntime } from "@/features/chat/hooks/use-chat-temporary-runtime";
 import { useChatUIBlockStateRuntime } from "@/features/chat/hooks/use-chat-ui-block-state";
 import { filterAvailableMCPToolIDs } from "@/features/chat/model/chat-mcp-tool-defaults";
-import type {
-  ChatRegenerateReasoningOptions,
-} from "@/features/chat/model/chat-reasoning-effort";
 import type { ChatAreaMessage, } from "@/features/chat/types/messages";
 import { useSettingsChatPreferences } from "@/features/settings";
 import { cn } from "@/lib/utils";
@@ -264,14 +261,6 @@ export function AppChatArea() {
     [modelOptions, selectedPlatformModelName],
   );
   const modelOptionPolicyDisabled = modelOptionPolicy?.mode?.trim() === "disabled";
-  // Regeneration runs on the composer model, so "Regenerate with…" offers that model's levels.
-  const regenerateReasoning = React.useMemo<ChatRegenerateReasoningOptions | null>(() => {
-    const capability = selectedModel?.reasoning;
-    if (!selectedModel || !capability || capability.locked) {
-      return null;
-    }
-    return { levels: capability.levels, defaultLevel: capability.default };
-  }, [selectedModel]);
   const refreshModelCatalogForComposer = React.useCallback(async () => {
     await refreshModelCatalog();
   }, [refreshModelCatalog]);
@@ -536,6 +525,24 @@ export function AppChatArea() {
     },
     [hasOlder, loadOlderMessages, loadingOlder],
   );
+
+  // Only a scroll asks for older messages. When the loaded page does not overflow (short turns, or a page
+  // taken mostly by other branches), keep loading until the viewport can scroll or the history runs out.
+  React.useEffect(() => {
+    if (loading || loadingOlder || !hasOlder || loadingOlderInFlightRef.current) {
+      return;
+    }
+    const viewport = messageContentRef.current?.closest<HTMLElement>("[data-slot='message-scroller-viewport']");
+    if (!viewport || viewport.scrollHeight - viewport.clientHeight > TOP_LOAD_OLDER_MESSAGES_THRESHOLD_PX) {
+      return;
+    }
+    loadingOlderInFlightRef.current = true;
+    Promise.resolve(loadOlderMessages())
+      .catch((): undefined => undefined)
+      .finally(() => {
+        loadingOlderInFlightRef.current = false;
+      });
+  }, [hasOlder, loadOlderMessages, loading, loadingOlder, visibleMessages]);
 
   const {
     onEditGeneratedImageAttachment,
@@ -894,7 +901,6 @@ export function AppChatArea() {
                   onEditUserMessage={temporaryMode ? temporaryRuntime.onEditUserMessage : onEditUserMessage}
                   onForkMessage={temporaryMode ? undefined : onForkMessage}
                   onDeleteMessage={temporaryMode ? undefined : onDeleteMessage}
-                  regenerateReasoning={regenerateReasoning}
                   modelOptions={modelOptions}
                   selectedPlatformModelName={selectedPlatformModelName}
                   onModelChange={setSelectedPlatformModelName}
@@ -928,6 +934,7 @@ export function AppChatArea() {
                   showTokenUsage={showTokenUsage}
                   showBillingCost={showBillingCost}
                   showProcessTrace={showProcessTrace}
+                  sendShortcut={sendShortcut}
                   billingDisplayCurrency={billingDisplayCurrency}
                   billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
                   splitRightInset={hasInlineArtifact}

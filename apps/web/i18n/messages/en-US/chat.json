@@ -217,7 +217,10 @@
       "askLabel": "Follow-up question",
       "askPlaceholder": "Type a follow-up question",
       "askSend": "Send follow-up",
-      "askRestore": "Restore the suggested question"
+      "askRestore": "Restore the suggested question",
+      "imageCount": "{count, plural, one {# image} other {# images}}",
+      "previousImage": "Previous image",
+      "nextImage": "Next image"
     },
     "copyLatex": "Copy formula source",
     "latexCopied": "Formula source copied",
@@ -370,6 +373,7 @@
     "autoTruncated": "Attachments truncated automatically",
     "autoTruncatedDescription": "Kept the first {max} attachments and ignored {count} files over the limit.",
     "uploadFailed": "Upload failed",
+    "processingFailed": "Couldn't process {name}",
     "uploadSignInRequired": "Sign in before uploading files.",
     "dropTitle": "Drop files to attach",
     "duplicateReused": "Duplicate file detected and reused",
@@ -859,7 +863,10 @@
       "toolCalls": "{count} tool calls",
       "thinkRounds": "{count} deep-reasoning rounds",
       "duration": "{duration}",
-      "labelSeparator": " · "
+      "labelSeparator": " · ",
+      "detailLoading": "Loading run details",
+      "detailFailed": "Couldn't load run details",
+      "detailRetry": "Retry"
     },
     "promptTrace": {
       "modes": {
@@ -1153,10 +1160,7 @@
     "default": "Default",
     "auto": "Auto",
     "levelWithDefault": "{level} (default)",
-    "dialogDescription": "Unified reasoning level; the server maps it to this model's native parameter.",
-    "regenerate": "Regenerate",
-    "regenerateWith": "Regenerate with reasoning effort",
-    "usedByReply": "This reply"
+    "dialogDescription": "Unified reasoning level; the server maps it to this model's native parameter."
   },
   "modelControls": {
     "title": "Chat parameters",

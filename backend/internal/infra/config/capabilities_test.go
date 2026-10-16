@@ -26,6 +26,7 @@ func TestCapabilitiesLocalModeKeepsOnlyMetering(t *testing.T) {
 		"usageMetering":     true,
 		"contentModeration": false,
 		"sharing":           false,
+		"desktopDownload":   false,
 	}
 	if got := cfg.Capabilities().Flags(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("local mode capabilities = %v, want %v", got, want)

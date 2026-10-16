@@ -36,6 +36,7 @@ export {
 export {
   canManuallyVectorizeFile,
   isFileProcessing,
+  isFileProcessingFailed,
   isVectorIndexOutdated,
   resolveEmbedStatusLabel,
   resolveExtractStatusLabel,

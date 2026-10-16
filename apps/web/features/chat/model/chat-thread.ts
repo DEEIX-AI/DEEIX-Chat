@@ -1,6 +1,6 @@
 import { MODERATION_BLOCKED_BILLED_REASON, parseBillingSnapshot } from "@/features/chat/model/billing-snapshot";
-import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
-import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation-types";
+import type { ChatAreaMessage, ChatMessageProcessTrace, MessageAttachment } from "@/features/chat/types/messages";
+import type { MessageDTO, MessageProcessTraceDTO, UpstreamDebugInfo } from "@/shared/api/conversation-types";
 import { normalizeMessageReasoningEffort } from "@/features/chat/model/chat-reasoning-effort";
 import { isUIBlockState } from "@/shared/components/markdown/ui-blocks/ui-block-state";
 import { isRecord, parseJSON } from "@/shared/lib/type-guards";
@@ -40,8 +40,7 @@ export function parseAttachments(raw: string): MessageAttachment[] {
   }
 }
 
-function parseProcessTrace(item: MessageDTO) {
-  const trace = item.processTrace;
+export function mapProcessTrace(trace: MessageProcessTraceDTO | null | undefined): ChatMessageProcessTrace | undefined {
   if (!trace?.enabled) {
     return undefined;
   }
@@ -111,6 +110,7 @@ function parseProcessTrace(item: MessageDTO) {
       updatedAt: event.updatedAt,
       payloadJson: event.payloadJSON,
     })),
+    detailOmitted: trace.detailOmitted || undefined,
   };
 }
 
@@ -251,7 +251,7 @@ export function mapServerMessage(
       preview: source.preview,
       modality: source.modality === "image" ? "image" : "text",
     }));
-    msg.processTrace = parseProcessTrace(item);
+    msg.processTrace = mapProcessTrace(item.processTrace);
     const status = item.status.trim().toLowerCase();
     const moderationBlocked = status === "blocked" || item.errorCode === "content_moderation.blocked";
     if (moderationBlocked) {

@@ -12,12 +12,14 @@ import { cn } from "@/lib/utils";
 import { downloadBlob } from "@/shared/lib/export-download";
 import { isRecord } from "@/shared/lib/type-guards";
 import type { UIBlockDefinition, UIBlockRenderProps, UIBlockSkeletonProps } from "./block";
+import { BlockImage, ImageLightbox } from "./block-image";
 import { joinTextBlocks, textTable, textTitle } from "./block-text";
+import { safeImageSource } from "./block-url";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
 import { type UIBlockState, useUIBlockState } from "./ui-block-state";
 
-const COLUMN_TYPES = ["string", "number", "date", "boolean"] as const;
+const COLUMN_TYPES = ["string", "number", "date", "boolean", "image"] as const;
 type ColumnType = (typeof COLUMN_TYPES)[number];
 type Cell = string | number | boolean | null | undefined;
 
@@ -132,10 +134,13 @@ function DataTable({ id, props }: UIBlockRenderProps<DataTableProps>) {
   }, [props.columns, props.rows]);
   const needle = query.trim().toLowerCase();
 
+  // Image cells hold URLs, which a search should not match.
   const filtered = React.useMemo(() => {
     if (!needle) return props.rows;
-    return props.rows.filter((row) => props.columns.some((column) => String(row[column.key] ?? "").toLowerCase().includes(needle)));
-  }, [props.columns, props.rows, needle]);
+    return props.rows.filter((row) =>
+      props.columns.some((column) => types.get(column.key) !== "image" && String(row[column.key] ?? "").toLowerCase().includes(needle)),
+    );
+  }, [props.columns, props.rows, needle, types]);
 
   const sorted = React.useMemo(() => {
     if (!sort) return filtered;
@@ -147,6 +152,27 @@ function DataTable({ id, props }: UIBlockRenderProps<DataTableProps>) {
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visible = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // The lightbox steps through one image column in the table's current order.
+  const [preview, setPreview] = React.useState<{ key: string; index: number } | null>(null);
+  const previewImages = React.useMemo(() => {
+    if (!preview) return [];
+    const labelKey = props.columns.find((column) => column.key !== preview.key && types.get(column.key) === "string")?.key;
+    return sorted.flatMap((row) => {
+      const src = safeImageSource(typeof row[preview.key] === "string" ? String(row[preview.key]) : undefined);
+      const label = labelKey ? String(row[labelKey] ?? "") : "";
+      return src ? [{ src, alt: label, caption: label || undefined }] : [];
+    });
+  }, [preview, props.columns, sorted, types]);
+  const openPreview = (key: string, src: string) => {
+    let index = 0;
+    for (const row of sorted) {
+      const rowSrc = safeImageSource(typeof row[key] === "string" ? String(row[key]) : undefined);
+      if (rowSrc === src) break;
+      if (rowSrc) index += 1;
+    }
+    setPreview({ key, index });
+  };
 
   const toggleSort = (key: string) =>
     setState((current) => ({
@@ -199,6 +225,7 @@ function DataTable({ id, props }: UIBlockRenderProps<DataTableProps>) {
               const active = sort?.key === column.key;
               const Icon = !active ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
               const end = column.align === "end" || (!column.align && types.get(column.key) === "number");
+              const sortable = types.get(column.key) !== "image";
               return (
                 <TableHead
                   key={`${id}-${column.key}`}
@@ -208,12 +235,18 @@ function DataTable({ id, props }: UIBlockRenderProps<DataTableProps>) {
                     "sticky top-0 z-10 border-b-[0.5px] border-border bg-card px-4 font-normal",
                     index === 0 && "left-0 z-20",
                     end && "text-right",
+                    // Thumbnails are fixed-size; leave the spare width to text columns.
+                    !sortable && "w-px whitespace-nowrap",
                   )}
                 >
-                  <button type="button" onClick={() => toggleSort(column.key)} className="inline-flex items-center gap-1 hover:text-foreground">
-                    {column.label}
-                    <Icon className={cn("size-3", active ? "opacity-100" : "opacity-40")} strokeWidth={1.8} />
-                  </button>
+                  {sortable ? (
+                    <button type="button" onClick={() => toggleSort(column.key)} className="inline-flex items-center gap-1 hover:text-foreground">
+                      {column.label}
+                      <Icon className={cn("size-3", active ? "opacity-100" : "opacity-40")} strokeWidth={1.8} />
+                    </button>
+                  ) : (
+                    column.label
+                  )}
                 </TableHead>
               );
             })}
@@ -229,6 +262,7 @@ function DataTable({ id, props }: UIBlockRenderProps<DataTableProps>) {
                   const type = types.get(column.key) ?? "string";
                   const end = column.align === "end" || (!column.align && type === "number");
                   const text = formatCell(row[column.key], type);
+                  const image = type === "image" ? safeImageSource(typeof row[column.key] === "string" ? String(row[column.key]) : undefined) : undefined;
                   return (
                     <TableCell
                       key={`${id}-c-${column.key}`}
@@ -238,7 +272,17 @@ function DataTable({ id, props }: UIBlockRenderProps<DataTableProps>) {
                         end && "text-right tabular-nums",
                       )}
                     >
-                      {needle && typeof row[column.key] === "string" ? highlight(text, needle) : text}
+                      {type === "image" ? (
+                        image ? (
+                          <BlockImage src={image} alt={column.label} className="size-9 rounded-md" fallback="icon" onOpen={() => openPreview(column.key, image)} />
+                        ) : (
+                          "—"
+                        )
+                      ) : needle && typeof row[column.key] === "string" ? (
+                        highlight(text, needle)
+                      ) : (
+                        text
+                      )}
                     </TableCell>
                   );
                 })}
@@ -261,6 +305,11 @@ function DataTable({ id, props }: UIBlockRenderProps<DataTableProps>) {
           </div>
         </div>
       ) : null}
+      <ImageLightbox
+        images={previewImages}
+        index={preview ? Math.min(preview.index, previewImages.length - 1) : null}
+        onIndexChange={(index) => setPreview(index === null || !preview ? null : { key: preview.key, index })}
+      />
     </div>
   );
 }

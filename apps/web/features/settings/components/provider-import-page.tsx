@@ -11,6 +11,13 @@ import { Button } from "@/components/ui/button";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { findModelProviderPreset, ModelIcon, resolveModelIconURL } from "@/entities/model";
 import { type ModelProviderDraft, ModelsProviderDialog } from "@/features/settings/components/sections/models/models-provider-dialog";
+import { ProviderBatchImportScreen } from "@/features/settings/components/provider-batch-import-screen";
+import {
+  CANCEL_BUTTON_CLASS,
+  ImportFrame,
+  MODELS_SETTINGS_PATH,
+  PRIMARY_BUTTON_CLASS,
+} from "@/features/settings/components/provider-import-frame";
 import { useSettingsModelProviders } from "@/features/settings/hooks/use-settings-model-providers";
 import {
   captureProviderImportFragment,
@@ -19,26 +26,19 @@ import {
 } from "@/features/settings/utils/provider-import";
 import { UserLocaleSync } from "@/i18n/user-locale-sync";
 import { AuthGuard } from "@/shared/auth/auth-guard";
-import { AppLogo } from "@/shared/components/app-logo";
 import { usePersonalProviderAccess } from "@/shared/hooks/use-personal-provider-access";
 
-const MODELS_SETTINGS_PATH = "/settings/models";
-
-const PRIMARY_BUTTON_CLASS = "h-9 w-full rounded-md bg-foreground text-sm font-semibold text-background shadow-none hover:bg-foreground/90";
-const CANCEL_BUTTON_CLASS = "h-9 w-full rounded-md text-sm font-normal text-muted-foreground shadow-none hover:bg-muted/60 hover:text-foreground";
-
 /**
- * Route entry for `/import#v=1&url=…&key=…`. The key is taken out of the URL
- * before anything else runs (including the login redirect); the user then
- * confirms the address and picks models. Nothing is saved without that step.
+ * `/import` route. The key is removed from the URL before anything else runs,
+ * including the login redirect. Nothing is saved until the user confirms.
  */
 export function ProviderImportPage() {
   const [fragment, setFragment] = React.useState<string | null>(null);
 
   React.useLayoutEffect(() => {
-    // A fresh link wins; otherwise resume the one stashed before signing in.
+    // Prefer a new link over the one stashed before sign-in.
     setFragment(captureProviderImportFragment() || readPendingProviderImport());
-    // A link pasted into a tab already on /import only changes the hash; read it the same way.
+    // Pasting a link into a tab already on /import only changes the hash.
     const onHashChange = () => {
       const next = captureProviderImportFragment();
       if (next) setFragment(next);
@@ -51,9 +51,9 @@ export function ProviderImportPage() {
 
   return (
     <AuthGuard>
-      {/* This page lives outside the project shell, so apply the account language here too. */}
+      {/* Rendered outside the app shell, so the account locale is applied here. */}
       <UserLocaleSync />
-      {/* Keyed by the link so a new link starts from a clean confirmation screen. */}
+      {/* Remount for each link. */}
       <ProviderImportScreen key={fragment} fragment={fragment} />
     </AuthGuard>
   );
@@ -67,18 +67,19 @@ function ProviderImportScreen({ fragment }: { fragment: string }) {
   const { providers, loading, probe, create } = useSettingsModelProviders(access.enabled);
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
-  // Signed in now: the stash has served its purpose.
+  // Signed in; the stash is no longer needed.
   React.useEffect(() => {
     clearPendingProviderImport();
   }, []);
 
   const draft = React.useMemo<Partial<ModelProviderDraft> | undefined>(() => {
-    if (!parsed.ok) return undefined;
+    const link = parsed.ok ? parsed.links[0] : undefined;
+    if (!link) return undefined;
     return {
-      name: parsed.link.name,
-      baseURL: parsed.link.baseURL,
-      apiKey: parsed.link.apiKey,
-      protocol: parsed.link.protocol ?? undefined,
+      name: link.name,
+      baseURL: link.baseURL,
+      apiKey: link.apiKey,
+      protocol: link.protocol ?? undefined,
     };
   }, [parsed]);
 
@@ -108,8 +109,9 @@ function ProviderImportScreen({ fragment }: { fragment: string }) {
   }
 
   if (!parsed.ok) {
+    const reason = t(`invalid.${parsed.error}`);
     return (
-      <ImportFrame title={t("invalid.title")} description={t(`invalid.${parsed.error}`)}>
+      <ImportFrame title={t("invalid.title")} description={parsed.entry ? t("invalid.entry", { entry: parsed.entry, reason }) : reason}>
         <Button type="button" className={PRIMARY_BUTTON_CLASS} onClick={leave}>
           {t("backToChat")}
         </Button>
@@ -117,9 +119,22 @@ function ProviderImportScreen({ fragment }: { fragment: string }) {
     );
   }
 
-  const { link } = parsed;
-  const preset = findModelProviderPreset(link.baseURL);
   const atLimit = providers.length >= access.maxPerUser;
+  const [link] = parsed.links;
+  if (parsed.links.length > 1 || !link) {
+    return (
+      <ProviderBatchImportScreen
+        links={parsed.links}
+        providers={providers}
+        maxPerUser={access.maxPerUser}
+        modelProtocols={access.modelProtocols}
+        probe={probe}
+        create={create}
+        onLeave={leave}
+      />
+    );
+  }
+  const preset = findModelProviderPreset(link.baseURL);
   const existing = providers.find((provider) => provider.host === link.host);
 
   return (
@@ -130,7 +145,7 @@ function ProviderImportScreen({ fragment }: { fragment: string }) {
             <ModelIcon iconUrl={preset ? resolveModelIconURL(preset.icon) : null} label={link.host} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{link.name || preset?.name || link.host}</p>
-              {/* The address is the one thing a malicious link changes; keep it in full view. */}
+              {/* Show the full address; it is what a malicious link would change. */}
               <p className="truncate text-xs text-muted-foreground" title={link.baseURL}>
                 {link.baseURL}
               </p>
@@ -193,24 +208,5 @@ function ProviderImportScreen({ fragment }: { fragment: string }) {
         }}
       />
     </ImportFrame>
-  );
-}
-
-function ImportFrame({ title, description, children }: { title?: string; description?: string; children: React.ReactNode }) {
-  return (
-    <main className="flex min-h-screen animate-in items-center justify-center px-4 py-8 text-foreground fade-in-0 duration-300">
-      <div className="w-full max-w-[360px]">
-        <AppLogo width={32} height={32} priority className="mx-auto h-9 w-auto" />
-        <div className="space-y-5 px-2 pt-7">
-          {title ? (
-            <div className="space-y-1.5 text-center">
-              <h1 className="text-base font-semibold">{title}</h1>
-              {description ? <p className="text-xs leading-relaxed text-muted-foreground">{description}</p> : null}
-            </div>
-          ) : null}
-          {children}
-        </div>
-      </div>
-    </main>
   );
 }

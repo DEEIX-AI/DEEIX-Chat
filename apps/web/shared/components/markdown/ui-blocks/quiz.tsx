@@ -10,7 +10,9 @@ import { cn } from "@/lib/utils";
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
 import { SlideSwitch } from "@/shared/components/slide-switch";
 import type { UIBlockDefinition, UIBlockRenderProps, UIBlockSkeletonProps } from "./block";
+import { BlockImage, ImageLightbox, type LightboxImage } from "./block-image";
 import { joinTextBlocks, textTitle } from "./block-text";
+import { safeImageSource } from "./block-url";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
 import { type UIBlockState, useUIBlockState } from "./ui-block-state";
@@ -20,6 +22,8 @@ type QuizOption = string | { text: string; next?: string; explanation?: string }
 type QuizQuestion = {
   id?: string;
   question: string;
+  // Picture the question is about (identify the painting, read the chart).
+  image?: string;
   options: QuizOption[];
   // Omit for survey-style questions that only route; they do not count toward the score.
   answer?: number;
@@ -91,6 +95,7 @@ function withAnswer(answers: (number | null)[], index: number, value: number | n
 }
 
 function Quiz({ id, props }: UIBlockRenderProps<QuizProps>) {
+  const [preview, setPreview] = React.useState<LightboxImage | null>(null);
   const t = useTranslations("chat.markdown.uiBlock");
   const questions = props.questions;
   const branching = React.useMemo(() => isBranching(questions), [questions]);
@@ -172,12 +177,22 @@ function Quiz({ id, props }: UIBlockRenderProps<QuizProps>) {
     const answerIndex = question.answer !== undefined ? Math.min(Math.max(0, Math.trunc(question.answer)), question.options.length - 1) : -1;
     const chosenExplanation = chosen !== undefined ? optionExplanation(question.options[chosen]) : undefined;
     const explanation = chosenExplanation ?? question.explanation;
+    const image = safeImageSource(question.image);
     return (
       <div>
         <p className="text-sm font-medium leading-5">
           <span className="mr-1.5 text-muted-foreground tabular-nums">{ordinal}.</span>
           {question.question}
         </p>
+        {image ? (
+          <BlockImage
+            src={image}
+            alt={question.question}
+            fit="contain"
+            className="mt-2 aspect-[16/9] max-h-72 w-full rounded-md"
+            onOpen={() => setPreview({ src: image, alt: question.question })}
+          />
+        ) : null}
         <div className="mt-2 grid gap-1.5">
           {question.options.map((option, oIndex) => {
             const isAnswer = graded && oIndex === answerIndex;
@@ -273,6 +288,7 @@ function Quiz({ id, props }: UIBlockRenderProps<QuizProps>) {
           ))}
         </ol>
       )}
+      <ImageLightbox images={preview ? [preview] : []} index={preview ? 0 : null} onIndexChange={(index) => (index === null ? setPreview(null) : undefined)} />
     </div>
   );
 }
@@ -314,6 +330,10 @@ function quizText(props: QuizProps, state: UIBlockState | undefined): string {
     }
     const picked = answers[questionIndex] ?? null;
     lines.push(`${position + 1}. ${question.question}`);
+    const image = safeImageSource(question.image);
+    if (image) {
+      lines.push(`   ![](${image})`);
+    }
     question.options.forEach((option, optionIndex) => {
       const correct = picked !== null && question.answer === optionIndex ? " ✓" : "";
       lines.push(`   - [${picked === optionIndex ? "x" : " "}] ${optionText(option)}${correct}`);
@@ -336,6 +356,7 @@ export const quizDefinition: UIBlockDefinition<QuizProps> = {
           {
             id: s.string(),
             question: s.string(),
+            image: s.string(),
             options: s.array(s.oneOf([s.string(), OPTION_SCHEMA]), { minItems: 2 }),
             answer: s.number(),
             explanation: s.string(),

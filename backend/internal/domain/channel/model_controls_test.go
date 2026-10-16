@@ -153,3 +153,31 @@ func TestResolveModelControlsReasoningDefaultsToToolbar(t *testing.T) {
 		t.Fatalf("expected an explicit menu placement to win, got %#v", menu)
 	}
 }
+
+// 被思考强度翻译接管的原生参数不再单独展示；其余参数与没有推理能力时的控件不受影响。
+func TestResolveModelControlsHidesReasoningOwnedPaths(t *testing.T) {
+	raw := `{
+		"optionControls": [
+			{"path": "max_tokens", "type": "number"},
+			{"path": "thinking.type", "type": "select", "options": ["enabled", "adaptive", "disabled"]},
+			{"path": "thinking.display", "type": "select", "options": ["summarized", "omitted"]},
+			{"path": "output_config.effort", "type": "select", "options": ["low", "high"]}
+		]
+	}`
+	capability := &ReasoningCapability{Format: ReasoningFormatAnthropicEffort, Levels: []string{"low", "high"}, Default: "high"}
+	ids := func(controls []ModelControl) []string {
+		result := make([]string, 0, len(controls))
+		for _, control := range controls {
+			result = append(result, control.ID)
+		}
+		return result
+	}
+	got := ids(ResolveModelControls(raw, []string{ReasoningProtocolAnthropic}, capability, ReasoningSourceExplicit))
+	if want := []string{"reasoning", "max_tokens", "thinking.display"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected controls %v, want %v", got, want)
+	}
+	got = ids(ResolveModelControls(raw, []string{ReasoningProtocolAnthropic}, nil, ""))
+	if want := []string{"max_tokens", "thinking.type", "thinking.display", "output_config.effort"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("controls without reasoning should stay, got %v, want %v", got, want)
+	}
+}

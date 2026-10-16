@@ -48,7 +48,7 @@ import {
 import {
   containsMarkdownMath,
   normalizeContent,
-  normalizeCurrencyDollars,
+  escapeNonMathDollars,
   normalizeEscapedHTMLAttributeQuotes,
   normalizeHTMLBlockBlankLines,
   normalizeHTMLVisualMarkdownFences,
@@ -454,7 +454,7 @@ function normalizeStreamdownContent(
   preserveSourceLines = false,
   streaming = false,
 ): string {
-  const escapedContent = normalizeCurrencyDollars(
+  const escapedContent = escapeNonMathDollars(
     normalizeEscapedHTMLAttributeQuotes(normalizeContent(content)),
   );
   const normalizedContent = normalizeMermaidBlocks(

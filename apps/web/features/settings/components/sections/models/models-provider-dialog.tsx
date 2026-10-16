@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { findModelProviderPreset } from "@/entities/model";
 import { modelSelectionPayload } from "@/features/settings/model/model-protocol-choices";
+import { PRESELECT_ALL_MAX_MODELS, resolveProviderProtocol } from "@/features/settings/model/model-provider-protocols";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import type {
   CreatePersonalProviderPayload,
@@ -35,12 +36,6 @@ export type ModelProviderDraft = {
   baseURL: string;
   apiKey: string;
 };
-
-/** How the model list is fetched when the address is not a known provider: the format relays speak. */
-const DEFAULT_PROVIDER_PROTOCOL = "openai_chat_completions";
-
-/** Small catalogs are preselected; large ones (aggregators list hundreds) start empty so the user picks deliberately. */
-const PRESELECT_ALL_MAX_MODELS = 12;
 
 const FIELD_LABEL_CLASS = "text-xs font-normal text-muted-foreground";
 
@@ -98,7 +93,7 @@ export function ModelsProviderDialog({
 
   const preset = findModelProviderPreset(draft.baseURL);
   const autoIcon = preset?.icon ?? "";
-  const protocol = draft.protocol || preset?.protocol || DEFAULT_PROVIDER_PROTOCOL;
+  const protocol = resolveProviderProtocol(draft.protocol, preset);
 
   const resetProbe = () => {
     setModels(null);

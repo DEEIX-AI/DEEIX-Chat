@@ -9,6 +9,7 @@
 //   webview2/            optional Fixed Version WebView2 runtime
 //   data/instance-id     identity of this copy (keychain + single-instance)
 //   data/tabs.json       open tabs
+//   data/network.json    network proxy setting (the password is in the keychain)
 //   data/local/          bundled server (SQLite, uploads)
 //   data/tmp/            sidecar temp files, cleared on start
 //   data/webview/        WebView2 user data (cookies, cache, storage)

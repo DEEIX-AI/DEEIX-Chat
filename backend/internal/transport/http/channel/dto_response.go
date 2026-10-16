@@ -763,9 +763,9 @@ func toPublicModelControlResponses(controls []domainchannel.ModelControl) []Publ
 // PublicModelReasoningResponse 面向聊天模型选择器的推理强度能力 DTO。
 type PublicModelReasoningResponse struct {
 	// Levels 为可选规范档位，按由低到高排列。
-	Levels []string `json:"levels" enums:"none,minimal,low,medium,high,xhigh,max"`
+	Levels []string `json:"levels" enums:"none,minimal,low,medium,high,xhigh,max,ultra"`
 	// Default 为未显式选择时使用的档位。
-	Default string `json:"default" enums:"none,minimal,low,medium,high,xhigh,max"`
+	Default string `json:"default" enums:"none,minimal,low,medium,high,xhigh,max,ultra"`
 	// ControlPath 为推断来源的原生参数路径（高级参数面板需隐藏该控件）；显式声明时为 null。
 	ControlPath *string `json:"controlPath" extensions:"x-nullable,!x-omitempty"`
 	// Source 为能力来源。catalog 表示由 models.dev 目录自动识别：未显式选择档位时不下发推理参数，由上游决定默认行为。
@@ -863,9 +863,9 @@ type ModelCatalogResolveResponse struct {
 type ModelCatalogReasoningResponse struct {
 	Format string `json:"format" enums:"openai,anthropic_effort,anthropic_budget,gemini_level,gemini_budget,qwen,toggle"`
 	// Levels 为可选规范档位，按由低到高排列。
-	Levels []string `json:"levels" enums:"none,minimal,low,medium,high,xhigh,max"`
+	Levels []string `json:"levels" enums:"none,minimal,low,medium,high,xhigh,max,ultra"`
 	// Default 为未显式选择时使用的档位。
-	Default string `json:"default" enums:"none,minimal,low,medium,high,xhigh,max"`
+	Default string `json:"default" enums:"none,minimal,low,medium,high,xhigh,max,ultra"`
 	// Source 为 inferred（由旧版思考参数推断）或 catalog（models.dev 目录）。
 	Source string `json:"source" enums:"inferred,catalog"`
 }
@@ -875,7 +875,7 @@ type ModelCatalogReasoningResponse struct {
 type ModelReasoningTemplateResponse struct {
 	Format string `json:"format" enums:"openai,anthropic_effort,anthropic_budget,gemini_level,gemini_budget,qwen,toggle"`
 	// Levels 为该格式可声明的规范档位，按由低到高排列。
-	Levels []string `json:"levels" enums:"none,minimal,low,medium,high,xhigh,max"`
+	Levels []string `json:"levels" enums:"none,minimal,low,medium,high,xhigh,max,ultra"`
 	// Budgets 为各档位的建议预算（Token），仅预算类格式非 null。
 	Budgets map[string]int `json:"budgets" extensions:"x-nullable,!x-omitempty"`
 }

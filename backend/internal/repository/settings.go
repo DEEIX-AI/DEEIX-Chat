@@ -13,6 +13,7 @@ type SettingsRepository interface {
 	Upsert(ctx context.Context, items []domainsettings.SystemSetting) error
 	UpsertWithDescription(ctx context.Context, items []domainsettings.SystemSetting) error
 	Delete(ctx context.Context, namespace, key string) error
+	RemoveDuplicates(ctx context.Context, ids []uint) error
 }
 
 // SettingsCacheRepository 封装配置项的缓存能力，屏蔽 Redis 细节。

@@ -223,7 +223,7 @@ function ProtocolsDropdown({
           <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 p-1">
+      <PopoverContent align="start" className="max-h-[var(--radix-popper-available-height)] w-72 overflow-y-auto p-1">
         <button
           type="button"
           onClick={() => onChange([])}

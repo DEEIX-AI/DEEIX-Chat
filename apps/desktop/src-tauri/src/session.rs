@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Runtime, Webview};
 
 use crate::distribution::Distribution;
+use crate::proxy;
 use crate::sidecar;
 use crate::tabs::{self, Server};
 
@@ -314,7 +315,7 @@ pub async fn refresh_session<R: Runtime>(
     let token = read_token(&app, &key)?.ok_or_else(SessionError::no_session)?;
     let origin = resolve_origin(&app, &server).await?;
 
-    match perform_refresh(&origin, &token).await {
+    match perform_refresh(&proxy::effective(&app), &origin, &token).await {
         Ok(Refreshed {
             credentials,
             rotated_token,
@@ -352,7 +353,13 @@ pub async fn local_sign_in<R: Runtime>(
     // Serialise: a concurrent caller would restart the sidecar mid-exchange.
     let _guard = LOCAL_SIGN_IN.lock().await;
     if let Some(token) = read_token(&app, &key)? {
-        match perform_refresh(&sidecar::ensure_running(&app).await?, &token).await {
+        match perform_refresh(
+            &proxy::effective(&app),
+            &sidecar::ensure_running(&app).await?,
+            &token,
+        )
+        .await
+        {
             Ok(Refreshed {
                 credentials,
                 rotated_token,
@@ -372,6 +379,7 @@ pub async fn local_sign_in<R: Runtime>(
         credentials,
         rotated_token,
     } = post_session(
+        &proxy::effective(&app),
         &origin,
         LOCAL_EXCHANGE_PATH,
         &serde_json::json!({ "grant": grant }),
@@ -390,8 +398,13 @@ pub(crate) struct Refreshed {
 }
 
 /// The HTTP half of a refresh, independent of any storage.
-pub(crate) async fn perform_refresh(origin: &str, token: &str) -> Result<Refreshed, SessionError> {
+pub(crate) async fn perform_refresh(
+    effective: &proxy::Effective,
+    origin: &str,
+    token: &str,
+) -> Result<Refreshed, SessionError> {
     post_session(
+        effective,
         origin,
         REFRESH_PATH,
         &serde_json::json!({ "refreshToken": token }),
@@ -401,16 +414,22 @@ pub(crate) async fn perform_refresh(origin: &str, token: &str) -> Result<Refresh
 
 /// POST to a session-issuing endpoint as a native client and parse the envelope.
 async fn post_session(
+    effective: &proxy::Effective,
     origin: &str,
     path: &str,
     body: &serde_json::Value,
 ) -> Result<Refreshed, SessionError> {
     ensure_tls_provider();
-    let client = reqwest::Client::builder()
+    let builder = reqwest::Client::builder()
         .timeout(HTTP_TIMEOUT)
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .map_err(SessionError::network)?;
+        .redirect(reqwest::redirect::Policy::none());
+    // The local server is never reached through a proxy: the grant and the
+    // refresh token in these bodies must not leave the machine.
+    let builder = match proxy::is_loopback(origin) {
+        true => builder.no_proxy(),
+        false => proxy::apply(builder, effective),
+    };
+    let client = builder.build().map_err(SessionError::network)?;
 
     let response = client
         .post(format!("{origin}{path}"))
@@ -497,6 +516,7 @@ mod tests {
 #[cfg(test)]
 mod live {
     use super::perform_refresh;
+    use crate::proxy::Effective;
 
     #[tokio::test]
     #[ignore = "requires DEEIX_TEST_ORIGIN and DEEIX_TEST_REFRESH_TOKEN"]
@@ -504,7 +524,7 @@ mod live {
         let origin = std::env::var("DEEIX_TEST_ORIGIN").expect("DEEIX_TEST_ORIGIN");
         let token = std::env::var("DEEIX_TEST_REFRESH_TOKEN").expect("DEEIX_TEST_REFRESH_TOKEN");
 
-        let first = perform_refresh(&origin, &token)
+        let first = perform_refresh(&Effective::direct(), &origin, &token)
             .await
             .expect("first refresh succeeds");
         assert!(!first.credentials.access_token.is_empty());
@@ -515,19 +535,19 @@ mod live {
         assert_ne!(rotated, token, "server must rotate the refresh token");
 
         // The previous token stays valid for a 15s grace window (refreshTokenPreviousHashGrace).
-        let replay = perform_refresh(&origin, &token)
+        let replay = perform_refresh(&Effective::direct(), &origin, &token)
             .await
             .expect("replay inside the grace window is tolerated");
         assert!(replay.rotated_token.is_some());
 
         // The rotated token is the live one.
-        let second = perform_refresh(&origin, &rotated)
+        let second = perform_refresh(&Effective::direct(), &origin, &rotated)
             .await
             .expect("rotated token is valid");
         assert_ne!(second.rotated_token.as_deref(), Some(rotated.as_str()));
 
         // A token that was never issued is rejected with the terminating code.
-        let bogus = perform_refresh(&origin, "not-a-token")
+        let bogus = perform_refresh(&Effective::direct(), &origin, "not-a-token")
             .await
             .expect_err("bogus token must fail");
         assert_eq!(bogus.status, Some(401));

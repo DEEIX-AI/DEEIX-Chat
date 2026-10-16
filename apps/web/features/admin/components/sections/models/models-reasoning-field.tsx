@@ -47,19 +47,27 @@ export function ModelReasoningField({ override, resolution, disabled = false, on
   const current = override === "invalid" ? null : (override ?? auto);
   const toggleOnly = template?.format === "toggle";
   const locale = useLocale();
+  const tokenFormat = new Intl.NumberFormat(locale);
   const customBudgets = override !== "invalid" && override?.format === template?.format ? override?.budgets : undefined;
   const budgets = template?.budgets ? { ...template.budgets, ...customBudgets } : null;
 
-  // Menu label: localized name plus the upstream value in parentheses, e.g. 低（low）or 中（8,192 Token）.
-  // The value is omitted when it only repeats the name (English level names).
-  function menuLevelLabel(level: AdminLLMModelReasoningLevel): string {
-    const name = tLevels(level);
-    if (!template) return name;
+  // Thinking budget a level sends upstream; string-valued formats (level names, disabled / enabled) have none.
+  function menuLevelBudget(level: AdminLLMModelReasoningLevel): string | null {
+    if (!template) return null;
     const native = reasoningNativeValue(template.format, level, budgets);
-    const value = typeof native === "string"
-      ? native
-      : t("sheet.reasoning.budgetTokens", { value: new Intl.NumberFormat(locale).format(native.budget) });
-    return value.toLowerCase() === name.toLowerCase() ? name : t("sheet.reasoning.levelWithValue", { name, value });
+    if (typeof native === "string" || native.budget <= 0) return null;
+    return t("sheet.reasoning.budgetTokens", { value: tokenFormat.format(native.budget) });
+  }
+
+  /** Menu label: level name, with the budget right-aligned so the names stay readable. */
+  function menuLevelLabel(level: AdminLLMModelReasoningLevel): React.ReactNode {
+    const budget = menuLevelBudget(level);
+    return (
+      <>
+        <span className="min-w-0 flex-1">{tLevels(level)}</span>
+        {budget ? <span className="shrink-0 text-muted-foreground">{budget}</span> : null}
+      </>
+    );
   }
 
   // Levels shown as checked, limited to what the template format can declare; edits start from the same set.
@@ -147,12 +155,15 @@ export function ModelReasoningField({ override, resolution, disabled = false, on
                   keepOpen
                   onSelect={() => toggleLevel(level)}
                 >
-                  <span>{menuLevelLabel(level)}</span>
+                  {menuLevelLabel(level)}
                 </ModelCapabilityMenuItem>
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="focus:bg-accent/40 data-[state=open]:bg-accent/40">
+                <DropdownMenuSubTrigger
+                  className="focus:bg-accent/40 data-[state=open]:bg-accent/40"
+                  disabled={selectedLevels.length === 0}
+                >
                   <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
                     <span>{t("sheet.reasoning.default")}</span>
                     <span className="text-muted-foreground">{current ? tLevels(current.default) : "—"}</span>
@@ -166,7 +177,7 @@ export function ModelReasoningField({ override, resolution, disabled = false, on
                       checked={current?.default === level}
                       onSelect={() => selectDefault(level)}
                     >
-                      <span>{menuLevelLabel(level)}</span>
+                      {menuLevelLabel(level)}
                     </ModelCapabilityMenuItem>
                   ))}
                 </DropdownMenuSubContent>

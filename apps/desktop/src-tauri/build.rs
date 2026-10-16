@@ -6,7 +6,11 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             // distribution + policy (content tabs)
             "get_distribution",
+            "check_update",
             "check_update_notice",
+            // network proxy
+            "get_network_proxy",
+            "set_network_proxy",
             // session (content tabs)
             "get_server",
             "set_remote_server",

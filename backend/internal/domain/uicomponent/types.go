@@ -117,14 +117,19 @@ func (spec builtinSpec) propsSummary() string {
 	return spec.Props + "。约定：" + spec.Rules
 }
 
+// imageSourceRule 写进每个带图片字段的组件。模型凭记忆写出的图片地址大多不存在或拒绝外链，
+// 渲染端只能在加载失败后降级，所以在提示词里先限定来源。
+const imageSourceRule = "图片地址只用工具结果、用户提供或本对话已有的（https 或 /api/v1/files/…），不要凭记忆编造或拼接"
+
 var builtinSpecs = []builtinSpec{
 	{
 		Name:         "card-grid",
 		Version:      1,
 		What:         "卡片网格",
 		When:         "新闻、搜索结果、候选方案等同构条目",
-		Interactions: "按 tag 筛选（条目带 tag 时自动出现）；带 url 的卡片可点击",
-		Props:        "{title, items: [{title, summary?, tag?, source?, url?}]}",
+		Interactions: "按 tag 筛选（条目带 tag 时自动出现）；带 url 的卡片可点击；带 image 的卡片显示封面图",
+		Rules:        "image 是封面图，没有可靠图片就不写；" + imageSourceRule,
+		Props:        "{title, items: [{title, summary?, tag?, source?, url?, image?}]}",
 	},
 	{
 		Name:         "chart",
@@ -150,8 +155,17 @@ var builtinSpecs = []builtinSpec{
 		What:         "关键指标卡片组",
 		When:         "几个并列的数字：KPI、涨跌幅、统计值",
 		Interactions: "带 history 的指标显示迷你走势线，悬停逐点读数",
-		Rules:        "trend 决定颜色；history 从旧到新，periods 是各点标签",
-		Props:        "{title?, periods?: string[], items: [{label, value, unit?, delta?, trend?: up|down|flat, note?, history?: number[]}]}",
+		Rules:        "trend 是箭头方向，tone 是好坏（颜色），缺省时 up 为好、down 为坏；越低越好的指标（体重、成本、耗时、错误率）下降时写 tone: positive；delta 只写变化量（如 -0.2 kg），解释写进 note，一句话以内；history 从旧到新，periods 是各点标签",
+		Props:        "{title?, periods?: string[], items: [{label, value, unit?, delta?, trend?: up|down|flat, tone?: positive|negative|neutral, note?, history?: number[]}]}",
+	},
+	{
+		Name:         "image-gallery",
+		Version:      1,
+		What:         "图片集",
+		When:         "两张以上需要一起看的图片：作品、商品、地点、步骤图、前后对比；单张图直接用 Markdown 图片",
+		Interactions: "点击放大，左右切换，显示说明与来源，可下载",
+		Rules:        "alt 描述图片内容，caption 是一句说明，source 是出处名称，url 是图片所在网页；" + imageSourceRule,
+		Props:        "{title?, images: [{src, alt?, caption?, source?, url?}]}",
 	},
 	{
 		Name:         "gantt",
@@ -167,9 +181,9 @@ var builtinSpecs = []builtinSpec{
 		Version:      1,
 		What:         "数据表格",
 		When:         "十行以上的结构化数据",
-		Interactions: "排序、搜索、分页、导出 CSV",
-		Rules:        "column.type 决定排序方式与对齐",
-		Props:        "{title?, columns: [{key, label, type?: string|number|date|boolean}], rows: [{<key>: value}], pageSize?: number}",
+		Interactions: "排序、搜索、分页、导出 CSV；image 列显示缩略图，点击放大",
+		Rules:        "column.type 决定排序方式与对齐；type: image 的列，单元格写图片地址；" + imageSourceRule,
+		Props:        "{title?, columns: [{key, label, type?: string|number|date|boolean|image}], rows: [{<key>: value}], pageSize?: number}",
 	},
 	{
 		Name:         "calculator",
@@ -203,8 +217,8 @@ var builtinSpecs = []builtinSpec{
 		What:         "选择题测验 / 分支问答",
 		When:         "学习检验、知识自测、向导式问答",
 		Interactions: "点选即时判对错并显示解析，统计得分；带 next 时逐题呈现、按选择跳题、可返回",
-		Rules:        "answer 是正确选项下标，省略则只分流不计分；选项写成 {text, next} 可跳到指定 id 的题，next: \"end\" 结束",
-		Props:        "{title?, questions: [{id?, question, options: (string | {text, next?, explanation?})[], answer?: number, explanation?, next?}]}",
+		Rules:        "answer 是正确选项下标，省略则只分流不计分；选项写成 {text, next} 可跳到指定 id 的题，next: \"end\" 结束；看图答题时 image 放题目配图；" + imageSourceRule,
+		Props:        "{title?, questions: [{id?, question, image?, options: (string | {text, next?, explanation?})[], answer?: number, explanation?, next?}]}",
 	},
 	// 以下两项是块格式能力（见 IsCapability），排在目录组件之后，与提示词「由轻到重」的顺序一致。
 	{

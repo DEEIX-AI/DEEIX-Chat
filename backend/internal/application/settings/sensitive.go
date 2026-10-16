@@ -88,7 +88,7 @@ func (s *Service) preparePatchItemsForStorage(patches []PatchItem) ([]domainsett
 func (s *Service) loadEffectiveSettings(ctx context.Context, namespaces ...string) (map[string]string, error) {
 	result := make(map[string]string)
 	for _, namespace := range namespaces {
-		items, err := s.repo.ListByNamespace(ctx, namespace)
+		items, err := listNamespaceSettings(ctx, s.repo, namespace)
 		if err != nil {
 			return nil, err
 		}

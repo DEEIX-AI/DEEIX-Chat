@@ -346,7 +346,7 @@
     "webhookNotConfigured": "Payment webhook is not configured."
   },
   "quota": {
-    "exceeded": "Quota exceeded."
+    "exceeded": "Storage is full. Delete unused files in Files."
   },
   "rateLimit": {
     "authenticationExceeded": "Too many authentication attempts. Try again later.",

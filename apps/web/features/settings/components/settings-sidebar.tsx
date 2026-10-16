@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
+import { useDesktopNetworkAvailable } from "@/features/desktop";
 import { DEFAULT_SETTINGS_SECTION, resolveSettingsSectionFromPath, SETTINGS_SECTIONS } from "@/features/settings/model/settings-sections";
 import { cn } from "@/lib/utils";
 import { isSectionAvailable, useCapabilities } from "@/shared/capabilities";
@@ -19,8 +20,12 @@ export function SettingsSidebar({
   const activeSection = resolveSettingsSectionFromPath(pathname, basePath)?.id ?? DEFAULT_SETTINGS_SECTION;
   const { flags } = useCapabilities();
   const personalProviders = usePersonalProviderAccess();
+  const networkAvailable = useDesktopNetworkAvailable();
   const visibleItems = SETTINGS_SECTIONS.filter(
-    (item) => isSectionAvailable(item, flags) && (item.id !== "models" || personalProviders.enabled),
+    (item) =>
+      isSectionAvailable(item, flags) &&
+      (item.id !== "models" || personalProviders.enabled) &&
+      (item.id !== "network" || networkAvailable),
   );
 
   return (

@@ -134,6 +134,8 @@ type MessageProcessTrace struct {
 	UpstreamThink *MessageTraceBlock
 	PromptTrace   *MessagePromptTrace
 	Events        []MessageTraceEvent
+	// DetailOmitted 表示这是摘要：思考全文与工具输入输出已省略，完整轨迹需单独查询。
+	DetailOmitted bool
 }
 
 // MessagePromptTraceBlock 表示一次上游请求中的上下文规划块。

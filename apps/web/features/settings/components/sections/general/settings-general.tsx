@@ -16,10 +16,10 @@ import type { ThemeMode } from "@/features/settings/types/settings";
 import {
   disableResponseCompletionNotifications,
   enableResponseCompletionNotifications,
-  getBrowserNotificationPermission,
-  isBrowserNotificationSupported,
+  getSystemNotificationPermission,
+  isSystemNotificationSupported,
   readResponseCompletionNotificationsEnabled,
-} from "@/shared/lib/browser-notifications";
+} from "@/shared/lib/system-notifications";
 import {
   SettingsPage,
   SettingsSectionSeparator,
@@ -69,9 +69,9 @@ export function SettingsGeneral() {
   React.useEffect(() => {
     setThemeRuntimeReady(true);
     setNotificationRuntimeReady(true);
-    setNotificationSupported(isBrowserNotificationSupported());
+    setNotificationSupported(isSystemNotificationSupported());
     setResponseCompletionNotificationsEnabled(readResponseCompletionNotificationsEnabled());
-    setNotificationPermission(getBrowserNotificationPermission());
+    setNotificationPermission(getSystemNotificationPermission());
   }, []);
 
   const activeThemeMode: ThemeMode = themeRuntimeReady ? theme : "system";
@@ -85,7 +85,7 @@ export function SettingsGeneral() {
     if (!checked) {
       disableResponseCompletionNotifications();
       setResponseCompletionNotificationsEnabled(false);
-      setNotificationPermission(getBrowserNotificationPermission());
+      setNotificationPermission(getSystemNotificationPermission());
       return;
     }
 

@@ -78,7 +78,7 @@ Vendored registry code (`components/ui`, `components/animate-ui`, `components/re
 
 | Location | Rule | Reason |
 | --- | --- | --- |
-| `i18n/app-i18n-provider.tsx` | `suspicious/noDocumentCookie` | Writes the locale cookie; the Cookie Store API is missing in the supported WebKit (macOS 10.15 / Safari 15.6). |
+| `i18n/app-i18n-provider.tsx` | `suspicious/noDocumentCookie` | Writes the locale cookie; the Cookie Store API is missing in the supported WebKit (macOS 12 / Safari 15). |
 | `components/ui/sidebar.tsx` | `suspicious/noDocumentCookie` | shadcn sidebar state cookie; same Cookie Store API constraint. |
 | `features/auth/components/shared/turnstile-widget.tsx`, `components/ui/live-waveform.tsx`, `types/tauri-globals.d.ts` | `style/useConsistentTypeDefinitions` | Augmenting the global `Window` requires `interface` declaration merging. |
 | `shared/components/theme-bootstrap-script.tsx` | `security/noDangerouslySetInnerHtml` | Build-time constant inline `<script>` that must run before paint; no user input. |

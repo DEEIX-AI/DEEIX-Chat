@@ -139,7 +139,7 @@
     "uploadedMany": "已上传 {count} 个文件",
     "duplicateReused": "检测到文件重复，已复用",
     "partialUploadFailed": "部分文件上传失败",
-    "partialUploadDescription": "成功 {success} 个，失败 {failed} 个。",
+    "partialUploadDescription": "成功 {success} 个，失败 {failed} 个。{reason}",
     "uploadFailed": "文件上传失败",
     "deleteSucceeded": "文件已删除",
     "deleteFailed": "文件删除失败",

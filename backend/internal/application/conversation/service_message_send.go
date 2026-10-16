@@ -521,7 +521,7 @@ func (s *Service) sendMessageInternal(
 		return nil, err
 	}
 	conversationAttachments = bindAttachmentMessageRoles(conversationAttachments, promptMessages)
-	conversationAttachments, err = s.hydrateAttachmentsForSend(ctx, input.UserID, conversationAttachments, input.OnEvent)
+	conversationAttachments, err = s.hydrateAttachmentsForSend(ctx, input.UserID, conversationAttachments, resolveNativeInputPolicy(route), input.OnEvent)
 	if err != nil {
 		retErr = err
 		return nil, err

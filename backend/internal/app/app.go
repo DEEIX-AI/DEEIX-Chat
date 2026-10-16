@@ -260,6 +260,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	settingsRepo := settingsrepo.NewRepo(db)
 	settingsService := settings.NewService(settingsRepo, keyring)
 	settingsService.SetAuditWriter(auditService)
+	settingsService.SetLogger(log)
 	settingsService.SetRuntime(runtimeCfg)
 	runtimeService := appruntime.NewService(runtimeCfg, extractionprobe.Prober{})
 	runtimeService.SetDockerRunner(platformruntime.NewDockerRunner())

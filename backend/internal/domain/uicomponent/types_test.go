@@ -12,6 +12,7 @@ func TestBuiltinCatalogMatchesFrontendRegistry(t *testing.T) {
 	want := map[string]int{
 		"card-grid":     1,
 		"stat-grid":     1,
+		"image-gallery": 1,
 		"chart":         1,
 		"function-plot": 1,
 		"data-table":    1,

@@ -16,13 +16,8 @@ import {
   type ArtifactPreviewKind,
   resolveArtifactPreviewKind,
 } from "@/shared/lib/artifact-preview";
-import {
-  downloadMarkdownImageSource,
-  loadProtectedMarkdownImageBlobURL,
-  resolveMarkdownImageDownloadName,
-  resolveMarkdownImageSource,
-  resolveProtectedMarkdownImageSource,
-} from "@/shared/lib/markdown-image-source";
+import { useImageDisplaySource } from "@/shared/hooks/use-image-display-source";
+import { downloadMarkdownImageSource, resolveMarkdownImageDownloadName } from "@/shared/lib/markdown-image-source";
 import { MarkdownTableStreamingContext } from "./adaptive-markdown-table";
 import { MarkdownFootnotesContext } from "./streamdown-html";
 import { StreamdownCheckIcon, StreamdownCopyIcon } from "./streamdown-icons";
@@ -704,61 +699,17 @@ export function MarkdownImage({ alt, className, onError, onLoad, src: srcProp, .
   const t = useTranslations("chat.markdown");
   const insideLink = React.useContext(StreamdownLinkContext);
   const imageActions = React.useContext(MarkdownImageActionsContext);
-  const [loaded, setLoaded] = React.useState(false);
-  const [failed, setFailed] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
-  const resolvedSrc = React.useMemo(() => (src ? resolveMarkdownImageSource(src) : ""), [src]);
-  const protectedSrc = React.useMemo(() => (src ? resolveProtectedMarkdownImageSource(src) : null), [src]);
-  const [displaySrc, setDisplaySrc] = React.useState(() => (protectedSrc ? "" : resolvedSrc));
-
-  React.useEffect(() => {
-    setLoaded(false);
-    setFailed(false);
-    if (!src) {
-      setDisplaySrc("");
-      return undefined;
-    }
-
-    if (!protectedSrc) {
-      setDisplaySrc(resolvedSrc);
-      return undefined;
-    }
-    setDisplaySrc("");
-
-    const controller = new AbortController();
-    let blobURL = "";
-    let active = true;
-    void loadProtectedMarkdownImageBlobURL(protectedSrc, controller.signal)
-      .then((nextBlobURL) => {
-        blobURL = nextBlobURL;
-        if (active) {
-          setFailed(false);
-          setDisplaySrc(blobURL);
-        } else {
-          URL.revokeObjectURL(blobURL);
-        }
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-        setDisplaySrc("");
-        setFailed(true);
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-      if (blobURL) {
-        URL.revokeObjectURL(blobURL);
-      }
-    };
-  }, [protectedSrc, resolvedSrc, src]);
+  const { displaySrc, resolvedSrc, protectedSrc, fetchFailed } = useImageDisplaySource(src);
+  // Keyed by the src they belong to, so a new src starts out neither loaded nor failed.
+  const [loadedSrc, setLoadedSrc] = React.useState("");
+  const [erroredSrc, setErroredSrc] = React.useState("");
+  const loaded = Boolean(displaySrc) && loadedSrc === displaySrc;
+  const failed = fetchFailed || (Boolean(displaySrc) && erroredSrc === displaySrc);
 
   const handleLoad = React.useCallback(
     (event: React.SyntheticEvent<HTMLImageElement>) => {
-      setLoaded(true);
-      setFailed(false);
+      setLoadedSrc(event.currentTarget.getAttribute("src") ?? "");
       onLoad?.(event);
     },
     [onLoad],
@@ -766,8 +717,7 @@ export function MarkdownImage({ alt, className, onError, onLoad, src: srcProp, .
 
   const handleError = React.useCallback(
     (event: React.SyntheticEvent<HTMLImageElement>) => {
-      setLoaded(false);
-      setFailed(true);
+      setErroredSrc(event.currentTarget.getAttribute("src") ?? "");
       onError?.(event);
     },
     [onError],

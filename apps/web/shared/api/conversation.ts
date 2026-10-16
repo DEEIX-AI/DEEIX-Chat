@@ -33,6 +33,7 @@ import type {
   MessageDTO,
   MessageFeedbackResult,
   MessageUIStateResult,
+  MessageProcessTraceDetailDTO,
   MessageProcessTraceDTO,
   PromptTraceBlockDTO,
   PromptTraceDTO,
@@ -1058,6 +1059,8 @@ type ListMessagesOptions = {
   pageSize?: number;
   tail?: boolean;
   beforeID?: number;
+  /** "summary" cuts finished messages' thinking and tool inputs/outputs; load them with getMessageProcessTrace. */
+  trace?: "summary";
 };
 
 export async function listMessagesPage(
@@ -1076,6 +1079,9 @@ export async function listMessagesPage(
   }
   if (options.beforeID && options.beforeID > 0) {
     params.set("before_id", String(options.beforeID));
+  }
+  if (options.trace) {
+    params.set("trace", options.trace);
   }
   const data = await authedRequest<PagePayload<MessageDTO>>(
     `/api/v1/conversations/${pathParam(conversationPublicID)}/messages?${params.toString()}`,
@@ -1192,6 +1198,22 @@ export async function setMessageFeedback(
     },
     true,
   );
+}
+
+export async function getMessageProcessTrace(
+  accessToken: string,
+  messagePublicID: string,
+  signal?: AbortSignal,
+): Promise<MessageProcessTraceDTO | null> {
+  const data = await authedRequest<MessageProcessTraceDetailDTO>(
+    `/api/v1/messages/${pathParam(messagePublicID)}/trace`,
+    {
+      accessToken,
+      signal,
+    },
+    true,
+  );
+  return data.processTrace ?? null;
 }
 
 export async function updateMessage(

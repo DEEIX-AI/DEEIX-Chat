@@ -24,6 +24,8 @@ type Capabilities struct {
 	ContentModeration bool `json:"contentModeration"`
 	// Sharing 对话公开分享链接；只监听回环的服务器没有可分享的对象。
 	Sharing bool `json:"sharing"`
+	// DesktopDownload 向网页端用户推荐下载桌面端；只监听回环的服务器只会被桌面端自己连接。
+	DesktopDownload bool `json:"desktopDownload"`
 }
 
 // Capabilities 从配置推导能力位；这是唯一的推导点。
@@ -44,6 +46,7 @@ func (c Config) Capabilities() Capabilities {
 		UsageMetering:     true,
 		ContentModeration: true,
 		Sharing:           true,
+		DesktopDownload:   true,
 	}
 }
 
@@ -69,6 +72,8 @@ func (c Capabilities) Enabled(name string) bool {
 		return c.ContentModeration
 	case "sharing":
 		return c.Sharing
+	case "desktopDownload":
+		return c.DesktopDownload
 	default:
 		return false
 	}

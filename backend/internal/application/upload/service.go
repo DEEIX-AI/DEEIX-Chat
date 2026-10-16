@@ -75,6 +75,9 @@ type UploadFileInput struct {
 	MimeType     string
 	DeclaredSize int64
 	Reader       io.Reader
+	// MaxBytes 非零时替代管理员配置的上传上限与按类型上限。
+	// 只用于平台生成的制品：上传上限约束的是用户提交的文件，不应限制模型输出。
+	MaxBytes int64
 }
 
 // FileOwnership 定义文件所属的存储账户。
@@ -217,6 +220,9 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 	if maxUploadBytes <= 0 {
 		maxUploadBytes = 20 * 1024 * 1024
 	}
+	if input.MaxBytes > 0 {
+		maxUploadBytes = input.MaxBytes
+	}
 	if input.DeclaredSize > 0 && input.DeclaredSize > maxUploadBytes {
 		return nil, s.errFileTooLarge()
 	}
@@ -272,7 +278,7 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 		removeUploadedObject(relativePath)
 		return nil, s.errMIMEBlocked()
 	}
-	if typeLimit := maxBytesForCategory(category, cfg); typeLimit > 0 && sizeBytes > typeLimit {
+	if typeLimit := maxBytesForCategory(category, cfg); input.MaxBytes <= 0 && typeLimit > 0 && sizeBytes > typeLimit {
 		removeUploadedObject(relativePath)
 		return nil, s.errFileTooLarge()
 	}
@@ -489,6 +495,19 @@ func objectMatchesContent(ctx context.Context, store objectstorage.Store, path s
 func (s *Service) DeleteFile(ctx context.Context, userID uint, fileID string) (*DeleteFileResult, error) {
 	result, _, err := s.deleteFile(ctx, userID, fileID, repository.DeleteFileObjectOptions{})
 	return result, err
+}
+
+// EnsureStorageAvailable 在产生新文件之前检查用户存储空间是否已满。
+// 此时新文件的大小还未知，只能拒绝已满的情况；剩余空间放不下时仍由保存时的配额事务拒绝。
+func (s *Service) EnsureStorageAvailable(ctx context.Context, userID uint) error {
+	quota, err := s.repo.GetOrInitUserStorageQuota(ctx, userID, s.snapshot().UserStorageQuotaBytes)
+	if err != nil {
+		return err
+	}
+	if quota.QuotaBytes > 0 && quota.UsedBytes+quota.ReservedBytes >= quota.QuotaBytes {
+		return s.errStorageQuotaExceeded()
+	}
+	return nil
 }
 
 // DeleteFileIfUnreferenced 仅在文件未被活跃会话引用时删除文件并回收配额。

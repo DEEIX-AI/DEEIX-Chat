@@ -9,6 +9,9 @@ export const SETTINGS_SECTIONS = [
   { id: "models", labelKey: "models", href: "/models", feature: "multiUser" },
   { id: "subscription", labelKey: "subscription", href: "/subscription", feature: "billingGating" },
   { id: "account", labelKey: "account", href: "/account" },
+  // Desktop app only: a property of the shell, not of the server, so it has no
+  // capability; see useDesktopNetworkAvailable.
+  { id: "network", labelKey: "network", href: "/network" },
   { id: "about", labelKey: "about", href: "/about" },
 ] as const satisfies readonly { id: string; labelKey: string; href: string; feature?: Feature }[];
 

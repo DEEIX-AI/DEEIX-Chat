@@ -601,6 +601,8 @@ export interface Capabilities {
   billingGating: boolean;
   /** ContentModeration 内容审核。 */
   contentModeration: boolean;
+  /** DesktopDownload 向网页端用户推荐下载桌面端；只监听回环的服务器只会被桌面端自己连接。 */
+  desktopDownload: boolean;
   /** IdentityProviders 第三方登录与身份绑定。 */
   identityProviders: boolean;
   /** MultiUser 存在多个账号：账号管理、权限组。 */
@@ -2337,7 +2339,18 @@ export interface MessageModerationResponse {
   state?: string;
 }
 
+export interface MessageProcessTraceDetailResponse {
+  processTrace: MessageProcessTraceResponse | null;
+}
+
+export interface MessageProcessTraceDetailResponseDoc {
+  data: MessageProcessTraceDetailResponse;
+  errorMsg: string;
+}
+
 export interface MessageProcessTraceResponse {
+  /** DetailOmitted 为 true 时是消息列表的摘要：思考只保留开头、工具调用不含完整输入输出，完整轨迹通过 GET /messages/{id}/trace 获取。 */
+  detailOmitted?: boolean;
   enabled: boolean;
   events?: MessageTraceEventResponse[];
   process?: MessageTraceBlockResponse;
@@ -2418,6 +2431,7 @@ export interface MessageResponse {
     | "high"
     | "xhigh"
     | "max"
+    | "ultra"
     | null;
   reasoningTokens: number;
   role: string;
@@ -2500,7 +2514,15 @@ export interface MessageUIStateResponseDoc {
 
 export interface ModelCatalogReasoningResponse {
   /** Default 为未显式选择时使用的档位。 */
-  default: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  default:
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | "ultra";
   format:
     | "openai"
     | "anthropic_effort"
@@ -2510,7 +2532,16 @@ export interface ModelCatalogReasoningResponse {
     | "qwen"
     | "toggle";
   /** Levels 为可选规范档位，按由低到高排列。 */
-  levels: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
+  levels: (
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | "ultra"
+  )[];
   /** Source 为 inferred（由旧版思考参数推断）或 catalog（models.dev 目录）。 */
   source: "inferred" | "catalog";
 }
@@ -2770,7 +2801,16 @@ export interface ModelReasoningTemplateResponse {
     | "qwen"
     | "toggle";
   /** Levels 为该格式可声明的规范档位，按由低到高排列。 */
-  levels: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
+  levels: (
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | "ultra"
+  )[];
 }
 
 export interface ModelResponse {
@@ -3553,9 +3593,26 @@ export interface PublicModelReasoningResponse {
   /** ControlPath 为推断来源的原生参数路径（高级参数面板需隐藏该控件）；显式声明时为 null。 */
   controlPath: string | null;
   /** Default 为未显式选择时使用的档位。 */
-  default: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  default:
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | "ultra";
   /** Levels 为可选规范档位，按由低到高排列。 */
-  levels: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
+  levels: (
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | "ultra"
+  )[];
   /** Locked 为 true 时档位被管理员锁定为 default，客户端传入的档位不生效。 */
   locked: boolean;
   /** Source 为能力来源。catalog 表示由 models.dev 目录自动识别：未显式选择档位时不下发推理参数，由上游决定默认行为。 */
@@ -3659,6 +3716,7 @@ export interface PublicSharedMessageResponse {
     | "high"
     | "xhigh"
     | "max"
+    | "ultra"
     | null;
   reasoningTokens: number;
   role: string;
@@ -3932,6 +3990,7 @@ export interface RunResponse {
     | "high"
     | "xhigh"
     | "max"
+    | "ultra"
     | null;
   reasoningTokens: number;
   requestID: string;
@@ -9985,10 +10044,16 @@ export namespace Conversations {
       id: string;
     };
     export type RequestQuery = {
+      /** 返回该消息 id 之前的 page_size 条消息 */
+      before_id?: number;
       /** 页码（从 1 开始，默认 1） */
       page?: number;
       /** 每页数量（1-1000，默认 20） */
       page_size?: number;
+      /** 为 true 时返回最近的 page_size 条消息 */
+      tail?: boolean;
+      /** summary：已完成消息的思考与工具过程只带摘要，完整内容通过 /messages/{id}/trace 获取 */
+      trace?: "summary";
     };
     export type RequestBody = never;
     export type RequestHeaders = {};
@@ -11383,6 +11448,25 @@ export namespace Messages {
     export type RequestBody = SetMessageFeedbackRequest;
     export type RequestHeaders = {};
     export type ResponseBody = MessageFeedbackResponseDoc;
+  }
+
+  /**
+   * @description 返回当前用户一条助手消息的完整处理轨迹（思考全文与工具输入输出）；消息列表以 trace=summary 查询时只带摘要
+   * @tags chat
+   * @name TraceList
+   * @summary 查询消息处理轨迹
+   * @request GET:/messages/{id}/trace
+   * @secure
+   */
+  export namespace TraceList {
+    export type RequestParams = {
+      /** 消息 public_id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = MessageProcessTraceDetailResponseDoc;
   }
 }
 

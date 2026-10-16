@@ -6,7 +6,6 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { mergeChatOptionsOverride, splitControlSelections } from "@/features/chat/model/chat-model-controls";
-import { withChatReasoningEffortOverride } from "@/features/chat/model/chat-reasoning-effort";
 import { mapServerMessage } from "@/features/chat/model/chat-thread";
 import { mergeProcessTraceSnapshot, toPendingProcessTrace } from "@/features/chat/model/message-submit";
 import {
@@ -34,7 +33,6 @@ import type {
   TemporaryChatUIStateInput,
 } from "@/shared/api/conversation-types";
 import type { FileContentLoader } from "@/entities/file";
-import type { ReasoningEffortLevel } from "@/entities/model";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { createSecureUUID } from "@/shared/lib/secure-id";
 
@@ -683,8 +681,8 @@ export function useChatTemporaryRuntime({
     return null;
   }, []);
 
-  // reasoningEffort overrides the level for this single regeneration; the composer selection is unchanged.
-  const retryMessage = React.useCallback(async (message: ChatAreaMessage, reasoningEffort?: ReasoningEffortLevel) => {
+  // Retries the turn with the composer's current settings, including its reasoning effort.
+  const retryMessage = React.useCallback(async (message: ChatAreaMessage) => {
     const turn = resolveUserTurn(message);
     if (!turn) {
       toast.error(t("failed"));
@@ -696,7 +694,6 @@ export function useChatTemporaryRuntime({
       baseHistory: historyRef.current.slice(0, turn.message.historyOffset),
       replaceFromIndex: turn.index,
       consumeComposer: false,
-      optionsOverride: reasoningEffort ? withChatReasoningEffortOverride({}, reasoningEffort) : undefined,
     });
   }, [resolveUserTurn, submitTurn, t]);
 

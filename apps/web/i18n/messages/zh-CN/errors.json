@@ -346,7 +346,7 @@
     "webhookNotConfigured": "支付回调尚未配置。"
   },
   "quota": {
-    "exceeded": "额度已用尽。"
+    "exceeded": "存储空间已满，请前往“文件”删除无用文件。"
   },
   "rateLimit": {
     "authenticationExceeded": "认证尝试次数过多，请稍后再试。",

@@ -12,6 +12,7 @@ import { ChatMentionMenuPortal } from "@/features/chat/components/shared/chat-me
 import { MessageAttachmentRow } from "@/features/chat/components/message/message-attachment";
 import { UserMessageMeta } from "@/features/chat/components/message/message-meta";
 import type { ChatAreaMessage, UserMessageEditMode } from "@/features/chat/types/messages";
+import type { SendShortcut } from "@/features/settings";
 import {
   useChatMentionMenu,
   type ChatMentionMenuKind,
@@ -22,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { FileContentLoader } from "@/entities/file";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
+import { isImeComposingKeyEvent, isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
 
 // Long user messages collapse to this many lines (leading-6 → 24px each).
 const USER_MESSAGE_COLLAPSED_LINES = 6;
@@ -45,6 +47,8 @@ type ChatMessageUserProps = {
   readOnly?: boolean;
   attachmentContentLoader?: FileContentLoader;
   showBranchNavigator?: boolean;
+  // Enter saves and regenerates, as the composer does, honouring the same user setting.
+  sendShortcut?: SendShortcut;
   screenshotMeta?: React.ReactNode;
 };
 
@@ -63,6 +67,7 @@ export function ChatMessageUser({
   readOnly = false,
   attachmentContentLoader,
   showBranchNavigator = true,
+  sendShortcut = "enter",
   screenshotMeta,
 }: ChatMessageUserProps) {
   const tCommon = useTranslations("common.actions");
@@ -79,6 +84,8 @@ export function ChatMessageUser({
   const contentRef = React.useRef<HTMLDivElement>(null);
   const editInputGroupRef = React.useRef<HTMLDivElement | null>(null);
   const editTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+  // Some IMEs end the composition before the Enter keydown arrives, so the state is tracked too.
+  const editingComposingRef = React.useRef(false);
   const measurementKey = React.useMemo(
     () => `${item.publicID || item.key}:${item.content}`,
     [item.content, item.key, item.publicID],
@@ -225,6 +232,12 @@ export function ChatMessageUser({
               onBlur={handleMentionBlur}
               onChange={(event) => handleMentionChange(event.target.value)}
               onClick={handleMentionSelectionChange}
+              onCompositionStart={() => {
+                editingComposingRef.current = true;
+              }}
+              onCompositionEnd={() => {
+                editingComposingRef.current = false;
+              }}
               onFocus={handleMentionFocus}
               onKeyUp={handleMentionSelectionChange}
               onSelect={handleMentionSelectionChange}
@@ -232,6 +245,16 @@ export function ChatMessageUser({
                 if (handleMentionKeyDown(event)) {
                   return;
                 }
+                if (isImeComposingKeyEvent(event, editingComposingRef.current) || !isSendShortcutEvent(sendShortcut, event)) {
+                  return;
+                }
+                // The send key is never a newline here; only what the primary button could
+                // run happens, so an unchanged draft leaves the text exactly as it was.
+                event.preventDefault();
+                if (nextContent.length === 0 || unchanged) {
+                  return;
+                }
+                void onEditSave("regenerate");
               }}
             />
           </div>

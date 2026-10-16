@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "chrome-capability",
-  "description": "The tab strip: core event/IPC defaults, window dragging, and the caption buttons it draws itself on Windows.",
+  "description": "The tab strip: core event/IPC defaults, window dragging, and the caption buttons it draws itself on Windows. The notification permission query only answers the Notification shim the plugin injects into every webview.",
   "webviews": [
     "chrome"
   ],
   "permissions": [
     "core:default",
+    "notification:allow-is-permission-granted",
     "core:window:allow-start-dragging",
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",

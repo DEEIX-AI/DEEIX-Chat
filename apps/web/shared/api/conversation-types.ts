@@ -35,6 +35,7 @@ import type {
   MessageDeleteResponse,
   MessageFeedbackResponse,
   MessageUIStateResponse,
+  MessageProcessTraceDetailResponse,
   MessageProcessTraceResponse,
   MessagePromptTraceBlockResponse,
   MessagePromptTraceResponse,
@@ -158,6 +159,10 @@ export type MessageProcessTraceDTO = Omit<
 };
 
 export type TraceEventDTO = MessageTraceEventResponse;
+
+export type MessageProcessTraceDetailDTO = Omit<MessageProcessTraceDetailResponse, "processTrace"> & {
+  processTrace: MessageProcessTraceDTO | null;
+};
 
 export type CreateConversationRequest = ContractCreateConversationRequest;
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema"
                            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                           revision="1.0" schemaVersion="1.0"
+                           revision="1.1" schemaVersion="1.0"
                            xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
   <displayName>DEEIX Chat</displayName>
   <description>DEEIX Chat 桌面应用的组策略设置。</description>
@@ -11,7 +11,7 @@
       <string id="Category_DEEIXChat">DEEIX Chat</string>
       <string id="Category_DEEIXChat_Explain">DEEIX Chat 桌面应用（安装版、MSI 版和便携版）的设置。
 
-在“计算机配置”中配置的设置优先于“用户配置”中的同名设置；开关类设置无论启用还是禁用都如此。“默认服务器地址”例外：禁用它会删除计算机级的值，此时“用户配置”中设置的地址仍会生效。DEEIX Chat 在启动时读取这些设置，更改后需重新启动应用才会生效。</string>
+在“计算机配置”中配置的设置优先于“用户配置”中的同名设置；开关类设置无论启用还是禁用都如此。“默认服务器地址”例外：禁用它会删除计算机级的值，此时“用户配置”中设置的地址仍会生效。“配置网络代理”的三个值视为一个设置：由设置了代理模式的那一级配置决定全部三个值。DEEIX Chat 在启动时读取这些设置，更改后需重新启动应用才会生效。</string>
 
       <string id="DefaultServerUrl">默认服务器地址</string>
       <string id="DefaultServerUrl_Explain">指定 DEEIX Chat 在设置页面上预填的服务器地址，例如 https://chat.example.com。
@@ -50,11 +50,36 @@
 如果禁用或未配置此策略设置，按用户安装的安装版会自动更新，便携版会在有新版本时显示提示。
 
 无论此设置如何，MSI 版都不会自行更新。</string>
+      <string id="ProxySettings">配置网络代理</string>
+      <string id="ProxySettings_Explain">设置 DEEIX Chat 使用的代理，取代用户在应用中的选择。它用于内置本地服务的模型请求和网页请求、应用自身的登录续期和检查更新，以及应用窗口。
+
+代理：
+- 使用系统代理设置：跟随 Windows（Internet 选项）中配置的代理。自动配置脚本（PAC）不会用于应用自身发出的请求。
+- 不使用代理：直接连接。
+- 使用固定的代理服务器：使用“代理服务器”中的地址，例如 proxy.corp.example:3128 或 socks5://proxy.corp.example:1080。仅支持 http:// 和 socks5:// 代理，无法通过策略设置代理凭据。
+
+“禁用代理地址”可填写主机名、*.example.com 这样的通配名称、IP 地址以及网段（192.168.* 或 10.0.0.0/8），用分号或逗号分隔。本机（localhost、127.0.0.0/8、::1）始终直接连接。
+
+选择固定代理但“代理服务器”无效时，此策略设置将被忽略，如同未配置。
+
+如果禁用或不配置此策略设置，用户可以在应用设置中选择代理，默认跟随系统。</string>
+      <string id="ProxyMode_System">使用系统代理设置</string>
+      <string id="ProxyMode_Direct">不使用代理</string>
+      <string id="ProxyMode_FixedServers">使用固定的代理服务器</string>
     </stringTable>
     <presentationTable>
       <presentation id="DefaultServerUrl">
         <textBox refId="DefaultServerUrl">
           <label>服务器地址（例如 https://chat.example.com）：</label>
+        </textBox>
+      </presentation>
+      <presentation id="ProxySettings">
+        <dropdownList refId="ProxyMode" noSort="true" defaultItem="0">代理：</dropdownList>
+        <textBox refId="ProxyServer">
+          <label>代理服务器（用于固定代理），例如 proxy.corp.example:3128：</label>
+        </textBox>
+        <textBox refId="ProxyBypassList">
+          <label>禁用代理地址：</label>
         </textBox>
       </presentation>
     </presentationTable>

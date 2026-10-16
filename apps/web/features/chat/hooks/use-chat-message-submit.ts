@@ -70,7 +70,7 @@ import type {
 import { ApiError } from "@/shared/api/http-client";
 import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { notifyResponseCompletion } from "@/shared/lib/browser-notifications";
+import { notifyResponseCompletion } from "@/shared/lib/system-notifications";
 
 export function useChatMessageSubmit({
   conversationID,

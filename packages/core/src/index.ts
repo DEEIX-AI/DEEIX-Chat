@@ -27,12 +27,13 @@ export type { CapabilityFlags, Feature } from "./capabilities/capabilities.ts";
 export { normalizeApiBaseUrl, resolveApiBaseUrl } from "./server/url.ts";
 export type { ResolveApiBaseUrlInput } from "./server/url.ts";
 export {
+  MAX_PROVIDER_IMPORT_ENTRIES,
   PROVIDER_IMPORT_PROTOCOLS,
   formatProviderImportLink,
   maskProviderApiKey,
   parseProviderImportLink,
 } from "./providers/import-link.ts";
-export type { ProviderImportLinkInput, ProviderImportLinkResult, ProviderImportProtocol } from "./providers/import-link.ts";
+export type { ProviderImportLink, ProviderImportLinkInput, ProviderImportLinkResult, ProviderImportProtocol } from "./providers/import-link.ts";
 // Interactive blocks (deeix-ui). Only what hosts use is exported; the engine's
 // internals are imported from their modules by the tests.
 export { BLOCK_LIMITS, compileBlock, mergeState, parseBlockSource, readAction, resolveBlock, stateDiff } from "./ui-block/block.ts";

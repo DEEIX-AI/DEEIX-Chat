@@ -6,7 +6,7 @@ import { parseCapabilitiesObject, stringifyCapabilitiesObject } from "@/features
 import { isRecord } from "@/shared/lib/type-guards";
 
 // Canonical order; keep in sync with the backend (domain/channel/model_reasoning.go).
-export const REASONING_LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const satisfies readonly AdminLLMModelReasoningLevel[];
+export const REASONING_LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] as const satisfies readonly AdminLLMModelReasoningLevel[];
 
 const REASONING_FORMATS = [
   "openai",

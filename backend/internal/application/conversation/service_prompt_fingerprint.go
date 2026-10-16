@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"sort"
 	"strings"
 	"time"
@@ -222,7 +223,7 @@ func stableUserMessage(message llm.Message) llm.Message {
 	return stable
 }
 
-func writeFingerprintField(hasher interface{ Write([]byte) (int, error) }, key string, value string) {
+func writeFingerprintField(hasher hash.Hash, key string, value string) {
 	key = strings.TrimSpace(key)
 	_, _ = hasher.Write([]byte(key))
 	_, _ = hasher.Write([]byte{0})

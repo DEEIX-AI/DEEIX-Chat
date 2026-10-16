@@ -217,7 +217,10 @@
       "askLabel": "追问",
       "askPlaceholder": "输入要追问的内容",
       "askSend": "发送追问",
-      "askRestore": "恢复为建议的问题"
+      "askRestore": "恢复为建议的问题",
+      "imageCount": "{count} 张",
+      "previousImage": "上一张",
+      "nextImage": "下一张"
     },
     "copyLatex": "复制公式源码",
     "latexCopied": "已复制公式源码",
@@ -370,6 +373,7 @@
     "autoTruncated": "附件已自动截断",
     "autoTruncatedDescription": "最多保留前 {max} 个附件，已忽略 {count} 个超出上限的文件。",
     "uploadFailed": "上传失败",
+    "processingFailed": "“{name}”处理失败",
     "uploadSignInRequired": "未登录，无法上传文件。",
     "dropTitle": "松开以添加附件",
     "duplicateReused": "检测到文件重复，已复用",
@@ -859,7 +863,10 @@
       "toolCalls": "{count} 次工具调用",
       "thinkRounds": "{count} 轮深度思考",
       "duration": "{duration}",
-      "labelSeparator": " · "
+      "labelSeparator": " · ",
+      "detailLoading": "正在加载执行过程",
+      "detailFailed": "执行过程加载失败",
+      "detailRetry": "重试"
     },
     "promptTrace": {
       "modes": {
@@ -1153,10 +1160,7 @@
     "default": "默认",
     "auto": "自动",
     "levelWithDefault": "{level}（默认）",
-    "dialogDescription": "统一的思考强度，服务器会映射为该模型的原生参数。",
-    "regenerate": "重新生成",
-    "regenerateWith": "以指定思考强度重新生成",
-    "usedByReply": "本次回复"
+    "dialogDescription": "统一的思考强度，服务器会映射为该模型的原生参数。"
   },
   "modelControls": {
     "title": "对话参数",

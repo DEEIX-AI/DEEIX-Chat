@@ -17,6 +17,10 @@ func lockedTestService(cfg config.Config) (*Service, *testSettingsRepo) {
 			{Namespace: "billing", Key: "payment_providers", Value: "disabled"},
 			{Namespace: "billing", Key: "display_currency", Value: "USD"},
 		},
+		"desktop": {
+			{Namespace: "desktop", Key: "download_enabled", Value: "true"},
+			{Namespace: "desktop", Key: "download_url", Value: "https://deeix.com/download"},
+		},
 	}}
 	service := NewService(repo, testKeyring())
 	service.SetRuntime(config.NewRuntime(cfg))
@@ -70,5 +74,24 @@ func TestBatchUpdateLeavesLockedKeysAloneInServerMode(t *testing.T) {
 	})
 	if errors.Is(err, ErrFeatureDisabled) {
 		t.Fatal("server mode must not lock billing.mode")
+	}
+}
+
+// 本地模式只有桌面端自己连接，网页端下载入口没有对象：desktop.* 不可修改。
+func TestBatchUpdateRejectsDesktopDownloadKeysInLocalMode(t *testing.T) {
+	service, _ := lockedTestService(config.Config{LocalMode: true})
+	_, err := service.BatchUpdate(context.Background(), []PatchItem{
+		{Namespace: "desktop", Key: "download_enabled", Value: "false"},
+	})
+	var disabled *FeatureDisabledError
+	if !errors.As(err, &disabled) || disabled.Feature != "desktopDownload" || !reflect.DeepEqual(disabled.Keys, []string{"desktop.download_enabled"}) {
+		t.Fatalf("expected desktopDownload lock, got %v", err)
+	}
+
+	server, _ := lockedTestService(config.Config{})
+	if _, err := server.BatchUpdate(context.Background(), []PatchItem{
+		{Namespace: "desktop", Key: "download_url", Value: "https://example.com/download"},
+	}); errors.Is(err, ErrFeatureDisabled) {
+		t.Fatal("server mode must not lock the desktop download settings")
 	}
 }

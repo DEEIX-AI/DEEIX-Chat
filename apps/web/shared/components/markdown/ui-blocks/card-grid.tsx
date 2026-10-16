@@ -5,12 +5,13 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import { HeightTransition } from "@/components/ui/height-transition";
-import { SlideSwitch } from "@/shared/components/slide-switch";
-
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { SlideSwitch } from "@/shared/components/slide-switch";
 import type { UIBlockDefinition, UIBlockRenderProps, UIBlockSkeletonProps } from "./block";
+import { BlockImage, ImageLightbox } from "./block-image";
 import { joinTextBlocks, textTitle } from "./block-text";
+import { safeImageSource, safeLinkURL } from "./block-url";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
 import { useUIBlockState } from "./ui-block-state";
@@ -21,6 +22,8 @@ type CardGridItem = {
   title: string;
   summary?: string;
   url?: string;
+  // Cover image; a card whose image fails to load simply shows without one.
+  image?: string;
 };
 
 export type CardGridProps = {
@@ -29,22 +32,6 @@ export type CardGridProps = {
 };
 
 const ALL_FILTER = "*";
-
-// Model-supplied URLs only become links when they are absolute http(s).
-function safeHTTPURL(value: string | undefined): { href: string; host: string } | undefined {
-  if (!value) {
-    return undefined;
-  }
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return undefined;
-    }
-    return { href: url.toString(), host: url.hostname.replace(/^www\./, "") };
-  } catch {
-    return undefined;
-  }
-}
 
 function CardGrid({ id, props }: UIBlockRenderProps<CardGridProps>) {
   const t = useTranslations("chat.markdown.uiBlock");
@@ -66,6 +53,9 @@ function CardGrid({ id, props }: UIBlockRenderProps<CardGridProps>) {
     [filter, props.items],
   );
   const tabs = React.useMemo(() => [ALL_FILTER, ...filters], [filters]);
+  // Covers of cards without a link open here; a linked card's cover is part of the link.
+  const [preview, setPreview] = React.useState<string | null>(null);
+  const previewItem = preview ? props.items.find((item) => safeImageSource(item.image) === preview) : undefined;
   const selectFilter = (next: string) => {
     setDirection(tabs.indexOf(next) >= tabs.indexOf(filter) ? 1 : -1);
     setState({ filter: next });
@@ -95,12 +85,17 @@ function CardGrid({ id, props }: UIBlockRenderProps<CardGridProps>) {
         <SlideSwitch itemKey={filter} direction={direction}>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {visible.map((item, index) => (
-              <CardGridCard key={`${id}-${index}-${item.title}`} item={item} />
+              <CardGridCard key={`${id}-${index}-${item.title}`} item={item} onOpenImage={(src) => setPreview(src)} />
             ))}
           </div>
           {visible.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">{t("empty")}</p> : null}
         </SlideSwitch>
       </HeightTransition>
+      <ImageLightbox
+        images={preview ? [{ src: preview, alt: previewItem?.title ?? "", caption: previewItem?.title, source: previewItem?.source }] : []}
+        index={preview ? 0 : null}
+        onIndexChange={(index) => (index === null ? setPreview(null) : undefined)}
+      />
     </div>
   );
 }
@@ -124,10 +119,20 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
   );
 }
 
-function CardGridCard({ item }: { item: CardGridItem }) {
-  const link = safeHTTPURL(item.url);
+function CardGridCard({ item, onOpenImage }: { item: CardGridItem; onOpenImage: (src: string) => void }) {
+  const link = safeLinkURL(item.url);
+  const image = safeImageSource(item.image);
   const body = (
     <>
+      {image ? (
+        <BlockImage
+          src={image}
+          alt={item.title}
+          fallback="hide"
+          className="-mx-3 -mt-3 mb-3 aspect-[16/9] rounded-t-lg"
+          onOpen={link ? undefined : () => onOpenImage(image)}
+        />
+      ) : null}
       <div className="flex items-center justify-between gap-2">
         {item.tag ? <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">{item.tag}</span> : <span />}
         {item.source ? <span className="min-w-0 truncate text-[11px] text-muted-foreground">{item.source}</span> : null}
@@ -136,7 +141,7 @@ function CardGridCard({ item }: { item: CardGridItem }) {
       {item.summary ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.summary}</p> : null}
     </>
   );
-  const className = "flex flex-col rounded-lg border-[0.5px] border-border bg-background p-3";
+  const className = "flex flex-col overflow-hidden rounded-lg border-[0.5px] border-border bg-background p-3";
   if (link) {
     return (
       <a href={link.href} target="_blank" rel="noopener noreferrer" className={cn(className, "group transition-colors hover:bg-accent/40")}>
@@ -173,7 +178,7 @@ function CardGridSkeleton({ items = 0 }: UIBlockSkeletonProps) {
 
 function cardGridText(props: CardGridProps): string {
   const items = props.items.map((item) => {
-    const details = [item.summary?.trim(), item.source?.trim(), safeHTTPURL(item.url)?.href].filter(Boolean).join(" · ");
+    const details = [item.summary?.trim(), item.source?.trim(), safeLinkURL(item.url)?.href].filter(Boolean).join(" · ");
     const tag = item.tag?.trim() ? `[${item.tag.trim()}] ` : "";
     return `- ${tag}**${item.title.trim()}**${details ? ` — ${details}` : ""}`;
   });
@@ -194,6 +199,7 @@ export const cardGridDefinition: UIBlockDefinition<CardGridProps> = {
             title: s.string(),
             summary: s.string(),
             url: s.string(),
+            image: s.string(),
           },
           ["title"],
         ),

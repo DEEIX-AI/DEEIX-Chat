@@ -363,7 +363,6 @@
     "vendor": "厂商",
     "displayGroup": "展示分组",
     "followVendor": "跟随厂商（{vendor}）",
-    "displayGroupDescription": "可选；不指定时保持当前行为，按技术厂商展示。",
     "unknownVendor": "未知",
     "vendorSearchPlaceholder": "搜索厂商",
     "noMatchedVendors": "没有匹配的厂商",
@@ -416,7 +415,6 @@
       "unsupported": "不支持",
       "invalid": "配置无效",
       "noTemplate": "请先绑定上游来源",
-      "levelWithValue": "{name}（{value}）",
       "budgetTokens": "{value} Token"
     },
     "capabilityMode": {

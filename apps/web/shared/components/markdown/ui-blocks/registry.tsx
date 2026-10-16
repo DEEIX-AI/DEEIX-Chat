@@ -12,6 +12,7 @@ import { decisionTreeDefinition } from "./decision-tree";
 import { diffDefinition } from "./diff";
 import { functionPlotDefinition } from "./function-plot";
 import { ganttDefinition } from "./gantt";
+import { imageGalleryDefinition } from "./image-gallery";
 import { quizDefinition } from "./quiz";
 import { schemaFromJSONSchema } from "./json-schema";
 import { SandboxComponent } from "./sandbox-host";
@@ -25,6 +26,7 @@ import { UIBlockFrame } from "./ui-block-frame";
 export const BUILTIN_UI_BLOCKS: readonly RegisteredUIBlock[] = [
   registerUIBlock(cardGridDefinition),
   registerUIBlock(statGridDefinition),
+  registerUIBlock(imageGalleryDefinition),
   registerUIBlock(chartDefinition),
   registerUIBlock(functionPlotDefinition),
   registerUIBlock(dataTableDefinition),

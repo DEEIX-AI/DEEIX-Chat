@@ -11,6 +11,7 @@ use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 use crate::paths;
+use crate::proxy;
 
 /// `bundle.externalBin` without the `binaries/` prefix and target triple.
 const SIDECAR_PROGRAM: &str = "deeix-chat-server";
@@ -118,6 +119,11 @@ async fn spawn<R: Runtime>(app: &AppHandle<R>) -> Result<Running, SidecarError> 
         "--data-dir",
         &dir.to_string_lossy(),
     ]);
+    // The bundled server reads its proxy from the environment; in local mode
+    // this shell is what deploys it. Every spelling is set, so nothing this
+    // process inherited survives.
+    let effective = proxy::effective(app);
+    command = command.envs(proxy::child_env(&effective));
     // Portable: the server's temp files (uploads, PDF rendering) stay in the
     // app folder too. Go's os.TempDir reads TMP/TEMP on Windows, TMPDIR elsewhere.
     if let Some(tmp) = paths::tmp_dir(app) {
@@ -158,8 +164,8 @@ async fn spawn<R: Runtime>(app: &AppHandle<R>) -> Result<Running, SidecarError> 
     });
 
     eprintln!(
-        "[sidecar] ready pid={} origin={} version={}",
-        handoff.pid, handoff.origin, handoff.version
+        "[sidecar] ready pid={} origin={} version={} proxy={:?}",
+        handoff.pid, handoff.origin, handoff.version, effective.source
     );
     Ok(Running {
         child,

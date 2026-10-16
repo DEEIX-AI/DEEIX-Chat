@@ -19,7 +19,7 @@ import { AssistantMessageMeta } from "@/features/chat/components/message/message
 import { MessageAgentTrace, MessageProcessTrace } from "@/features/chat/components/message/message-process-trace";
 import { UpstreamExchangeDetails } from "@/features/chat/components/message/message-upstream-debug";
 import { useChatInlineVideoSource } from "@/features/chat/hooks/use-chat-inline-video-source";
-import type { ChatRegenerateReasoningOptions } from "@/features/chat/model/chat-reasoning-effort";
+import { useChatMessageTraceDetail } from "@/features/chat/hooks/use-chat-message-trace-detail";
 import { resolveLeadingImagePreview } from "@/features/chat/model/media-image-preview";
 import {
   clearLiveUpstreamThinkTrace,
@@ -31,6 +31,7 @@ import type {
   ChatInlineAlert,
   MessageAttachment,
 } from "@/features/chat/types/messages";
+import type { SendShortcut } from "@/features/settings";
 import { isUpstreamStreamingDebugBody, summarizeUpstreamError } from "@/features/chat/utils/chat-runtime";
 import { cn } from "@/lib/utils";
 import { type FileContentLoader, PreviewMedia } from "@/entities/file";
@@ -38,10 +39,10 @@ import { type MarkdownArtifactActions, MarkdownImage } from "@/shared/components
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import type { UIBlockStateBinding } from "@/shared/components/markdown/ui-blocks/ui-block-state";
 import { MediaActionBar, MediaActionButton } from "@/shared/components/media-action-bar";
+import { isImeComposingKeyEvent, isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
 import { useBranding } from "@/shared/config/branding-provider";
 import { useCopyAction } from "@/shared/components/copy-action";
 import type { BillingDisplayCurrency } from "@/entities/billing";
-import type { ReasoningEffortLevel } from "@/entities/model";
 
 const EMPTY_TRACE_EVENTS: NonNullable<NonNullable<ChatAreaMessage["processTrace"]>["events"]> = [];
 const GrainientBackground = dynamic(
@@ -139,8 +140,7 @@ type ChatMessageBotProps = {
   item: ChatAreaMessage;
   busy?: boolean;
   reaction: AssistantReaction;
-  onRetryAssistantMessage: (message: ChatAreaMessage, reasoningEffort?: ReasoningEffortLevel) => Promise<void> | void;
-  regenerateReasoning?: ChatRegenerateReasoningOptions | null;
+  onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
   onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
@@ -158,6 +158,8 @@ type ChatMessageBotProps = {
   showTokenUsage?: boolean;
   showBillingCost?: boolean;
   showProcessTrace?: boolean;
+  // Enter saves the edit, as the composer does, honouring the same user setting.
+  sendShortcut?: SendShortcut;
   billingDisplayCurrency?: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate?: number | null;
   readOnly?: boolean;
@@ -177,7 +179,6 @@ export function ChatMessageBot({
   busy = false,
   reaction,
   onRetryAssistantMessage,
-  regenerateReasoning = null,
   onContinueAssistantMessage,
   onEditAssistantMessage,
   onForkMessage,
@@ -195,6 +196,7 @@ export function ChatMessageBot({
   showTokenUsage = true,
   showBillingCost = false,
   showProcessTrace = true,
+  sendShortcut = "enter",
   billingDisplayCurrency = "USD",
   billingDisplayUsdToCnyRate = null,
   readOnly = false,
@@ -211,11 +213,10 @@ export function ChatMessageBot({
   const submitT = useTranslations("chat.submit");
   const [isEditing, setIsEditing] = React.useState(false);
   const [editingValue, setEditingValue] = React.useState(item.content);
+  // Some IMEs end the composition before the Enter keydown arrives, so the state is tracked too.
+  const editingComposingRef = React.useRef(false);
   const onRetry = React.useCallback(() => {
     void onRetryAssistantMessage(item);
-  }, [item, onRetryAssistantMessage]);
-  const onRetryWithReasoning = React.useCallback((level: ReasoningEffortLevel) => {
-    void onRetryAssistantMessage(item, level);
   }, [item, onRetryAssistantMessage]);
   const onContinue = React.useCallback(() => {
     void onContinueAssistantMessage?.(item);
@@ -247,10 +248,16 @@ export function ChatMessageBot({
     }
   }, [isEditing, item.content]);
   const liveProcessTrace = useLiveUpstreamThinkTrace(item.runID);
-  const processTrace =
+  const messageProcessTrace =
     liveProcessTrace && (item.isStreaming || !item.processTrace)
       ? mergeLiveUpstreamThinkTrace(item.processTrace, liveProcessTrace)
       : item.processTrace;
+  const {
+    trace: processTrace,
+    detailPending: traceDetailPending,
+    detailFailed: traceDetailFailed,
+    loadDetail: loadTraceDetail,
+  } = useChatMessageTraceDetail(item.publicID, messageProcessTrace);
   React.useEffect(() => {
     if (!item.isStreaming && item.processTrace?.upstreamThink) {
       clearLiveUpstreamThinkTrace(item.runID);
@@ -355,6 +362,23 @@ export function ChatMessageBot({
             className="chat-font-content min-h-[160px] resize-none rounded-lg border-border border-[0.5px] bg-background px-3 py-2 text-sm leading-7 shadow-none focus-visible:border-primary focus-visible:ring-0"
             style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
             onChange={(event) => setEditingValue(event.target.value)}
+            onCompositionStart={() => {
+              editingComposingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              editingComposingRef.current = false;
+            }}
+            onKeyDown={(event) => {
+              if (isImeComposingKeyEvent(event, editingComposingRef.current) || !isSendShortcutEvent(sendShortcut, event)) {
+                return;
+              }
+              // The send key is never a newline here; only what the save button could run happens.
+              event.preventDefault();
+              if (busy || nextContent.length === 0 || unchanged) {
+                return;
+              }
+              void onEditSave();
+            }}
           />
           <div className="mt-3 flex items-center justify-end gap-2">
             <Button
@@ -397,6 +421,9 @@ export function ChatMessageBot({
         autoExpandToolCalls={autoExpandToolCalls}
         runID={item.runID}
         allowFullToolResults={allowFullToolResults && !messageStreaming}
+        detailPending={traceDetailPending}
+        detailFailed={traceDetailFailed}
+        onLoadDetail={loadTraceDetail}
       />
 
       <div
@@ -483,8 +510,6 @@ export function ChatMessageBot({
         reaction={reaction}
         onCycleBranch={onCycleMessageBranch}
         onRetry={onRetry}
-        regenerateReasoning={regenerateReasoning}
-        onRetryWithReasoning={onRetryWithReasoning}
         onContinue={onContinueAssistantMessage ? onContinue : undefined}
         onEdit={() => setIsEditing(true)}
         onCopy={onCopy}

@@ -1,5 +1,16 @@
 import { PROVIDER_IMPORT_PROTOCOLS, type ProviderImportProtocol } from "@deeix/core";
 
+/** Protocol for listing models from an unknown address. */
+const DEFAULT_PROVIDER_PROTOCOL = "openai_chat_completions";
+
+/** Catalogs up to this size are fully preselected; larger ones start empty. */
+export const PRESELECT_ALL_MAX_MODELS = 12;
+
+/** Link protocol, then preset protocol, then the default. */
+export function resolveProviderProtocol(requested: string | null | undefined, preset: { protocol: string } | null): string {
+  return requested || preset?.protocol || DEFAULT_PROVIDER_PROTOCOL;
+}
+
 /** Translation key for each protocol the server offers for user-supplied keys. */
 const PROTOCOL_LABEL_KEYS: Record<ProviderImportProtocol, `protocols.${ProviderImportProtocol}`> = {
   openai_chat_completions: "protocols.openai_chat_completions",

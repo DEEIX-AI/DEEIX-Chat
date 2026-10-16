@@ -322,7 +322,7 @@ func TestResolveModelCatalogForAdminForm(t *testing.T) {
 	if explicit.AutoReasoning == nil || strings.Join(explicit.AutoReasoning.Levels, ",") != "minimal,low,medium,high" || explicit.ContextWindow != 0 {
 		t.Fatalf("expected catalog levels ignoring the explicit declaration, got %#v", explicit)
 	}
-	if explicit.ReasoningTemplate == nil || strings.Join(explicit.ReasoningTemplate.Levels, ",") != "none,minimal,low,medium,high,xhigh,max" {
+	if explicit.ReasoningTemplate == nil || strings.Join(explicit.ReasoningTemplate.Levels, ",") != "none,minimal,low,medium,high,xhigh,max,ultra" {
 		t.Fatalf("expected the openai template, got %#v", explicit.ReasoningTemplate)
 	}
 

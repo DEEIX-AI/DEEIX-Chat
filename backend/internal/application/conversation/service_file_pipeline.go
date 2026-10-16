@@ -245,10 +245,13 @@ func (s *Service) resolveConversationFileContext(
 	return resolved, nil
 }
 
+// hydrateAttachmentsForSend 等待附件处理完成并补全处理结果。本轮文件处理失败时拒绝发送，
+// 只有 native 能直接读取原文件的情况例外（见 nativeInputPolicy.readsWithoutExtraction）。
 func (s *Service) hydrateAttachmentsForSend(
 	ctx context.Context,
 	userID uint,
 	attachments []AttachmentInput,
+	native nativeInputPolicy,
 	onEvent func(string, map[string]any) error,
 ) ([]AttachmentInput, error) {
 	if len(attachments) == 0 {
@@ -291,7 +294,9 @@ func (s *Service) hydrateAttachmentsForSend(
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 					return err
 				}
-				if !att.Current || att.FileCategory == fileCategoryImage {
+				// 处理失败的文件照常进入后续规划：历史文件与图片留说明，模型能直接阅读的本轮 PDF 改为原生发送。
+				readsNatively := att.Current && errors.Is(err, appprocessing.ErrFileProcessingFailed) && native.readsWithoutExtraction(att)
+				if !att.Current || att.FileCategory == fileCategoryImage || readsNatively {
 					if latestFile != nil {
 						items[i].ProcessingStatus = latestFile.ProcessingStatus
 						items[i].ProcessingReady = latestFile.ProcessingReady
