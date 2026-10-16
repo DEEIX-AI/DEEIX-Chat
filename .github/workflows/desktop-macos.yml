@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: ${{ inputs.arch == 'arm64' && 'macos-26' || 'macos-26-intel' }}
     timeout-minutes: 60
     env:
       CARGO_INCREMENTAL: 0
