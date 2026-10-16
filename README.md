@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  English | <a href="./docs/README.zh-CN.md">简体中文</a>
+  English | <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
@@ -231,6 +231,32 @@ The same verbs exist as pnpm scripts (`pnpm dev:api`, `pnpm check`, …) for
 tooling that prefers them; CI uses those directly.
 
 The frontend is exported as static files, so `pnpm build` writes the browser artifact to `apps/web/out`. The Go service can serve that directory in the production image or through `server.frontend_dist_dir`.
+
+### Desktop Releases
+
+Merging a `VERSION` bump into `main` creates `v<VERSION>` and starts
+[`desktop-release.yml`](.github/workflows/desktop-release.yml). Tag pushes also
+trigger it. The parent workflow delegates to reusable workflows:
+
+| Workflow | Responsibility |
+| --- | --- |
+| [`desktop-prepare.yml`](.github/workflows/desktop-prepare.yml) | Resolve the source commit, validate versions, build the frontend and refresh catalog snapshots once. |
+| [`desktop-macos.yml`](.github/workflows/desktop-macos.yml) | Separate arm64 and x64 invocations build, sign, notarize and verify the DMG/updater packages. |
+| [`desktop-linux.yml`](.github/workflows/desktop-linux.yml) | Build x64 deb/AppImage packages and verify Wayland library exclusions. |
+| [`desktop-windows.yml`](.github/workflows/desktop-windows.yml) | Build x64 NSIS/MSI/portable packages, verify signatures and attest their provenance. |
+
+The four native jobs run in parallel after preparation and reuse the same
+frontend/catalog artifacts. Releases run on the default branch with a
+`release_tag` input so successive tags share a cache scope; builds still check
+out the tag's immutable commit. Rust is pinned, Rust/Go caches are separated by
+target, and the fat LTO release profile is unchanged. macOS packages are created
+from the same final signed app, avoiding DMG recompression.
+
+Only after every target passes does the parent assemble `latest.json` and
+`SHA256SUMS` and upload a **draft** release. Publishing the draft ships the update.
+Manual runs with an empty `release_tag` only upload workflow artifacts. See the
+[desktop release guide](apps/desktop/README.md#release-workflows) for manual tag
+builds, signing secrets, cache behavior and compilation timing reports.
 
 ### Docker Deployment
 

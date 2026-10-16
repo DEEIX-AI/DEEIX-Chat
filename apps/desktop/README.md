@@ -316,24 +316,71 @@ The JS updater permission is not in the static capability: it is granted at
 runtime only in `auto` mode, so a portable or MSI build cannot install updates
 even if the web layer asked.
 
-Release assets are renamed by `scripts/rename-release-assets.mjs` to
+Release assets are staged by `scripts/collect-release-assets.mjs` as
 `DEEIX-Chat-<version>-<os>-<arch>[-setup|-updater].<ext>`, e.g.
 `DEEIX-Chat-0.4.4-beta.1-macos-arm64.dmg`, `-linux-x64.AppImage`,
-`-windows-x64-setup.exe`, `-macos-arm64-updater.tar.gz`. The plan is
-validated for collisions before anything is renamed, and the updater manifest,
-which references assets by file name, is reconciled from its own URLs, so the
-job can be re-run after an interruption. Only the artifact bytes are signed, so
-verification is unaffected. `pnpm test` covers the mapping.
+`-windows-x64-setup.exe`, `-macos-arm64-updater.tar.gz`. Every target must have
+exactly one of each required package and its updater signature before staging.
+After all targets pass, `scripts/publish-desktop-release.mjs` assembles
+`latest.json` and `SHA256SUMS` from those final files and uploads them to one
+draft. It preserves the updater platform keys used by existing installs,
+resumes a single existing draft and refuses to replace a published release.
+Only the artifact bytes are signed, so staging under a new name does not change
+their signatures. `pnpm test` covers staging, updater compatibility and hashes.
 
 Release flow: merging a `VERSION` bump into `main` creates the tag
 `v<VERSION>` (`release-tag.yml`), which builds every target and opens a
-**draft** GitHub Release with the installers and a signed `latest.json`.
+**draft** GitHub Release with the installers and `latest.json` containing their signatures.
 Publishing the draft is the step that ships the update; until then existing
 installs see nothing. Pushing the tag by hand does the same.
 
 Windows assets: `-windows-x64-setup.exe`, `-windows-x64.msi`,
 `-windows-x64-portable.zip` (and `-portable-offline.zip` when built). Every
 release also carries `SHA256SUMS` and GitHub build provenance attestations.
+
+### Release workflows
+
+[`desktop-release.yml`](../../.github/workflows/desktop-release.yml) coordinates
+the following reusable workflows. Each native job receives the same immutable
+source commit and channel; platform-specific installation, signing and
+verification live in that platform's file.
+
+| Workflow | Responsibility |
+| --- | --- |
+| [`desktop-prepare.yml`](../../.github/workflows/desktop-prepare.yml) | Resolve the requested tag, check version consistency, then build the frontend and refresh catalog snapshots once, in parallel. |
+| [`desktop-macos.yml`](../../.github/workflows/desktop-macos.yml) | Called separately for arm64 and x64; build the sidecar/app, sign it, create the final DMG and updater archive, then verify both. |
+| [`desktop-linux.yml`](../../.github/workflows/desktop-linux.yml) | Build x64 sidecar/executable, bundle deb/AppImage and verify the Wayland library exclusion. |
+| [`desktop-windows.yml`](../../.github/workflows/desktop-windows.yml) | Build x64 sidecar/executable, sign and verify NSIS/MSI/portable packages, and attest their provenance. |
+
+The four native jobs run in parallel after preparation. Shared toolchain/cache
+setup lives in [the desktop-setup action](../../.github/actions/desktop-setup/action.yml).
+The frontend and catalog are downloaded as workflow artifacts; native jobs
+disable Tauri's frontend build hook, so they never rebuild the shared frontend.
+Compilation, bundling, notarization and verification have separate steps. Rust
+`--timings` reports are retained as `desktop-timings-*` artifacts for seven days.
+The shipped Rust optimization profile, including fat LTO, is unchanged.
+
+Release-tag runs dispatch `desktop-release.yml` on the repository's **default
+branch**, with the tag supplied as `release_tag`. This gives successive releases
+the same GitHub cache scope instead of creating a separate scope per tag. The
+jobs still check out the tag's resolved commit, and publication verifies the tag
+has not moved. Windows provenance records both the workflow commit and the
+actual desktop source commit. Rust is pinned in the setup action, and Rust/Go
+cache keys include the target triple so the two macOS architectures cannot
+overwrite one another's cache. The first run after a cache/toolchain change is
+still cold; dependency changes or cache eviction can also cause rebuilds.
+
+To build an existing tag, after these workflows exist on the default branch:
+
+```bash
+gh workflow run desktop-release.yml --ref "$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)" -f release_tag=v1.2.3
+```
+
+The tag must contain the reusable build scripts and setup action. A manual run
+with an empty `release_tag` builds the selected branch and only uploads workflow
+artifacts. A release run creates the draft only after all four targets succeed;
+publishing the draft remains a separate human step. Failed jobs can be retried
+while the shared artifacts are retained (seven days).
 
 ### Channels
 
@@ -435,8 +482,13 @@ What a local `pnpm build` costs once caches are warm, and where it goes:
 | `.app` | ~1 s | | |
 | `.dmg` | ~25 s | | `hdiutil` + Finder layout; `scripts/package-dmg.sh` then re-encodes with lzfse and (when signing is configured) re-signs and notarizes |
 
-`pnpm build:signed` produces exactly what CI ships. Use `pnpm build:app` while
-iterating: it relaxes LTO (~17 s link) and stops at the `.app`.
+`pnpm build:signed` uses the local Tauri DMG/repackaging path above. CI uses
+`scripts/package-macos.sh`: it creates the `.app` first, completes its signing
+and notarization, then creates an ULFO DMG directly from that app. It avoids
+building a compressed DMG only to decompress, replace the app and recompress it.
+The updater tarball is created from the same final app and then signed with the
+updater key. Both packages go through `verify-macos-bundle.sh` before staging.
+Use `pnpm build:app` while iterating: it relaxes LTO (~17 s link) and stops at the `.app`.
 
 Every `no*` tag has an `*_off.go` counterpart that returns a clear error if the
 config selects a driver that was compiled out.
@@ -457,6 +509,7 @@ app icon.
 | Platform | What is needed | CI secrets |
 | --- | --- | --- |
 | macOS | Developer ID Application certificate (.p12) + Apple ID app-specific password for notarization; identity and team id are derived from the certificate (`scripts/apple-signing-env.sh`) | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD` |
+| macOS, external service | Alternative app/DMG signing and notarization provider | `SIGN_AND_NOTARIZE_SCRIPT_URL`, `SIGN_AND_NOTARIZE_BASE_URL`, `SIGN_AND_NOTARIZE_API_TOKEN`, `SIGN_AND_NOTARIZE_HELPER_URL` |
 | Windows | Code-signing certificate (.pfx) | `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` |
 | All | Updater keypair (`tauri signer generate`); the private key is kept git-ignored in `deploy/secrets/` (see its README) | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` |
 
@@ -467,6 +520,15 @@ through `--config` (tauri-cli has no environment variable for it). The bundler
 signs the exe inside each installer and the sidecar; the portable exe is signed
 separately with signtool. A CI step then requires a valid Authenticode signature
 on the setup, MSI, portable exe and sidecar whenever a certificate is configured.
+
+CI chooses the external macOS provider when all four `SIGN_AND_NOTARIZE_*`
+secrets are set, even if Apple credentials also exist. Tauri only ad-hoc signs
+in that mode; the external service signs/notarizes the app once and then the
+final DMG. The updater archive is created afterwards, from the signed app.
+A partial external configuration fails immediately. Without the external
+provider, the existing `APPLE_*` credentials enable Tauri app signing and
+notarization; DMG signing imports its own temporary keychain because Tauri
+removes its keychain when app bundling finishes.
 
 On macOS, `scripts/verify-macos-bundle.sh` checks the app as it ships, inside the
 final DMG and inside the updater archive, before CI uploads the DMG: the app
