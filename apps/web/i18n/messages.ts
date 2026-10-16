@@ -15,6 +15,7 @@ import enAdminUpstreams from "@/i18n/messages/en-US/admin-upstreams.json";
 import enAdminUserKeys from "@/i18n/messages/en-US/admin-user-keys.json";
 import enAdminUsers from "@/i18n/messages/en-US/admin-users.json";
 import enAnnouncements from "@/i18n/messages/en-US/announcements.json";
+import enDesktopDownloads from "@/i18n/messages/en-US/desktop-downloads.json";
 import enDesktopNetwork from "@/i18n/messages/en-US/desktop-network.json";
 import enDesktopSetup from "@/i18n/messages/en-US/desktop-setup.json";
 import enDesktopTabs from "@/i18n/messages/en-US/desktop-tabs.json";
@@ -44,6 +45,7 @@ const ENGLISH_MESSAGES = {
   guide: enGuide,
   chat: enChat,
   announcements: enAnnouncements,
+  desktopDownloads: enDesktopDownloads,
   desktopNetwork: enDesktopNetwork,
   desktopSetup: enDesktopSetup,
   desktopTabs: enDesktopTabs,
@@ -125,6 +127,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
   }
 
   const [
+    desktopDownloads,
     desktopNetwork,
     desktopSetup,
     desktopTabs,
@@ -159,6 +162,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     adminUsers,
     adminContentModeration,
   ] = await Promise.all([
+    import("@/i18n/messages/zh-CN/desktop-downloads.json"),
     import("@/i18n/messages/zh-CN/desktop-network.json"),
     import("@/i18n/messages/zh-CN/desktop-setup.json"),
     import("@/i18n/messages/zh-CN/desktop-tabs.json"),
@@ -195,6 +199,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
   ]);
 
   return {
+    desktopDownloads: desktopDownloads.default,
     desktopNetwork: desktopNetwork.default,
     desktopSetup: desktopSetup.default,
     desktopTabs: desktopTabs.default,

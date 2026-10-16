@@ -57,13 +57,26 @@ export function resolveProtectedMarkdownImageSource(src: string): string | null 
   return null;
 }
 
+const UNSAFE_FILE_NAME_CHARS = /[\\/:*?"<>|]+/g;
+
+// URL paths are percent-encoded, so `娘.jpg` arrives as `%E5%A8%98.jpg`; a malformed
+// escape keeps the raw segment rather than failing the download.
+function decodePathSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 export function resolveMarkdownImageDownloadName(src: string, alt: string | undefined): string {
   const url = new URL(src, window.location.origin);
-  const pathname = url.pathname.split("/").filter(Boolean).at(-1) || "";
-  if (pathname.includes(".") && pathname.split(".").at(-1)?.length) {
-    return pathname;
+  const segment = url.pathname.split("/").filter(Boolean).at(-1) || "";
+  const fileName = decodePathSegment(segment).trim().replace(UNSAFE_FILE_NAME_CHARS, "-");
+  if (fileName.includes(".") && fileName.split(".").at(-1)?.length) {
+    return fileName;
   }
-  const baseName = (alt?.trim() || "image").replace(/[\\/:*?"<>|]+/g, "-");
+  const baseName = (alt?.trim() || "image").replace(UNSAFE_FILE_NAME_CHARS, "-");
   return `${baseName}.png`;
 }
 

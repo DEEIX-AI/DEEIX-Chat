@@ -19,6 +19,7 @@ apps/desktop/src-tauri (Rust)
         ├── tray               src/tray.rs       show / quit, left click restores the window
         ├── menu               src/menu.rs       macOS menu bar: File ▸ Close Tab ⌘W / Close Window ⇧⌘W
         ├── OAuth loopback     src/oauth_loopback.rs  RFC 8252 receiver on 127.0.0.1:<ephemeral>
+        ├── downloads          src/downloads.rs  `<a download>` → Downloads folder, result reported to the tab
         ├── updater            tauri-plugin-updater + apps/web/shared/platform/desktop-updater.ts
         └── CSP                no inline/remote scripts; network open to http(s) (user picks the server)
 ```
@@ -109,6 +110,13 @@ service and local database, so it never disturbs an installed copy.
 Storage (localStorage) is shared across tabs on purpose: it holds UI
 preferences such as theme and fonts, which should follow the user, not the
 server.
+
+Downloads (`<a download>`: images, exports, file previews) go straight to the
+user's Downloads folder; wry appends ` (1)`, ` (2)` … rather than overwrite.
+Without a download handler WKWebView would cancel them silently. No webview
+shows download UI, so the shell emits `downloads:finished` to the tab that
+started one and the page shows a toast (`desktop-download-notifier.tsx`). The
+webview gets no filesystem permission for this: Rust picks the path.
 
 ## Two ways to run
 
