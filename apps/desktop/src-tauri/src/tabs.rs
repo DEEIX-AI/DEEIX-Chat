@@ -367,7 +367,7 @@ fn content_webview<R: Runtime>(
         .state::<crate::proxy::ProxyState>()
         .webview()
         .configure(builder);
-    builder
+    crate::downloads::configure(builder)
         .on_navigation(is_app_url)
         .on_new_window(move |url, _| {
             if matches!(url.scheme(), "http" | "https") {
