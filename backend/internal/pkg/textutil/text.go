@@ -58,3 +58,15 @@ func TruncateTrimmed(value string, maxRunes int) string {
 	}
 	return string(runes[:maxRunes])
 }
+
+// SanitizeForTextColumn 让可能来自工具输出的文本可安全写入数据库文本列。
+//
+// 工具可能返回二进制内容（例如抓取到的 GIF），其字节解码成字符串后会带来
+// NUL 与非法 UTF-8；PostgreSQL 的 text 列会整体拒绝写入（SQLSTATE 22021），
+// 一次写入失败就会丢掉整条事件（例如轨迹停留在「进行中」）。
+func SanitizeForTextColumn(value string) string {
+	if !strings.ContainsRune(value, 0) {
+		return strings.ToValidUTF8(value, "\uFFFD")
+	}
+	return strings.ToValidUTF8(strings.ReplaceAll(value, "\x00", ""), "\uFFFD")
+}

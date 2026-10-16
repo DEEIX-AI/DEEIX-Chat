@@ -574,12 +574,12 @@ function isToolStepDone(step: ToolChainStep): boolean {
   return status === "success" || status === "completed" || status === "reused";
 }
 
-function ToolStepStatusIcon({ step }: { step: ToolChainStep }) {
+function ToolStepStatusIcon({ step, active }: { step: ToolChainStep; active: boolean }) {
   return (
     <Wrench
       className={cn(
         "size-3 text-muted-foreground/68",
-        isToolChainStepActive(step) && "text-foreground/78",
+        active && "text-foreground/78",
         step.failed && "text-destructive",
       )}
     />
@@ -827,19 +827,26 @@ export function AgentToolStepRow({
   step,
   labels,
   autoExpand,
+  messageStreaming,
   runID,
   allowFullResult = false,
 }: {
   step: ToolChainStep;
   labels: ProcessTraceLabels;
   autoExpand: boolean;
+  messageStreaming: boolean;
   runID?: string;
   allowFullResult?: boolean;
 }) {
-  const active = isToolChainStepActive(step);
+  // A finished reply can still carry a step whose last saved status is "calling" (its final
+  // write was lost); counting from startedAt would then show days. Only a live reply runs.
+  const reportedActive = isToolChainStepActive(step);
+  const active = messageStreaming && reportedActive;
   const { open, onOpenChange } = useAutoExpandDisclosure({ active, autoExpand });
   const failed = step.failed;
-  const statusText = isToolStepDone(step) ? "" : toolStatusLabel(step.toolCall?.status ?? step.toolStatus, labels);
+  const statusText = isToolStepDone(step) || (reportedActive && !active)
+    ? ""
+    : toolStatusLabel(step.toolCall?.status ?? step.toolStatus, labels);
   const expandable = Boolean(step.toolCall || step.detail);
   const liveDurationMS = useChatElapsedDurationMS(active, step.startedAt);
   const durationText = formatDurationMS(active ? liveDurationMS : step.latencyMS);
@@ -847,7 +854,7 @@ export function AgentToolStepRow({
   return (
     <li className="group/agent-trace-step">
       <AgentTraceStep
-        icon={<ToolStepStatusIcon step={step} />}
+        icon={<ToolStepStatusIcon step={step} active={active} />}
         title={labels.tool.names.generic}
         status={statusText || undefined}
         duration={durationText}
