@@ -1,0 +1,93 @@
+name: Desktop · Linux x64
+
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+      channel:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: 0
+      TARGET: x86_64-unknown-linux-gnu
+      CHANNEL: ${{ inputs.channel }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - uses: ./.github/actions/desktop-setup
+        with:
+          target: ${{ env.TARGET }}
+          source-sha: ${{ inputs.source-sha }}
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Build server sidecar
+        run: node apps/desktop/scripts/build-sidecar.mjs --target "$TARGET"
+      - name: Configure desktop build
+        run: |
+          node apps/desktop/scripts/release-config.mjs --channel "$CHANNEL" --repository "$GITHUB_REPOSITORY" \
+            --prebuilt-frontend --output "$RUNNER_TEMP/desktop-config.json"
+      - name: Compile desktop executable
+        run: |
+          pnpm --filter @deeix/desktop exec tauri build --no-bundle --target "$TARGET" \
+            --config "$RUNNER_TEMP/desktop-config.json" -- --locked --timings
+      - name: Exclude Wayland libraries from AppImage
+        run: bash apps/desktop/scripts/prepare-linuxdeploy-wrapper.sh
+      - name: Bundle deb and AppImage
+        env:
+          LINUXDEPLOY_DEBUG_LOG: ${{ runner.temp }}/linuxdeploy.log
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          pnpm --filter @deeix/desktop exec tauri bundle --target "$TARGET" --bundles deb,appimage \
+            --config "$RUNNER_TEMP/desktop-config.json"
+      - name: Show linuxdeploy log
+        if: always()
+        run: cat "$RUNNER_TEMP/linuxdeploy.log" 2>/dev/null || echo "(no linuxdeploy log)"
+      - name: Verify AppImage
+        run: |
+          shopt -s nullglob
+          images=(apps/desktop/src-tauri/target/"$TARGET"/release/bundle/appimage/*.AppImage)
+          ((${#images[@]} == 1)) || { echo "::error::expected one AppImage"; exit 1; }
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "$workdir"' EXIT
+          (cd "$workdir" && "$GITHUB_WORKSPACE/${images[0]}" --appimage-extract >/dev/null 2>&1)
+          test -d "$workdir/squashfs-root/usr/lib"
+          if find "$workdir/squashfs-root/usr/lib" -name 'libwayland*' -print -quit | grep -q .; then
+            echo "::error::AppImage still bundles Wayland libraries"
+            exit 1
+          fi
+      - name: Stage release assets
+        run: |
+          node apps/desktop/scripts/collect-release-assets.mjs --platform linux-x64 \
+            --bundle "apps/desktop/src-tauri/target/$TARGET/release/bundle" --out "$RUNNER_TEMP/release-assets"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: desktop-release-linux-x64
+          path: ${{ runner.temp }}/release-assets
+          compression-level: 0
+          if-no-files-found: error
+          overwrite: true
+      - name: Upload compilation timings
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-timings-linux-x64
+          path: apps/desktop/src-tauri/target/cargo-timings
+          overwrite: true
+          retention-days: 7

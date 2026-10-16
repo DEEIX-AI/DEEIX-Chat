@@ -1,0 +1,188 @@
+name: Desktop · Windows x64
+
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+      channel:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: 0
+      TARGET: x86_64-pc-windows-msvc
+      CHANNEL: ${{ inputs.channel }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - uses: ./.github/actions/desktop-setup
+        with:
+          target: ${{ env.TARGET }}
+          source-sha: ${{ inputs.source-sha }}
+      - name: Build server sidecar
+        run: node apps/desktop/scripts/build-sidecar.mjs --target "$TARGET"
+      - name: Import Windows code-signing certificate
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE) {
+            Write-Host "::warning::WINDOWS_CERTIFICATE not set; building an unsigned Windows installer"
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $secure = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $secure
+          Remove-Item $pfx
+          # A thumbprint is a public hash of the certificate, not a secret.
+          "WINDOWS_CERTIFICATE_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Configure desktop build
+        run: |
+          args=(--channel "$CHANNEL" --repository "$GITHUB_REPOSITORY" --prebuilt-frontend)
+          if [[ -n "${WINDOWS_CERTIFICATE_THUMBPRINT:-}" ]]; then
+            args+=(--thumbprint "$WINDOWS_CERTIFICATE_THUMBPRINT")
+          fi
+          node apps/desktop/scripts/release-config.mjs "${args[@]}" --output "$RUNNER_TEMP/desktop-config.json"
+      - name: Compile desktop executable
+        run: |
+          pnpm --filter @deeix/desktop exec tauri build --no-bundle --target "$TARGET" \
+            --config "$RUNNER_TEMP/desktop-config.json" -- --locked --timings
+      - name: Bundle NSIS and MSI installers
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          pnpm --filter @deeix/desktop exec tauri bundle --target "$TARGET" --bundles nsis,msi \
+            --config "$RUNNER_TEMP/desktop-config.json"
+      - name: Sign portable executable
+        if: env.WINDOWS_CERTIFICATE_THUMBPRINT != ''
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $conf = Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Where-Object { $_.Directory.Parent.Name -as [version] } |
+            Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
+            Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found" }
+          $exe = "apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/deeix-chat-desktop.exe"
+          & $signtool.FullName sign /fd $conf.bundle.windows.digestAlgorithm /sha1 $env:WINDOWS_CERTIFICATE_THUMBPRINT `
+            /t $conf.bundle.windows.timestampUrl /d "DEEIX Chat" $exe
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed with $LASTEXITCODE" }
+      - name: Fetch WebView2 Fixed Version runtime
+        id: webview2
+        if: vars.WEBVIEW2_FIXED_RUNTIME_URL != ''
+        shell: pwsh
+        env:
+          WEBVIEW2_URL: ${{ vars.WEBVIEW2_FIXED_RUNTIME_URL }}
+          WEBVIEW2_SHA256: ${{ vars.WEBVIEW2_FIXED_RUNTIME_SHA256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cab = Join-Path $env:RUNNER_TEMP "webview2-fixed.cab"
+          $dir = Join-Path $env:RUNNER_TEMP "webview2-fixed"
+          Invoke-WebRequest -Uri $env:WEBVIEW2_URL -OutFile $cab -UseBasicParsing
+          $hash = (Get-FileHash $cab -Algorithm SHA256).Hash
+          Write-Host "WebView2 runtime .cab SHA-256: $hash"
+          if ($env:WEBVIEW2_SHA256 -and $hash -ne $env:WEBVIEW2_SHA256.ToUpper()) {
+            throw "WebView2 runtime hash mismatch: expected $($env:WEBVIEW2_SHA256), got $hash"
+          }
+          $sig = Get-AuthenticodeSignature $cab
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+            throw "WebView2 runtime .cab is not validly signed by Microsoft: $($sig.Status) $($sig.SignerCertificate.Subject)"
+          }
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          expand.exe $cab -F:* $dir | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "expand failed with $LASTEXITCODE" }
+          "dir=$dir" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      - name: Package portable
+        id: portable
+        shell: bash
+        env:
+          WEBVIEW2_DIR: ${{ steps.webview2.outputs.dir }}
+        run: |
+          set -euo pipefail
+          out=apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/portable
+          rm -rf "$out"
+          node apps/desktop/scripts/package-portable.mjs --target "$TARGET" --out-dir "$out"
+          if [[ -n "$WEBVIEW2_DIR" ]]; then
+            node apps/desktop/scripts/package-portable.mjs --target "$TARGET" --out-dir "$out" --webview2 "$WEBVIEW2_DIR"
+          fi
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+      - name: Verify Windows signatures
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = "apps/desktop/src-tauri"
+          $files = @(
+            "$root/target/x86_64-pc-windows-msvc/release/deeix-chat-desktop.exe"
+            "$root/binaries/deeix-chat-server-x86_64-pc-windows-msvc.exe"
+          )
+          $files += Get-ChildItem "$root/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe", "$root/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi" |
+            ForEach-Object FullName
+          $required = [bool]$env:WINDOWS_CERTIFICATE_THUMBPRINT
+          $failed = $false
+          foreach ($file in $files) {
+            $sig = Get-AuthenticodeSignature -FilePath $file
+            $line = "$($sig.Status): $file ($($sig.SignerCertificate.Subject))"
+            if ($sig.Status -eq 'Valid') {
+              Write-Host $line
+            } elseif ($required) {
+              Write-Host "::error::$line"
+              $failed = $true
+            } else {
+              Write-Host "::warning::$line"
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Stage release assets
+        run: |
+          node apps/desktop/scripts/collect-release-assets.mjs --platform windows-x64 \
+            --bundle "apps/desktop/src-tauri/target/$TARGET/release/bundle" --out "$RUNNER_TEMP/release-assets"
+      - name: Record workflow and source commits
+        env:
+          SOURCE_SHA: ${{ inputs.source-sha }}
+        run: node apps/desktop/scripts/desktop-provenance.mjs > "$RUNNER_TEMP/desktop-provenance.json"
+      - name: Attest Windows build provenance
+        # The workflow and checked-out source share the run's immutable commit.
+        uses: actions/attest-build-provenance@v4
+        with:
+          predicate-type: https://slsa.dev/provenance/v1
+          predicate-path: ${{ runner.temp }}/desktop-provenance.json
+          subject-path: |
+            ${{ runner.temp }}/release-assets/*.exe
+            ${{ runner.temp }}/release-assets/*.msi
+            ${{ runner.temp }}/release-assets/*.zip
+      - uses: actions/upload-artifact@v6
+        with:
+          name: desktop-release-windows-x64
+          path: ${{ runner.temp }}/release-assets
+          compression-level: 0
+          if-no-files-found: error
+          overwrite: true
+      - name: Upload compilation timings
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-timings-windows-x64
+          path: apps/desktop/src-tauri/target/cargo-timings
+          overwrite: true
+          retention-days: 7
