@@ -346,6 +346,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 	cfg := s.cfg.Snapshot()
 	attributionReferer, attributionTitle := s.llmAttribution()
 	routeConfig := routeConfigFromResolved(route, endpoint, attributionReferer, attributionTitle)
+	routeConfig.PreferBase64Images = mediaImagePreferBase64(route.ModelCapabilitiesJSON)
 	filteredOptions := filterModelOptions(input.Options, route.Protocol, modelOptionPolicyConfig{
 		Mode:                  cfg.ModelOptionPolicyMode,
 		AllowedPathsJSON:      cfg.ModelOptionAllowedPaths,
@@ -779,6 +780,18 @@ func mediaImageStreamExplicitlyDisabled(capabilitiesJSON string) bool {
 		return false
 	}
 	return caps.Image.Stream != nil && !*caps.Image.Stream
+}
+
+func mediaImagePreferBase64(capabilitiesJSON string) bool {
+	var caps struct {
+		Image struct {
+			PreferBase64 bool `json:"prefer_base64"`
+		} `json:"image"`
+	}
+	if err := json.Unmarshal([]byte(capabilitiesJSON), &caps); err != nil {
+		return false
+	}
+	return caps.Image.PreferBase64
 }
 
 // mediaArtifactSource 描述生成制品来自哪条路由，决定下载时使用的客户端与凭据。

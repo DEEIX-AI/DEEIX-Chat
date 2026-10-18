@@ -249,6 +249,33 @@ export function setImageStreamEnabledInCapabilities(raw: string, enabled: boolea
   return stringifyCapabilitiesObject(payload);
 }
 
+export function imagePreferBase64FromCapabilities(raw: string): boolean {
+  const payload = parseCapabilitiesObject(raw);
+  return isRecord(payload?.image) && payload.image.prefer_base64 === true;
+}
+
+export function setImagePreferBase64InCapabilities(raw: string, enabled: boolean): string | null {
+  const payload = parseCapabilitiesObject(raw);
+  if (!payload) {
+    return null;
+  }
+  if (enabled) {
+    payload.image = {
+      ...(isRecord(payload.image) ? payload.image : {}),
+      prefer_base64: true,
+    };
+  } else {
+    const image = payload.image;
+    if (isRecord(image)) {
+      delete image.prefer_base64;
+      if (Object.keys(image).length === 0) {
+        delete payload.image;
+      }
+    }
+  }
+  return stringifyCapabilitiesObject(payload);
+}
+
 function optionPathSegments(path: string): string[] {
   return path
     .split(".")

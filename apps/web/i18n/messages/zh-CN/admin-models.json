@@ -460,6 +460,8 @@
     "capabilitiesVisualButton": "可视化配置（推荐）",
     "capabilitiesAdvancedJSON": "高级 JSON",
     "imageStreamEnabled": "图像流式调用",
+    "imagePreferBase64": "优先使用 Base64 图片结果",
+    "imagePreferBase64Description": "同时提供 Base64 和 URL 时，优先使用响应中的图片数据，避免额外下载。",
     "capabilitiesQuick": {
       "button": "快速配置",
       "title": "模型能力配置",

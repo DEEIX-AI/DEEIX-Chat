@@ -279,7 +279,7 @@ func TestParseXAIImageOutput(t *testing.T) {
 			{"url": "https://example.com/a.jpg", "mime_type": "image/webp"},
 			{"b64_json": "aGVsbG8=", "mime_type": "image/png", "revised_prompt": "A revised render"}
 		]
-	}`), portllm.AdapterXAIImage)
+	}`), portllm.AdapterXAIImage, false)
 	if err != nil {
 		t.Fatalf("parse xAI image output: %v", err)
 	}

@@ -909,9 +909,9 @@ func parseResponsesGeneratedImage(item map[string]any) (portllm.GeneratedImage, 
 			RevisedPrompt: revisedPrompt,
 		}, true
 	}
-	image, ok := parseOpenAIImagePayload(asMap(item["result"]), outputFormat)
+	image, ok := parseOpenAIImagePayload(asMap(item["result"]), outputFormat, false)
 	if !ok {
-		image, ok = parseOpenAIImagePayload(item, outputFormat)
+		image, ok = parseOpenAIImagePayload(item, outputFormat, false)
 	}
 	if !ok {
 		return portllm.GeneratedImage{}, false
