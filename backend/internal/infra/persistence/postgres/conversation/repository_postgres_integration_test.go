@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/postgres"
@@ -137,4 +138,62 @@ func openConversationPostgresIntegrationDB(t *testing.T, dsn string) (*gorm.DB, 
 		t.Fatalf("set test search path: %v", err)
 	}
 	return db, cleanup
+}
+
+// 工具抓到二进制内容时，渲染后的轨迹正文会带上 NUL 与非法 UTF-8；PostgreSQL 会拒绝整行，
+// 轨迹就停在「进行中」。写入前必须清理，且后续的终态更新要能覆盖这一行。
+func TestUpsertConversationTraceRowsAcceptBinaryToolOutputOnPostgres(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("DEEIX_TEST_DATABASE_DSN"))
+	if dsn == "" {
+		t.Skip("set DEEIX_TEST_DATABASE_DSN to run PostgreSQL trace persistence integration test")
+	}
+
+	db, cleanup := openConversationPostgresIntegrationDB(t, dsn)
+	t.Cleanup(cleanup)
+	if err := db.AutoMigrate(&models.ChatRunEvent{}); err != nil {
+		t.Fatalf("migrate chat run events: %v", err)
+	}
+	repo := NewRepo(db)
+	ctx := context.Background()
+	binary := "**web_fetch_exa**：已完成\nGIF89a\x00\x02\x00\xff\xfe"
+
+	event := &domainconversation.MessageTraceEventRow{
+		MessageID: 1, ConversationID: 1, UserID: 1, RunID: "run_binary",
+		EventID: "tools_3", EventType: "tool", Phase: "tools", Status: "streaming",
+		ContentMarkdown: "**web_fetch_exa**：进行中", PayloadJSON: "{}", StartedAt: time.Now(),
+	}
+	if err := repo.UpsertConversationMessageTraceEvent(ctx, event); err != nil {
+		t.Fatalf("insert streaming event: %v", err)
+	}
+	endedAt := time.Now()
+	event.Status = "completed"
+	event.ContentMarkdown = binary
+	event.Summary = "1 次工具调用已完成\x00"
+	event.EndedAt = &endedAt
+	if err := repo.UpsertConversationMessageTraceEvent(ctx, event); err != nil {
+		t.Fatalf("complete event with binary tool output: %v", err)
+	}
+	if err := repo.UpsertConversationMessageTrace(ctx, &domainconversation.MessageTrace{
+		MessageID: 1, ConversationID: 1, UserID: 1, RunID: "run_binary", TraceType: "tools",
+		Status: "completed", ContentMarkdown: binary, PayloadJSON: "{}", StartedAt: time.Now(), EndedAt: &endedAt,
+	}); err != nil {
+		t.Fatalf("upsert trace block with binary tool output: %v", err)
+	}
+	if err := repo.CreateConversationToolCall(ctx, &domainconversation.ToolCall{
+		MessageID: 1, ConversationID: 1, UserID: 1, RunID: "run_binary", ToolCallID: "call_binary",
+		ToolName: "web_fetch_exa", Status: "success", OutputJSON: "GIF89a\x00\xff",
+	}); err != nil {
+		t.Fatalf("create tool call with binary output: %v", err)
+	}
+
+	rows, err := repo.ListConversationMessageTraceEventsByMessageIDs(ctx, []uint{1})
+	if err != nil {
+		t.Fatalf("list trace events: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Status != "completed" {
+		t.Fatalf("expected the completed event to replace the streaming one, got %+v", rows)
+	}
+	if strings.ContainsRune(rows[0].ContentMarkdown, 0) || !strings.Contains(rows[0].ContentMarkdown, "GIF89a") {
+		t.Fatalf("unexpected stored markdown: %q", rows[0].ContentMarkdown)
+	}
 }

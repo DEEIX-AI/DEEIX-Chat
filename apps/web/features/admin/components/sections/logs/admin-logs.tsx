@@ -953,7 +953,12 @@ export function AdminLogsPage() {
       </div>
 
       <Tabs defaultValue={initialTab} className="space-y-3">
-        <TabsList variant="line">
+        {/* Seven tabs outgrow a phone and the admin shell clips horizontal overflow,
+            so the list scrolls on its own (scrollbar hidden, as in the admin nav). */}
+        <TabsList
+          variant="line"
+          className="max-w-full justify-start overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {visibleTabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id}>{t(`tabs.${tab.id}`)}</TabsTrigger>
           ))}
