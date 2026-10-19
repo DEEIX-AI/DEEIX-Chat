@@ -25,7 +25,7 @@ jobs:
     name: Tag and dispatch
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -53,7 +53,8 @@ jobs:
         if: steps.tag.outputs.created == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          for workflow in desktop-release.yml image.yml; do
-            gh workflow run "$workflow" --ref "${{ steps.tag.outputs.tag }}" --repo "${{ github.repository }}"
-          done
+          gh workflow run desktop-release.yml --ref "refs/tags/$RELEASE_TAG"
+          gh workflow run image.yml --ref "$RELEASE_TAG"

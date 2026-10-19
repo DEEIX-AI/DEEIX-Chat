@@ -1,0 +1,114 @@
+name: Desktop · macOS
+
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+      channel:
+        required: true
+        type: string
+      arch:
+        description: arm64 or x64
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: 0
+      ARCH: ${{ inputs.arch }}
+      TARGET: ${{ inputs.arch == 'arm64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
+      CHANNEL: ${{ inputs.channel }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - name: Validate architecture
+        run: '[[ "$ARCH" == arm64 || "$ARCH" == x64 ]]'
+      - uses: ./.github/actions/desktop-setup
+        with:
+          target: ${{ env.TARGET }}
+          source-sha: ${{ inputs.source-sha }}
+      - name: Build server sidecar
+        run: node apps/desktop/scripts/build-sidecar.mjs --target "$TARGET"
+      - name: Configure Apple signing
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          SIGN_AND_NOTARIZE_SCRIPT_URL: ${{ secrets.SIGN_AND_NOTARIZE_SCRIPT_URL }}
+          SIGN_AND_NOTARIZE_BASE_URL: ${{ secrets.SIGN_AND_NOTARIZE_BASE_URL }}
+          SIGN_AND_NOTARIZE_API_TOKEN: ${{ secrets.SIGN_AND_NOTARIZE_API_TOKEN }}
+          SIGN_AND_NOTARIZE_HELPER_URL: ${{ secrets.SIGN_AND_NOTARIZE_HELPER_URL }}
+        run: bash apps/desktop/scripts/configure-apple-signing.sh
+      - name: Configure desktop build
+        run: |
+          node apps/desktop/scripts/release-config.mjs --channel "$CHANNEL" --repository "$GITHUB_REPOSITORY" \
+            --prebuilt-frontend --defer-updater --output "$RUNNER_TEMP/desktop-config.json"
+      - name: Compile desktop executable
+        run: |
+          pnpm --filter @deeix/desktop exec tauri build --no-bundle --target "$TARGET" \
+            --config "$RUNNER_TEMP/desktop-config.json" -- --locked --timings
+      - name: Bundle app
+        # With Apple credentials Tauri also signs/notarizes here. The external
+        # mode uses ad-hoc signing until the next step, avoiding two notarizations.
+        run: |
+          pnpm --filter @deeix/desktop exec tauri bundle --target "$TARGET" --bundles app \
+            --config "$RUNNER_TEMP/desktop-config.json"
+      - name: Sign and notarize app (external service)
+        if: env.DESKTOP_SIGNING_MODE == 'external'
+        timeout-minutes: 20
+        env:
+          SIGN_AND_NOTARIZE_SCRIPT_URL: ${{ secrets.SIGN_AND_NOTARIZE_SCRIPT_URL }}
+          SIGN_AND_NOTARIZE_BASE_URL: ${{ secrets.SIGN_AND_NOTARIZE_BASE_URL }}
+          SIGN_AND_NOTARIZE_API_TOKEN: ${{ secrets.SIGN_AND_NOTARIZE_API_TOKEN }}
+          SIGN_AND_NOTARIZE_HELPER_URL: ${{ secrets.SIGN_AND_NOTARIZE_HELPER_URL }}
+        run: bash apps/desktop/scripts/package-macos.sh sign-app "$TARGET"
+      - name: Create final DMG
+        run: bash apps/desktop/scripts/package-macos.sh dmg "$TARGET"
+      - name: Sign and notarize DMG
+        if: env.DESKTOP_SIGNING_MODE != 'adhoc'
+        timeout-minutes: 20
+        env:
+          SIGN_AND_NOTARIZE_SCRIPT_URL: ${{ secrets.SIGN_AND_NOTARIZE_SCRIPT_URL }}
+          SIGN_AND_NOTARIZE_BASE_URL: ${{ secrets.SIGN_AND_NOTARIZE_BASE_URL }}
+          SIGN_AND_NOTARIZE_API_TOKEN: ${{ secrets.SIGN_AND_NOTARIZE_API_TOKEN }}
+          SIGN_AND_NOTARIZE_HELPER_URL: ${{ secrets.SIGN_AND_NOTARIZE_HELPER_URL }}
+        run: bash apps/desktop/scripts/package-macos.sh sign-dmg "$TARGET"
+      - name: Create signed updater archive
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: bash apps/desktop/scripts/package-macos.sh updater "$TARGET"
+      - name: Verify DMG and updater archive
+        run: bash apps/desktop/scripts/package-macos.sh verify "$TARGET"
+      - name: Stage release assets
+        run: |
+          node apps/desktop/scripts/collect-release-assets.mjs --platform "macos-$ARCH" \
+            --bundle "apps/desktop/src-tauri/target/$TARGET/release/bundle" --out "$RUNNER_TEMP/release-assets"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: desktop-release-macos-${{ inputs.arch }}
+          path: ${{ runner.temp }}/release-assets
+          compression-level: 0
+          if-no-files-found: error
+          overwrite: true
+      - name: Upload compilation timings
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-timings-macos-${{ inputs.arch }}
+          path: apps/desktop/src-tauri/target/cargo-timings
+          overwrite: true
+          retention-days: 7

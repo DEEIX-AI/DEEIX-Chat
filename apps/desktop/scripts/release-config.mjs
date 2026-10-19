@@ -1,6 +1,5 @@
-// Build-time Tauri config for a release, printed as one `--config <json>`
-// argument for tauri-action (which splits `args` on whitespace, so the JSON
-// must not contain spaces):
+// Build-time Tauri config for a release. CI writes it with --output; local
+// callers can still use the printed `--config <json>` argument:
 //
 //   - beta builds poll the rolling desktop-beta manifest instead of
 //     releases/latest (see desktop-release.yml);
@@ -21,8 +20,9 @@
 //
 // Usage: release-config.mjs --channel stable|beta [--repository owner/name]
 //                           [--version x.y.z] [--thumbprint <sha1 hex>]
+//                           [--prebuilt-frontend] [--defer-updater] [--output path]
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -53,11 +53,19 @@ export function msiVersion(version) {
 }
 
 /** The config object merged over tauri.conf.json for a release build. */
-export function releaseConfig({ version, channel, repository, thumbprint }) {
+export function releaseConfig({ version, channel, repository, thumbprint, prebuiltFrontend = false, deferUpdater = false }) {
   if (channel !== "stable" && channel !== "beta") {
     throw new Error(`unknown channel: ${channel}`);
   }
   const config = { bundle: { windows: { wix: { version: msiVersion(version) } } } };
+  if (prebuiltFrontend) {
+    config.build = { beforeBuildCommand: "" };
+  }
+  // macOS archives must contain the final signed/notarized app. CI creates
+  // and signs that archive after the external signing service has returned.
+  if (deferUpdater) {
+    config.bundle.createUpdaterArtifacts = false;
+  }
   if (thumbprint) {
     if (!/^[0-9A-Fa-f]{40}$/.test(thumbprint)) {
       throw new Error("--thumbprint must be a 40-digit SHA-1 certificate thumbprint");
@@ -87,8 +95,15 @@ function main() {
     channel: value("--channel"),
     repository: value("--repository"),
     thumbprint: value("--thumbprint"),
+    prebuiltFrontend: args.includes("--prebuilt-frontend"),
+    deferUpdater: args.includes("--defer-updater"),
   });
-  process.stdout.write(`--config ${JSON.stringify(config)}\n`);
+  const output = value("--output");
+  if (output) {
+    writeFileSync(output, `${JSON.stringify(config)}\n`);
+  } else {
+    process.stdout.write(`--config ${JSON.stringify(config)}\n`);
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

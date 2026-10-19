@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -64,4 +66,20 @@ test("prints one whitespace-free --config argument", () => {
   assert.equal(flag, "--config");
   assert.deepEqual(rest, []);
   assert.equal(JSON.parse(json).bundle.windows.wix.version, "1.0.0.1");
+});
+
+test("CI consumes the shared frontend and signs the updater after app notarization", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "desktop-config-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const output = join(directory, "release config.json");
+  const stdout = execFileSync(process.execPath, [script, "--channel", "beta", "--repository", "o/r",
+    "--version", "1.2.3-beta.4", "--prebuilt-frontend", "--defer-updater", "--output", output], { encoding: "utf8" });
+  assert.equal(stdout, "");
+  const config = JSON.parse(readFileSync(output, "utf8"));
+  assert.equal(config.build.beforeBuildCommand, "");
+  assert.equal(config.bundle.createUpdaterArtifacts, false);
+  assert.equal(config.bundle.windows.wix.version, "1.2.3.4");
+  assert.deepEqual(config.plugins.updater.endpoints, ["https://github.com/o/r/releases/download/desktop-beta/latest.json"]);
+  // Other platforms still let Tauri create and sign their updater packages.
+  assert.equal(releaseConfig({ version: "1.2.3", channel: "stable", prebuiltFrontend: true }).bundle.createUpdaterArtifacts, undefined);
 });
