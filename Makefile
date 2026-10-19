@@ -68,11 +68,11 @@ fmt: ## Format Go and JS sources
 api-docs: ## Regenerate Swagger docs and the TypeScript API contract
 	$(PNPM) api:generate
 
-version: ## Propagate VERSION to every package manifest
-	node scripts/sync-version.mjs
+version: ## Synchronize VERSION, manifests, Cargo.lock and generated API contracts
+	$(PNPM) api:generate
 
-version-check: ## Fail if any manifest drifted from VERSION
-	node scripts/sync-version.mjs --check
+version-check: ## Check version consistency and generated API contracts
+	$(PNPM) api:check
 
 clean: ## Remove build outputs
 	$(PNPM) clean

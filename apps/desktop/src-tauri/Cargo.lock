@@ -804,7 +804,7 @@ dependencies = [
 
 [[package]]
 name = "deeix-chat-desktop"
-version = "0.4.5"
+version = "0.4.6-beta.1"
 dependencies = [
  "dunce",
  "gtk",

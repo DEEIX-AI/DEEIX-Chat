@@ -7,8 +7,8 @@ const args = process.argv.slice(2);
 const checkOnly = args.includes("--check");
 const mode = args.find((arg) => !arg.startsWith("--")) ?? "all";
 
-// Every versioned target in the workspace. Adding a new app (desktop, mobile)
-// means adding one entry here; nothing else in the release pipeline changes.
+// Low-level manifest synchronization, also called by the API generator.
+// `make version` completes it by regenerating Swagger and TypeScript contracts.
 const targets = {
   workspace: () => {
     syncPackageVersion();
@@ -21,7 +21,7 @@ const targets = {
   desktop: () => {
     syncPackageVersion("apps", "desktop");
 
-    // The Tauri manifest and the Rust crate carry their own version fields.
+    // Keep the Rust root package's lockfile entry in sync for --locked builds.
     syncTauriConfig("apps", "desktop", "src-tauri", "tauri.conf.json");
     syncCargoVersion("apps", "desktop", "src-tauri", "Cargo.toml");
   },
@@ -99,12 +99,29 @@ function syncCargoVersion(...pathSegments) {
   const content = readFileSync(manifestFile, "utf8");
   const packageSection = content.indexOf("[package]");
   const versionLine = /^version = ".*"/mu.exec(content.slice(packageSection));
-  if (packageSection === -1 || !versionLine) {
+  const packageName = /^name = "([^"]+)"/mu.exec(content.slice(packageSection))?.[1];
+  if (packageSection === -1 || !versionLine || !packageName) {
     throw new Error(`Unable to update ${manifestFile} package version`);
   }
   const start = packageSection + versionLine.index;
   const next = `${content.slice(0, start)}version = "${version}"${content.slice(start + versionLine[0].length)}`;
   writeIfChanged(manifestFile, next);
+  syncCargoLockVersion(join(dirname(manifestFile), "Cargo.lock"), packageName);
+}
+
+function syncCargoLockVersion(lockFile, packageName) {
+  const content = readFileSync(lockFile, "utf8");
+  let matches = 0;
+  const next = content.split(/(?=^\[\[package\]\])/mu).map((entry) => {
+    const name = /^name = "([^"]+)"/mu.exec(entry)?.[1];
+    // A registry or git dependency may share the root package's name. Its
+    // version and every dependency checksum must remain pinned as before.
+    if (name !== packageName || /^source\s*=/mu.test(entry)) return entry;
+    matches++;
+    return replaceOrThrow(entry, /^version = "[^"]+"/mu, `version = "${version}"`, `${lockFile} root package version`);
+  }).join("");
+  if (matches !== 1) throw new Error(`Expected one local ${packageName} package in ${lockFile}`);
+  writeIfChanged(lockFile, next);
 }
 
 for (const [name, sync] of Object.entries(targets)) {
@@ -118,7 +135,7 @@ if (checkOnly && mismatches.length > 0) {
   for (const filePath of mismatches) {
     console.error(`- ${filePath}`);
   }
-  const fixCommand = mode === "all" ? "pnpm api:generate" : `node scripts/sync-version.mjs ${mode}`;
+  const fixCommand = mode === "all" || mode === "backend" ? "pnpm api:generate" : `node scripts/sync-version.mjs ${mode}`;
   console.error(`Run: ${fixCommand}`);
   process.exit(1);
 }
