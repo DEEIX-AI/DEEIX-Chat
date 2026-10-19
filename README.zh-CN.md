@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="../apps/web/public/logo-white.svg" />
-    <img src="../apps/web/public/logo-black.svg" alt="DEEIX Chat" width="160" />
+    <source media="(prefers-color-scheme: dark)" srcset="./apps/web/public/logo-white.svg" />
+    <img src="./apps/web/public/logo-black.svg" alt="DEEIX Chat" width="160" />
   </picture>
 </p>
 
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="../README.md">English</a> | 简体中文
+  <a href="./README.md">English</a> | 简体中文
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@ DEEIX Chat 是一款开源可部署的 AI 平台，面向需要长期、稳定�
 
 系统围绕简单部署、高效静态分发和低资源的运行时占用设计，轻量而不简陋、克制而不缺能力、开放而不失秩序。
 
-![DEEIX Chat 工作区](./assets/screenshots/DEEIX-Chat.jpg)
+![DEEIX Chat 工作区](./docs/assets/screenshots/DEEIX-Chat.jpg)
 
 ## 核心能力
 
@@ -48,14 +48,14 @@ DEEIX Chat 是一款开源可部署的 AI 平台，面向需要长期、稳定�
 | 部署与运维 | 支持单运行时托管前端与 API、Docker 部署、SQLite 或 PostgreSQL、内存缓存或 Redis、S3 兼容存储、Swagger、结构化日志、版本接口、GeoIP 和 OpenTelemetry。 |
 
 <p align="center">
-  <img src="./assets/screenshots/DEEIX-Chat-Image.png" alt="DEEIX Chat 图片生成" width="49.45%" />
-  <img src="./assets/screenshots/DEEIX-Chat-Dark.png" alt="DEEIX Chat 深色模式" width="49.45%" />
+  <img src="./docs/assets/screenshots/DEEIX-Chat-Image.png" alt="DEEIX Chat 图片生成" width="49.45%" />
+  <img src="./docs/assets/screenshots/DEEIX-Chat-Dark.png" alt="DEEIX Chat 深色模式" width="49.45%" />
 </p>
 
 <p align="center">
-  <img src="./assets/screenshots/DEEIX-Chat-Usage.png" alt="DEEIX Chat 用量与计费" width="32.3%" />
-  <img src="./assets/screenshots/DEEIX-Chat-Artifacts.png" alt="DEEIX Chat Artifacts" width="32.3%" />
-  <img src="./assets/screenshots/DEEIX-Chat-Html.png" alt="DEEIX Chat HTML 渲染" width="32.3%" />
+  <img src="./docs/assets/screenshots/DEEIX-Chat-Usage.png" alt="DEEIX Chat 用量与计费" width="32.3%" />
+  <img src="./docs/assets/screenshots/DEEIX-Chat-Artifacts.png" alt="DEEIX Chat Artifacts" width="32.3%" />
+  <img src="./docs/assets/screenshots/DEEIX-Chat-Html.png" alt="DEEIX Chat HTML 渲染" width="32.3%" />
 </p>
 
 ## 系统架构与技术栈
@@ -148,7 +148,7 @@ flowchart TB
 └── Dockerfile                 # 前后端生产镜像
 ```
 
-`apps/web/` 和 `backend/` 是由 pnpm 与 Turborepo 管理的独立工作区。`packages/api-contract/` 通过生成的 Swagger 类型连接两者；修改 HTTP 契约时先更新 Go 传输层，再重新生成共享包。`packages/core/` 存放必须在各端保持一致的客户端逻辑，禁止引入任何 UI 或平台框架。平台边界与规则见 [docs/ARCHITECTURE.md](ARCHITECTURE.md)。
+`apps/web/` 和 `backend/` 是由 pnpm 与 Turborepo 管理的独立工作区。`packages/api-contract/` 通过生成的 Swagger 类型连接两者；修改 HTTP 契约时先更新 Go 传输层，再重新生成共享包。`packages/core/` 存放必须在各端保持一致的客户端逻辑，禁止引入任何 UI 或平台框架。平台边界与规则见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 ## 开发前置条件
 
@@ -223,15 +223,40 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 | `make build-desktop` / `make release-desktop` | 本地快速 `.app` / 签名发版包。 |
 | `make verify` | check + test + build，即 CI 跑的内容。 |
 | `make api-docs` | 重新生成 Swagger 与 TypeScript API 类型。 |
-| `make version` | 把 `VERSION` 同步到所有包清单。 |
+| `make version` / `make version-check` | 同步或检查版本、Cargo.lock 和生成的 Swagger/TypeScript API 契约。 |
 
 同一组动作也以 pnpm 脚本存在（`pnpm dev:api`、`pnpm check` …），CI 直接用它们。
 
 前端以静态资源形式导出，`pnpm build` 会把浏览器产物写入 `apps/web/out`。生产镜像中的 Go 服务，或配置了 `server.frontend_dist_dir` 的 Go 服务，可以直接托管该目录。
 
+### 桌面端发布
+
+把 `VERSION` 的版本更新合并到 `main` 后，[`release-tag.yml`](.github/workflows/release-tag.yml) 创建 `v<VERSION>` 标签并启动桌面端发布。直接推送同名格式的标签也会触发构建。[`desktop-release.yml`](.github/workflows/desktop-release.yml) 负责总编排，平台逻辑拆在可复用的子 workflow 中：
+
+| 子 workflow | 职责 |
+| --- | --- |
+| [`desktop-prepare.yml`](.github/workflows/desktop-prepare.yml) | 校验版本、解析标签对应的提交；并行构建静态前端和刷新模型目录快照，各执行一次。 |
+| [`desktop-macos.yml`](.github/workflows/desktop-macos.yml) | arm64、x64 分别调用，各自编译内置 Go 服务和桌面程序，完成签名、公证、DMG 与更新包验证。 |
+| [`desktop-linux.yml`](.github/workflows/desktop-linux.yml) | 构建 Linux x64 的 deb、AppImage，验证 AppImage 不携带会与宿主冲突的 Wayland 库。 |
+| [`desktop-windows.yml`](.github/workflows/desktop-windows.yml) | 构建 Windows x64 的 NSIS、MSI 和便携包，完成签名检查及构建来源证明。 |
+
+公共准备完成后，四个 OS + arch 任务并行运行，Node.js 侧只安装桌面 CLI 所需的依赖，并下载同一份前端和模型目录产物。四个平台验证通过后，主 workflow 统一生成 `latest.json`、`SHA256SUMS`，上传安装包和更新签名到一个 **GitHub Release 草稿**。手动发布草稿后，已安装的客户端才会收到更新。
+
+发布任务在目标标签的运行上下文中执行，所有任务始终 checkout 本次运行的固定提交，并在上传前再次确认标签没有移动。标签写入的缓存与默认分支及其他标签隔离，仍可恢复默认分支 CI 生成的兼容缓存；同一标签重跑可以复用自己的缓存，不同标签首次运行可能需要重新编译。公共 [desktop-setup action](.github/actions/desktop-setup/action.yml) 固定 Rust 版本，并按目标平台和架构隔离 Rust、Go 缓存，避免两个 macOS 任务争用缓存。Rust 的 fat LTO 等发布优化参数保持不变。
+
+macOS 先完成 `.app` 的签名和公证，再从同一份最终应用生成 ULFO DMG 和更新压缩包，避免先生成 DMG 再解压、替换应用和重新压缩。编译、打包、签名、公证与验证分别显示为独立步骤；`desktop-timings-*` 附件保留七天，可用于查看 Rust 编译耗时。外部签名服务和 Apple 公证的等待时间仍计入相应步骤。
+
+手动构建已有标签（目标标签需包含这些 workflow 与构建脚本）：
+
+```bash
+gh workflow run desktop-release.yml --ref refs/tags/v1.2.3
+```
+
+在 Actions 页面选择分支且留空 `release_tag` 时，只构建所选分支并上传 workflow 附件；选择标签则创建发布草稿。在分支上填写 `release_tag` 会把构建调度到该标签，标签运行中填写的值必须与当前标签一致。旧标签沿用其原始 workflow 的重跑方式。公共产物保留七天，期间可以重跑失败的平台任务。签名密钥、更新通道和平台打包细节见 [桌面端说明](apps/desktop/README.md#release-workflows)。
+
 ### Docker 部署
 
-所有 Docker 部署资源都在 [`deploy/`](../deploy/README.md) 目录；把这个目录整体拷到服务器即可，不需要应用源码。以下命令均在 `deploy/` 目录内执行。先选择安装方案，再把对应的配置模板复制为 `deploy/config.yaml`。三套 compose 方案都默认将应用暴露在 `http://localhost:8080`，并把 `./config.yaml`（相对 `deploy/`）挂载到容器内 `/app/config.yaml`。
+所有 Docker 部署资源都在 [`deploy/`](deploy/README.md) 目录；把这个目录整体拷到服务器即可，不需要应用源码。以下命令均在 `deploy/` 目录内执行。先选择安装方案，再把对应的配置模板复制为 `deploy/config.yaml`。三套 compose 方案都默认将应用暴露在 `http://localhost:8080`，并把 `./config.yaml`（相对 `deploy/`）挂载到容器内 `/app/config.yaml`。
 
 | 方案 | 适合场景 | 配置文件 | Compose 文件 | 内置依赖 |
 | --- | --- | --- | --- | --- |
@@ -392,7 +417,7 @@ docker compose logs app
 
 后端启动时会按运行目录解析默认配置文件：从仓库根目录启动读取 `config.yaml`，从 `backend/` 目录启动读取 `../config.yaml`。Docker 部署将 `deploy/config.yaml` 只读挂载到容器内 `/app/config.yaml`；如果配置文件放在其他位置，请使用 `CONFIG_FILE` 指向实际运行环境可访问的路径。最终生效优先级是 `环境变量 > config.yaml > 代码内置默认值`。
 
-前端品牌同样属于运行时配置。在 `config.yaml` 中设置 `branding` 后重启应用即可生效，无需重新构建前端或 Docker 镜像。详见[自定义品牌资源](./BRANDING.md)。
+前端品牌同样属于运行时配置。在 `config.yaml` 中设置 `branding` 后重启应用即可生效，无需重新构建前端或 Docker 镜像。详见[自定义品牌资源](./docs/BRANDING.md)。
 
 静态配置环境变量：
 
@@ -469,7 +494,7 @@ docker compose logs app
 
 生产环境启用 SSRF 防护后，管理员保存的模型、MCP、Embedding、OIDC/OAuth2 和自定义 Turnstile endpoint 均按精确 origin（协议、主机和端口）获得局部授权，不需要加入全局白名单。模型、MCP 与 Embedding 保留标准重定向兼容性：跨 origin 的公网目标可以继续访问，跨 origin 的私网目标必须命中 `SSRF_ALLOWED_HOSTS` 或 `SSRF_ALLOWED_CIDRS`；OIDC/OAuth2 与 Turnstile 继续维持更严格的身份边界。模型生成的图片或视频由后端下载、校验并转存：私网制品 URL 只有与本次选中的模型 endpoint 同 origin 时才继承该局部信任；跨 origin 的公网制品仍按严格公网策略下载，跨 origin 的私网制品会被拦截。全局白名单也继续用于无法绑定管理员保存 endpoint 的部署级集成，例如部分 GeoIP 或提取服务部署。链路本地、组播、未指定地址和已知云元数据目标始终禁止。白名单配置不合法会阻止后端启动；全局白名单修改后需重启生效。
 
-出站请求遵守标准代理环境变量 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY`，开启 SSRF 防护时同样生效。代理地址本身视为部署方授权；选择代理前仍会按 SSRF 策略校验目标 URL，元数据地址等禁止目标照样拒绝；不走代理的请求（命中 `NO_PROXY` 或回环地址）仍走完整的 DNS 校验拨号流程。请求经代理发出时，目标域名由代理解析；交给代理前，后端会拒绝 `127.1`、`2130706433` 这类数字主机名，并在本地预解析一次域名，任一解析结果被策略禁止即拒绝，本地解析失败则交由代理处理。这无法防御代理侧的 DNS rebinding，DNS 层面的出口控制仍由部署方的代理负责。`config.yaml` 中没有代理配置项，代理地址与凭据只放在部署环境变量里。Go 不读取 `ALL_PROXY`，使用 SOCKS 代理时请把 `HTTP_PROXY` 和 `HTTPS_PROXY` 设为 `socks5://` 地址；只设置了 `ALL_PROXY` 时，后端启动会记录 `outbound_proxy_ignored` 告警并直连。修改代理环境变量需要重启后端。桌面端本地模式下，这些变量由桌面应用根据「设置 › 网络」中的选择（默认跟随系统代理）为内置服务设置，详见 [apps/desktop/README.md](../apps/desktop/README.md#network-proxy)。
+出站请求遵守标准代理环境变量 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY`，开启 SSRF 防护时同样生效。代理地址本身视为部署方授权；选择代理前仍会按 SSRF 策略校验目标 URL，元数据地址等禁止目标照样拒绝；不走代理的请求（命中 `NO_PROXY` 或回环地址）仍走完整的 DNS 校验拨号流程。请求经代理发出时，目标域名由代理解析；交给代理前，后端会拒绝 `127.1`、`2130706433` 这类数字主机名，并在本地预解析一次域名，任一解析结果被策略禁止即拒绝，本地解析失败则交由代理处理。这无法防御代理侧的 DNS rebinding，DNS 层面的出口控制仍由部署方的代理负责。`config.yaml` 中没有代理配置项，代理地址与凭据只放在部署环境变量里。Go 不读取 `ALL_PROXY`，使用 SOCKS 代理时请把 `HTTP_PROXY` 和 `HTTPS_PROXY` 设为 `socks5://` 地址；只设置了 `ALL_PROXY` 时，后端启动会记录 `outbound_proxy_ignored` 告警并直连。修改代理环境变量需要重启后端。桌面端本地模式下，这些变量由桌面应用根据「设置 › 网络」中的选择（默认跟随系统代理）为内置服务设置，详见 [apps/desktop/README.md](apps/desktop/README.md#network-proxy)。
 
 ### Web、App 与桌面端 OAuth 回调
 
@@ -504,12 +529,13 @@ Web、App 与桌面端的登录、注册和账号身份绑定都走这一个回�
 - [用户指南](https://deeix.com/zh/docs/deeix-chat/new-chat)
 - [管理指南](https://deeix.com/zh/docs/deeix-chat/admin-accounts)
 - [进阶指南](https://deeix.com/zh/docs/deeix-chat/advanced-capabilities-passthrough-tools)
-- 后端说明：[backend/README.md](../backend/README.md)
-- API 文档索引：[backend/docs/README.md](../backend/docs/README.md)
-- 前端说明：[apps/web/README.md](../apps/web/README.md)
-- API 契约包：[packages/api-contract/README.md](../packages/api-contract/README.md)
-- 贡献指南：[CONTRIBUTING.md](../.github/CONTRIBUTING.md)
-- 安全策略：[SECURITY.md](../.github/SECURITY.md)
+- 后端说明：[backend/README.md](backend/README.md)
+- API 文档索引：[backend/docs/README.md](backend/docs/README.md)
+- 前端说明：[apps/web/README.md](apps/web/README.md)
+- 桌面端说明：[apps/desktop/README.md](apps/desktop/README.md)
+- API 契约包：[packages/api-contract/README.md](packages/api-contract/README.md)
+- 贡献指南：[CONTRIBUTING.md](.github/CONTRIBUTING.md)
+- 安全策略：[SECURITY.md](.github/SECURITY.md)
 - Swagger UI（仅开发环境）：`http://localhost:8080/swagger/index.html`
 
 ## 鸣谢
@@ -530,4 +556,4 @@ DEEIX Chat 基于开源生态构建，感谢所有 AI 工具生态中的维护�
 
 ## 开源协议
 
-DEEIX Chat 使用 [Apache License 2.0](../LICENSE) 授权。
+DEEIX Chat 使用 [Apache License 2.0](LICENSE) 授权。
