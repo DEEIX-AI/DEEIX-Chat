@@ -13,6 +13,10 @@ pnpm api:check
 
 `pnpm api:generate` updates `backend/docs/{docs.go,swagger.json,swagger.yaml}` and `packages/api-contract/src/types.generated.ts` together. `cd backend && make swagger` invokes this same pipeline.
 
+Version bumps use it too: after updating `VERSION`, run `make version` and then
+`make version-check` from the workspace root. These commands synchronize package
+manifests and desktop lock metadata together with the generated API versions.
+
 DTO field conventions:
 
 - Fields serialized on every response are required by default; do not repeat their requiredness in frontend types.

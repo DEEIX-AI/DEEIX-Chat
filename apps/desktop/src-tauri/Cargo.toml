@@ -1,6 +1,6 @@
 [package]
 name = "deeix-chat-desktop"
-version = "0.4.5"
+version = "0.4.6-beta.1"
 description = "DEEIX Chat desktop shell"
 authors = ["DEEIX"]
 edition = "2021"
@@ -17,7 +17,11 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png", "unstable"] }
-tauri-plugin-updater = "2"
+# Without the default `zip` feature: it only unpacks Windows `.zip` and Linux
+# `.AppImage.tar.gz` updates, and releases ship `.exe` / `.msi` / bare `.AppImage`
+# (macOS unpacks its `.app.tar.gz` regardless). It also pulls in `zip` 4, which has
+# extraction advisories (RUSTSEC-2026-0367/0368/0369) and no fixed 4.x release.
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
 tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
 # OS credential store: macOS Keychain, Windows Credential Manager, Linux Secret Service.
