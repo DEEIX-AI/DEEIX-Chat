@@ -148,15 +148,24 @@ function AccordionContentKeepMounted({
   // stay unset on the first open (the animation then runs to `auto` and jumps) and stale
   // after the content changes. This re-render, before paint, takes its place.
   const [, rerender] = React.useReducer((count: number) => count + 1, 0)
+  const contentRef = React.useRef<HTMLDivElement | null>(null)
   const openRef = React.useRef(open)
   React.useLayoutEffect(() => {
-    if (openRef.current !== open) {
-      openRef.current = open
-      rerender()
+    if (openRef.current === open) {
+      return
+    }
+    openRef.current = open
+    rerender()
+    // The panel is hidden when its closing animation ends, but some closes never animate:
+    // Radix keeps the animation off until the frame after mount, which a background tab may
+    // not reach for a long time, and nothing animates under a hidden ancestor (a step inside
+    // a collapsed trace). Without this the panel would stay open at full height.
+    const node = contentRef.current
+    if (!open && node && node.getAnimations().length === 0) {
+      setCollapsed(true)
     }
   }, [open])
 
-  const contentRef = React.useRef<HTMLDivElement | null>(null)
   const setContentRef = React.useCallback(
     (node: HTMLDivElement | null) => {
       contentRef.current = node
@@ -213,6 +222,22 @@ function AccordionContentKeepMounted({
       setCollapsed(true)
     }
   }
+
+  // A closing animation cut short (an ancestor hidden mid-way) ends with `animationcancel`
+  // instead, which React does not expose as a prop.
+  React.useEffect(() => {
+    const node = contentRef.current
+    if (!node) {
+      return
+    }
+    const handleAnimationCancel = (event: AnimationEvent) => {
+      if (event.target === node && node.dataset.state === "closed") {
+        setCollapsed(true)
+      }
+    }
+    node.addEventListener("animationcancel", handleAnimationCancel)
+    return () => node.removeEventListener("animationcancel", handleAnimationCancel)
+  }, [])
 
   return (
     <AccordionPrimitive.Content
