@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "@/components/animate-ui/icons/chevron-down";
 import {
   Accordion,
-  AccordionContent,
+  AccordionContentKeepMounted,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
@@ -80,9 +80,13 @@ export function AgentTraceStep({
           </AccordionTrigger>
         </div>
         {expandable ? (
-          <AccordionContent className="px-0 pb-2 pl-[calc(0.875rem+0.75rem)] pt-0 duration-[350ms] ease-in-out max-sm:pl-[calc(0.875rem+0.5rem)]">
+          <AccordionContentKeepMounted
+            open={open}
+            panelClassName="duration-[350ms] ease-in-out"
+            className="px-0 pb-2 pl-[calc(0.875rem+0.75rem)] pt-0 max-sm:pl-[calc(0.875rem+0.5rem)]"
+          >
             {children}
-          </AccordionContent>
+          </AccordionContentKeepMounted>
         ) : null}
       </AccordionItem>
     </Accordion>

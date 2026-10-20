@@ -103,17 +103,27 @@ const TRANSPARENT_STYLE = "<style>html, body { background: transparent; }</style
 
 // Defaults for illustrations, so model-written markup looks like the app
 // without restyling every control: an inset from the card's edge, the app's
-// type, and theme-coloured buttons, selects and inputs. `:where()` keeps them
-// at zero specificity, so anything the illustration sets wins. Classes:
+// type, and theme-coloured buttons, selects, inputs and tables. `:where()` keeps
+// them at zero specificity, so anything the illustration sets wins. Classes:
 // .controls (a row of controls), .num (digits that do not shift as they
 // change), .muted, .ask (for illustrations that draw their own follow-up) and
 // .stable: every variant of a changing text stacked in one cell, only the one
 // marked .on visible, so the cell is as tall as the longest and nothing below
 // it moves.
+// The frame is already a card, so groups inside it are .card tiles (a muted
+// fill, no border; a selected one is lifted, not painted in --primary), and
+// .row / .stack / .grid lay them out. .label / .value pair a caption with a
+// figure, .badge and .chip are the app's pills, and --positive / --negative /
+// --warning are the good/bad tones: the theme has none, and chart colours change
+// hue per theme. They mix toward the foreground, so they darken in light mode
+// and lighten in dark mode like the stat cards' green and red.
 const WIDGET_BASE_STYLE = `<style data-deeix-widget-base>
+:where(:root) { --positive: color-mix(in oklab, #16a34a 78%, var(--foreground)); --negative: color-mix(in oklab, #dc2626 80%, var(--foreground)); --warning: color-mix(in oklab, #d97706 80%, var(--foreground)); scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent; }
 :where(body) { padding: 16px; font: 13px/1.6 var(--font-sans); color: var(--foreground); }
 :where(h1, h2, h3, h4) { margin: 0 0 4px; font-size: 15px; line-height: 1.4; font-weight: 600; }
+:where(h4) { margin: 0 0 8px; font-size: 13px; }
 :where(p) { margin: 0 0 8px; }
+:where(hr) { margin: 16px 0; border: 0; border-top: 1px solid var(--border); }
 :where(button, select, input, textarea) { font: inherit; font-size: 12px; color: inherit; }
 :where(button) { height: 28px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); cursor: pointer; white-space: nowrap; transition: background-color .15s, border-color .15s; }
 :where(button:hover) { background: var(--muted); }
@@ -121,11 +131,34 @@ const WIDGET_BASE_STYLE = `<style data-deeix-widget-base>
 :where(button:disabled) { opacity: .5; cursor: not-allowed; }
 :where(select) { height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
 :where(input[type="text"], input[type="number"]) { height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+:where(input.num) { width: 96px; text-align: right; }
 :where(input[type="range"], input[type="checkbox"], input[type="radio"]) { accent-color: var(--primary); }
 :where(label) { color: var(--muted-foreground); font-size: 12px; }
 :where(:focus-visible) { outline: 2px solid color-mix(in oklch, var(--ring) 45%, transparent); outline-offset: 2px; border-radius: 8px; }
 :where(svg, canvas, img) { max-width: 100%; }
-:where(.controls) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+:where(table) { width: 100%; border-collapse: collapse; }
+:where(th) { padding: 6px 8px; border-bottom: 1px solid var(--border); color: var(--muted-foreground); font-size: 12px; font-weight: 500; text-align: left; }
+:where(td) { padding: 7px 8px; border-bottom: 1px solid color-mix(in oklab, var(--border) 55%, transparent); }
+:where(th.num, td.num) { text-align: right; }
+:where(tfoot td) { border-bottom: 0; font-weight: 600; }
+:where(.controls, .row) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+:where(.stack) { display: flex; flex-direction: column; gap: 16px; }
+:where(.grid) { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; }
+:where(.card) { display: block; padding: 10px 12px; border: 1px solid transparent; border-radius: 10px; background: color-mix(in oklab, var(--muted) 65%, transparent); }
+:where(button.card) { width: 100%; height: auto; font-size: 13px; text-align: left; white-space: normal; color: inherit; }
+:where(button.card:hover) { border-color: var(--border); background: color-mix(in oklab, var(--muted) 65%, transparent); }
+:where(.card[aria-pressed="true"], .card.on) { border-color: color-mix(in oklab, var(--foreground) 22%, transparent); background: var(--card); color: inherit; box-shadow: var(--shadow-sm); }
+:where(.label) { display: block; color: var(--muted-foreground); font-size: 12px; }
+:where(.value) { display: block; font-size: 20px; font-weight: 600; line-height: 1.35; font-variant-numeric: tabular-nums; }
+:where(.badge) { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font-size: 11px; font-weight: 500; white-space: nowrap; }
+:where(button.chip) { height: 26px; padding: 0 10px; border-radius: 999px; background: transparent; color: var(--muted-foreground); }
+:where(button.chip[aria-pressed="true"]) { border-color: color-mix(in oklab, var(--primary) 45%, transparent); background: color-mix(in oklab, var(--primary) 12%, transparent); color: var(--foreground); }
+:where(.positive) { color: var(--positive); }
+:where(.negative) { color: var(--negative); }
+:where(.warning) { color: var(--warning); }
+:where(.badge.positive) { background: color-mix(in oklab, var(--positive) 12%, transparent); }
+:where(.badge.negative) { background: color-mix(in oklab, var(--negative) 12%, transparent); }
+:where(.badge.warning) { background: color-mix(in oklab, var(--warning) 14%, transparent); }
 :where(.num) { font-variant-numeric: tabular-nums; }
 :where(.muted) { color: var(--muted-foreground); }
 :where(button.ask) { display: flex; align-items: center; width: 100%; height: auto; min-height: 36px; padding: 8px 12px; border-radius: 10px; background: var(--muted); text-align: left; white-space: normal; }
@@ -136,10 +169,32 @@ const WIDGET_BASE_STYLE = `<style data-deeix-widget-base>
 :where(.stable > :not(.on)) { visibility: hidden; }
 </style>`;
 
+// Illustrations often wrap everything in a box that caps its height and scrolls
+// (max-height + overflow: auto). The frame already grows with the content and,
+// past its own cap, scrolls the document right at its edge; the capped box adds a
+// second scrollbar inset by the body padding and clips what is drawn just outside
+// its children (selection rings, focus outlines). Only top-level boxes are
+// released: a scrolling list deeper inside is the illustration's own design.
+const WIDGET_LAYOUT_SCRIPT = `<script>
+(() => {
+  const release = () => {
+    for (const element of document.body.children) {
+      const style = getComputedStyle(element);
+      if (style.maxHeight !== "none" && /auto|scroll/.test(style.overflowY)) {
+        element.style.setProperty("max-height", "none", "important");
+        element.style.setProperty("overflow", "visible", "important");
+      }
+    }
+  };
+  window.addEventListener("DOMContentLoaded", release);
+  window.addEventListener("load", release);
+})();
+</script>`;
+
 // The source is the document body verbatim; srcdoc needs no escaping and the
 // CSP in the head governs what it may do.
 function sandboxDocument(source: string, theme: HTMLVisualThemeSnapshot, widget: boolean): string {
-  const base = widget ? WIDGET_BASE_STYLE : "";
+  const base = widget ? WIDGET_BASE_STYLE + WIDGET_LAYOUT_SCRIPT : "";
   return `<!doctype html><html><head>${sandboxDocumentHead("Component", theme)}${TRANSPARENT_STYLE}${base}${runtimeScript()}</head><body>${source}</body></html>`;
 }
 

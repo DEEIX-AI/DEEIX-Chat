@@ -180,7 +180,7 @@ var builtinSpecs = []builtinSpec{
 		Name:         "data-table",
 		Version:      1,
 		What:         "数据表格",
-		When:         "十行以上的结构化数据",
+		When:         "行数较多、需要排序或筛选的结构化数据",
 		Interactions: "排序、搜索、分页、导出 CSV；image 列显示缩略图，点击放大",
 		Rules:        "column.type 决定排序方式与对齐；type: image 的列，单元格写图片地址；" + imageSourceRule,
 		Props:        "{title?, columns: [{key, label, type?: string|number|date|boolean|image}], rows: [{<key>: value}], pageSize?: number}",

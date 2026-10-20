@@ -8,7 +8,7 @@ import { AgentTraceStep } from "@/features/chat/components/message/message-agent
 import { ChevronDown } from "@/components/animate-ui/icons/chevron-down";
 import {
   Accordion,
-  AccordionContent,
+  AccordionContentKeepMounted,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
@@ -310,7 +310,9 @@ function TraceThinkRow({
   );
 }
 
-function AgentTraceTimeline({
+// Memoized: once built it stays mounted while collapsed, and the message above it re-renders
+// on every streamed chunk of the answer.
+const AgentTraceTimeline = React.memo(function AgentTraceTimeline({
   items,
   labels,
   autoExpandThinking,
@@ -356,7 +358,7 @@ function AgentTraceTimeline({
       </ol>
     </div>
   );
-}
+});
 
 // Laid out like a timeline row (icon column, then text) so it sits where the steps will appear.
 function TraceDetailStatus({
@@ -537,7 +539,12 @@ export function MessageAgentTrace({
               )}
             />
           </AccordionTrigger>
-          <AccordionContent className="px-0 pb-0 pt-1.5 duration-[350ms] ease-in-out">
+          <AccordionContentKeepMounted
+            open={open}
+            onPrewarm={detailPending && !detailFailed ? onLoadDetail : undefined}
+            panelClassName="duration-[350ms] ease-in-out"
+            className="px-0 pb-0 pt-1.5"
+          >
             {detailPending ? (
               <TraceDetailStatus failed={detailFailed} labels={labels} onRetry={onLoadDetail} />
             ) : (
@@ -551,7 +558,7 @@ export function MessageAgentTrace({
                 allowFullToolResults={allowFullToolResults}
               />
             )}
-          </AccordionContent>
+          </AccordionContentKeepMounted>
         </AccordionItem>
       </Accordion>
     </div>

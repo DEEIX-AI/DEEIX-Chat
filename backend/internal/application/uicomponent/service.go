@@ -237,64 +237,63 @@ func liveCatalogHeader(panel, widget bool) string {
 	return strings.Join(sections, "\n")
 }
 
-const livePromptIntro = `<nature>交互式组件是回复正文里的一段 Markdown 代码块，由客户端渲染成界面。它是输出格式，不是工具：不要通过 function calling / tool call 调用组件，也不要等待它返回结果。</nature>
+const livePromptIntro = `<nature>交互式组件是嵌入回复正文的 Markdown 代码块，由客户端渲染为界面。它是一种输出格式，而非工具：不得通过 function calling / tool call 调用，也无需等待返回结果。</nature>
 <when>
-  <principle>组件是让用户直接操作、直接读数的，不是装饰。命中 <use> 时默认就该出组件，只把数据讲成一段话不算完成；没有任何命中时才用最轻的表达：文字 → Markdown 列表或表格。结论和要点写在正文，明细与交互放进组件：去掉组件，回复仍然回答了问题。该用而没用，和不该用而用了，同样是错。</principle>`
+  <principle>组件用于让用户直接操作与读取数据，而非装饰。命中 <use> 的任一条件时，默认应输出组件，仅以文字转述数据视为未完成；均未命中时，采用最轻量的表达：纯文字，其次为 Markdown 列表或表格。结论与要点写在正文，明细与交互放入组件；移除组件后，正文仍须完整回答问题。应使用而未使用，与不应使用而使用，同属错误。</principle>`
 
 func liveUseRule(panel, widget bool) string {
-	signals := []string{"同类条目超过五行（清单、候选、商品、城市、条目），或者需要筛选、排序、搜索", "用户在估算、比较方案或做 what-if，哪怕参数由你假设"}
+	signals := []string{"同类条目超过五行（清单、候选、商品、城市），或需要筛选、排序、检索", "估算、方案比较或假设分析（what-if），即使参数由你设定"}
 	if panel {
-		signals = append(signals, "讲解公式、定律或有数量关系的概念（物理、化学、金融、统计、几何），用 panel 放公式、滑块和示意图，让用户拖动参数看结果怎么变，正文照常讲解")
+		signals = append(signals, "讲解公式、定律或含数量关系的概念（物理、化学、金融、统计、几何）：用 panel 呈现公式、滑块与示意图，供用户调整参数并观察结果变化，正文照常讲解")
 	}
 	if widget {
-		signals = append(signals, "讲解随时间变化的过程或空间结构（动画、三维示意、流场、机构运动），用 <widget>")
+		signals = append(signals, "讲解随时间演变的过程或空间结构（动画、三维或透视示意、粒子与流场、几何作图、机构或工程过程）：用 <widget>")
 	}
-	signals = append(signals, "给到或查到一组数，有趋势、分布、构成或多组对比", "过程要一步步走（排障、选型、资格判断、自测）", "有日期、时长或先后关系", "修改前后的对照")
-	return "  <use>满足任一项就出组件：" + strings.Join(signals, "；") + "。拿不准时看用户接下来会不会想改一个数、筛一遍或点一下；会，就出组件。引用工具结果时按原样放进组件，不要改写成文字。</use>"
+	signals = append(signals, "提供或检索到一组数据，且涉及趋势、分布、构成或多组对比", "需要分步推进的流程（排障、选型、资格判定、自测）", "多个任务或事件具有起止日期、时长或依赖关系（排期、里程碑）", "用户需要查看修改前后的差异")
+	return "  <use>满足任一条件即输出组件：" + strings.Join(signals, "；") + "。难以判断时，考虑用户下一步是否会调整数值、筛选或点选；若会，则输出组件。工具结果符合上述条件时，原样放入组件，不得改写为文字。</use>"
 }
 
-const livePromptAvoid = `  <avoid>这些条件优先于 <use>，命中就退回文字或 Markdown：闲聊、观点、没有可调的量的定性概念、写作类请求（邮件、文案、代码）、一两句话就能答完；数据很少（三个以内且没有趋势的数字），直接写在正文或 Markdown 表格里；用户要可复制的纯文本、指定格式，或说过不要组件；没有可靠数据，不要为了画图编造数字，估算须在正文写明依据；组件只是把正文已有的内容再摆一遍；用组件代替回答，比如先发一张表单让用户选题材、篇幅、风格再动手，能直接回答就按合理的默认直接答，需要确认时用一句话问。</avoid>`
+const livePromptAvoid = `  <avoid>以下情形优先于 <use>，命中任一即改用文字或 Markdown：闲聊、观点表达、不含可调量的定性概念、一两句话即可答完的问题；写作类请求（邮件、文案、代码）直接给出成品，仅当用户需要查看改动时才使用对照；数据量很少（不超过三个且无趋势的数值），直接写入正文或 Markdown 表格；用户要求可复制的纯文本或指定格式，或明确表示不需要组件；缺乏可靠数据时，不得为作图编造数字，估算须在正文注明依据；组件仅重复正文已有内容；以组件代替回答，例如先发送表单让用户选择题材、篇幅、风格再作答。能直接回答时按合理的默认值作答，确需确认时以一句话询问。</avoid>`
 
 func liveChooseRule(panel, widget bool) string {
 	tiers := []string{"目录组件"}
 	var rules []string
 	if panel {
 		tiers = append(tiers, "panel")
-		rules = append(rules, "只有存在会改变结果的控件，或几个部件要共享状态时才用 panel，不要用 panel 包一个静态组件")
+		rules = append(rules, "仅当存在影响结果的控件，或多个部件需要共享状态时使用 panel，不得用 panel 包裹静态组件")
 	}
 	if widget {
 		tiers = append(tiers, "widget")
-		rules = append(rules, "只有需要动画、三维或大量图形时才用 widget")
+		rules = append(rules, "仅当需要动画、三维或大量图形时使用 widget")
 	}
-	choose := "  <choose>一条回复一般一个块，最多三个，一个块对应一个需求。"
+	choose := "  <choose>每条回复通常包含一个块，至多三个，每个块对应一项需求。"
 	if len(rules) > 0 {
-		choose += "由轻到重：" + strings.Join(tiers, " → ") + "，能用轻的就不用重的。" + strings.Join(rules, "；") + "。"
+		choose += "按由轻到重的顺序选择：" + strings.Join(tiers, " → ") + "，轻量方案能够满足时不采用更重的方案。" + strings.Join(rules, "；") + "。"
 	}
 	return choose + "</choose>"
 }
 
-const livePromptRules = `  <followup>用户在组件里的改动会在下一轮以 ui_state 提供。追问已有组件时，直接用其中的当前值作答，不要让用户复述，也不重复输出同一个块；用户要求改组件时，输出一个新块（新 id），初始值取用户当前的值。</followup>
-  <check>写完回看一遍：有明确的 <use> 信号却没有组件（用户明确要纯文本时除外），或者没有信号却放了组件，都算错，按本节重写。</check>
+const livePromptRules = `  <followup>用户在组件中的操作会在下一轮以 ui_state 提供。针对已有组件的追问，直接使用其中的当前值作答，不要求用户复述，也不重复输出同一个块；用户要求修改组件时，输出一个新块（使用新 id），初始值沿用用户的当前值。</followup>
 </when>
-<syntax>语言标识为 ` + "`" + domainuicomponent.FenceLanguage + "`" + ` 的代码块，内容是 JSON：component、id（简短英文，只用字母、数字、- 和 _，对话内唯一）与组件属性；属性可以平铺在顶层，也可以放进 props。字符串内的英文双引号写成 \"，不要尾随逗号或注释。代码块放在正文中它所属的位置，前后用自然语言承接，不要在组件外重复组件里的数据。
+<syntax>语言标识为 ` + "`" + domainuicomponent.FenceLanguage + "`" + ` 的代码块，内容为 JSON：component、id（简短英文，仅含字母、数字、- 和 _，对话内唯一），组件属性平铺于顶层。字符串中的英文双引号须转义为 \"，不得包含尾随逗号或注释。代码块置于正文中对应的位置，前后以自然语言衔接；正文给出结论与要点，不逐条复述组件中的明细。
 ` + "```" + domainuicomponent.FenceLanguage + `
 {"component": "stat-grid", "id": "kpi-week", "title": "本周指标", "items": [{"label": "日活", "value": "128,430", "delta": "+4.2%", "trend": "up"}]}
 ` + "```" + `</syntax>`
 
 // livePromptPanel 只在勾选了 panel 时出现。
 var livePromptPanel = `<live>
-  <state>state 是用户可改的初始值；computed 是由 state 推导的值，写不带花括号的公式，可以互相引用，不能循环。</state>
-  <children>children 从上到下排列，可以是下面的原语，也可以是 catalog 里的组件（嵌套时不写 id）。控件用 bind 指向 state 名；visible: "{条件}" 为假时隐藏该节点。</children>
-  <formula>属性值里的 {公式} 实时求值：整个值只有一个 {…} 时保留原类型（数字、列表），与文字混写时数字按千分位、最多两位小数显示；{{ 和 }} 表示字面花括号。公式只能用数字、'文字'、+ - * / % ^、比较、&& || !、a ? b : c、obj.key、list[i]、[a, b]，函数 abs sqrt cbrt floor ceil sign log ln log10 log2 exp sin cos tan asin acos atan sinh cosh tanh pow min max round(x, 位数?) fixed(x, 位数) clamp(x, 下限, 上限) range(起, 止, 步长?) sum avg len contains，常量 pi e；没有赋值、循环和自定义函数。range 包含两端，最多 1000 项。</formula>
-  <data>chart 的 series[].data 可以写成关于 x 的公式，按 x 列表逐点计算（i 是下标）；data-table 与 card-grid 可以加 where: "{关于 row 的条件}" 筛选行。</data>
-  <actions>button 三选一：ask: "文字" 显示为一个可编辑的追问框，预填这段文字（可以含 {公式}），用户可以改写后点发送，作为下一条消息发出，所以写成用户可能想问的完整问题；set: {state 名: 值} 修改状态；copy: "文字" 复制到剪贴板。</actions>
+  <state>state 为用户可修改的初始值；computed 为由 state 推导的值，以不带花括号的公式书写，可相互引用，但不得循环引用。</state>
+  <children>children 自上而下排列，可以是下列原语，也可以是 catalog 中的组件（嵌套时省略 id）。控件通过 bind 绑定 state 名；visible: "{条件}" 为假时隐藏该节点。</children>
+  <formula>属性值中的 {公式} 实时求值：整个值仅含一个 {…} 时保留原类型（数字、列表）；与文字混排时，数字按千分位、至多两位小数显示；{{ 与 }} 表示字面花括号。公式仅支持数字、'文字'、+ - * / % ^、比较运算、&& || !、a ? b : c、obj.key、list[i]、[a, b]；函数 abs sqrt cbrt floor ceil sign log ln log10 log2 exp sin cos tan asin acos atan sinh cosh tanh pow min max round(x, 位数?) fixed(x, 位数) clamp(x, 下限, 上限) range(起, 止, 步长?) sum avg len contains；常量 pi e。不支持赋值、循环与自定义函数。range 包含两端，至多 1000 项。</formula>
+  <data>chart 的 series[].data 可写为关于 x 的公式，按 x 列表逐点计算（i 为下标）；data-table 与 card-grid 可通过 where: "{关于 row 的条件}" 筛选行。</data>
+  <actions>button 取以下三种动作之一：ask: "文字" 显示为可编辑的追问框并预填该文字（可含 {公式}），用户修改后发送，作为下一条消息，因此应写成用户可能提出的完整问题；set: {state 名: 值} 修改状态；copy: "文字" 复制到剪贴板。</actions>
   <primitives>
-    布局：panel {title?, description?}、row、stack、grid {columns?: 1-4}、card {title?}、tabs {items: [标签], bind?}（第 i 个子节点是第 i 个标签页）、collapse {title, open?}、divider
+    布局：panel {title?, description?}、row、stack、grid {columns?: 1-4}、card {title?}、tabs {items: [标签], bind?}（第 i 个子节点对应第 i 个标签页）、collapse {title, open?}、divider
     展示：text {text, tone?, size?: sm|base|lg}、stat {label, value, unit?, note?, precision?, highlight?, tone?}、badge {text, tone?}、progress {value, max?, label?}、callout {text, title?, tone?: info|positive|warning|negative}
-    讲解：formula {expr, name?, unit?, precision?, label?, with?}（expr 是不带花括号的公式，按当前值代入，显示「公式 = 代入 = 结果」；写成课本里的形式如 G * M / r^2，常数放进 computed，不要把算好的数折进公式；滑块用的单位与公式不同时，用 with: {"M": "{M * 1e24}"} 给出代入公式的值）、scene {width?, height?, shapes: [{type: rect|circle|line|arrow|text, 坐标, label?, tone?}]}（示意图，按实际像素画，宽 240–400 为宜，原点在左上；rect {x, y, w, h}、circle {cx, cy, r}、line/arrow {x1, y1, x2, y2}、text {x, y, text}，坐标与 label 都可以写 {公式}；只画说明关系必需的几个图形，离边缘与彼此留出 16 以上）
-    版式：panel 的 children 平铺写即可。有 scene 时，客户端自动把公式与控件放左边、示意图放右边、ask 按钮放下方，不用自己写 row
+    讲解：formula {expr, name?, unit?, precision?, label?, with?}（expr 为不带花括号的公式，按当前值代入，显示为「公式 = 代入 = 结果」；按教材写法书写，如 G * M / r^2，常数放入 computed，不得将计算结果直接写入公式；滑块单位与公式单位不一致时，用 with: {"M": "{M * 1e24}"} 指定代入公式的值）、scene {width?, height?, shapes: [{type: rect|circle|line|arrow|text, 坐标, label?, tone?}]}（示意图，按实际像素绘制，宽度以 240–400 为宜，原点位于左上角；rect {x, y, w, h}、circle {cx, cy, r}、line/arrow {x1, y1, x2, y2}、text {x, y, text}，坐标与 label 均可使用 {公式}；仅绘制说明关系所必需的图形，与边缘及彼此的间距不小于 16）
+    版式：panel 的 children 平铺书写即可。含 scene 时，客户端自动将公式与控件置于左侧、示意图置于右侧、ask 按钮置于下方，无需手写 row
     控件：slider {bind, label, min, max, step?, unit?}、select {bind, label, options}、segmented {bind, label?, options}、switch {bind, label}、input {bind, label, type?: text|number, placeholder?}、button {label?, ask | set | copy, variant?: default|outline}
-    tone 取 default|muted|positive|negative|warning|info；options 写成 ["文字"] 或 [{label, value}]
+    tone 取值 default|muted|positive|negative|warning|info；options 写作 ["文字"] 或 [{label, value}]
   </primitives>
   <example>
 ` + "```" + domainuicomponent.FenceLanguage + "\n" + strings.TrimSpace(liveExample) + "\n```" + `
@@ -304,13 +303,14 @@ var livePromptPanel = `<live>
   </example>
 </live>`
 
-// livePromptWidget 只在勾选了 widget 时出现。
+// livePromptWidget 只在勾选了 widget 时出现。<layout> 里的类名与 --positive 等变量由宿主注入的基础样式提供
+// （apps/web/shared/components/markdown/ui-blocks/sandbox-host.tsx 的 WIDGET_BASE_STYLE），两边须同步修改。
 const livePromptWidget = `<widget>
-  <use>讲解需要动画、时间推进、三维或透视示意、粒子与流场、几何作图、机构或工程过程演示，而 panel 与 scene 表达不了时，在正文里写一个内联交互图解。用户要完整网页、小游戏或可下载的代码时仍用 html Artifact。</use>
-  <format>语言标识为 ` + "`" + domainuicomponent.WidgetFenceLanguage + "`" + ` 的代码块，内容是自包含的 HTML 片段，不写 html、head、body 标签：<title> 写图解标题，<style> 与 <script> 内联，用 SVG 或 canvas 绘制，图例、播放控件、说明文字都放在图解里。它在沙箱里运行且没有网络：不要引用外部脚本、样式、字体、图片或 CDN，不要用 alert、prompt、表单提交、localStorage、cookie。代码块写完后才会运行。</format>
-  <design>宽度占满容器，高度不超过 640px；颜色只用主题变量 var(--foreground)、var(--muted-foreground)、var(--primary)、var(--border)、var(--card)、var(--chart-1) 到 var(--chart-5)，深色与浅色都要可读，背景留透明；标签不要压在图形上；有动画时提供播放与暂停，并尊重 prefers-reduced-motion；代码控制在 12KB 以内，写得完整，不要省略号或待补充。</design>
-  <layout>宿主已留出 16px 内边距，并给 button、select、input 设好了与界面一致的样式，外层不要再加边距，控件不要另写样式。从上到下：标题与一句说明、图形、随图形变化的说明文字、控件行。控件放进一个 class="controls" 的容器排成一行（播放/暂停、速度、进度），按下状态用 aria-pressed="true"。随状态变化的文字不要直接改写：把每种情况的文案都写成 class="stable" 容器的子元素，当前那段加 class="on"，切换时只移动 on，容器高度自动取最长那段；变化的数字加 class="num" 并给最小宽度。控件不能因为文字长短或行数变化而移动。追问不要自己写输入框或按钮：调用 deeix.suggest("问题") 给出一个用户可能想问的完整问题（120 字以内，可以带上当前的参数），宿主会在图解下方显示与界面一致的追问框，用户可以改写后发送；状态变化时可以再次调用来更新。</layout>
-  <api>window.deeix.getState()、onState(fn)、setState({名: 值}) 保存用户的选择（名用字母、数字、- 和 _，值是 JSON，合计 4KB 内）：刷新后恢复，下一轮以 ui_state 提供给你。deeix.suggest("文字") 设置图解下方的追问，传空字符串则不显示。deeix.onTheme(fn) 在用户切换深浅色时回调。</api>
+  <use>嵌入正文的交互式图解。用户需要完整网页、小游戏或可下载的代码时，使用 html Artifact，而非 widget。</use>
+  <format>语言标识为 ` + "`" + domainuicomponent.WidgetFenceLanguage + "`" + ` 的代码块，内容为自包含的 HTML 片段，不含 html、head、body 标签：<title> 是提供给宿主的名称，不会显示；<style> 与 <script> 内联；使用 SVG 或 canvas 绘制，图例、播放控件与说明文字均置于图解内。图解运行于没有网络的沙箱：不得引用外部脚本、样式、字体、图片或 CDN，不得使用 alert、prompt、表单提交、localStorage、cookie。</format>
+  <design>宽度占满容器，高度宜控制在 640px 以内，超出时以分组或折叠收纳；宿主按内容自动调整高度，不得设置 max-height 或自建滚动区域。颜色仅使用主题变量 var(--foreground)、var(--muted-foreground)、var(--primary)、var(--border)、var(--card)、var(--chart-1) 至 var(--chart-5)，好坏状态使用 var(--positive)、var(--negative)、var(--warning)，须在深浅两种主题下均清晰可读。用色克制：--primary 仅用于选中状态与最关键的一项结果；chart 色仅用于图形中的数据系列，不用于表示好坏或文字着色。文字不使用全大写或额外字距；标签不得遮挡图形。含动画时须提供播放与暂停，并遵循 prefers-reduced-motion。代码控制在 12KB 以内，须完整书写，不得使用省略号或占位内容。</design>
+  <layout>宿主外框即为卡片，已预留 16px 内边距，并为 button、select、input、table 提供与界面一致的样式：外层不再添加边距、边框、背景或阴影，背景保持透明；控件与表格不再另设颜色、边框与字号。分组依靠留白、h4 小标题与分隔线；需要成块时使用 class="card"，可选中的卡片写作 button.card，选中时加 aria-pressed="true"，卡片之间不要互相嵌套。宿主另提供以下类：row（横向排列）、stack（纵向排列并保留组间距）、grid（自适应等宽网格）、label（小号说明）、value（大号数值）、badge（可叠加 positive、negative、warning）、chip（多选按钮，选中时使用 aria-pressed）；直接使用这些类，仅为布局编写样式。图解自上而下依次为：可见的标题与一句说明、图形、随图形变化的说明文字、控件行。控件置于 class="controls" 的容器中单行排列（播放/暂停、速度、进度），按下状态使用 aria-pressed="true"。随状态变化的文字不得直接改写：将各状态的文案作为 class="stable" 容器的子元素，当前项加 class="on"，切换时仅移动 on，容器高度自动取最长项；变化的数字加 class="num"（等宽数字，无需另设等宽字体）并设定最小宽度。控件位置不得随文字长度或行数变化而移动。追问不得自行绘制输入框或按钮，统一使用 deeix.suggest。</layout>
+  <api>window.deeix.getState()、onState(fn)、setState({名: 值}) 用于保存用户的选择（名称仅含字母、数字、- 和 _，值为 JSON，总计不超过 4KB）：刷新后恢复，并在下一轮以 ui_state 提供给你。deeix.suggest("问题") 在图解下方显示与界面一致的追问框，预填一个用户可能提出的完整问题（不超过 120 字，可包含当前参数），用户可修改后发送；状态变化时可再次调用以更新，传入空字符串则隐藏。deeix.onTheme(fn) 在用户切换深浅色主题时回调。</api>
 </widget>`
 
 // CatalogPrompt 生成注入系统提示词的组件目录层。blockFormat 是客户端声明的块格式：静态格式（及未声明）

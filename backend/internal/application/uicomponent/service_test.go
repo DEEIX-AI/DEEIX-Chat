@@ -312,7 +312,7 @@ func onlyCapabilitiesFor(components []domainuicomponent.Component) []domainuicom
 func TestCatalogPromptLiveStatesWhenNotToUseComponents(t *testing.T) {
 	_, when, _ := strings.Cut(liveCatalogHeader(true, true), "<when>")
 	when, _, _ = strings.Cut(when, "</when>")
-	for _, want := range []string{"不是装饰", "默认就该出组件", "该用而没用", "超过五行", "拿不准时", "工具结果", "优先于 <use>", "不要用 panel 包一个静态组件", "最多三个", "新 id", "代替回答", "<check>", "讲解公式", "定性概念", "<widget>", "由轻到重"} {
+	for _, want := range []string{"而非装饰", "默认应输出组件", "应使用而未使用", "超过五行", "难以判断时", "工具结果", "优先于 <use>", "不得用 panel 包裹静态组件", "至多三个", "新 id", "代替回答", "讲解公式", "定性概念", "<widget>", "由轻到重", "起止日期", "直接给出成品"} {
 		if !strings.Contains(when, want) {
 			t.Fatalf("expected %q in the interactive <when> section", want)
 		}
@@ -326,10 +326,15 @@ func TestCatalogPromptLiveDescribesWidgets(t *testing.T) {
 		t.Fatal("the interactive catalog must describe widgets")
 	}
 	widget, _, _ = strings.Cut(widget, "</widget>")
-	for _, want := range []string{domainuicomponent.WidgetFenceLanguage, "没有网络", "CDN", "var(--foreground)", "prefers-reduced-motion", "setState", "deeix.suggest", "Artifact", "16px", "controls", `class="stable"`, `class="on"`, `class="num"`} {
+	// 外框已是卡片：不要再包边框或自建滚动区；好坏色与成块的样式用宿主提供的，而不是挪用 chart 色。
+	for _, want := range []string{domainuicomponent.WidgetFenceLanguage, "没有网络", "CDN", "var(--foreground)", "prefers-reduced-motion", "setState", "deeix.suggest", "Artifact", "16px", "controls", `class="stable"`, `class="on"`, `class="num"`, "max-height", "var(--positive)", `class="card"`, "不要互相嵌套", "不会显示", "可见的标题"} {
 		if !strings.Contains(widget, want) {
 			t.Fatalf("expected %q in the widget section", want)
 		}
+	}
+	// 只给一种属性写法：解析器仍兼容 props，提示词里写两种只会让输出摇摆。
+	if strings.Contains(liveCatalogHeader(true, true), "也可以放进 props") {
+		t.Fatal("the interactive syntax must teach flat props only")
 	}
 	// 追问框由宿主统一渲染：图解自己画的输入框和按钮与界面不一致，按钮也只能填入输入框。
 	for _, unwanted := range []string{"textarea", "deeix.ask", `class="ask"`} {

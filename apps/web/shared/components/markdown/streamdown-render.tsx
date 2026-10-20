@@ -662,7 +662,7 @@ function ThinkingSegmentBlock({
             )}
           />
         </AccordionTrigger>
-        <AccordionContent className="px-0 pb-0 pt-1.5 duration-[350ms] ease-in-out">
+        <AccordionContent panelClassName="duration-[350ms] ease-in-out" className="px-0 pb-0 pt-1.5">
           <HTMLInlineMarkdownProvider
             className={cn(THINKING_MARKDOWN_CLASSNAME, "text-[12px] leading-6 text-muted-foreground/84")}
             components={THINKING_STREAMDOWN_COMPONENTS}

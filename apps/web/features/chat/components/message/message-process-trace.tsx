@@ -117,7 +117,7 @@ export function MessageProcessTrace({
               )}
             />
           </AccordionTrigger>
-          <AccordionContent className="space-y-2.5 px-0 pb-0 pt-1.5 duration-[350ms] ease-in-out">
+          <AccordionContent panelClassName="duration-[350ms] ease-in-out" className="space-y-2.5 px-0 pb-0 pt-1.5">
             <TraceContent
               block={trace.process}
               streaming={processStreaming}
