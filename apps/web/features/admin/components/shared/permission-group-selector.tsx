@@ -64,7 +64,7 @@ export function PermissionGroupSelector({
 
   return (
     <div className="min-w-0">
-      <Popover>
+      <Popover modal>
         <PopoverTrigger asChild>
           <Button
             type="button"
