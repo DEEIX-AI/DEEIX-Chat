@@ -415,13 +415,6 @@ OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract 
 - `nativeToolKeys`：定义当前模型允许的厂商官方原生工具，例如 OpenAI、xAI、Google 和 Anthropic 的原生搜索、代码执行或图片生成能力。
 - `inputModalities`：覆盖 models.dev 目录中的输入模态，取值为 `text`、`image`、`pdf`、`audio`、`video`；用于纠正目录、关闭某类原生输入，或为第三方 OpenAI 兼容地址开启原生 PDF。
 - `image.stream`：仅对图像类模型能力生效；未配置时保持默认流式，显式写 `false` 时关闭图像流式调用。
-- `image.prefer_base64`：后台「编辑模型 → 模型能力」中的「优先使用 Base64 图片结果」，默认关闭。开启后，图片生成／编辑结果的同一条目同时包含非空 `b64_json` 和 `url` 时使用响应中的图片数据；Base64 缺失或为空时仍下载 URL，非空但解码或图片校验失败时明确报错，不回退下载。该设置跟随平台模型的所有上游路由，与 `image.stream` 独立，不改变请求的 `response_format`，不作用于聊天或 Responses 内嵌生图。
-
-例如，关闭图像流式调用并优先使用已有的 Base64 图片结果：
-
-```json
-{"image":{"stream":false,"prefer_base64":true}}
-```
 
 用户手写 `tools` 时，只有命中 `nativeToolKeys` 的官方原生工具会作为官方工具保留，工具子参数会随该工具透传；普通用户不能通过 JSON 自行启用未被管理员允许的 MCP Tool 或官方原生工具。MCP Tool 仍必须由管理员在工具页配置和启用。
 

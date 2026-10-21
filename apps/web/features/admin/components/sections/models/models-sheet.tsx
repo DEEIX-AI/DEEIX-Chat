@@ -96,13 +96,11 @@ import {
 } from "@/features/admin/types/llm";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 import {
-  imagePreferBase64FromCapabilities,
   imageStreamEnabledFromCapabilities,
   MODEL_CAPABILITIES_PLACEHOLDER,
   ModelCapabilitiesGuideButton,
   ModelCapabilitiesQuickConfig,
   normalizeModelCapabilitiesJSON,
-  setImagePreferBase64InCapabilities,
   setImageStreamEnabledInCapabilities,
 } from "@/features/admin/components/sections/models/models-capabilities-config";
 import {
@@ -555,9 +553,6 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
   }
   const imageStreamEnabled = imageStreamEnabledFromCapabilities(form.capabilitiesJSON);
   const showImageStreamControl = routeProtocols.some((protocol) => IMAGE_MEDIA_PROTOCOLS.has(protocol.trim()));
-  const imagePreferBase64 = imagePreferBase64FromCapabilities(form.capabilitiesJSON);
-  const showImageResultPreferenceControl = form.kinds.some((kind) => kind === "image_gen" || kind === "image_edit")
-    && routeProtocols.some((protocol) => IMAGE_MEDIA_PROTOCOLS.has(protocol.trim()) || protocol.trim() === "gemini_interactions");
   const showPermissionGroupUnassigned =
     !permissionGroupsLoading && permissionGroupsUnassigned && effectivePermissionGroupIDs.length === 0;
 
@@ -880,27 +875,6 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
                           {t("sheet.imageStreamEnabled")}
                         </span>
                       </label>
-                    </div>
-                  ) : null}
-                  {showImageResultPreferenceControl ? (
-                    <div className="space-y-1.5 pb-1">
-                      <label
-                        htmlFor="model-image-prefer-base64"
-                        className="flex min-w-0 items-center gap-2 text-xs font-normal text-muted-foreground"
-                      >
-                        <Checkbox
-                          id="model-image-prefer-base64"
-                          checked={imagePreferBase64}
-                          disabled={pending}
-                          className="size-3.5"
-                          aria-describedby="model-image-prefer-base64-description"
-                          onCheckedChange={(checked) => applyCapabilitiesJSON(setImagePreferBase64InCapabilities(form.capabilitiesJSON, checked === true))}
-                        />
-                        <span className="min-w-0">{t("sheet.imagePreferBase64")}</span>
-                      </label>
-                      <p id="model-image-prefer-base64-description" className="pl-5.5 text-xs leading-5 text-muted-foreground">
-                        {t("sheet.imagePreferBase64Description")}
-                      </p>
                     </div>
                   ) : null}
                   <div className="grid min-w-0 grid-cols-2 gap-2">

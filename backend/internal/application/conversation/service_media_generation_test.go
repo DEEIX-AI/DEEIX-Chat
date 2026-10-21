@@ -127,13 +127,6 @@ func TestMediaImageStreamEnabledUsesModelCapabilitiesOverride(t *testing.T) {
 			want:             true,
 		},
 		{
-			name:             "invalid preference does not change stream override",
-			protocol:         llm.AdapterOpenAIImageGenerations,
-			upstreamModel:    "gpt-image-2",
-			capabilitiesJSON: `{"image":{"stream":false,"prefer_base64":"invalid"}}`,
-			want:             false,
-		},
-		{
 			name:             "invalid json keeps protocol default",
 			protocol:         llm.AdapterGoogleImageGeneration,
 			upstreamModel:    "gemini-3-pro-image",
@@ -162,26 +155,6 @@ func TestMediaImageStreamEnabledUsesModelCapabilitiesOverride(t *testing.T) {
 				t.Fatalf("mediaImageStreamEnabled() = %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestMediaImagePreferBase64UsesExplicitModelCapability(t *testing.T) {
-	for _, test := range []struct {
-		capabilities string
-		want         bool
-	}{
-		{"", false},
-		{`{}`, false},
-		{`{`, false},
-		{`{"image":{"prefer_base64":false}}`, false},
-		{`{"image":{"prefer_base64":"true"}}`, false},
-		{`{"image":{"prefer_base64":true}}`, true},
-		{`{"image":{"stream":false,"prefer_base64":true}}`, true},
-		{`{"image":{"stream":"invalid","prefer_base64":true}}`, true},
-	} {
-		if got := mediaImagePreferBase64(test.capabilities); got != test.want {
-			t.Fatalf("preference = %v, want %v for %s", got, test.want, test.capabilities)
-		}
 	}
 }
 
@@ -227,7 +200,9 @@ func (mediaImageResultUploadRepository) TouchFileObjectLastAccessedAt(context.Co
 	return nil
 }
 
-func TestStreamMediaImageSavesPreferredBase64WithoutDownloading(t *testing.T) {
+// 上游在同一条目里同时返回 b64_json 与 url 时，图片任务直接保存内联字节，不下载 url：
+// 下载可能超时或被重置，不能让已经拿到结果的生成因此失败。生成与编辑、JSON 与 SSE 都覆盖。
+func TestStreamMediaImageSavesInlineBase64WithoutDownloading(t *testing.T) {
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
 		t.Fatal(err)
@@ -275,39 +250,30 @@ func TestStreamMediaImageSavesPreferredBase64WithoutDownloading(t *testing.T) {
 				registry := newGenerationStreamRegistry(nil, generationStreamOptions{})
 				defer registry.close()
 				service := &Service{cfg: runtimeCfg, repo: repo, uploadSvc: uploadSvc, llmClient: client, routeResolver: resolver, generationStreams: registry}
+				// 非流式用 image.stream=false 关掉流式；其余两种按协议默认走流式。
+				caps := `{}`
+				if format == "json" {
+					caps = `{"image":{"stream":false}}`
+				}
 				for index, test := range []struct {
 					name          string
-					capabilities  string
 					entry         map[string]string
 					downloadFails bool
 					wantDownloads int
 					wantStage     string
 				}{
-					{"preferred", `{"prefer_base64":true}`, map[string]string{"b64_json": b64, "url": "https://images.example.test/unavailable"}, true, 0, ""},
-					{"default", `{}`, map[string]string{"b64_json": b64, "url": "https://images.example.test/unavailable"}, true, 1, "download"},
-					{"disabled", `{"prefer_base64":false}`, map[string]string{"b64_json": b64, "url": "https://images.example.test/unavailable"}, true, 1, "download"},
-					{"url only", `{"prefer_base64":true}`, map[string]string{"url": "https://images.example.test/result.png"}, false, 1, ""},
-					{"base64 only", `{"prefer_base64":true}`, map[string]string{"b64_json": b64}, true, 0, ""},
-					{"empty base64", `{"prefer_base64":true}`, map[string]string{"b64_json": " \t", "url": "https://images.example.test/result.png"}, false, 1, ""},
-					{"invalid base64", `{"prefer_base64":true}`, map[string]string{"b64_json": "invalid!", "url": "https://images.example.test/result.png"}, false, 0, "decode"},
-					{"not an image", `{"prefer_base64":true}`, map[string]string{"b64_json": base64.StdEncoding.EncodeToString([]byte("not an image")), "url": "https://images.example.test/result.png"}, false, 0, "validation"},
-					{"preferred again", `{"prefer_base64":true}`, map[string]string{"b64_json": b64, "url": "https://images.example.test/unavailable"}, true, 0, ""},
+					{"both", map[string]string{"b64_json": b64, "url": "https://images.example.test/unavailable"}, true, 0, ""},
+					{"url only", map[string]string{"url": "https://images.example.test/result.png"}, false, 1, ""},
+					{"base64 only", map[string]string{"b64_json": b64}, true, 0, ""},
+					{"blank base64", map[string]string{"b64_json": " \t", "url": "https://images.example.test/result.png"}, false, 1, ""},
+					// 非空但无效的字节明确报错，不悄悄改为下载 url。
+					{"invalid base64", map[string]string{"b64_json": "invalid!", "url": "https://images.example.test/result.png"}, false, 0, "decode"},
+					{"not an image", map[string]string{"b64_json": base64.StdEncoding.EncodeToString([]byte("not an image")), "url": "https://images.example.test/result.png"}, false, 0, "validation"},
 				} {
 					t.Run(test.name, func(t *testing.T) {
 						responseEntry = test.entry
-						var imageCaps map[string]any
-						_ = json.Unmarshal([]byte(test.capabilities), &imageCaps)
-						if format == "json" {
-							imageCaps["stream"] = false
-						}
-						caps, _ := json.Marshal(map[string]any{"image": imageCaps})
 						name := fmt.Sprintf("image-model-%d", index)
-						if test.name == "preferred again" {
-							// Revisit the first platform model through a different upstream binding.
-							name = "image-model-0"
-							caps = []byte(resolver.routes[name].ModelCapabilitiesJSON)
-						}
-						resolver.routes[name] = &channel.ResolvedRoute{PlatformModelName: name, UpstreamID: uint(index + 1), Protocol: protocol, BaseURL: server.URL, UpstreamModel: "gpt-image-1", ModelCapabilitiesJSON: string(caps)}
+						resolver.routes[name] = &channel.ResolvedRoute{PlatformModelName: name, UpstreamID: uint(index + 1), Protocol: protocol, BaseURL: server.URL, UpstreamModel: "gpt-image-1", ModelCapabilitiesJSON: caps}
 						downloads := 0
 						service.mediaDownloader = generatedMediaDownloaderStub{downloadImage: func(context.Context, string, string, int64) ([]byte, string, error) {
 							downloads++

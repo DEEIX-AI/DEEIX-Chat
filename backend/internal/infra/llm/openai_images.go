@@ -132,7 +132,7 @@ func (c *Client) postOpenAIImageJSON(
 		return nil, parseUpstreamError(resp.StatusCode, body, upstreamDebugSnapshot(req, debugPayload, resp, body))
 	}
 
-	return parseOpenAIImageOutput(body, outputFormat, route.PreferBase64Images)
+	return parseOpenAIImageOutput(body, outputFormat)
 }
 
 // generateOpenAIImageGenerationsStream 构造并执行 OpenAI 图片生成流式请求。
@@ -213,7 +213,7 @@ func (c *Client) postOpenAIImageJSONStream(
 		if readErr != nil {
 			return nil, readErr
 		}
-		output, parseErr := parseOpenAIImageOutput(body, outputFormat, route.PreferBase64Images)
+		output, parseErr := parseOpenAIImageOutput(body, outputFormat)
 		if parseErr != nil {
 			return nil, parseErr
 		}
@@ -234,7 +234,7 @@ func (c *Client) postOpenAIImageJSONStream(
 	idleTimeout := resolveStreamIdleTimeout(route.StreamIdleTimeoutMS)
 	idleReader := newIdleTimeoutReader(resp.Body, idleTimeout)
 	streamBody := newUpstreamBodyRecorder(idleReader)
-	if err = consumeOpenAIImageStream(streamBody, outputFormat, route.PreferBase64Images, result, onEvent); err != nil {
+	if err = consumeOpenAIImageStream(streamBody, outputFormat, result, onEvent); err != nil {
 		return nil, attachUpstreamDebug(err, upstreamDebugSnapshot(req, debugPayload, resp, streamErrorBody(streamBody, err)))
 	}
 	return result, nil
@@ -284,7 +284,7 @@ func (c *Client) generateOpenAIImageEdits(ctx context.Context, route portllm.Rou
 		return nil, parseUpstreamError(resp.StatusCode, body, upstreamDebugSnapshot(req, debugBody, resp, body))
 	}
 
-	return parseOpenAIImageOutput(body, modelParamString(input.Options, "output_format"), route.PreferBase64Images)
+	return parseOpenAIImageOutput(body, modelParamString(input.Options, "output_format"))
 }
 
 // generateOpenAIImageEditsStream 构造并执行 OpenAI 图片编辑流式请求。
@@ -349,7 +349,7 @@ func (c *Client) generateOpenAIImageEditsStream(
 		if readErr != nil {
 			return nil, readErr
 		}
-		output, parseErr := parseOpenAIImageOutput(body, outputFormat, route.PreferBase64Images)
+		output, parseErr := parseOpenAIImageOutput(body, outputFormat)
 		if parseErr != nil {
 			return nil, parseErr
 		}
@@ -370,7 +370,7 @@ func (c *Client) generateOpenAIImageEditsStream(
 	idleTimeout := resolveStreamIdleTimeout(route.StreamIdleTimeoutMS)
 	idleReader := newIdleTimeoutReader(resp.Body, idleTimeout)
 	streamBody := newUpstreamBodyRecorder(idleReader)
-	if err = consumeOpenAIImageStream(streamBody, outputFormat, route.PreferBase64Images, result, onEvent); err != nil {
+	if err = consumeOpenAIImageStream(streamBody, outputFormat, result, onEvent); err != nil {
 		return nil, attachUpstreamDebug(err, upstreamDebugSnapshot(req, debugBody, resp, streamErrorBody(streamBody, err)))
 	}
 	return result, nil
@@ -643,7 +643,7 @@ func messagePromptText(msg portllm.Message) string {
 
 // parseOpenAIImageOutput 解析 OpenAI 图片响应。
 // 图片字节只放入 GeneratedImages，避免把 data URL 写入普通文本链路。
-func parseOpenAIImageOutput(body []byte, outputFormat string, preferBase64 bool) (*portllm.GenerateOutput, error) {
+func parseOpenAIImageOutput(body []byte, outputFormat string) (*portllm.GenerateOutput, error) {
 	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
@@ -653,11 +653,11 @@ func parseOpenAIImageOutput(body []byte, outputFormat string, preferBase64 bool)
 		ServerToolCalls: make([]portllm.ToolCall, 0),
 		RawJSON:         string(body),
 	}
-	applyOpenAIImageCompletedPayload(parsed, outputFormat, preferBase64, result)
+	applyOpenAIImageCompletedPayload(parsed, outputFormat, result)
 	return result, nil
 }
 
-func applyOpenAIImageCompletedPayload(parsed map[string]any, outputFormat string, preferBase64 bool, result *portllm.GenerateOutput) {
+func applyOpenAIImageCompletedPayload(parsed map[string]any, outputFormat string, result *portllm.GenerateOutput) {
 	if result == nil {
 		return
 	}
@@ -673,7 +673,7 @@ func applyOpenAIImageCompletedPayload(parsed map[string]any, outputFormat string
 	data, _ := parsed["data"].([]any)
 	citations := make([]string, 0, len(data))
 	for _, item := range data {
-		if image, ok := parseOpenAIImagePayload(asMap(item), outputFormat, preferBase64); ok {
+		if image, ok := parseOpenAIImagePayload(asMap(item), outputFormat); ok {
 			if url := strings.TrimSpace(image.URL); url != "" {
 				citations = append(citations, url)
 			}
@@ -682,12 +682,12 @@ func applyOpenAIImageCompletedPayload(parsed map[string]any, outputFormat string
 	}
 	if len(data) == 0 {
 		if response := asMap(parsed["response"]); len(response) > 0 {
-			applyOpenAIImageCompletedPayload(response, outputFormat, preferBase64, result)
+			applyOpenAIImageCompletedPayload(response, outputFormat, result)
 			return
 		}
 	}
 	if len(data) == 0 {
-		if image, ok := parseOpenAIImagePayload(parsed, outputFormat, preferBase64); ok {
+		if image, ok := parseOpenAIImagePayload(parsed, outputFormat); ok {
 			if url := strings.TrimSpace(image.URL); url != "" {
 				citations = append(citations, url)
 			}
@@ -697,7 +697,7 @@ func applyOpenAIImageCompletedPayload(parsed map[string]any, outputFormat string
 	result.Citations = appendUniqueStrings(result.Citations, citations...)
 }
 
-func parseOpenAIImagePayload(payload map[string]any, outputFormat string, preferBase64 bool) (portllm.GeneratedImage, bool) {
+func parseOpenAIImagePayload(payload map[string]any, outputFormat string) (portllm.GeneratedImage, bool) {
 	if len(payload) == 0 {
 		return portllm.GeneratedImage{}, false
 	}
@@ -706,23 +706,20 @@ func parseOpenAIImagePayload(payload map[string]any, outputFormat string, prefer
 	if declared := declaredImageMediaType(payload); declared != "" {
 		mimeType = declared
 	}
+	// 兼容网关可能在同一条目里同时返回 url 与 b64_json：两者都保留。下游先用内联字节，
+	// 只在没有字节时才下载 url，避免一次多余且可能失败的下载让已经成功的生成失败。
+	url := strings.TrimSpace(getString(payload["url"]))
 	b64 := strings.TrimSpace(getString(payload["b64_json"]))
-	if url := strings.TrimSpace(getString(payload["url"])); url != "" && (!preferBase64 || b64 == "") {
+	if url != "" || b64 != "" {
 		return portllm.GeneratedImage{
 			URL:           url,
-			MIMEType:      mimeType,
-			RevisedPrompt: strings.TrimSpace(getString(payload["revised_prompt"])),
-		}, true
-	}
-	if b64 != "" {
-		return portllm.GeneratedImage{
 			B64JSON:       b64,
 			MIMEType:      mimeType,
 			RevisedPrompt: strings.TrimSpace(getString(payload["revised_prompt"])),
 		}, true
 	}
 	if nested := asMap(payload["image"]); len(nested) > 0 {
-		image, ok := parseOpenAIImagePayload(nested, outputFormat, preferBase64)
+		image, ok := parseOpenAIImagePayload(nested, outputFormat)
 		if !ok {
 			return portllm.GeneratedImage{}, false
 		}
@@ -737,7 +734,6 @@ func parseOpenAIImagePayload(payload map[string]any, outputFormat string, prefer
 func consumeOpenAIImageStream(
 	reader io.Reader,
 	outputFormat string,
-	preferBase64 bool,
 	result *portllm.GenerateOutput,
 	onEvent func(portllm.GenerateStreamEvent) error,
 ) error {
@@ -804,9 +800,9 @@ func consumeOpenAIImageStream(
 
 		switch {
 		case strings.Contains(eventType, "partial_image"):
-			return emitOpenAIImagePartial(parsed, outputFormat, preferBase64, onEvent)
+			return emitOpenAIImagePartial(parsed, outputFormat, onEvent)
 		case strings.Contains(eventType, "completed") || strings.Contains(eventType, "final"):
-			applyOpenAIImageCompletedPayload(parsed, outputFormat, preferBase64, result)
+			applyOpenAIImageCompletedPayload(parsed, outputFormat, result)
 		}
 		return nil
 	}
@@ -859,7 +855,7 @@ func consumeOpenAIImageStream(
 			result.RawJSON += "\n"
 		}
 		result.RawJSON += payloadText
-		applyOpenAIImageCompletedPayload(parsed, outputFormat, preferBase64, result)
+		applyOpenAIImageCompletedPayload(parsed, outputFormat, result)
 		if result.Usage != (portllm.Usage{}) && onEvent != nil {
 			if err := onEvent(portllm.GenerateStreamEvent{Usage: result.Usage}); err != nil {
 				return err
@@ -872,13 +868,12 @@ func consumeOpenAIImageStream(
 func emitOpenAIImagePartial(
 	parsed map[string]any,
 	outputFormat string,
-	preferBase64 bool,
 	onEvent func(portllm.GenerateStreamEvent) error,
 ) error {
 	if onEvent == nil {
 		return nil
 	}
-	image, ok := parseOpenAIImagePayload(parsed, outputFormat, preferBase64)
+	image, ok := parseOpenAIImagePayload(parsed, outputFormat)
 	if !ok {
 		return nil
 	}

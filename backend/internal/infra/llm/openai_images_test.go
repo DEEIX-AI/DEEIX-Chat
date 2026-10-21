@@ -272,7 +272,7 @@ func TestParseOpenAIImageGenerationOutput(t *testing.T) {
 			"input_tokens_details": {"text_tokens": 8, "image_tokens": 4},
 			"output_tokens_details": {"image_tokens": 40}
 		}
-	}`), "webp", false)
+	}`), "webp")
 	if err != nil {
 		t.Fatalf("parse image output: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestParseOpenAIImageGenerationOutput(t *testing.T) {
 func TestParseOpenAIImageGenerationOutputDoesNotInventUsage(t *testing.T) {
 	output, err := parseOpenAIImageOutput([]byte(`{
 		"data": [{"b64_json": "aGVsbG8="}]
-	}`), "png", false)
+	}`), "png")
 	if err != nil {
 		t.Fatalf("parse image output: %v", err)
 	}
@@ -308,50 +308,53 @@ func TestParseOpenAIImageGenerationOutputDoesNotInventUsage(t *testing.T) {
 	}
 }
 
-func TestOpenAIImageResultSourcePreference(t *testing.T) {
-	for _, preferBase64 := range []bool{false, true} {
-		for _, test := range []struct {
-			name    string
-			payload string
-			wantB64 bool
-		}{
-			{"both", `{"url":"https://images.example.test/result.png","b64_json":"aW1hZ2U="}`, preferBase64},
-			{"url only", `{"url":"https://images.example.test/result.png"}`, false},
-			{"base64 only", `{"b64_json":"aW1hZ2U="}`, true},
-			{"empty base64", `{"url":"https://images.example.test/result.png","b64_json":" \t"}`, false},
-			{"invalid base64 is retained", `{"url":"https://images.example.test/result.png","b64_json":"invalid!"}`, preferBase64},
-		} {
-			for _, format := range []string{"json", "sse", "stream json"} {
-				t.Run(fmt.Sprintf("%s/%s/prefer=%t", test.name, format, preferBase64), func(t *testing.T) {
-					body := `{"response":{"data":[{"image":` + test.payload + `,"revised_prompt":"revised"}]}}`
-					var output *portllm.GenerateOutput
-					var err error
-					if format == "json" {
-						output, err = parseOpenAIImageOutput([]byte(body), "webp", preferBase64)
-					} else {
-						output = &portllm.GenerateOutput{}
-						if format == "sse" {
-							body = "event: image_generation.completed\ndata: " + body + "\n\n"
-						}
-						err = consumeOpenAIImageStream(strings.NewReader(body), "webp", preferBase64, output, nil)
+// 兼容网关可能在同一条目里同时返回 url 与 b64_json：两者都要保留，下游才能直接用内联字节，
+// 不必再下载 url。JSON、SSE 与流式请求收到的普通 JSON 走同一套解析。
+func TestOpenAIImageResultKeepsURLAndBase64(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		payload string
+		wantURL bool
+		wantB64 bool
+	}{
+		{"both", `{"url":"https://images.example.test/result.png","b64_json":"aW1hZ2U="}`, true, true},
+		{"url only", `{"url":"https://images.example.test/result.png"}`, true, false},
+		{"base64 only", `{"b64_json":"aW1hZ2U="}`, false, true},
+		{"blank base64", `{"url":"https://images.example.test/result.png","b64_json":" \t"}`, true, false},
+		// 无效的 Base64 原样保留，由下游解码时报错，不在解析阶段悄悄换成下载。
+		{"invalid base64 is retained", `{"url":"https://images.example.test/result.png","b64_json":"invalid!"}`, true, true},
+	} {
+		for _, format := range []string{"json", "sse", "stream json"} {
+			t.Run(test.name+"/"+format, func(t *testing.T) {
+				body := `{"response":{"data":[{"image":` + test.payload + `,"revised_prompt":"revised"}]}}`
+				var output *portllm.GenerateOutput
+				var err error
+				if format == "json" {
+					output, err = parseOpenAIImageOutput([]byte(body), "webp")
+				} else {
+					output = &portllm.GenerateOutput{}
+					if format == "sse" {
+						body = "event: image_generation.completed\ndata: " + body + "\n\n"
 					}
-					if err != nil || len(output.GeneratedImages) != 1 {
-						t.Fatalf("parse result: err=%v", err)
-					}
-					image := output.GeneratedImages[0]
-					if (image.B64JSON != "") != test.wantB64 || (image.URL != "") == test.wantB64 {
-						t.Fatal("unexpected image source selection")
-					}
-					if image.MIMEType != "image/webp" || image.RevisedPrompt != "revised" {
-						t.Fatal("image metadata was not preserved")
-					}
-				})
-			}
+					err = consumeOpenAIImageStream(strings.NewReader(body), "webp", output, nil)
+				}
+				if err != nil || len(output.GeneratedImages) != 1 {
+					t.Fatalf("parse result: err=%v", err)
+				}
+				image := output.GeneratedImages[0]
+				if (image.URL != "") != test.wantURL || (image.B64JSON != "") != test.wantB64 {
+					t.Fatalf("unexpected image sources: URL=%t base64=%t", image.URL != "", image.B64JSON != "")
+				}
+				if image.MIMEType != "image/webp" || image.RevisedPrompt != "revised" {
+					t.Fatal("image metadata was not preserved")
+				}
+			})
 		}
 	}
 }
 
-func TestResponsesImageResultsKeepURLPriority(t *testing.T) {
+// Responses 的内嵌生图共用同一个解析函数，同样两者都保留。
+func TestResponsesImageResultKeepsURLAndBase64(t *testing.T) {
 	image, ok := parseResponsesGeneratedImage(map[string]any{
 		"type": "image_generation_call",
 		"result": map[string]any{
@@ -359,12 +362,14 @@ func TestResponsesImageResultsKeepURLPriority(t *testing.T) {
 			"b64_json": "aW1hZ2U=",
 		},
 	})
-	if !ok || image.URL == "" || image.B64JSON != "" {
-		t.Fatal("Responses image source priority changed")
+	if !ok || image.URL == "" || image.B64JSON == "" {
+		t.Fatalf("expected both image sources, got URL=%t base64=%t", image.URL != "", image.B64JSON != "")
 	}
 }
 
-func TestImageAdaptersUseRouteResultPreference(t *testing.T) {
+// 每个图片适配器在非流式、SSE 与流式请求收到普通 JSON 时，最终图与流式中间图都带上内联字节，
+// 且不改动请求的 response_format 与 stream。
+func TestImageAdaptersKeepInlineImageBytes(t *testing.T) {
 	for _, protocol := range []string{
 		portllm.AdapterOpenAIImageGenerations, portllm.AdapterOpenAIImageEdits,
 		portllm.AdapterOpenRouterImages, portllm.AdapterXAIImage, portllm.AdapterXAIImageEdits,
@@ -386,10 +391,10 @@ func TestImageAdaptersUseRouteResultPreference(t *testing.T) {
 							}
 							defer r.MultipartForm.RemoveAll() //nolint:errcheck
 							if r.FormValue("response_format") != "" {
-								t.Error("response preference changed request response_format")
+								t.Error("request response_format changed")
 							}
 							if (r.FormValue("stream") == "true") != stream {
-								t.Error("response preference changed request stream")
+								t.Error("request stream changed")
 							}
 						} else {
 							var payload map[string]any
@@ -398,10 +403,10 @@ func TestImageAdaptersUseRouteResultPreference(t *testing.T) {
 								return
 							}
 							if _, ok := payload["response_format"]; ok {
-								t.Error("response preference changed request response_format")
+								t.Error("request response_format changed")
 							}
 							if (payload["stream"] == true) != stream {
-								t.Error("response preference changed request stream")
+								t.Error("request stream changed")
 							}
 						}
 						entry := `{"url":"https://images.example.test/unavailable","b64_json":"aW1hZ2U="}`
@@ -420,33 +425,31 @@ func TestImageAdaptersUseRouteResultPreference(t *testing.T) {
 						{Kind: portllm.ContentPartText, Text: "draw"},
 						{Kind: portllm.ContentPartImage, MimeType: "image/png", Data: []byte("source")},
 					}}}}
-					for _, preferBase64 := range []bool{true, false, true} {
-						route := portllm.RouteConfig{Protocol: protocol, BaseURL: server.URL, UpstreamModel: "gpt-image-1", PreferBase64Images: preferBase64}
-						var output *portllm.GenerateOutput
-						var err error
-						partials := 0
-						if stream {
-							output, err = client.GenerateStream(t.Context(), route, input, func(event portllm.GenerateStreamEvent) error {
-								if event.GeneratedImage != nil {
-									partials++
-									if (event.GeneratedImage.B64JSON != "") != preferBase64 {
-										t.Error("partial image ignored result preference")
-									}
+					route := portllm.RouteConfig{Protocol: protocol, BaseURL: server.URL, UpstreamModel: "gpt-image-1"}
+					var output *portllm.GenerateOutput
+					var err error
+					partials := 0
+					if stream {
+						output, err = client.GenerateStream(t.Context(), route, input, func(event portllm.GenerateStreamEvent) error {
+							if event.GeneratedImage != nil {
+								partials++
+								if event.GeneratedImage.B64JSON == "" {
+									t.Error("partial image dropped its inline bytes")
 								}
-								return nil
-							})
-						} else {
-							output, err = client.Generate(t.Context(), route, input)
-						}
-						if err != nil || len(output.GeneratedImages) != 1 {
-							t.Fatalf("generate: err=%v", err)
-						}
-						if (output.GeneratedImages[0].B64JSON != "") != preferBase64 {
-							t.Fatal("final image ignored route result preference")
-						}
-						if stream && !jsonFallback && partials != 1 {
-							t.Fatalf("partial image count = %d", partials)
-						}
+							}
+							return nil
+						})
+					} else {
+						output, err = client.Generate(t.Context(), route, input)
+					}
+					if err != nil || len(output.GeneratedImages) != 1 {
+						t.Fatalf("generate: err=%v", err)
+					}
+					if image := output.GeneratedImages[0]; image.B64JSON == "" || image.URL == "" {
+						t.Fatalf("expected both image sources, got URL=%t base64=%t", image.URL != "", image.B64JSON != "")
+					}
+					if stream && !jsonFallback && partials != 1 {
+						t.Fatalf("partial image count = %d", partials)
 					}
 				})
 			}

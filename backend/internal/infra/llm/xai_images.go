@@ -129,7 +129,7 @@ func (c *Client) generateXAIImage(ctx context.Context, route portllm.RouteConfig
 	}
 
 	debug := upstreamDebugSnapshot(req, debugPayload, resp, body)
-	output, err := parseXAIImageOutput(body, protocol, route.PreferBase64Images)
+	output, err := parseXAIImageOutput(body, protocol)
 	if err != nil {
 		return nil, portllm.MarkRequestAccepted(attachUpstreamDebug(err, debug))
 	}
@@ -248,7 +248,7 @@ func xAIImageResponseFormat(options map[string]any) string {
 }
 
 // parseXAIImageOutput 解析 xAI 图片响应；图片字节只进入 GeneratedImages。
-func parseXAIImageOutput(body []byte, protocol string, preferBase64 bool) (*portllm.GenerateOutput, error) {
+func parseXAIImageOutput(body []byte, protocol string) (*portllm.GenerateOutput, error) {
 	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
@@ -265,7 +265,7 @@ func parseXAIImageOutput(body []byte, protocol string, preferBase64 bool) (*port
 	data := asSlice(parsed["data"])
 	citations := make([]string, 0, len(data))
 	for _, item := range data {
-		if image, ok := parseXAIImagePayload(asMap(item), preferBase64); ok {
+		if image, ok := parseXAIImagePayload(asMap(item)); ok {
 			if url := strings.TrimSpace(image.URL); url != "" {
 				citations = append(citations, url)
 			}
@@ -273,7 +273,7 @@ func parseXAIImageOutput(body []byte, protocol string, preferBase64 bool) (*port
 		}
 	}
 	if len(data) == 0 {
-		if image, ok := parseXAIImagePayload(parsed, preferBase64); ok {
+		if image, ok := parseXAIImagePayload(parsed); ok {
 			if url := strings.TrimSpace(image.URL); url != "" {
 				citations = append(citations, url)
 			}
@@ -284,7 +284,7 @@ func parseXAIImageOutput(body []byte, protocol string, preferBase64 bool) (*port
 	return result, nil
 }
 
-func parseXAIImagePayload(payload map[string]any, preferBase64 bool) (portllm.GeneratedImage, bool) {
+func parseXAIImagePayload(payload map[string]any) (portllm.GeneratedImage, bool) {
 	if len(payload) == 0 {
 		return portllm.GeneratedImage{}, false
 	}
@@ -293,29 +293,21 @@ func parseXAIImagePayload(payload map[string]any, preferBase64 bool) (portllm.Ge
 	if revisedPrompt == "" {
 		revisedPrompt = strings.TrimSpace(getString(payload["revisedPrompt"]))
 	}
+	// url 与 b64_json 同时出现时两者都保留，下游先用内联字节，见 parseOpenAIImagePayload。
+	url := strings.TrimSpace(getString(payload["url"]))
+	if url == "" {
+		url = strings.TrimSpace(getString(asMap(payload["file_output"])["public_url"]))
+	}
 	b64 := strings.TrimSpace(getString(payload["b64_json"]))
-	if url := strings.TrimSpace(getString(payload["url"])); url != "" && (!preferBase64 || b64 == "") {
-		return portllm.GeneratedImage{
-			URL:           url,
-			MIMEType:      mimeType,
-			RevisedPrompt: revisedPrompt,
-		}, true
+	if url == "" && b64 == "" {
+		return portllm.GeneratedImage{}, false
 	}
-	if b64 != "" {
-		return portllm.GeneratedImage{
-			B64JSON:       b64,
-			MIMEType:      mimeType,
-			RevisedPrompt: revisedPrompt,
-		}, true
-	}
-	if publicURL := strings.TrimSpace(getString(asMap(payload["file_output"])["public_url"])); publicURL != "" {
-		return portllm.GeneratedImage{
-			URL:           publicURL,
-			MIMEType:      mimeType,
-			RevisedPrompt: revisedPrompt,
-		}, true
-	}
-	return portllm.GeneratedImage{}, false
+	return portllm.GeneratedImage{
+		URL:           url,
+		B64JSON:       b64,
+		MIMEType:      mimeType,
+		RevisedPrompt: revisedPrompt,
+	}, true
 }
 
 // xAIImageMIMEType 优先采用官方响应中的 MIME；旧代理未返回时回退为 JPEG。

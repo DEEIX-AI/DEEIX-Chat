@@ -279,7 +279,7 @@ func TestParseXAIImageOutput(t *testing.T) {
 			{"url": "https://example.com/a.jpg", "mime_type": "image/webp"},
 			{"b64_json": "aGVsbG8=", "mime_type": "image/png", "revised_prompt": "A revised render"}
 		]
-	}`), portllm.AdapterXAIImage, false)
+	}`), portllm.AdapterXAIImage)
 	if err != nil {
 		t.Fatalf("parse xAI image output: %v", err)
 	}
@@ -297,5 +297,27 @@ func TestParseXAIImageOutput(t *testing.T) {
 	}
 	if len(output.Citations) != 1 || output.Citations[0] != "https://example.com/a.jpg" {
 		t.Fatalf("expected URL citation, got %#v", output.Citations)
+	}
+}
+
+// url（或 file_output.public_url）与 b64_json 同时出现时两者都保留，下游先用内联字节。
+func TestParseXAIImageOutputKeepsURLAndBase64Together(t *testing.T) {
+	output, err := parseXAIImageOutput([]byte(`{
+		"data": [
+			{"url": "https://example.com/a.jpg", "b64_json": "aGVsbG8="},
+			{"file_output": {"public_url": "https://example.com/b.jpg"}, "b64_json": "d29ybGQ="}
+		]
+	}`), portllm.AdapterXAIImage)
+	if err != nil {
+		t.Fatalf("parse xAI image output: %v", err)
+	}
+	if len(output.GeneratedImages) != 2 {
+		t.Fatalf("expected two generated images, got %#v", output.GeneratedImages)
+	}
+	if image := output.GeneratedImages[0]; image.URL != "https://example.com/a.jpg" || image.B64JSON != "aGVsbG8=" {
+		t.Fatalf("expected both the URL and the inline bytes, got %#v", image)
+	}
+	if image := output.GeneratedImages[1]; image.URL != "https://example.com/b.jpg" || image.B64JSON != "d29ybGQ=" {
+		t.Fatalf("expected both the public URL and the inline bytes, got %#v", image)
 	}
 }

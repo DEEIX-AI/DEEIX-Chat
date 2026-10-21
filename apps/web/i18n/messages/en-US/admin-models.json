@@ -460,8 +460,6 @@
     "capabilitiesVisualButton": "Visual config (Recommended)",
     "capabilitiesAdvancedJSON": "Advanced JSON",
     "imageStreamEnabled": "Image streaming calls",
-    "imagePreferBase64": "Prefer Base64 image results",
-    "imagePreferBase64Description": "When both Base64 and a URL are provided, prefer image data from the response to avoid an additional download.",
     "capabilitiesQuick": {
       "button": "Quick config",
       "title": "Model capabilities config",
