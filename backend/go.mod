@@ -1,6 +1,6 @@
 module github.com/DEEIX-AI/DEEIX-Chat/backend
 
-go 1.26.8
+go 1.26.10
 
 require (
 	github.com/asg017/sqlite-vec-go-bindings v0.1.6
@@ -35,7 +35,7 @@ require (
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.57.0
 	golang.org/x/image v0.45.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sync v0.23.0
 	golang.org/x/text v0.42.0
 	gopkg.in/yaml.v3 v3.0.1

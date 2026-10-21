@@ -154,7 +154,7 @@ The backend keeps clear internal boundaries: `backend/cmd/server` is the executa
 
 - Node.js 20.9 or newer (the repository Docker image and CI use Node.js 24).
 - pnpm 10.17.0, normally enabled through Corepack.
-- Go 1.26.8 for backend development.
+- Go 1.26.10 for backend development.
 - Docker Engine with Docker Compose v2 for container deployments or local PostgreSQL/Redis services.
 
 The SQLite profile does not require a separately managed database or cache. The default development configuration uses PostgreSQL and Redis; the full Compose profile starts both services for you.
