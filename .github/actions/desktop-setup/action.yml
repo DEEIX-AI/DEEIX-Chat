@@ -1,0 +1,75 @@
+name: Desktop build setup
+description: Restore target-specific toolchains and caches, and consume the shared web/catalog artifacts.
+
+inputs:
+  target:
+    description: Rust target triple; also separates cross-compiled Go and Rust caches.
+    required: true
+  source-sha:
+    description: Immutable source commit used to refresh the Go compilation cache.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Verify source commit
+      shell: bash
+      env:
+        SOURCE_SHA: ${{ inputs.source-sha }}
+      run: node apps/desktop/scripts/desktop-source.mjs
+    - uses: pnpm/action-setup@v5
+      with:
+        version: 10.17.0
+    - uses: actions/setup-node@v5
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.99.1
+        targets: ${{ inputs.target }}
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: apps/desktop/src-tauri
+        shared-key: desktop-release-${{ inputs.target }}
+    - uses: actions/setup-go@v6
+      id: go
+      with:
+        go-version-file: backend/go.mod
+        cache: false
+    - name: Locate Go caches
+      id: go-paths
+      shell: bash
+      run: |
+        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "modules=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+    # Both macOS targets run on arm64, so key compiled packages by target
+    # triple; the source SHA refreshes builds while retaining dependency caches.
+    - name: Cache Go sidecar build
+      uses: actions/cache@v5
+      with:
+        path: |
+          ${{ steps.go-paths.outputs.build }}
+          ${{ steps.go-paths.outputs.modules }}
+        key: desktop-go-${{ runner.os }}-${{ inputs.target }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-${{ inputs.source-sha }}
+        restore-keys: |
+          desktop-go-${{ runner.os }}-${{ inputs.target }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-
+          desktop-go-${{ runner.os }}-${{ inputs.target }}-${{ steps.go.outputs.go-version }}-
+    - name: Install desktop CLI
+      shell: bash
+      run: pnpm --filter @deeix/desktop install --frozen-lockfile
+    - name: Download frontend
+      uses: actions/download-artifact@v7
+      with:
+        name: desktop-web
+        path: apps/web/out
+    - name: Download catalog snapshots
+      uses: actions/download-artifact@v7
+      with:
+        name: desktop-catalog
+        path: backend/internal/infra/catalogdata/data
+    - name: Check C compiler and frontend
+      shell: bash
+      run: |
+        gcc --version
+        test -f apps/web/out/index.html

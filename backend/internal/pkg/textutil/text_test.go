@@ -36,3 +36,14 @@ func TestTruncateTrimmed(t *testing.T) {
 		t.Fatalf("TruncateTrimmed() = %q, want %q", got, "你好世")
 	}
 }
+
+func TestSanitizeForTextColumn(t *testing.T) {
+	clean := "普通文本 123"
+	if got := SanitizeForTextColumn(clean); got != clean {
+		t.Fatalf("clean text changed: %q", got)
+	}
+	// 抓取到二进制内容时解码出的 NUL 与非法 UTF-8 都不能进入 text 列；连续的非法字节合并为一个替换符。
+	if got := SanitizeForTextColumn("GIF89a\x00\xff\xfe tail"); got != "GIF89a\uFFFD tail" {
+		t.Fatalf("unexpected sanitized value: %q", got)
+	}
+}

@@ -20,7 +20,6 @@ concurrency:
 
 env:
   PNPM_VERSION: 10.17.0
-  NODE_VERSION: 24
   # Incremental artefacts are useless across CI runs and bloat the Rust cache.
   CARGO_INCREMENTAL: 0
 
@@ -36,9 +35,9 @@ jobs:
       docker: ${{ steps.filter.outputs.docker }}
       lockfiles: ${{ steps.filter.outputs.lockfiles }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             shared: &shared
@@ -77,7 +76,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Check commit subjects
@@ -113,8 +112,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
@@ -140,15 +139,15 @@ jobs:
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
         with:
           version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
           cache: pnpm
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
@@ -159,7 +158,7 @@ jobs:
       - name: Test
         run: pnpm turbo run test --filter=./packages/*
       - name: Cache Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apps/web/.next/cache
           # Source hash excludes installed and generated trees, which exist by the time this step runs.
@@ -178,7 +177,7 @@ jobs:
       run:
         working-directory: apps/desktop/src-tauri
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -213,11 +212,11 @@ jobs:
     if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/ruff-action@v3
+      - uses: actions/checkout@v5
+      - uses: astral-sh/ruff-action@v4.1.0
         with:
           args: check deploy/services backend/tools
-      - uses: astral-sh/ruff-action@v3
+      - uses: astral-sh/ruff-action@v4.1.0
         with:
           args: format --check deploy/services backend/tools
 
@@ -227,13 +226,13 @@ jobs:
     if: needs.changes.outputs.docker == 'true'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v4
       # Builds the default Dockerfile target, the path users take; release images use the prebuilt
       # web assets (see .github/workflows/image.yml). mode=min keeps this job from filling the
       # repository-wide cache quota with the multi-GB install and compile layers.
       - name: Build image (no push)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: false
@@ -246,13 +245,13 @@ jobs:
     if: needs.changes.outputs.lockfiles == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
         with:
           version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - name: Install

@@ -1,0 +1,109 @@
+name: Desktop · Shared inputs
+
+on:
+  workflow_call:
+    inputs:
+      release-tag:
+        type: string
+        default: ""
+    outputs:
+      source-sha:
+        value: ${{ jobs.resolve.outputs.source-sha }}
+      release-tag:
+        value: ${{ jobs.resolve.outputs.release-tag }}
+      channel:
+        value: ${{ jobs.resolve.outputs.channel }}
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: Resolve source and version
+    runs-on: ubuntu-24.04
+    outputs:
+      source-sha: ${{ steps.source.outputs.sha }}
+      release-tag: ${{ steps.source.outputs.release-tag }}
+      channel: ${{ steps.source.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify source
+        id: source
+        env:
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: |
+          if [[ ! -f .github/actions/desktop-setup/action.yml || ! -f apps/desktop/scripts/collect-release-assets.mjs ]]; then
+            echo "::error::This source predates the reusable desktop build. Rerun its original workflow, or choose a tag containing the new build scripts."
+            exit 1
+          fi
+          node --input-type=module <<'JS'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          import { currentDesktopSource } from './apps/desktop/scripts/desktop-source.mjs';
+          const { sha, releaseTag: tag } = currentDesktopSource();
+          execFileSync(process.execPath, ['scripts/sync-version.mjs', '--check'], { stdio: 'inherit' });
+          const version = readFileSync('VERSION', 'utf8').trim();
+          if (tag && tag !== `v${version}`) throw new Error(`Tag ${tag} does not match VERSION ${version}`);
+          const channel = version.includes('-') ? 'beta' : 'stable';
+          appendFileSync(process.env.GITHUB_OUTPUT, `sha=${sha}\nrelease-tag=${tag}\nchannel=${channel}\n`);
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Source: ${sha}\n\nVersion: ${version} (${channel})\n`);
+          JS
+
+  web:
+    name: Build frontend once
+    needs: resolve
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 10.17.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Restore compatible default-branch CI caches; new entries stay ref-scoped.
+      - name: Cache Next.js build
+        uses: actions/cache@v5
+        with:
+          path: apps/web/.next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/**/*.[jt]s', 'apps/web/**/*.[jt]sx', 'packages/**/*.ts', '!**/node_modules/**', '!apps/web/.next/**', '!apps/web/out/**') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - run: pnpm turbo run build --filter=@deeix/web
+      - uses: actions/upload-artifact@v6
+        with:
+          name: desktop-web
+          path: apps/web/out
+          include-hidden-files: true
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+
+  catalog:
+    name: Refresh catalog once
+    needs: resolve
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Refresh bundled catalog snapshots
+        working-directory: backend
+        run: go run ./cmd/catalog-snapshot -keep-on-error
+      - uses: actions/upload-artifact@v6
+        with:
+          name: desktop-catalog
+          path: backend/internal/infra/catalogdata/data
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7

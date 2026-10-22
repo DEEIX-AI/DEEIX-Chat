@@ -4,13 +4,12 @@
 # so `docker build .` and the release workflow (.github/workflows/image.yml) produce the same image.
 # Dependency and compiler caches live in BuildKit cache mounts; CI persists them between runs.
 
-FROM node:24-bookworm-slim AS frontend-builder
+FROM node:26.12.1-bookworm-slim AS frontend-builder
 
 WORKDIR /src
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 ARG NEXT_PUBLIC_API_BASE_URL=""
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
@@ -23,10 +22,11 @@ COPY packages/core/package.json ./packages/core/package.json
 COPY apps/web/scripts ./apps/web/scripts
 COPY apps/web/public/pwa ./apps/web/public/pwa
 
-RUN corepack enable
+# Node 26 images no longer bundle Corepack, so pnpm comes from npm and its version
+# still comes from the workspace's `packageManager` field.
+RUN npm install -g "$(node -p "require('./package.json').packageManager")"
 
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    --mount=type=cache,id=corepack,target=/root/.cache/node/corepack \
     pnpm config set store-dir /pnpm/store \
     && pnpm install --frozen-lockfile --prefer-offline --filter @deeix/web
 
@@ -40,11 +40,10 @@ WORKDIR /src/apps/web
 
 # Turbopack keeps its build cache in .next/cache (enabled by default since Next.js 16).
 RUN --mount=type=cache,id=next-cache,target=/src/apps/web/.next/cache \
-    --mount=type=cache,id=corepack,target=/root/.cache/node/corepack \
     pnpm build
 
 
-FROM golang:1.26.8-bookworm AS backend-builder
+FROM golang:1.26.10-bookworm AS backend-builder
 
 WORKDIR /src/backend
 
