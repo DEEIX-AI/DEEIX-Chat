@@ -1,6 +1,17 @@
 package tracing
 
-import "testing"
+import (
+	"testing"
+
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+)
+
+func TestSemconvMatchesSDKResourceSchema(t *testing.T) {
+	if got, want := resource.Default().SchemaURL(), semconv.SchemaURL; got != want {
+		t.Fatalf("tracing.go imports semconv %s but otel/sdk builds resources as %s; bump the import", want, got)
+	}
+}
 
 func TestEnabledUsesEndpointWhenFlagUnset(t *testing.T) {
 	if !enabled(Config{Endpoint: "127.0.0.1:4317"}) {
