@@ -22,7 +22,7 @@ runs:
         version: 10.17.0
     - uses: actions/setup-node@v5
       with:
-        node-version: 24
+        node-version-file: .nvmrc
         cache: pnpm
     - uses: dtolnay/rust-toolchain@stable
       with:

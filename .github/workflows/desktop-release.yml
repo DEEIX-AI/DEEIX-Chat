@@ -105,7 +105,7 @@ jobs:
         run: node apps/desktop/scripts/desktop-source.mjs
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           package-manager-cache: false
       - name: Download verified release assets
         uses: actions/download-artifact@v7
