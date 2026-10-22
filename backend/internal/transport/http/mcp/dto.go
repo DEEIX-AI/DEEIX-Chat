@@ -8,6 +8,7 @@ type ServerResponse struct {
 	BaseURL                              string     `json:"baseURL"`
 	HeadersJSON                          string     `json:"headersJSON"`
 	Status                               string     `json:"status"`
+	FileCreateEnabled                    bool       `json:"fileCreateEnabled"`
 	SortOrder                            int        `json:"sortOrder"`
 	ToolCount                            int        `json:"toolCount"`
 	ActiveToolCount                      int        `json:"activeToolCount"`
@@ -43,6 +44,8 @@ type CreateServerRequest struct {
 	AuthToken   string `json:"authToken,omitempty"`
 	HeadersJSON string `json:"headersJSON,omitempty"`
 	Status      string `json:"status,omitempty"`
+	// FileCreateEnabled authorizes automatic creation of one user file per persistent tool call.
+	FileCreateEnabled *bool `json:"fileCreateEnabled,omitempty"`
 }
 
 type UpdateToolRequest struct {
@@ -99,6 +102,24 @@ type ServerToolOrderListResponse struct {
 // ErrorDoc 表示 MCP 管理接口的错误响应。
 type ErrorDoc struct {
 	ErrorMsg string `json:"errorMsg"`
+}
+
+type FileCreateResponse struct {
+	FileID           string `json:"file_id"`
+	FileName         string `json:"file_name"`
+	SizeBytes        int64  `json:"size_bytes"`
+	SHA256           string `json:"sha256"`
+	Reused           bool   `json:"reused"`
+	Replayed         bool   `json:"replayed"`
+	ProcessingStatus string `json:"processing_status"`
+	ExtractStatus    string `json:"extract_status"`
+	EmbedStatus      string `json:"embed_status"`
+	ProcessingReady  bool   `json:"processing_ready"`
+}
+
+type FileCreateResponseDoc struct {
+	ErrorMsg string             `json:"errorMsg"`
+	Data     FileCreateResponse `json:"data"`
 }
 
 // ServerListResponseDoc 包裹 MCP 服务列表响应。

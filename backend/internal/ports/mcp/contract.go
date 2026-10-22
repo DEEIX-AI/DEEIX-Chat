@@ -3,12 +3,17 @@ package mcp
 
 import "encoding/json"
 
+const FileCreateHeader = "X-Deeix-File-Create-Token"
+
 // CallConfig 定义 MCP 调用配置。
 type CallConfig struct {
 	BaseURL   string
 	AuthToken string
 	TimeoutMS int
 	Headers   map[string]string
+	// FileCreateToken is issued by DEEIX, only sent on tools/call, never discovery.
+	FileCreateToken string
+	FileCreateEpoch uint
 }
 
 // CallInput 定义 MCP 工具调用入参。

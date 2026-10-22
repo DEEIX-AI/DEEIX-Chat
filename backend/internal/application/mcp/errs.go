@@ -16,5 +16,9 @@ var (
 	ErrInvalidToolPrice            = apperr.New("request.invalid_mcp_tool_price", "invalid mcp tool price")
 	ErrMCPClientUnavailable        = apperr.New("mcp.client_unavailable", "mcp client unavailable")
 	// ErrServerLimitExceeded MCP 服务数量超限。
-	ErrServerLimitExceeded = apperr.New("mcp.server_limit_exceeded", "mcp server limit exceeded")
+	ErrServerLimitExceeded    = apperr.New("mcp.server_limit_exceeded", "mcp server limit exceeded")
+	ErrFileCreateUnauthorized = apperr.New("mcp.file_create.unauthorized", "file create capability is invalid, expired or revoked")
+	ErrFileCreateConflict     = apperr.New("mcp.file_create.conflict", "file create capability is bound to another file or existing content is unavailable")
+	ErrFileCreateResultGone   = apperr.New("mcp.file_create.result_gone", "original file create result is no longer available")
+	ErrFileCreateInvalidInput = apperr.New("mcp.file_create.invalid_input", "exactly one bounded file is required")
 )

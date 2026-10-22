@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -25,16 +26,18 @@ type fileProcessingLease struct {
 }
 
 type fileQueueState struct {
-	queue    []repository.FileProcessingMessage
-	inflight map[string]fileProcessingLease
-	dlq      []repository.FileProcessingMessage
-	notify   chan struct{}
+	queue       []repository.FileProcessingMessage
+	inflight    map[string]fileProcessingLease
+	dlq         []repository.FileProcessingMessage
+	notify      chan struct{}
+	outstanding map[string]bool
 }
 
 func newFileQueueState() fileQueueState {
 	return fileQueueState{
-		inflight: map[string]fileProcessingLease{},
-		notify:   make(chan struct{}),
+		inflight:    map[string]fileProcessingLease{},
+		outstanding: map[string]bool{},
+		notify:      make(chan struct{}),
 	}
 }
 
@@ -88,6 +91,11 @@ func (c *Cache) enqueueFileMessage(ctx context.Context, message repository.FileP
 	c.mu.Lock()
 	now := time.Now()
 	state := c.fileQueueState(message.Queue)
+	key := processingMessageKey(message)
+	if key != "" && state.outstanding[key] {
+		c.mu.Unlock()
+		return nil
+	}
 	if len(state.queue) >= maxFileQueueLength {
 		c.maybeSweepLocked(now)
 		c.mu.Unlock()
@@ -99,6 +107,9 @@ func (c *Cache) enqueueFileMessage(ctx context.Context, message repository.FileP
 	message.LastError = truncateFileQueueError(message.LastError)
 	msg := message
 	state.queue = append(state.queue, msg)
+	if key != "" {
+		state.outstanding[key] = true
+	}
 	notifyFileQueueLocked(state)
 	c.maybeSweepLocked(now)
 	c.mu.Unlock()
@@ -233,6 +244,7 @@ func (c *Cache) SettleFileProcessingMessage(ctx context.Context, consumerName st
 		return false, nil
 	}
 	delete(state.inflight, messageID)
+	delete(state.outstanding, processingMessageKey(message))
 	c.maybeSweepLocked(time.Now())
 	return true, nil
 }
@@ -314,6 +326,7 @@ func (c *Cache) DeadLetterFileProcessingMessage(
 	if len(state.dlq) > 10_000 {
 		state.dlq = append([]repository.FileProcessingMessage(nil), state.dlq[len(state.dlq)-10_000:]...)
 	}
+	delete(state.outstanding, processingMessageKey(message))
 	delete(state.inflight, messageID)
 	c.maybeSweepLocked(time.Now())
 	return true, nil
@@ -334,6 +347,13 @@ func queueForMessage(message repository.FileProcessingMessage) repository.FilePr
 		return repository.FileProcessingQueueEmbedding
 	}
 	return repository.FileProcessingQueueDefault
+}
+
+func processingMessageKey(message repository.FileProcessingMessage) string {
+	if message.Kind != "" || queueForMessage(message) != repository.FileProcessingQueueDefault {
+		return ""
+	}
+	return fmt.Sprintf("%d:%s", message.UserID, strings.TrimSpace(message.FileID))
 }
 
 func notifyFileQueueLocked(state *fileQueueState) {

@@ -134,3 +134,45 @@ func TestFileEmbeddingQueueIsIsolatedFromExtractionQueue(t *testing.T) {
 		t.Fatalf("embedding message queue = %q", embeddingMessages[0].Queue)
 	}
 }
+
+func TestFileProcessingRecoveryEnqueueIsIdempotentUntilSettlement(t *testing.T) {
+	cache := New()
+	ctx := context.Background()
+	for i := 0; i < 10; i++ {
+		if err := cache.EnqueueFileProcessing(ctx, 1, "file", 0, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(cache.fileProcessingQueue.queue) != 1 {
+		t.Fatal("recovery duplicated queued work")
+	}
+	messages, err := cache.ReadFileProcessingMessages(ctx, "worker")
+	if err != nil || len(messages) != 1 {
+		t.Fatal(err)
+	}
+	if err = cache.EnqueueFileProcessing(ctx, 1, "file", 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	if len(cache.fileProcessingQueue.queue) != 0 {
+		t.Fatal("recovery duplicated inflight work")
+	}
+	if ok, retryErr := cache.RequeueFileProcessingMessage(ctx, "worker", messages[0], 1, "retry"); retryErr != nil || !ok {
+		t.Fatal(retryErr)
+	}
+	if err = cache.EnqueueFileProcessing(ctx, 1, "file", 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	if len(cache.fileProcessingQueue.queue) != 1 {
+		t.Fatal("recovery duplicated a retry")
+	}
+	messages, err = cache.ReadFileProcessingMessages(ctx, "worker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, settleErr := cache.SettleFileProcessingMessage(ctx, "worker", messages[0]); settleErr != nil || !ok {
+		t.Fatal(settleErr)
+	}
+	if len(cache.fileProcessingQueue.outstanding) != 0 {
+		t.Fatal("settlement leaked outstanding key")
+	}
+}

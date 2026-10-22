@@ -14,8 +14,11 @@ import (
 )
 
 type Handler struct {
-	service *appmcp.Service
+	service    *appmcp.Service
+	fileCreate *appmcp.FileCreateService
 }
+
+func (h *Handler) SetFileCreateService(service *appmcp.FileCreateService) { h.fileCreate = service }
 
 func NewHandler(service *appmcp.Service) *Handler {
 	return &Handler{service: service}
@@ -84,11 +87,12 @@ func (h *Handler) CreateServer(c *gin.Context) {
 		return
 	}
 	item, err := h.service.CreateServer(c.Request.Context(), appmcp.ServerInput{
-		Name:        req.Name,
-		BaseURL:     req.BaseURL,
-		AuthToken:   req.AuthToken,
-		HeadersJSON: req.HeadersJSON,
-		Status:      req.Status,
+		Name:              req.Name,
+		BaseURL:           req.BaseURL,
+		AuthToken:         req.AuthToken,
+		HeadersJSON:       req.HeadersJSON,
+		Status:            req.Status,
+		FileCreateEnabled: req.FileCreateEnabled,
 	})
 	if err != nil {
 		writeServiceError(c, err)
@@ -121,11 +125,12 @@ func (h *Handler) UpdateServer(c *gin.Context) {
 		return
 	}
 	item, err := h.service.UpdateServer(c.Request.Context(), serverID, appmcp.ServerInput{
-		Name:        req.Name,
-		BaseURL:     req.BaseURL,
-		AuthToken:   req.AuthToken,
-		HeadersJSON: req.HeadersJSON,
-		Status:      req.Status,
+		Name:              req.Name,
+		BaseURL:           req.BaseURL,
+		AuthToken:         req.AuthToken,
+		HeadersJSON:       req.HeadersJSON,
+		Status:            req.Status,
+		FileCreateEnabled: req.FileCreateEnabled,
 	})
 	if err != nil {
 		writeServiceError(c, err)
@@ -379,6 +384,7 @@ func writeServiceError(c *gin.Context, err error) {
 
 func toServerResponse(item domainmcp.Server) ServerResponse {
 	return ServerResponse{
+		FileCreateEnabled:                    item.FileCreateEnabled,
 		ID:                                   item.ID,
 		Name:                                 item.Name,
 		BaseURL:                              item.BaseURL,

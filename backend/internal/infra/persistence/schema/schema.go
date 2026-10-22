@@ -32,6 +32,7 @@ func Models() []any {
 		&models.LLMUserProvider{},
 		&models.MCPServer{},
 		&models.MCPTool{},
+		&models.MCPFileCreateGrant{},
 		&models.Conversation{},
 		&models.ConversationProject{},
 		&models.ConversationShare{},

@@ -199,7 +199,7 @@ func isMediaGenerationRoute(method string, route string) bool {
 }
 
 func isFileUploadRoute(method string, route string) bool {
-	return method == http.MethodPost && route == "/files"
+	return method == http.MethodPost && (route == "/files" || route == "/mcp/servers/:id/files")
 }
 
 func isPollingRoute(method string, route string) bool {

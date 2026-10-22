@@ -307,56 +307,7 @@ func (s *Service) ResolveFileVectorizationCapabilities(
 
 // InitializeUploadedFile 初始化新上传文件的处理状态。
 func (s *Service) InitializeUploadedFile(ctx context.Context, fileObj *domainconversation.FileObject) error {
-	if fileObj == nil {
-		return nil
-	}
-	if fileObj.FileCategory == "video" || fileObj.FileCategory == "audio" || (fileObj.FileCategory == "image" && !s.snapshot().ExtractImageOCREnabled) {
-		fileObj.ProcessingStatus = "ready"
-		fileObj.ProcessingReady = true
-		fileObj.ExtractStatus = "none"
-		ragReason := "image_not_applicable"
-		switch fileObj.FileCategory {
-		case "video":
-			ragReason = "video_not_applicable"
-		case "audio":
-			ragReason = "audio_not_applicable"
-		}
-		return s.repo.UpdateFileObjectProcessingState(ctx, s.readyWithoutExtractionState(fileObj, ragReason))
-	}
-
-	if !supportsExtraction(fileObj.FileCategory) {
-		return s.markFileProcessingFailed(ctx, fileObj, "mime_blocked", "unsupported file category")
-	}
-
-	now := time.Now()
-	if err := s.repo.UpdateFileObjectProcessingState(ctx, &domainconversation.FileObjectProcessing{
-		FileObjectID:     fileObj.ID,
-		UserID:           fileObj.UserID,
-		DetectedMIME:     fileObj.DetectedMIME,
-		FileCategory:     fileObj.FileCategory,
-		ProcessingStatus: "queued",
-		ProcessingReady:  false,
-		ExtractStatus:    "none",
-		ExtractorVersion: s.version(),
-		StartedAt:        &now,
-	}); err != nil {
-		return err
-	}
-	if err := s.enqueueFileProcessing(ctx, fileObj.UserID, fileObj.FileID, 0, ""); err != nil {
-		code := "queue_unavailable"
-		if errors.Is(err, repository.ErrFileProcessingQueueFull) {
-			code = "queue_full"
-		}
-		if failErr := s.markFileProcessingFailed(ctx, fileObj, code, HumanizeFileProcessingError(fileObj.FileCategory, code, "")); failErr != nil && s.logger != nil {
-			s.logger.Warn("mark_file_failed_after_enqueue_error",
-				zap.Uint("user_id", fileObj.UserID),
-				zap.String("file_id", fileObj.FileID),
-				zap.Error(failErr),
-			)
-		}
-		return err
-	}
-	return nil
+	return s.ensureUploadedFileProcessing(ctx, fileObj, true)
 }
 
 // ProcessFile 执行单个文件处理任务。
