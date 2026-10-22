@@ -706,15 +706,13 @@ func parseOpenAIImagePayload(payload map[string]any, outputFormat string) (portl
 	if declared := declaredImageMediaType(payload); declared != "" {
 		mimeType = declared
 	}
-	if url := strings.TrimSpace(getString(payload["url"])); url != "" {
+	// 兼容网关可能在同一条目里同时返回 url 与 b64_json：两者都保留。下游先用内联字节，
+	// 只在没有字节时才下载 url，避免一次多余且可能失败的下载让已经成功的生成失败。
+	url := strings.TrimSpace(getString(payload["url"]))
+	b64 := strings.TrimSpace(getString(payload["b64_json"]))
+	if url != "" || b64 != "" {
 		return portllm.GeneratedImage{
 			URL:           url,
-			MIMEType:      mimeType,
-			RevisedPrompt: strings.TrimSpace(getString(payload["revised_prompt"])),
-		}, true
-	}
-	if b64 := strings.TrimSpace(getString(payload["b64_json"])); b64 != "" {
-		return portllm.GeneratedImage{
 			B64JSON:       b64,
 			MIMEType:      mimeType,
 			RevisedPrompt: strings.TrimSpace(getString(payload["revised_prompt"])),

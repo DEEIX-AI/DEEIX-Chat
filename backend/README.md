@@ -4,7 +4,7 @@ DEEIX Chat 后端是 Go API 服务，负责认证、用户、对话、模型渠�
 
 ## 技术栈
 
-- Go 1.26.8
+- Go 1.26.10
 - Gin
 - Gorm
 - PostgreSQL + pgvector 或 SQLite + sqlite-vec

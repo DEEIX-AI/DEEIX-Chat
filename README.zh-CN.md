@@ -152,9 +152,9 @@ flowchart TB
 
 ## 开发前置条件
 
-- Node.js 20.9 或更高版本（仓库 Docker 镜像和 CI 使用 Node.js 24）。
-- pnpm 10.17.0，通常通过 Corepack 启用。
-- Go 1.26.8，用于后端开发。
+- Node.js 22.23.4、24.22.1 或 26.12.1，即每条维护线第一个修复安全公告的版本（`engines` 允许这三条线；Node 20 及更早已停止维护）。`.nvmrc`、CI 与 Docker 镜像统一使用 26.12.1。
+- pnpm 10.17.0（`npm install -g pnpm@10.17.0`；Node 26 起不再随附 Corepack）。
+- Go 1.26.10，用于后端开发。
 - Docker Engine 与 Docker Compose v2，用于容器部署或启动本地 PostgreSQL/Redis。
 
 SQLite 方案不要求单独管理数据库或缓存。默认开发配置使用 PostgreSQL 和 Redis；完整 Compose 方案会自动启动这两个服务。

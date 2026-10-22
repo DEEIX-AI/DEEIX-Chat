@@ -20,7 +20,6 @@ concurrency:
 
 env:
   PNPM_VERSION: 10.17.0
-  NODE_VERSION: 24
   # Incremental artefacts are useless across CI runs and bloat the Rust cache.
   CARGO_INCREMENTAL: 0
 
@@ -146,7 +145,7 @@ jobs:
           version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
           cache: pnpm
       - uses: actions/setup-go@v6
         with:
@@ -252,7 +251,7 @@ jobs:
           version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - name: Install

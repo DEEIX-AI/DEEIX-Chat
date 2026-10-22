@@ -1,8 +1,11 @@
 {
   "name": "@deeix/chat-monorepo",
-  "version": "0.4.6-beta.1",
+  "version": "0.4.6",
   "private": true,
   "packageManager": "pnpm@10.17.0",
+  "engines": {
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
+  },
   "scripts": {
     "dev": "turbo run dev",
     "dev:api": "turbo run dev --filter=@deeix/api",

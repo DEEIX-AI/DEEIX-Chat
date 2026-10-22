@@ -204,7 +204,7 @@ function ProtocolsDropdown({
   }
 
   return (
-    <Popover>
+    <Popover modal>
       <PopoverTrigger asChild>
         <Button
           type="button"

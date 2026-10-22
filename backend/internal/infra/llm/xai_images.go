@@ -293,28 +293,21 @@ func parseXAIImagePayload(payload map[string]any) (portllm.GeneratedImage, bool)
 	if revisedPrompt == "" {
 		revisedPrompt = strings.TrimSpace(getString(payload["revisedPrompt"]))
 	}
-	if url := strings.TrimSpace(getString(payload["url"])); url != "" {
-		return portllm.GeneratedImage{
-			URL:           url,
-			MIMEType:      mimeType,
-			RevisedPrompt: revisedPrompt,
-		}, true
+	// url 与 b64_json 同时出现时两者都保留，下游先用内联字节，见 parseOpenAIImagePayload。
+	url := strings.TrimSpace(getString(payload["url"]))
+	if url == "" {
+		url = strings.TrimSpace(getString(asMap(payload["file_output"])["public_url"]))
 	}
-	if b64 := strings.TrimSpace(getString(payload["b64_json"])); b64 != "" {
-		return portllm.GeneratedImage{
-			B64JSON:       b64,
-			MIMEType:      mimeType,
-			RevisedPrompt: revisedPrompt,
-		}, true
+	b64 := strings.TrimSpace(getString(payload["b64_json"]))
+	if url == "" && b64 == "" {
+		return portllm.GeneratedImage{}, false
 	}
-	if publicURL := strings.TrimSpace(getString(asMap(payload["file_output"])["public_url"])); publicURL != "" {
-		return portllm.GeneratedImage{
-			URL:           publicURL,
-			MIMEType:      mimeType,
-			RevisedPrompt: revisedPrompt,
-		}, true
-	}
-	return portllm.GeneratedImage{}, false
+	return portllm.GeneratedImage{
+		URL:           url,
+		B64JSON:       b64,
+		MIMEType:      mimeType,
+		RevisedPrompt: revisedPrompt,
+	}, true
 }
 
 // xAIImageMIMEType 优先采用官方响应中的 MIME；旧代理未返回时回退为 JPEG。
