@@ -416,6 +416,11 @@ If the database does not contain a superadmin account, the backend creates the i
 
 If a superadmin already exists, the service does not regenerate or print the initial password again.
 
+## One-Click Deploy
+
+<a href="https://repocloud.io/details/DEEIX%20Chat/"><img src="https://d16t0pc4846x52.cloudfront.net/deploylobe.svg" alt="Deploy on RepoCloud" height="42"></a>
+<a href="https://railway.com/deploy/calm-wide"><img src="https://railway.com/button.svg" alt="Deploy on Railway" height="42"></a>
+
 ## Configuration
 
 > Full configuration guide: [Configuration](https://deeix.com/docs/deeix-chat/configuration).
