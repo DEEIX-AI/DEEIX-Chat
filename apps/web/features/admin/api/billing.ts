@@ -5,6 +5,7 @@ import type {
   AdminBillingAccountData,
   AdminBillingPlanDTO,
   AdminBillingPlanData,
+  AdminExpiringCreditGrantData,
   AdminRedemptionCodeDTO,
   AdminRedemptionCodeBatchDeleteData,
   AdminRedemptionCodeBatchDeleteRequest,
@@ -17,6 +18,7 @@ import type {
   AdminModelPricingPage,
   AdminOfficialPricingCatalogData,
   CreateAdminRedemptionCodeRequest,
+  GrantAdminExpiringCreditRequest,
   UpdateAdminRedemptionCodeRequest,
   UpdateAdminBillingConfigRequest,
   UpdateAdminBillingPlanRequest,
@@ -73,6 +75,18 @@ export async function updateAdminBillingAccountBalance(
   return authedRequest<AdminBillingAccountData>(
     `/api/v1/admin/billing/accounts/${userID}/balance`,
     { method: "PATCH", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function grantAdminExpiringCredit(
+  accessToken: string,
+  userID: number,
+  payload: GrantAdminExpiringCreditRequest,
+): Promise<AdminExpiringCreditGrantData> {
+  return authedRequest<AdminExpiringCreditGrantData>(
+    `/api/v1/admin/billing/accounts/${userID}/expiring-credits`,
+    { method: "POST", accessToken, body: payload },
     true,
   );
 }

@@ -375,6 +375,63 @@ func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 	response.Success(c, BillingAccountDataResponse{Account: toBillingAccountResponse(account)})
 }
 
+// GrantExpiringCredit godoc
+// @Summary 管理员发放限时额度
+// @Description 发放指定美元额度；消费优先使用最早到期批次，到期后自动回收未使用部分
+// @Tags admin-billing
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param user_id path int true "用户ID"
+// @Param body body GrantExpiringCreditRequest true "限时额度"
+// @Success 200 {object} ExpiringCreditGrantResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/billing/accounts/{user_id}/expiring-credits [post]
+func (h *Handler) GrantExpiringCredit(c *gin.Context) {
+	targetUserID, err := strconv.ParseUint(c.Param("user_id"), 10, strconv.IntSize)
+	if err != nil || targetUserID == 0 {
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidUserID)
+		return
+	}
+	var req GrantExpiringCreditRequest
+	if err = c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+	actorUserID := middleware.MustUserID(c)
+	credit, account, err := h.service.GrantExpiringCredit(c.Request.Context(), appbilling.ExpiringCreditGrantInput{
+		UserID:          uint(targetUserID),
+		CreditUSD:       *req.CreditUSD,
+		DurationDays:    *req.DurationDays,
+		CreatedByUserID: actorUserID,
+		RefNo:           req.IdempotencyKey,
+		Description:     req.Description,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, appbilling.ErrExpiringCreditConflict):
+			response.ErrorFrom(c, http.StatusConflict, err)
+		case errors.Is(err, appbilling.ErrInvalidExpiringCredit), errors.Is(err, appbilling.ErrPaymentRequired):
+			response.ErrorFrom(c, http.StatusBadRequest, err)
+		default:
+			response.InternalError(c, err)
+		}
+		return
+	}
+	h.recordAudit(c, actorUserID, "grant_expiring_credit", "billing_account", strconv.FormatUint(targetUserID, 10), map[string]any{
+		"user_id":       targetUserID,
+		"credit_usd":    *req.CreditUSD,
+		"duration_days": *req.DurationDays,
+		"expires_at":    credit.ExpiresAt,
+	})
+	response.Success(c, ExpiringCreditGrantDataResponse{
+		Credit:  toExpiringCreditResponse(credit),
+		Account: toBillingAccountResponse(account),
+	})
+}
+
 // ListRedemptionCodes godoc
 // @Summary 管理员查询兑换码
 // @Description 分页查询计费兑换码配置
@@ -428,16 +485,17 @@ func (h *Handler) CreateRedemptionCodes(c *gin.Context) {
 	}
 	actorUserID := middleware.MustUserID(c)
 	items, err := h.service.CreateRedemptionCodes(c.Request.Context(), actorUserID, appbilling.RedemptionCodeInput{
-		Code:           req.Code,
-		Quantity:       req.Quantity,
-		Mode:           req.Mode,
-		CreditUSD:      req.CreditUSD,
-		PlanID:         req.PlanID,
-		DurationDays:   req.DurationDays,
-		MaxRedemptions: req.MaxRedemptions,
-		PerUserLimit:   req.PerUserLimit,
-		ExpiresAt:      req.ExpiresAt,
-		Description:    req.Description,
+		Code:                req.Code,
+		Quantity:            req.Quantity,
+		Mode:                req.Mode,
+		CreditUSD:           req.CreditUSD,
+		PlanID:              req.PlanID,
+		DurationDays:        req.DurationDays,
+		BalanceDurationDays: req.BalanceDurationDays,
+		MaxRedemptions:      req.MaxRedemptions,
+		PerUserLimit:        req.PerUserLimit,
+		ExpiresAt:           req.ExpiresAt,
+		Description:         req.Description,
 	})
 	if err != nil {
 		writeRedemptionCodeError(c, err)

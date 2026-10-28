@@ -39,7 +39,10 @@ function RedemptionRecordsDialogBody({ code }: { code: AdminRedemptionCodeDTO })
         ? `${planName} · ${tLogs("redemptions.rewards.durationDays", { count: item.durationDays })}`
         : planName;
     }
-    return `${tLogs("redemptions.rewards.balance")} +${formatCreditUSD(item.creditUSD)}`;
+    const duration = item.balanceDurationSeconds > 0
+        ? ` · ${tLogs("redemptions.rewards.durationDays", { count: item.balanceDurationSeconds / 86400 })}`
+        : "";
+      return `${tLogs("redemptions.rewards.balance")} +${formatCreditUSD(item.creditUSD)}${duration}`;
   };
 
   return (

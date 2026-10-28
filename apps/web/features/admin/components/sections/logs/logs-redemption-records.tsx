@@ -129,7 +129,10 @@ export function RedemptionRecordTable({
           ? `${planName} · ${t("redemptions.rewards.durationDays", { count: item.durationDays })}`
           : planName;
       }
-      return `${t("redemptions.rewards.balance")} +${formatTooltipUsageCost(item.creditUSD, billingDisplay)}`;
+      const duration = item.balanceDurationSeconds > 0
+        ? ` · ${t("redemptions.rewards.durationDays", { count: item.balanceDurationSeconds / 86400 })}`
+        : "";
+      return `${t("redemptions.rewards.balance")} +${formatTooltipUsageCost(item.creditUSD, billingDisplay)}${duration}`;
     },
     [billingDisplay, t],
   );

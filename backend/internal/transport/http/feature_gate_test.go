@@ -89,6 +89,7 @@ var gatedRoutes = []struct {
 	{"billingGating", "POST", "/billing/payments/stripe/webhook"},
 	{"billingGating", "GET", "/admin/billing/plans"},
 	{"billingGating", "PATCH", "/admin/billing/accounts/1/balance"},
+	{"billingGating", "POST", "/admin/billing/accounts/1/expiring-credits"},
 	{"billingGating", "GET", "/admin/billing/redemption-codes"},
 	{"billingGating", "GET", "/admin/payment-orders"},
 	{"billingGating", "GET", "/admin/redemptions"},

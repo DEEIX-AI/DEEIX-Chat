@@ -69,6 +69,10 @@ var (
 	ErrPaymentOrderStateInvalid = apperr.New("payment.order_state_invalid", "payment order state is invalid")
 	// ErrInvalidBillingAccountBalance 表示管理员提交的余额无效。
 	ErrInvalidBillingAccountBalance = apperr.New("billing.invalid_account_balance", "invalid billing account balance")
+	// ErrInvalidExpiringCredit 表示限时余额发放参数无效。
+	ErrInvalidExpiringCredit = apperr.New("billing.invalid_expiring_credit", "invalid expiring credit grant")
+	// ErrExpiringCreditConflict 表示幂等键已用于不同的发放请求。
+	ErrExpiringCreditConflict = apperr.New("billing.expiring_credit_conflict", "expiring credit grant conflicts with an earlier request")
 	// ErrInvalidNativeToolPricing 表示原生工具计费覆盖配置无效。
 	ErrInvalidNativeToolPricing = apperr.New("billing.invalid_native_tool_pricing", "invalid native tool pricing")
 )

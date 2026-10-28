@@ -33,7 +33,7 @@ func (r *Repo) ReserveUsageBalance(ctx context.Context, input domainbilling.Usag
 
 	var result *domainbilling.UsageBalanceReservation
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		account, err := getOrCreateBillingAccountForUpdate(tx, input.UserID)
+		account, now, err := getOrCreateBillingAccountForUpdate(tx, input.UserID)
 		if err != nil {
 			return err
 		}
@@ -63,7 +63,6 @@ func (r *Repo) ReserveUsageBalance(ctx context.Context, input domainbilling.Usag
 			return repository.ErrConflict
 		}
 
-		now := time.Now()
 		activeReservationCount, err := countActiveUsageReservations(tx, input.UserID, now)
 		if err != nil {
 			return err
@@ -149,11 +148,10 @@ func (r *Repo) RaiseUsageBalanceReservation(ctx context.Context, userID uint, re
 		return repository.ErrInvalidInput
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		account, err := getOrCreateBillingAccountForUpdate(tx, userID)
+		account, now, err := getOrCreateBillingAccountForUpdate(tx, userID)
 		if err != nil {
 			return err
 		}
-		now := time.Now()
 		var reservation models.UsageReservation
 		if err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND ref_no = ?", userID, refNo).
@@ -165,9 +163,6 @@ func (r *Repo) RaiseUsageBalanceReservation(ctx context.Context, userID uint, re
 		}
 		if reservation.Status != domainbilling.UsageReservationStatusActive || !reservation.ExpiresAt.After(now) {
 			return repository.ErrConflict
-		}
-		if requiredNanousd <= addNonNegativeInt64(reservation.BalanceNanousd, reservation.PeriodCreditNanousd) {
-			return nil
 		}
 
 		otherBalanceReservedNanousd, err := sumActiveBalanceReservations(tx, userID, reservation.ID, now)
@@ -196,6 +191,9 @@ func (r *Repo) RaiseUsageBalanceReservation(ctx context.Context, userID uint, re
 		}
 		if requiredNanousd > addNonNegativeInt64(availableCreditNanousd, availableBalanceNanousd) {
 			return repository.ErrInsufficientBalance
+		}
+		if requiredNanousd <= addNonNegativeInt64(reservation.BalanceNanousd, reservation.PeriodCreditNanousd) {
+			return nil
 		}
 		periodCreditNanousd := minInt64(requiredNanousd, availableCreditNanousd)
 		return dberror.Translate(tx.Model(&reservation).Updates(map[string]any{

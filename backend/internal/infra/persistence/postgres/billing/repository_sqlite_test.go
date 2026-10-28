@@ -1415,7 +1415,7 @@ func openBillingSQLiteTestDB(t *testing.T) *gorm.DB {
 		_ = sqlDB.Close()
 	})
 
-	if err := db.AutoMigrate(&models.UsageLedger{}, &models.BillingAccount{}, &models.BalanceTransaction{}, &models.UsageReservation{}, &models.Redemption{}, &models.ConversationRun{}); err != nil {
+	if err := db.AutoMigrate(&models.UsageLedger{}, &models.BillingAccount{}, &models.BalanceTransaction{}, &models.ExpiringCredit{}, &models.UsageReservation{}, &models.Redemption{}, &models.ConversationRun{}); err != nil {
 		t.Fatalf("migrate billing tables: %v", err)
 	}
 	return db

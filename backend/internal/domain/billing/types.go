@@ -133,6 +133,10 @@ const (
 	BalanceTransactionTypeAdminSet = "admin_set"
 	// BalanceTransactionTypeRedemption 表示兑换码入账。
 	BalanceTransactionTypeRedemption = "redemption"
+	// BalanceTransactionTypeExpiringCreditGrant 表示限时额度入账。
+	BalanceTransactionTypeExpiringCreditGrant = "expiring_credit_grant"
+	// BalanceTransactionTypeExpiringCreditExpire 表示限时额度到期回收。
+	BalanceTransactionTypeExpiringCreditExpire = "expiring_credit_expire"
 
 	// UsageReservationStatusActive 表示用量预算仍被当前请求占用。
 	UsageReservationStatusActive = "active"
@@ -202,6 +206,31 @@ type BalanceTransaction struct {
 }
 
 const (
+	ExpiringCreditStatusActive   = "active"
+	ExpiringCreditStatusConsumed = "consumed"
+	ExpiringCreditStatusExpired  = "expired"
+	ExpiringCreditStatusRevoked  = "revoked"
+)
+
+// ExpiringCredit 表示一笔具有独立到期时间的限时额度。
+type ExpiringCredit struct {
+	ID               uint
+	AccountID        uint
+	UserID           uint
+	OriginalNanousd  int64
+	RemainingNanousd int64
+	Status           string
+	ExpiresAt        time.Time
+	ConsumedAt       *time.Time
+	ExpiredAt        *time.Time
+	CreatedByUserID  uint
+	RefNo            string
+	Description      string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+const (
 	// RedemptionCodeModeUsage 表示按量余额兑换码。
 	RedemptionCodeModeUsage = "usage"
 	// RedemptionCodeModePeriod 表示订阅套餐兑换码。
@@ -222,24 +251,25 @@ const (
 
 // RedemptionCode 表示一组可兑换的计费权益码。
 type RedemptionCode struct {
-	ID              uint
-	CodeHash        string
-	CodeEncrypted   string
-	CodeHint        string
-	Mode            string
-	RewardType      string
-	CreditNanousd   int64
-	PlanID          uint
-	DurationDays    int
-	MaxRedemptions  *int
-	PerUserLimit    int
-	RedeemedCount   int
-	Status          string
-	ExpiresAt       *time.Time
-	Description     string
-	CreatedByUserID uint
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                     uint
+	CodeHash               string
+	CodeEncrypted          string
+	CodeHint               string
+	Mode                   string
+	RewardType             string
+	CreditNanousd          int64
+	PlanID                 uint
+	DurationDays           int
+	BalanceDurationSeconds int64
+	MaxRedemptions         *int
+	PerUserLimit           int
+	RedeemedCount          int
+	Status                 string
+	ExpiresAt              *time.Time
+	Description            string
+	CreatedByUserID        uint
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 // Redemption 表示用户的一次兑换记录。

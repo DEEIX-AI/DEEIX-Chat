@@ -11,6 +11,9 @@ import type {
   BillingPlanResponse,
   BillingPriceResponse,
   CreateRedemptionCodeRequest,
+  ExpiringCreditGrantDataResponse,
+  ExpiringCreditResponse,
+  GrantExpiringCreditRequest,
   ModelPricingDataResponse,
   ModelPricingResponse,
   NativeToolPricingResponse,
@@ -84,6 +87,12 @@ export type AdminBillingAccountData = Omit<BillingAccountDataResponse, "account"
 };
 
 export type UpdateAdminBillingAccountBalanceRequest = UpdateBillingAccountBalanceRequest;
+
+export type GrantAdminExpiringCreditRequest = GrantExpiringCreditRequest;
+
+export type AdminExpiringCreditDTO = ExpiringCreditResponse;
+
+export type AdminExpiringCreditGrantData = ExpiringCreditGrantDataResponse;
 
 export type AdminRedemptionCodeDTO = Omit<
   RedemptionCodeResponse,

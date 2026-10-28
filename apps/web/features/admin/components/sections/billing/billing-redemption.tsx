@@ -51,6 +51,7 @@ function createRedemptionFormState(mode: AdminBillingMode, planID = ""): Redempt
     creditUSD: "20",
     planID,
     durationDays: "30",
+    balanceDurationDays: "",
     maxRedemptions: "1",
     perUserLimit: "1",
     expiresAt: "",
@@ -72,6 +73,7 @@ function redemptionFormFromCode(item: AdminRedemptionCodeDTO): RedemptionFormSta
     creditUSD: String(item.creditUSD || 0),
     planID: item.planID ? String(item.planID) : "",
     durationDays: String(item.durationDays || 0),
+    balanceDurationDays: item.balanceDurationSeconds > 0 ? String(item.balanceDurationSeconds / 86400) : "",
     maxRedemptions: item.maxRedemptions == null ? "" : String(item.maxRedemptions),
     perUserLimit: String(item.perUserLimit || 1),
     expiresAt: redemptionExpiresFormValue(item.expiresAt),
@@ -249,6 +251,9 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
     if (item.mode === "period") {
       const planLabel = planNameByID.get(item.planID) || t("redemption.unknownPlan");
       return t("redemption.periodReward", { plan: planLabel, days: item.durationDays || 0 });
+    }
+    if (item.balanceDurationSeconds > 0) {
+      return t("redemption.usageRewardExpiring", { amount: formatCreditUSD(item.creditUSD), days: item.balanceDurationSeconds / 86400 });
     }
     return t("redemption.usageReward", { amount: formatCreditUSD(item.creditUSD) });
   }
@@ -597,8 +602,7 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
               <form onSubmit={(event) => void saveRedemptionCode(event)} className="flex min-h-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
                   {!redemptionDialogForm.id ? (
-                    <div className="grid grid-cols-2 gap-5">
-                      <div className="space-y-1">
+                    <div className="grid grid-cols-2 gap-5">                      <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">{t("redemption.code")}</p>
                         <Input
                           id="redemption-code"
@@ -709,6 +713,24 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                       </div>
                     </div>
                   )}
+
+                  {redemptionDialogForm.mode === "usage" ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">{t("redemption.creditDurationDays")}</p>
+                      <Input
+                        id="redemption-credit-duration"
+                        type="number"
+                        min={0.1}
+                        max={3650}
+                        step="any"
+                        value={redemptionDialogForm.balanceDurationDays}
+                        placeholder={t("redemption.permanent")}
+                        disabled={redemptionSaving || Boolean(redemptionDialogForm.id)}
+                        onChange={(event) => setRedemptionForm((current) => current ? { ...current, balanceDurationDays: event.target.value } : current)}
+                      />
+                      <p className="text-xs text-muted-foreground">{t("redemption.creditDurationHint")}</p>
+                    </div>
+                  ) : null}
 
                   <div className="grid grid-cols-2 gap-5">
                     <div className="space-y-1">

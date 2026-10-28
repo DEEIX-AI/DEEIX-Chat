@@ -647,6 +647,33 @@ export function EditUserSheet({
                 </div>
                 <ReadOnlyField label={t("editor.billingStatus")} value={resolveBillingAccountStatusLabel(editDialogTarget?.billingAccountStatus || "active")} />
               </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs font-normal text-muted-foreground">{t("editor.expiringCreditAmount")}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.000001"
+                    value={editPayload.expiringCreditUSD}
+                    placeholder="20"
+                    onChange={(event) => setEditPayload((current) => ({ ...current, expiringCreditUSD: event.target.value }))}
+                    disabled={pending}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-normal text-muted-foreground">{t("editor.expiringCreditDays")}</Label>
+                  <Input
+                    type="number"
+                    min="0.1"
+                    max="3650"
+                    step="0.1"
+                    value={editPayload.expiringCreditDurationDays}
+                    onChange={(event) => setEditPayload((current) => ({ ...current, expiringCreditDurationDays: event.target.value }))}
+                    disabled={pending}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground md:col-span-2">{t("editor.expiringCreditHelp")}</p>
+              </div>
             </SheetSection>
           ) : null}
 

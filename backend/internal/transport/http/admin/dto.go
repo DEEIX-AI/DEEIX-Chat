@@ -359,23 +359,24 @@ type PaymentOrderResponse struct {
 
 // RedemptionRecordResponse 兑换记录响应。
 type RedemptionRecordResponse struct {
-	ID              uint    `json:"id"`
-	CodeID          uint    `json:"codeID"`
-	CodeHint        string  `json:"codeHint"`
-	CodeDescription string  `json:"codeDescription"`
-	CodeStatus      string  `json:"codeStatus"`
-	UserID          uint    `json:"userID"`
-	Username        string  `json:"username"`
-	UserDisplayName string  `json:"userDisplayName"`
-	UserLabel       string  `json:"userLabel"`
-	Mode            string  `json:"mode"`
-	RewardType      string  `json:"rewardType"`
-	CreditNanousd   int64   `json:"creditNanousd"`
-	CreditUSD       float64 `json:"creditUSD"`
-	PlanID          uint    `json:"planID"`
-	PlanName        string  `json:"planName"`
-	DurationDays    int     `json:"durationDays"`
-	SubscriptionID  uint    `json:"subscriptionID"`
+	ID                     uint    `json:"id"`
+	CodeID                 uint    `json:"codeID"`
+	CodeHint               string  `json:"codeHint"`
+	CodeDescription        string  `json:"codeDescription"`
+	CodeStatus             string  `json:"codeStatus"`
+	UserID                 uint    `json:"userID"`
+	Username               string  `json:"username"`
+	UserDisplayName        string  `json:"userDisplayName"`
+	UserLabel              string  `json:"userLabel"`
+	Mode                   string  `json:"mode"`
+	RewardType             string  `json:"rewardType"`
+	CreditNanousd          int64   `json:"creditNanousd"`
+	CreditUSD              float64 `json:"creditUSD"`
+	PlanID                 uint    `json:"planID"`
+	PlanName               string  `json:"planName"`
+	DurationDays           int     `json:"durationDays"`
+	BalanceDurationSeconds int64   `json:"balanceDurationSeconds"`
+	SubscriptionID         uint    `json:"subscriptionID"`
 	// BalanceBeforeNanousd / BalanceAfterNanousd 来自余额流水；订阅类兑换无流水时为 null。
 	BalanceBeforeNanousd *int64    `json:"balanceBeforeNanousd" extensions:"x-nullable,!x-omitempty"`
 	BalanceAfterNanousd  *int64    `json:"balanceAfterNanousd" extensions:"x-nullable,!x-omitempty"`
@@ -985,28 +986,29 @@ func toRedemptionRecordResponse(item appbilling.RedemptionRecordView, label appa
 		balanceBefore = &before
 	}
 	return RedemptionRecordResponse{
-		ID:                   item.Redemption.ID,
-		CodeID:               item.Redemption.CodeID,
-		CodeHint:             item.CodeHint,
-		CodeDescription:      item.CodeDescription,
-		CodeStatus:           item.CodeStatus,
-		UserID:               item.Redemption.UserID,
-		Username:             label.Username,
-		UserDisplayName:      label.DisplayName,
-		UserLabel:            label.Label,
-		Mode:                 item.Redemption.Mode,
-		RewardType:           item.Redemption.RewardType,
-		CreditNanousd:        item.Redemption.CreditNanousd,
-		CreditUSD:            float64(item.Redemption.CreditNanousd) / 1_000_000_000,
-		PlanID:               item.Redemption.PlanID,
-		PlanName:             item.PlanName,
-		DurationDays:         item.DurationDays,
-		SubscriptionID:       item.Redemption.SubscriptionID,
-		BalanceBeforeNanousd: balanceBefore,
-		BalanceAfterNanousd:  item.BalanceAfterNanousd,
-		RefNo:                item.Redemption.RefNo,
-		SnapshotJSON:         item.Redemption.SnapshotJSON,
-		CreatedAt:            item.Redemption.CreatedAt,
+		ID:                     item.Redemption.ID,
+		CodeID:                 item.Redemption.CodeID,
+		CodeHint:               item.CodeHint,
+		CodeDescription:        item.CodeDescription,
+		CodeStatus:             item.CodeStatus,
+		UserID:                 item.Redemption.UserID,
+		Username:               label.Username,
+		UserDisplayName:        label.DisplayName,
+		UserLabel:              label.Label,
+		Mode:                   item.Redemption.Mode,
+		RewardType:             item.Redemption.RewardType,
+		CreditNanousd:          item.Redemption.CreditNanousd,
+		CreditUSD:              float64(item.Redemption.CreditNanousd) / 1_000_000_000,
+		PlanID:                 item.Redemption.PlanID,
+		PlanName:               item.PlanName,
+		DurationDays:           item.DurationDays,
+		BalanceDurationSeconds: item.BalanceDurationSeconds,
+		SubscriptionID:         item.Redemption.SubscriptionID,
+		BalanceBeforeNanousd:   balanceBefore,
+		BalanceAfterNanousd:    item.BalanceAfterNanousd,
+		RefNo:                  item.Redemption.RefNo,
+		SnapshotJSON:           item.Redemption.SnapshotJSON,
+		CreatedAt:              item.Redemption.CreatedAt,
 	}
 }
 

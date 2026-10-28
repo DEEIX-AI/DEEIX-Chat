@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"math"
 	"sort"
 	"strconv"
@@ -18,9 +17,11 @@ import (
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainpersonalprovider "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/personalprovider"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
+	"go.uber.org/zap"
 )
 
 const (
@@ -53,7 +54,8 @@ type UserBillingAccountSnapshot struct {
 
 // Service 封装计费业务能力。
 type Service struct {
-	repo repository.BillingRepository
+	repo               repository.BillingRepository
+	expiringCreditRepo repository.ExpiringCreditRepository
 
 	publicPricingMu               sync.RWMutex
 	publicPricingByModel          map[string]PublicModelPricing
@@ -67,6 +69,8 @@ type Service struct {
 	permissionGroupLookup         permissionGroupLookup
 	permissionGroupPlanCounter    permissionGroupPlanCounter
 	redemptionCodeKeyring         *secretbox.Keyring
+	logger                        *zap.Logger
+	workerOnce                    sync.Once
 }
 
 // groupRateMultiplierResolver 提供用户权限组计费倍率查询能力。
@@ -369,7 +373,10 @@ type BillingAccountBalanceInput struct {
 
 // NewService 创建服务。
 func NewService(repo repository.BillingRepository) *Service {
-	service := &Service{repo: repo}
+	service := &Service{repo: repo, logger: zap.NewNop()}
+	if expiringRepo, ok := repo.(repository.ExpiringCreditRepository); ok {
+		service.expiringCreditRepo = expiringRepo
+	}
 	if counter, ok := repo.(permissionGroupPlanCounter); ok {
 		service.permissionGroupPlanCounter = counter
 	}

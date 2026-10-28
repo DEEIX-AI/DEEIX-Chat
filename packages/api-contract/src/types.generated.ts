@@ -1340,6 +1340,11 @@ export interface CreatePersonalProviderRequest {
 
 export interface CreateRedemptionCodeRequest {
   /**
+   * @min 0.1
+   * @max 3650
+   */
+  balanceDurationDays?: number;
+  /**
    * @minLength 3
    * @maxLength 64
    */
@@ -1349,8 +1354,8 @@ export interface CreateRedemptionCodeRequest {
   /** @maxLength 255 */
   description?: string;
   /**
-   * @min 0
-   * @max 3660
+   * @min 1
+   * @max 3650
    */
   durationDays?: number;
   expiresAt?: string | null;
@@ -1712,6 +1717,32 @@ export interface ErrorLogResponse {
   userUsername: string;
 }
 
+export interface ExpiringCreditGrantDataResponse {
+  account: BillingAccountResponse;
+  credit: ExpiringCreditResponse;
+}
+
+export interface ExpiringCreditGrantResponseDoc {
+  data: ExpiringCreditGrantDataResponse;
+  errorMsg: string;
+}
+
+export interface ExpiringCreditResponse {
+  consumedAt: string | null;
+  createdAt: string;
+  createdByUserID: number;
+  description: string;
+  expiredAt: string | null;
+  expiresAt: string;
+  id: number;
+  originalNanousd: number;
+  originalUSD: number;
+  remainingNanousd: number;
+  remainingUSD: number;
+  status: string;
+  userID: number;
+}
+
 export interface FeaturePolicyResponse {
   /** DesktopDownloadEnabled 为 true 时网页端用户菜单展示「下载桌面端」入口；桌面端内由前端自行隐藏。 */
   desktopDownloadEnabled: boolean;
@@ -1861,6 +1892,23 @@ export interface GetKnowledgeBaseFileProcessingStatusesRequest {
    * @minItems 1
    */
   fileIDs: string[];
+}
+
+export interface GrantExpiringCreditRequest {
+  creditUSD: number;
+  /** @maxLength 255 */
+  description?: string;
+  /**
+   * @min 0.1
+   * @max 3650
+   * @example 0.1
+   */
+  durationDays: number;
+  /**
+   * @minLength 8
+   * @maxLength 128
+   */
+  idempotencyKey: string;
 }
 
 export interface GroupModelsResponse {
@@ -3781,6 +3829,7 @@ export interface RedemptionCodeListResponseDoc {
 }
 
 export interface RedemptionCodeResponse {
+  balanceDurationSeconds: number;
   code?: string;
   codeHint: string;
   createdAt: string;
@@ -3819,6 +3868,7 @@ export interface RedemptionRecordResponse {
   balanceAfterNanousd: number | null;
   /** BalanceBeforeNanousd / BalanceAfterNanousd 来自余额流水；订阅类兑换无流水时为 null。 */
   balanceBeforeNanousd: number | null;
+  balanceDurationSeconds: number;
   codeDescription: string;
   codeHint: string;
   codeID: number;
@@ -5719,6 +5769,25 @@ export namespace Admin {
     export type RequestBody = UpdateBillingAccountBalanceRequest;
     export type RequestHeaders = {};
     export type ResponseBody = BillingAccountResponseDoc;
+  }
+
+  /**
+   * @description 发放指定美元额度；消费优先使用最早到期批次，到期后自动回收未使用部分
+   * @tags admin-billing
+   * @name BillingAccountsExpiringCreditsCreate
+   * @summary 管理员发放限时额度
+   * @request POST:/admin/billing/accounts/{user_id}/expiring-credits
+   * @secure
+   */
+  export namespace BillingAccountsExpiringCreditsCreate {
+    export type RequestParams = {
+      /** 用户ID */
+      userId: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = GrantExpiringCreditRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ExpiringCreditGrantResponseDoc;
   }
 
   /**

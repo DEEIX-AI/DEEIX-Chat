@@ -12,6 +12,7 @@ import {
   createAdminUser,
   deleteAdminUser,
   getAdminBillingConfig,
+  grantAdminExpiringCredit,
   listAdminBillingPlans,
   patchAdminUser,
   resetAdminUserPassword,
@@ -173,6 +174,8 @@ function createEditPayload(user: AdminUserDTO, fallbackSubscriptionTier = "free"
     subscriptionTier,
     subscriptionExpiresAt: resolveSubscriptionExpiryInputValue(user.subscriptionExpiresAt),
     billingBalanceUSD: String(user.billingBalanceUSD ?? 0),
+    expiringCreditUSD: "",
+    expiringCreditDurationDays: "2",
     profilePreferences: user.profilePreferences,
     reason: "",
   };
@@ -270,9 +273,12 @@ export function useAdminUsersPage({
     subscriptionTier: "free",
     subscriptionExpiresAt: "",
     billingBalanceUSD: "0",
+    expiringCreditUSD: "",
+    expiringCreditDurationDays: "2",
     profilePreferences: "",
     reason: "",
   });
+  const expiringGrantRef = React.useRef<{ fingerprint: string; key: string } | null>(null);
   const [resetPasswordDraft, setResetPasswordDraft] = React.useState("");
   const [billingMode, setBillingMode] = React.useState<AdminBillingMode>("self");
   const [billingDisplay, setBillingDisplay] = React.useState<BillingDisplayOptions>({ currency: "USD" });
@@ -371,6 +377,7 @@ export function useAdminUsersPage({
       return;
     }
     const fallbackSubscriptionTier = billingPlans[0]?.code || "free";
+    expiringGrantRef.current = null;
     setEditDialogTarget(user);
     setEditPayload(createEditPayload(user, fallbackSubscriptionTier));
   }, [billingPlans, canManageUser]);
@@ -562,6 +569,10 @@ export function useAdminUsersPage({
     const nextLocale = editPayload.locale.trim() || "en-US";
     const nextSubscriptionTier = editPayload.subscriptionTier.trim();
     const nextBillingBalance = Number(editPayload.billingBalanceUSD);
+    const expiringCreditRequested = editPayload.expiringCreditUSD.trim() !== "";
+    const expiringCreditUSD = Number(editPayload.expiringCreditUSD);
+    const roundedExpiringCreditUSD = roundBillingBalance(expiringCreditUSD);
+    const expiringCreditDurationDays = Number(editPayload.expiringCreditDurationDays);
     const nextProfilePreferences = editPayload.profilePreferences.trim();
     const patchPayload: AdminUserPatchPayload = {};
 
@@ -641,7 +652,19 @@ export function useAdminUsersPage({
       return;
     }
 
-    if (!hasPatchChanges(patchPayload) && !billingBalanceChanged) {
+    if (
+      expiringCreditRequested &&
+      (!Number.isFinite(expiringCreditUSD) ||
+        roundedExpiringCreditUSD <= 0 ||
+        !Number.isFinite(expiringCreditDurationDays) ||
+        expiringCreditDurationDays < 0.1 ||
+        expiringCreditDurationDays > 3650)
+    ) {
+      toast.error(t("toast.editFailed"), { description: t("validation.invalidExpiringCredit") });
+      return;
+    }
+
+    if (!hasPatchChanges(patchPayload) && !billingBalanceChanged && !expiringCreditRequested) {
       setEditDialogTarget(null);
       return;
     }
@@ -671,8 +694,29 @@ export function useAdminUsersPage({
           billingAccountStatus: response.account.status,
         };
       }
+      if (expiringCreditRequested) {
+        const fingerprint = JSON.stringify([editDialogTarget.id, roundedExpiringCreditUSD, expiringCreditDurationDays]);
+        if (expiringGrantRef.current?.fingerprint !== fingerprint) {
+          expiringGrantRef.current = { fingerprint, key: crypto.randomUUID() };
+        }
+        // Preserve the confirmed balance after a partial save, so a retry cannot
+        // reset the account and revoke a grant whose response was lost.
+        setEditDialogTarget(nextUser);
+        const response = await grantAdminExpiringCredit(token, editDialogTarget.id, {
+          idempotencyKey: expiringGrantRef.current.key,
+          creditUSD: roundedExpiringCreditUSD,
+          durationDays: expiringCreditDurationDays,
+          description: t("toast.expiringCreditDescription", { days: expiringCreditDurationDays }),
+        });
+        nextUser = {
+          ...nextUser,
+          billingBalanceUSD: response.account.balanceUSD,
+          billingAccountStatus: response.account.status,
+        };
+      }
       onSetUsers((current) => replaceByID(current, editDialogTarget.id, (user) => user.id, nextUser));
       toast.success(t("toast.userUpdated"));
+      expiringGrantRef.current = null;
       setEditDialogTarget(null);
     } catch (error) {
       toast.error(t("toast.editFailed"), { description: resolveAdminErrorMessage(error) });
