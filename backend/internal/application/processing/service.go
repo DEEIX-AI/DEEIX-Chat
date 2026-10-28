@@ -681,7 +681,7 @@ func fileProcessingStatusFromFileObject(fileObj *domainconversation.FileObject) 
 		CompletedAt:      fileObj.ProcessingCompletedAt,
 		UpdatedAt:        fileObj.UpdatedAt,
 	}
-	dto.ErrorMessage = HumanizeFileProcessingError(dto.FileCategory, dto.ErrorCode, dto.ErrorMessage)
+	dto.ErrorMessage = ResolveFileProcessingErrorMessage(dto.FileCategory, dto.ProcessingStatus, dto.ErrorCode, dto.ErrorMessage)
 	return dto
 }
 
@@ -1436,6 +1436,15 @@ func processingErrorSummary(err error) string {
 	}
 	code := classifyProcessingErrorCode(err)
 	return HumanizeFileProcessingError("", code, "")
+}
+
+// ResolveFileProcessingErrorMessage formats response errors without inventing a failure
+// for files that have no processing error. Legacy failed rows still get a safe fallback.
+func ResolveFileProcessingErrorMessage(fileCategory, processingStatus, code, message string) string {
+	if processingStatus != "failed" && strings.TrimSpace(code) == "" && strings.TrimSpace(message) == "" {
+		return ""
+	}
+	return HumanizeFileProcessingError(fileCategory, code, message)
 }
 
 func HumanizeFileProcessingError(fileCategory string, code string, _ string) string {
