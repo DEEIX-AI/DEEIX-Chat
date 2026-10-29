@@ -378,6 +378,38 @@ func TestParseGoogleGenerateContentUsage(t *testing.T) {
 	}`)
 }
 
+func TestParseGoogleGenerateContentUsageCountsToolUsePromptTokensAsInput(t *testing.T) {
+	payload := mustDecodeObject(t, `{
+		"usageMetadata": {
+			"promptTokenCount": 31,
+			"candidatesTokenCount": 73,
+			"thoughtsTokenCount": 77,
+			"toolUsePromptTokenCount": 73,
+			"totalTokenCount": 254
+		}
+	}`)
+
+	usage := parseGeminiUsage(payload)
+	if usage.InputTokens != 104 || usage.OutputTokens != 73 || usage.ReasoningTokens != 77 {
+		t.Fatalf("expected tool-use prompt tokens to count as input, got %+v", usage)
+	}
+}
+
+func TestParseGoogleGenerateContentUsageToolUseTokensAreNotCached(t *testing.T) {
+	payload := mustDecodeObject(t, `{
+		"usageMetadata": {
+			"promptTokenCount": 100,
+			"cachedContentTokenCount": 40,
+			"toolUsePromptTokenCount": 25
+		}
+	}`)
+
+	usage := parseGeminiUsage(payload)
+	if usage.InputTokens != 85 || usage.CacheReadTokens != 40 {
+		t.Fatalf("expected 60 prompt + 25 tool-use non-cached input and 40 cached, got %+v", usage)
+	}
+}
+
 func TestNonCachedInputTokensNeverNegative(t *testing.T) {
 	if got := nonCachedInputTokens(12, 20); got != 0 {
 		t.Fatalf("expected non-cached input tokens to clamp at zero, got %d", got)
