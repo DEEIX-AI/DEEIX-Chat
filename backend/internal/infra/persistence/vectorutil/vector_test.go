@@ -50,6 +50,17 @@ func TestPostgresLiteralPreservesNativeDimensions(t *testing.T) {
 	if !strings.HasPrefix(padded, "[1,2,0,") || !strings.HasSuffix(padded, ",0]") {
 		t.Fatalf("unexpected padded literal boundary: %.16s ... %s", padded, padded[len(padded)-8:])
 	}
+
+	indexed, err := PostgresIndexLiteral([]float32{1, 2})
+	if err != nil {
+		t.Fatalf("PostgresIndexLiteral() error = %v", err)
+	}
+	if strings.Count(indexed, ",") != IndexDimensions-1 {
+		t.Fatalf("index literal dimensions = %d, want %d", strings.Count(indexed, ",")+1, IndexDimensions)
+	}
+	if !strings.HasPrefix(indexed, "[1,2,0,") {
+		t.Fatalf("unexpected index literal: %.16s", indexed)
+	}
 }
 
 func TestCandidateLimitNeverDropsRequestedResults(t *testing.T) {
