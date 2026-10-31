@@ -13,7 +13,7 @@ package llm
 //   - 图片使用 inlineData.data (base64) + mimeType 格式
 //   - system 提示通过顶层 systemInstruction 字段传递
 //   - 流式端点为 :streamGenerateContent?alt=sse，每个 SSE data 都是完整的 GenerateContentResponse 片段
-//   - token 统计在 usageMetadata（promptTokenCount / candidatesTokenCount / cachedContentTokenCount / thoughtsTokenCount）
+//   - token 统计在 usageMetadata（promptTokenCount / toolUsePromptTokenCount / candidatesTokenCount / cachedContentTokenCount / thoughtsTokenCount）
 
 import (
 	"bufio"
@@ -826,10 +826,14 @@ func extractGeminiReasoning(parsed map[string]any) *portllm.ReasoningOutput {
 
 // parseGeminiUsage 解析 usageMetadata。
 func parseGeminiUsage(parsed map[string]any) portllm.Usage {
-	totalInputTokens := getInt64FromPath(parsed, "usageMetadata", "promptTokenCount")
+	// toolUsePromptTokenCount 是 url_context / google_search 等内置工具结果回灌给模型的 token，
+	// 与 promptTokenCount 分开上报，计入 totalTokenCount，并按输入计费。
+	// cachedContentTokenCount 只覆盖 prompt 部分，因此先对 prompt 扣减缓存再加工具 token。
+	promptTokens := getInt64FromPath(parsed, "usageMetadata", "promptTokenCount")
+	toolUsePromptTokens := getInt64FromPath(parsed, "usageMetadata", "toolUsePromptTokenCount")
 	cacheReadTokens := getInt64FromPath(parsed, "usageMetadata", "cachedContentTokenCount")
 	return portllm.Usage{
-		InputTokens:     nonCachedInputTokens(totalInputTokens, cacheReadTokens),
+		InputTokens:     nonCachedInputTokens(promptTokens, cacheReadTokens) + max(toolUsePromptTokens, 0),
 		OutputTokens:    getInt64FromPath(parsed, "usageMetadata", "candidatesTokenCount"),
 		CacheReadTokens: cacheReadTokens,
 		ReasoningTokens: getInt64FromPath(parsed, "usageMetadata", "thoughtsTokenCount"),
