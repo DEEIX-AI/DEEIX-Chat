@@ -3,6 +3,7 @@ package llm
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
@@ -384,13 +385,13 @@ func TestParseGoogleGenerateContentUsageCountsToolUsePromptTokensAsInput(t *test
 			"promptTokenCount": 31,
 			"candidatesTokenCount": 73,
 			"thoughtsTokenCount": 77,
-			"toolUsePromptTokenCount": 73,
-			"totalTokenCount": 254
+			"toolUsePromptTokenCount": 50,
+			"totalTokenCount": 231
 		}
 	}`)
 
 	usage := parseGeminiUsage(payload)
-	if usage.InputTokens != 104 || usage.OutputTokens != 73 || usage.ReasoningTokens != 77 {
+	if usage.InputTokens != 81 || usage.OutputTokens != 73 || usage.ReasoningTokens != 77 {
 		t.Fatalf("expected tool-use prompt tokens to count as input, got %+v", usage)
 	}
 }
@@ -407,6 +408,38 @@ func TestParseGoogleGenerateContentUsageToolUseTokensAreNotCached(t *testing.T) 
 	usage := parseGeminiUsage(payload)
 	if usage.InputTokens != 85 || usage.CacheReadTokens != 40 {
 		t.Fatalf("expected 60 prompt + 25 tool-use non-cached input and 40 cached, got %+v", usage)
+	}
+}
+
+func TestParseGoogleGenerateContentUsageCacheClampKeepsToolUseTokens(t *testing.T) {
+	payload := mustDecodeObject(t, `{
+		"usageMetadata": {
+			"promptTokenCount": 100,
+			"cachedContentTokenCount": 120,
+			"toolUsePromptTokenCount": 25
+		}
+	}`)
+
+	usage := parseGeminiUsage(payload)
+	if usage.InputTokens != 25 || usage.CacheReadTokens != 120 {
+		t.Fatalf("expected cache clamp to keep 25 tool-use input tokens, got %+v", usage)
+	}
+}
+
+func TestConsumeGeminiStreamCountsToolUsePromptTokensAsInput(t *testing.T) {
+	stream := strings.Join([]string{
+		`data: {"candidates":[{"content":{"parts":[{"text":"Hello"}],"role":"model"}}]}`,
+		``,
+		`data: {"candidates":[{"content":{"parts":[{"text":" world"}],"role":"model"}}],"usageMetadata":{"promptTokenCount":31,"candidatesTokenCount":12,"toolUsePromptTokenCount":50}}`,
+		``,
+	}, "\n")
+
+	result := &portllm.GenerateOutput{}
+	if err := consumeGeminiStream(strings.NewReader(stream), result, nil); err != nil {
+		t.Fatalf("consume stream: %v", err)
+	}
+	if result.Usage.InputTokens != 81 || result.Usage.OutputTokens != 12 {
+		t.Fatalf("expected streamed tool-use prompt tokens to count as input, got %+v", result.Usage)
 	}
 }
 

@@ -828,11 +828,12 @@ func extractGeminiReasoning(parsed map[string]any) *portllm.ReasoningOutput {
 func parseGeminiUsage(parsed map[string]any) portllm.Usage {
 	// toolUsePromptTokenCount 是 url_context / google_search 等内置工具结果回灌给模型的 token，
 	// 与 promptTokenCount 分开上报，计入 totalTokenCount，并按输入计费。
-	totalInputTokens := getInt64FromPath(parsed, "usageMetadata", "promptTokenCount") +
-		getInt64FromPath(parsed, "usageMetadata", "toolUsePromptTokenCount")
+	// cachedContentTokenCount 只覆盖 prompt 部分，因此先对 prompt 扣减缓存再加工具 token。
+	promptTokens := getInt64FromPath(parsed, "usageMetadata", "promptTokenCount")
+	toolUsePromptTokens := getInt64FromPath(parsed, "usageMetadata", "toolUsePromptTokenCount")
 	cacheReadTokens := getInt64FromPath(parsed, "usageMetadata", "cachedContentTokenCount")
 	return portllm.Usage{
-		InputTokens:     nonCachedInputTokens(totalInputTokens, cacheReadTokens),
+		InputTokens:     nonCachedInputTokens(promptTokens, cacheReadTokens) + max(toolUsePromptTokens, 0),
 		OutputTokens:    getInt64FromPath(parsed, "usageMetadata", "candidatesTokenCount"),
 		CacheReadTokens: cacheReadTokens,
 		ReasoningTokens: getInt64FromPath(parsed, "usageMetadata", "thoughtsTokenCount"),
