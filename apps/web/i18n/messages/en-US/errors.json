@@ -103,6 +103,8 @@
     "invalidDailyUsageDays": "Invalid usage day count.",
     "invalidModelPricing": "Invalid model pricing.",
     "invalidAccountBalance": "Invalid billing account balance.",
+    "invalidExpiringCredit": "Enter a positive credit amount and a duration from 0.1 to 3650 days.",
+    "expiringCreditConflict": "This grant key was already used with different details. Restore the original request or start a new grant.",
     "invalidNativeToolPricing": "Invalid native tool pricing.",
     "subscribeFailed": "Subscription failed. Please try again later.",
     "subscriptionEntitlementActive": "A paid subscription entitlement is still active, so Free cannot be selected.",

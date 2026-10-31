@@ -336,6 +336,7 @@ export function LogDetailSheet({
               <DetailBlock title={t("blocks.payment")}>
                 <DetailRow label={t("fields.amount")} value={`${formatMoneyCents(detail.item.payAmountCents, detail.item.payCurrency)} / ${formatMoneyCents(detail.item.baseAmountCents, detail.item.baseCurrency)}`} mono />
                 <DetailRow label={t("fields.credit")} value={formatTooltipUsageCost(detail.item.creditUSD, billingDisplay)} mono />
+
                 <DetailRow label={t("fields.interval")} value={`${detail.item.billingInterval || "-"} x ${detail.item.cycles || 0}`} />
                 <DetailRow label={t("fields.externalPaymentID")} value={detail.item.externalPaymentID || "-"} mono />
                 <DetailRow label={t("fields.externalCheckoutID")} value={detail.item.externalCheckoutID || "-"} mono />
@@ -386,6 +387,9 @@ export function LogDetailSheet({
                 ) : (
                   <>
                     <DetailRow label={t("fields.credit")} value={formatTooltipUsageCost(detail.item.creditUSD, billingDisplay)} mono />
+                    {detail.item.balanceDurationSeconds > 0 ? (
+                      <DetailRow label={t("fields.durationDays")} value={t("rewardDurationDays", { count: detail.item.balanceDurationSeconds / 86400 })} />
+                    ) : null}
                     <DetailRow
                       label={t("fields.balanceBefore")}
                       value={

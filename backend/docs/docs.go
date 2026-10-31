@@ -634,6 +634,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/billing/accounts/{user_id}/expiring-credits": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "发放指定美元额度；消费优先使用最早到期批次，到期后自动回收未使用部分",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-billing"
+                ],
+                "summary": "管理员发放限时额度",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "用户ID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "限时额度",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/GrantExpiringCreditRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ExpiringCreditGrantResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/billing/config": {
             "get": {
                 "security": [
@@ -22701,6 +22765,11 @@ const docTemplate = `{
                 "mode"
             ],
             "properties": {
+                "balanceDurationDays": {
+                    "type": "number",
+                    "maximum": 3650,
+                    "minimum": 0.1
+                },
                 "code": {
                     "type": "string",
                     "maxLength": 64,
@@ -22716,8 +22785,8 @@ const docTemplate = `{
                 },
                 "durationDays": {
                     "type": "integer",
-                    "maximum": 3660,
-                    "minimum": 0
+                    "maximum": 3650,
+                    "minimum": 1
                 },
                 "expiresAt": {
                     "type": "string",
@@ -23687,6 +23756,99 @@ const docTemplate = `{
                 }
             }
         },
+        "ExpiringCreditGrantDataResponse": {
+            "type": "object",
+            "required": [
+                "account",
+                "credit"
+            ],
+            "properties": {
+                "account": {
+                    "$ref": "#/definitions/BillingAccountResponse"
+                },
+                "credit": {
+                    "$ref": "#/definitions/ExpiringCreditResponse"
+                }
+            }
+        },
+        "ExpiringCreditGrantResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ExpiringCreditGrantDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ExpiringCreditResponse": {
+            "type": "object",
+            "required": [
+                "consumedAt",
+                "createdAt",
+                "createdByUserID",
+                "description",
+                "expiredAt",
+                "expiresAt",
+                "id",
+                "originalNanousd",
+                "originalUSD",
+                "remainingNanousd",
+                "remainingUSD",
+                "status",
+                "userID"
+            ],
+            "properties": {
+                "consumedAt": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdByUserID": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expiredAt": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "originalNanousd": {
+                    "type": "integer"
+                },
+                "originalUSD": {
+                    "type": "number"
+                },
+                "remainingNanousd": {
+                    "type": "integer"
+                },
+                "remainingUSD": {
+                    "type": "number"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "userID": {
+                    "type": "integer"
+                }
+            }
+        },
         "FeaturePolicyResponse": {
             "type": "object",
             "required": [
@@ -24176,6 +24338,34 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "GrantExpiringCreditRequest": {
+            "type": "object",
+            "required": [
+                "creditUSD",
+                "durationDays",
+                "idempotencyKey"
+            ],
+            "properties": {
+                "creditUSD": {
+                    "type": "number"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "durationDays": {
+                    "type": "number",
+                    "maximum": 3650,
+                    "minimum": 0.1,
+                    "example": 0.1
+                },
+                "idempotencyKey": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 8
                 }
             }
         },
@@ -30130,6 +30320,7 @@ const docTemplate = `{
         "RedemptionCodeResponse": {
             "type": "object",
             "required": [
+                "balanceDurationSeconds",
                 "codeHint",
                 "createdAt",
                 "createdByUserID",
@@ -30150,6 +30341,9 @@ const docTemplate = `{
                 "updatedAt"
             ],
             "properties": {
+                "balanceDurationSeconds": {
+                    "type": "integer"
+                },
                 "code": {
                     "type": "string"
                 },
@@ -30265,6 +30459,7 @@ const docTemplate = `{
             "required": [
                 "balanceAfterNanousd",
                 "balanceBeforeNanousd",
+                "balanceDurationSeconds",
                 "codeDescription",
                 "codeHint",
                 "codeID",
@@ -30297,6 +30492,9 @@ const docTemplate = `{
                     "type": "integer",
                     "x-nullable": true,
                     "x-omitempty": false
+                },
+                "balanceDurationSeconds": {
+                    "type": "integer"
                 },
                 "codeDescription": {
                     "type": "string"

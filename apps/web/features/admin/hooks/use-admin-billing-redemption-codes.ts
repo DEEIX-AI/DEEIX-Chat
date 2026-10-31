@@ -22,6 +22,7 @@ export type RedemptionFormState = {
   creditUSD: string;
   planID: string;
   durationDays: string;
+  balanceDurationDays: string;
   maxRedemptions: string;
   perUserLimit: string;
   expiresAt: string;
@@ -245,12 +246,17 @@ export function useAdminBillingRedemptionCodes({ billingMode }: UseAdminBillingR
       const data = redemptionForm.mode === "usage"
         ? await (async () => {
           const creditUSD = Number(redemptionForm.creditUSD);
+          const balanceDurationDays = Number(redemptionForm.balanceDurationDays);
+          if (!Number.isFinite(balanceDurationDays) || (balanceDurationDays !== 0 && (balanceDurationDays < 0.1 || balanceDurationDays > 3650))) {
+            throw new Error(t("toast.redemptionInvalidDuration"));
+          }
           if (!Number.isFinite(creditUSD) || creditUSD <= 0) {
             throw new Error(t("toast.redemptionInvalidCredit"));
           }
           return createAdminRedemptionCodes(token, {
             ...payload,
             creditUSD,
+            balanceDurationDays: balanceDurationDays || undefined,
           });
         })()
         : await (async () => {

@@ -53,6 +53,7 @@ func Models() []any {
 		&models.PaymentOrder{},
 		&models.BillingAccount{},
 		&models.BalanceTransaction{},
+		&models.ExpiringCredit{},
 		&models.UsageReservation{},
 		&models.RedemptionCode{},
 		&models.Redemption{},

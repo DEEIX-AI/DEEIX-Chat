@@ -76,6 +76,8 @@ export type EditUserPayload = {
   subscriptionTier: UserTier;
   subscriptionExpiresAt: string;
   billingBalanceUSD: string;
+  expiringCreditUSD: string;
+  expiringCreditDurationDays: string;
   profilePreferences: string;
   reason: string;
 };

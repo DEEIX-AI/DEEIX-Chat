@@ -46,6 +46,7 @@ func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup, gate middlewar
 	gating.GET("/billing/plans", m.Handler.ListPlans)
 	gating.PATCH("/billing/plans/:id", m.Handler.UpdatePlan)
 	gating.PATCH("/billing/accounts/:user_id/balance", m.Handler.UpdateBillingAccountBalance)
+	gating.POST("/billing/accounts/:user_id/expiring-credits", m.Handler.GrantExpiringCredit)
 	gating.GET("/billing/redemption-codes", m.Handler.ListRedemptionCodes)
 	gating.POST("/billing/redemption-codes", m.Handler.CreateRedemptionCodes)
 	gating.POST("/billing/redemption-codes/batch-delete", m.Handler.BatchDeleteRedemptionCodes)

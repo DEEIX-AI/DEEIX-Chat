@@ -131,6 +131,28 @@ func (BalanceTransaction) TableName() string {
 	return "billing_balance_transactions"
 }
 
+// ExpiringCredit 记录一笔具有独立到期时间的限时余额。
+type ExpiringCredit struct {
+	BaseModel
+	AccountID            uint       `gorm:"not null;index:idx_billing_expiring_credits_account_id;comment:余额账户ID"`
+	UserID               uint       `gorm:"not null;index:idx_billing_expiring_credits_user_status_expiry,priority:1;uniqueIndex:idx_expiring_credit_user_ref,priority:1,where:ref_no <> '';comment:用户ID"`
+	GrantDurationSeconds int64      `gorm:"not null;default:0;comment:管理员发放请求时长(秒)，用于幂等校验"`
+	OriginalNanousd      int64      `gorm:"not null;comment:初始发放金额(纳美元)"`
+	RemainingNanousd     int64      `gorm:"not null;default:0;comment:尚未消费且待回收金额(纳美元)"`
+	Status               string     `gorm:"size:24;not null;default:'active';index:idx_billing_expiring_credits_user_status_expiry,priority:2;index:idx_billing_expiring_credits_status_due,priority:1;comment:状态(active/consumed/expired/revoked)"`
+	ExpiresAt            time.Time  `gorm:"not null;index:idx_billing_expiring_credits_user_status_expiry,priority:3;index:idx_billing_expiring_credits_status_due,priority:2;index:idx_billing_expiring_credits_due;comment:到期时间"`
+	ConsumedAt           *time.Time `gorm:"comment:全部消费时间"`
+	ExpiredAt            *time.Time `gorm:"comment:到期回收时间"`
+	CreatedByUserID      uint       `gorm:"not null;default:0;index:idx_billing_expiring_credits_created_by;comment:发放管理员ID"`
+	RefNo                string     `gorm:"size:128;not null;default:'';index:idx_billing_expiring_credits_ref_no;uniqueIndex:idx_expiring_credit_user_ref,priority:2,where:ref_no <> '';comment:发放幂等/审计编号"`
+	Description          string     `gorm:"size:255;not null;default:'';comment:发放说明"`
+}
+
+// TableName 指定表名。
+func (ExpiringCredit) TableName() string {
+	return "billing_expiring_credits"
+}
+
 // UsageReservation 记录模型调用在结算前占用的余额与周期额度预算。
 type UsageReservation struct {
 	BaseModel
@@ -159,21 +181,22 @@ func (UsageReservation) TableName() string {
 // RedemptionCode 记录管理员创建的兑换码定义。
 type RedemptionCode struct {
 	BaseModel
-	CodeHash        string     `gorm:"size:64;not null;uniqueIndex:idx_billing_redemption_codes_hash;comment:兑换码HMAC-SHA256哈希"`
-	CodeEncrypted   string     `gorm:"type:text;not null;default:'';comment:AES-GCM加密后的兑换码明文"`
-	CodeHint        string     `gorm:"size:32;not null;default:'';comment:兑换码展示提示，不包含完整明文"`
-	Mode            string     `gorm:"size:16;not null;default:'usage';index:idx_billing_redemption_codes_mode;comment:适用计费模式(usage/period)"`
-	RewardType      string     `gorm:"size:32;not null;default:'balance';index:idx_billing_redemption_codes_reward_type;comment:奖励类型(balance/subscription)"`
-	CreditNanousd   int64      `gorm:"not null;default:0;comment:余额奖励金额(纳美元)"`
-	PlanID          uint       `gorm:"not null;default:0;index:idx_billing_redemption_codes_plan_id;comment:订阅套餐ID"`
-	DurationDays    int        `gorm:"not null;default:0;comment:订阅有效天数"`
-	MaxRedemptions  *int       `gorm:"comment:总兑换次数上限，空表示不限"`
-	PerUserLimit    int        `gorm:"not null;default:1;comment:单用户兑换次数上限"`
-	RedeemedCount   int        `gorm:"not null;default:0;comment:已兑换次数"`
-	Status          string     `gorm:"size:32;not null;default:'active';index:idx_billing_redemption_codes_status;comment:状态(active/inactive/deleted)"`
-	ExpiresAt       *time.Time `gorm:"index:idx_billing_redemption_codes_expires_at;comment:过期时间"`
-	Description     string     `gorm:"size:255;not null;default:'';comment:兑换码说明"`
-	CreatedByUserID uint       `gorm:"not null;default:0;index:idx_billing_redemption_codes_created_by;comment:创建管理员ID"`
+	CodeHash               string     `gorm:"size:64;not null;uniqueIndex:idx_billing_redemption_codes_hash;comment:兑换码HMAC-SHA256哈希"`
+	CodeEncrypted          string     `gorm:"type:text;not null;default:'';comment:AES-GCM加密后的兑换码明文"`
+	CodeHint               string     `gorm:"size:32;not null;default:'';comment:兑换码展示提示，不包含完整明文"`
+	Mode                   string     `gorm:"size:16;not null;default:'usage';index:idx_billing_redemption_codes_mode;comment:适用计费模式(usage/period)"`
+	RewardType             string     `gorm:"size:32;not null;default:'balance';index:idx_billing_redemption_codes_reward_type;comment:奖励类型(balance/subscription)"`
+	CreditNanousd          int64      `gorm:"not null;default:0;comment:余额奖励金额(纳美元)"`
+	PlanID                 uint       `gorm:"not null;default:0;index:idx_billing_redemption_codes_plan_id;comment:订阅套餐ID"`
+	DurationDays           int        `gorm:"not null;default:0;comment:奖励有效天数，余额为0表示永久"`
+	BalanceDurationSeconds int64      `gorm:"not null;default:0;comment:余额奖励有效秒数，0表示永久"`
+	MaxRedemptions         *int       `gorm:"comment:总兑换次数上限，空表示不限"`
+	PerUserLimit           int        `gorm:"not null;default:1;comment:单用户兑换次数上限"`
+	RedeemedCount          int        `gorm:"not null;default:0;comment:已兑换次数"`
+	Status                 string     `gorm:"size:32;not null;default:'active';index:idx_billing_redemption_codes_status;comment:状态(active/inactive/deleted)"`
+	ExpiresAt              *time.Time `gorm:"index:idx_billing_redemption_codes_expires_at;comment:过期时间"`
+	Description            string     `gorm:"size:255;not null;default:'';comment:兑换码说明"`
+	CreatedByUserID        uint       `gorm:"not null;default:0;index:idx_billing_redemption_codes_created_by;comment:创建管理员ID"`
 }
 
 // TableName 指定表名。

@@ -32,7 +32,7 @@ func TestReserveUsageBalanceSerializesConcurrentPostgresRequests(t *testing.T) {
 	}
 	sqlDB.SetMaxOpenConns(8)
 	defer sqlDB.Close()
-	if err = db.AutoMigrate(&models.UsageLedger{}, &models.BillingAccount{}, &models.BalanceTransaction{}, &models.UsageReservation{}); err != nil {
+	if err = db.AutoMigrate(&models.UsageLedger{}, &models.BillingAccount{}, &models.BalanceTransaction{}, &models.UsageReservation{}, &models.ExpiringCredit{}); err != nil {
 		t.Fatalf("migrate billing tables: %v", err)
 	}
 

@@ -65,18 +65,27 @@ type UpdateBillingAccountBalanceRequest struct {
 	Description string   `json:"description,omitempty" binding:"omitempty,max=255"`
 }
 
+// GrantExpiringCreditRequest 管理员发放限时额度。
+type GrantExpiringCreditRequest struct {
+	CreditUSD      *float64 `json:"creditUSD" binding:"required,gt=0"`
+	DurationDays   *float64 `json:"durationDays" binding:"required,gte=0.1,lte=3650" swaggertype:"number" minimum:"0.1" maximum:"3650" example:"0.1"`
+	Description    string   `json:"description,omitempty" binding:"omitempty,max=255"`
+	IdempotencyKey string   `json:"idempotencyKey" binding:"required,min=8,max=128"`
+}
+
 // CreateRedemptionCodeRequest 创建兑换码请求。
 type CreateRedemptionCodeRequest struct {
-	Code           string     `json:"code,omitempty" binding:"omitempty,min=3,max=64"`
-	Quantity       int        `json:"quantity,omitempty" binding:"omitempty,min=1,max=100"`
-	Mode           string     `json:"mode" binding:"required,oneof=usage period"`
-	CreditUSD      float64    `json:"creditUSD,omitempty" binding:"omitempty,min=0"`
-	PlanID         uint       `json:"planID,omitempty" binding:"omitempty,min=1"`
-	DurationDays   int        `json:"durationDays,omitempty" binding:"omitempty,min=0,max=3660"`
-	MaxRedemptions *int       `json:"maxRedemptions,omitempty" binding:"omitempty,min=1"`
-	PerUserLimit   int        `json:"perUserLimit,omitempty" binding:"omitempty,min=1,max=100"`
-	ExpiresAt      *time.Time `json:"expiresAt,omitempty" extensions:"x-nullable"`
-	Description    string     `json:"description,omitempty" binding:"omitempty,max=255"`
+	Code                string     `json:"code,omitempty" binding:"omitempty,min=3,max=64"`
+	Quantity            int        `json:"quantity,omitempty" binding:"omitempty,min=1,max=100"`
+	Mode                string     `json:"mode" binding:"required,oneof=usage period"`
+	CreditUSD           float64    `json:"creditUSD,omitempty" binding:"omitempty,min=0"`
+	PlanID              uint       `json:"planID,omitempty" binding:"omitempty,min=1"`
+	DurationDays        int        `json:"durationDays,omitempty" binding:"omitempty,min=1,max=3650"`
+	BalanceDurationDays float64    `json:"balanceDurationDays,omitempty" binding:"omitempty,gte=0.1,lte=3650"`
+	MaxRedemptions      *int       `json:"maxRedemptions,omitempty" binding:"omitempty,min=1"`
+	PerUserLimit        int        `json:"perUserLimit,omitempty" binding:"omitempty,min=1,max=100"`
+	ExpiresAt           *time.Time `json:"expiresAt,omitempty" extensions:"x-nullable"`
+	Description         string     `json:"description,omitempty" binding:"omitempty,max=255"`
 }
 
 // PatchRedemptionCodeRequest 更新兑换码请求。
@@ -348,6 +357,29 @@ type BillingAccountDataResponse struct {
 	Account BillingAccountResponse `json:"account"`
 }
 
+// ExpiringCreditResponse 限时额度响应。
+type ExpiringCreditResponse struct {
+	ID               uint       `json:"id"`
+	UserID           uint       `json:"userID"`
+	OriginalNanousd  int64      `json:"originalNanousd"`
+	OriginalUSD      float64    `json:"originalUSD"`
+	RemainingNanousd int64      `json:"remainingNanousd"`
+	RemainingUSD     float64    `json:"remainingUSD"`
+	Status           string     `json:"status"`
+	ExpiresAt        time.Time  `json:"expiresAt"`
+	ConsumedAt       *time.Time `json:"consumedAt" extensions:"x-nullable,!x-omitempty"`
+	ExpiredAt        *time.Time `json:"expiredAt" extensions:"x-nullable,!x-omitempty"`
+	CreatedByUserID  uint       `json:"createdByUserID"`
+	Description      string     `json:"description"`
+	CreatedAt        time.Time  `json:"createdAt"`
+}
+
+// ExpiringCreditGrantDataResponse 发放限时额度响应。
+type ExpiringCreditGrantDataResponse struct {
+	Credit  ExpiringCreditResponse `json:"credit"`
+	Account BillingAccountResponse `json:"account"`
+}
+
 // BillingOverviewResponse 当前用户计费概览响应。
 type BillingOverviewResponse struct {
 	Mode                     string                            `json:"mode"`
@@ -373,25 +405,26 @@ type BillingOverviewDataResponse struct {
 
 // RedemptionCodeResponse 后台兑换码响应。
 type RedemptionCodeResponse struct {
-	ID                   uint       `json:"id"`
-	Code                 string     `json:"code,omitempty"`
-	CodeHint             string     `json:"codeHint"`
-	Mode                 string     `json:"mode"`
-	RewardType           string     `json:"rewardType"`
-	CreditUSD            float64    `json:"creditUSD"`
-	CreditNanousd        int64      `json:"creditNanousd"`
-	PlanID               uint       `json:"planID"`
-	DurationDays         int        `json:"durationDays"`
-	MaxRedemptions       *int       `json:"maxRedemptions" extensions:"x-nullable,!x-omitempty"`
-	PerUserLimit         int        `json:"perUserLimit"`
-	RedeemedCount        int        `json:"redeemedCount"`
-	RemainingRedemptions *int       `json:"remainingRedemptions" extensions:"x-nullable,!x-omitempty"`
-	Status               string     `json:"status"`
-	ExpiresAt            *time.Time `json:"expiresAt" extensions:"x-nullable,!x-omitempty"`
-	Description          string     `json:"description"`
-	CreatedByUserID      uint       `json:"createdByUserID"`
-	CreatedAt            time.Time  `json:"createdAt"`
-	UpdatedAt            time.Time  `json:"updatedAt"`
+	ID                     uint       `json:"id"`
+	Code                   string     `json:"code,omitempty"`
+	CodeHint               string     `json:"codeHint"`
+	Mode                   string     `json:"mode"`
+	RewardType             string     `json:"rewardType"`
+	CreditUSD              float64    `json:"creditUSD"`
+	CreditNanousd          int64      `json:"creditNanousd"`
+	PlanID                 uint       `json:"planID"`
+	DurationDays           int        `json:"durationDays"`
+	BalanceDurationSeconds int64      `json:"balanceDurationSeconds"`
+	MaxRedemptions         *int       `json:"maxRedemptions" extensions:"x-nullable,!x-omitempty"`
+	PerUserLimit           int        `json:"perUserLimit"`
+	RedeemedCount          int        `json:"redeemedCount"`
+	RemainingRedemptions   *int       `json:"remainingRedemptions" extensions:"x-nullable,!x-omitempty"`
+	Status                 string     `json:"status"`
+	ExpiresAt              *time.Time `json:"expiresAt" extensions:"x-nullable,!x-omitempty"`
+	Description            string     `json:"description"`
+	CreatedByUserID        uint       `json:"createdByUserID"`
+	CreatedAt              time.Time  `json:"createdAt"`
+	UpdatedAt              time.Time  `json:"updatedAt"`
 }
 
 // RedemptionCodeValidationErrorResponse 兑换码字段校验错误详情。
@@ -608,6 +641,12 @@ type CheckoutResponseDoc struct {
 type BillingAccountResponseDoc struct {
 	ErrorMsg string                     `json:"errorMsg"`
 	Data     BillingAccountDataResponse `json:"data"`
+}
+
+// ExpiringCreditGrantResponseDoc 限时额度发放响应。
+type ExpiringCreditGrantResponseDoc struct {
+	ErrorMsg string                          `json:"errorMsg"`
+	Data     ExpiringCreditGrantDataResponse `json:"data"`
 }
 
 // BillingOverviewResponseDoc 当前用户计费概览响应。
@@ -850,6 +889,27 @@ func toBillingAccountResponse(item *domainbilling.BillingAccount) BillingAccount
 	}
 }
 
+func toExpiringCreditResponse(item *domainbilling.ExpiringCredit) ExpiringCreditResponse {
+	if item == nil {
+		return ExpiringCreditResponse{}
+	}
+	return ExpiringCreditResponse{
+		ID:               item.ID,
+		UserID:           item.UserID,
+		OriginalNanousd:  item.OriginalNanousd,
+		OriginalUSD:      signedNanousdToUSD(item.OriginalNanousd),
+		RemainingNanousd: item.RemainingNanousd,
+		RemainingUSD:     signedNanousdToUSD(item.RemainingNanousd),
+		Status:           item.Status,
+		ExpiresAt:        item.ExpiresAt,
+		ConsumedAt:       item.ConsumedAt,
+		ExpiredAt:        item.ExpiredAt,
+		CreatedByUserID:  item.CreatedByUserID,
+		Description:      item.Description,
+		CreatedAt:        item.CreatedAt,
+	}
+}
+
 func toBillingAccountViewResponse(item *appbilling.BillingAccountView) *BillingAccountResponse {
 	if item == nil {
 		return nil
@@ -901,26 +961,38 @@ func toRedemptionCodeResponse(item appbilling.RedemptionCodeView) RedemptionCode
 		remaining = &value
 	}
 	return RedemptionCodeResponse{
-		ID:                   item.ID,
-		Code:                 item.Code,
-		CodeHint:             item.CodeHint,
-		Mode:                 item.Mode,
-		RewardType:           item.RewardType,
-		CreditUSD:            nanousdToUSD(item.CreditNanousd),
-		CreditNanousd:        item.CreditNanousd,
-		PlanID:               item.PlanID,
-		DurationDays:         item.DurationDays,
-		MaxRedemptions:       item.MaxRedemptions,
-		PerUserLimit:         item.PerUserLimit,
-		RedeemedCount:        item.RedeemedCount,
-		RemainingRedemptions: remaining,
-		Status:               item.Status,
-		ExpiresAt:            item.ExpiresAt,
-		Description:          item.Description,
-		CreatedByUserID:      item.CreatedByUserID,
-		CreatedAt:            item.CreatedAt,
-		UpdatedAt:            item.UpdatedAt,
+		ID:                     item.ID,
+		Code:                   item.Code,
+		CodeHint:               item.CodeHint,
+		Mode:                   item.Mode,
+		RewardType:             item.RewardType,
+		CreditUSD:              nanousdToUSD(item.CreditNanousd),
+		CreditNanousd:          item.CreditNanousd,
+		PlanID:                 item.PlanID,
+		DurationDays:           item.DurationDays,
+		BalanceDurationSeconds: redemptionBalanceDurationSeconds(item.RedemptionCode),
+		MaxRedemptions:         item.MaxRedemptions,
+		PerUserLimit:           item.PerUserLimit,
+		RedeemedCount:          item.RedeemedCount,
+		RemainingRedemptions:   remaining,
+		Status:                 item.Status,
+		ExpiresAt:              item.ExpiresAt,
+		Description:            item.Description,
+		CreatedByUserID:        item.CreatedByUserID,
+		CreatedAt:              item.CreatedAt,
+		UpdatedAt:              item.UpdatedAt,
 	}
+}
+
+func redemptionBalanceDurationSeconds(item domainbilling.RedemptionCode) int64 {
+	if item.Mode != domainbilling.RedemptionCodeModeUsage {
+		return 0
+	}
+	seconds := item.BalanceDurationSeconds
+	if seconds <= 0 && item.DurationDays > 0 {
+		seconds = int64(item.DurationDays) * 24 * 60 * 60
+	}
+	return seconds
 }
 
 func toRedemptionCodeResponses(items []appbilling.RedemptionCodeView) []RedemptionCodeResponse {

@@ -290,6 +290,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	userService := user.NewService(userRepo)
 	billingRepo := billingrepo.NewRepo(db)
 	billingService := billing.NewService(billingRepo)
+	billingService.SetLogger(log)
 	billingService.SetAuditWriter(auditService)
 	billingService.SetRedemptionCodeKeyring(keyring)
 	officialPricingService := billing.NewOfficialPricingService(
@@ -582,6 +583,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 		log.Warn("embedding index reconciliation failed", zap.Error(reconcileErr))
 	}
 	embeddingService.StartBackgroundWorkers(backgroundCtx)
+	billingService.StartBackgroundWorkers(backgroundCtx)
 	conversationService.StartBackgroundWorkers(backgroundCtx)
 	contentModerationService.StartBackgroundWorkers(backgroundCtx)
 	channelService.StartModelIconAssetCleanup(backgroundCtx)

@@ -3144,6 +3144,10 @@ definitions:
     type: object
   CreateRedemptionCodeRequest:
     properties:
+      balanceDurationDays:
+        maximum: 3650
+        minimum: 0.1
+        type: number
       code:
         maxLength: 64
         minLength: 3
@@ -3155,8 +3159,8 @@ definitions:
         maxLength: 255
         type: string
       durationDays:
-        maximum: 3660
-        minimum: 0
+        maximum: 3650
+        minimum: 1
         type: integer
       expiresAt:
         type: string
@@ -3837,6 +3841,73 @@ definitions:
     - userLabel
     - userUsername
     type: object
+  ExpiringCreditGrantDataResponse:
+    properties:
+      account:
+        $ref: '#/definitions/BillingAccountResponse'
+      credit:
+        $ref: '#/definitions/ExpiringCreditResponse'
+    required:
+    - account
+    - credit
+    type: object
+  ExpiringCreditGrantResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ExpiringCreditGrantDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ExpiringCreditResponse:
+    properties:
+      consumedAt:
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      createdAt:
+        type: string
+      createdByUserID:
+        type: integer
+      description:
+        type: string
+      expiredAt:
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      expiresAt:
+        type: string
+      id:
+        type: integer
+      originalNanousd:
+        type: integer
+      originalUSD:
+        type: number
+      remainingNanousd:
+        type: integer
+      remainingUSD:
+        type: number
+      status:
+        type: string
+      userID:
+        type: integer
+    required:
+    - consumedAt
+    - createdAt
+    - createdByUserID
+    - description
+    - expiredAt
+    - expiresAt
+    - id
+    - originalNanousd
+    - originalUSD
+    - remainingNanousd
+    - remainingUSD
+    - status
+    - userID
+    type: object
   FeaturePolicyResponse:
     properties:
       desktopDownloadEnabled:
@@ -4185,6 +4256,27 @@ definitions:
         type: array
     required:
     - fileIDs
+    type: object
+  GrantExpiringCreditRequest:
+    properties:
+      creditUSD:
+        type: number
+      description:
+        maxLength: 255
+        type: string
+      durationDays:
+        example: 0.1
+        maximum: 3650
+        minimum: 0.1
+        type: number
+      idempotencyKey:
+        maxLength: 128
+        minLength: 8
+        type: string
+    required:
+    - creditUSD
+    - durationDays
+    - idempotencyKey
     type: object
   GroupModelsResponse:
     properties:
@@ -8407,6 +8499,8 @@ definitions:
     type: object
   RedemptionCodeResponse:
     properties:
+      balanceDurationSeconds:
+        type: integer
       code:
         type: string
       codeHint:
@@ -8452,6 +8546,7 @@ definitions:
       updatedAt:
         type: string
     required:
+    - balanceDurationSeconds
     - codeHint
     - createdAt
     - createdByUserID
@@ -8513,6 +8608,8 @@ definitions:
         type: integer
         x-nullable: true
         x-omitempty: false
+      balanceDurationSeconds:
+        type: integer
       codeDescription:
         type: string
       codeHint:
@@ -8556,6 +8653,7 @@ definitions:
     required:
     - balanceAfterNanousd
     - balanceBeforeNanousd
+    - balanceDurationSeconds
     - codeDescription
     - codeHint
     - codeID
@@ -12485,6 +12583,47 @@ paths:
       security:
       - BearerAuth: []
       summary: 管理员设置用户按量余额
+      tags:
+      - admin-billing
+  /admin/billing/accounts/{user_id}/expiring-credits:
+    post:
+      consumes:
+      - application/json
+      description: 发放指定美元额度；消费优先使用最早到期批次，到期后自动回收未使用部分
+      parameters:
+      - description: 用户ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      - description: 限时额度
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/GrantExpiringCreditRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ExpiringCreditGrantResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员发放限时额度
       tags:
       - admin-billing
   /admin/billing/config:

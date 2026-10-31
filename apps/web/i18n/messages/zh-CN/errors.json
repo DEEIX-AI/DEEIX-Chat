@@ -103,6 +103,8 @@
     "invalidDailyUsageDays": "用量天数无效。",
     "invalidModelPricing": "模型定价无效。",
     "invalidAccountBalance": "计费账户余额无效。",
+    "invalidExpiringCredit": "请输入大于 0 的余额及 0.1 至 3650 天的有效期。",
+    "expiringCreditConflict": "该发放编号已用于其他请求，请恢复原请求内容，或重新创建一笔发放。",
     "invalidNativeToolPricing": "原生工具定价无效。",
     "subscribeFailed": "订阅失败，请稍后重试。",
     "subscriptionEntitlementActive": "当前仍有有效付费订阅权益，不能切换到免费方案。",

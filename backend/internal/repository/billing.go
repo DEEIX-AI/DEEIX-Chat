@@ -60,6 +60,21 @@ type BillingRepository interface {
 	SumTotalBilledNanousd(ctx context.Context, userID uint) (int64, error)
 }
 
+// ExpiringCreditRepository 提供限时额度能力；独立接口避免扩大所有计费测试桩。
+type ExpiringCreditGrantInput struct {
+	UserID          uint
+	AmountNanousd   int64
+	DurationSeconds int64
+	CreatedByUserID uint
+	RefNo           string
+	Description     string
+}
+
+type ExpiringCreditRepository interface {
+	GrantExpiringCredit(ctx context.Context, input ExpiringCreditGrantInput) (*domainbilling.ExpiringCredit, *domainbilling.BillingAccount, error)
+	ExpireDueExpiringCredits(ctx context.Context, now time.Time, limit int) (int64, error)
+}
+
 // RedemptionCodeListFilter 描述管理员兑换码列表筛选条件。
 type RedemptionCodeListFilter struct {
 	Mode         string

@@ -28,16 +28,17 @@ const (
 
 // RedemptionCodeInput 定义管理员创建兑换码的入参。
 type RedemptionCodeInput struct {
-	Code           string
-	Quantity       int
-	Mode           string
-	CreditUSD      float64
-	PlanID         uint
-	DurationDays   int
-	MaxRedemptions *int
-	PerUserLimit   int
-	ExpiresAt      *time.Time
-	Description    string
+	Code                string
+	Quantity            int
+	Mode                string
+	CreditUSD           float64
+	PlanID              uint
+	DurationDays        int
+	BalanceDurationDays float64
+	MaxRedemptions      *int
+	PerUserLimit        int
+	ExpiresAt           *time.Time
+	Description         string
 }
 
 // RedemptionCodeListInput 定义管理员查询兑换码列表的入参。
@@ -125,7 +126,8 @@ type RedemptionRecordView struct {
 	CodeStatus      string
 	PlanName        string
 	// DurationDays 来自兑换时的快照，订阅类兑换表示套餐时长（天）。
-	DurationDays int
+	DurationDays           int
+	BalanceDurationSeconds int64
 	// BalanceAmountNanousd / BalanceAfterNanousd 来自余额流水；订阅类兑换无流水时为 nil。
 	BalanceAmountNanousd *int64
 	BalanceAfterNanousd  *int64
@@ -160,14 +162,15 @@ func (s *Service) ListRedemptions(ctx context.Context, page int, pageSize int, f
 	views := make([]RedemptionRecordView, 0, len(records))
 	for _, record := range records {
 		views = append(views, RedemptionRecordView{
-			Redemption:           record.Redemption,
-			CodeHint:             record.CodeHint,
-			CodeDescription:      record.CodeDescription,
-			CodeStatus:           record.CodeStatus,
-			PlanName:             record.PlanName,
-			DurationDays:         redemptionSnapshotDurationDays(record.Redemption.SnapshotJSON),
-			BalanceAmountNanousd: record.BalanceAmountNanousd,
-			BalanceAfterNanousd:  record.BalanceAfterNanousd,
+			Redemption:             record.Redemption,
+			CodeHint:               record.CodeHint,
+			CodeDescription:        record.CodeDescription,
+			CodeStatus:             record.CodeStatus,
+			PlanName:               record.PlanName,
+			DurationDays:           redemptionSnapshotDurationDays(record.Redemption.SnapshotJSON),
+			BalanceDurationSeconds: redemptionSnapshotBalanceDuration(record.Redemption.SnapshotJSON),
+			BalanceAmountNanousd:   record.BalanceAmountNanousd,
+			BalanceAfterNanousd:    record.BalanceAfterNanousd,
 		})
 	}
 	return views, total, nil
@@ -270,20 +273,21 @@ func (s *Service) CreateRedemptionCodes(ctx context.Context, actorUserID uint, i
 			return nil, encryptErr
 		}
 		item := &domainbilling.RedemptionCode{
-			CodeHash:        codeHash,
-			CodeEncrypted:   codeEncrypted,
-			CodeHint:        redemptionCodeHint(code),
-			Mode:            normalized.Mode,
-			RewardType:      normalized.RewardType,
-			CreditNanousd:   normalized.CreditNanousd,
-			PlanID:          normalized.PlanID,
-			DurationDays:    normalized.DurationDays,
-			MaxRedemptions:  copyIntPointer(normalized.MaxRedemptions),
-			PerUserLimit:    normalized.PerUserLimit,
-			Status:          domainbilling.RedemptionCodeStatusActive,
-			ExpiresAt:       normalized.ExpiresAt,
-			Description:     normalized.Description,
-			CreatedByUserID: actorUserID,
+			CodeHash:               codeHash,
+			CodeEncrypted:          codeEncrypted,
+			CodeHint:               redemptionCodeHint(code),
+			Mode:                   normalized.Mode,
+			RewardType:             normalized.RewardType,
+			CreditNanousd:          normalized.CreditNanousd,
+			PlanID:                 normalized.PlanID,
+			DurationDays:           normalized.DurationDays,
+			BalanceDurationSeconds: normalized.BalanceDurationSeconds,
+			MaxRedemptions:         copyIntPointer(normalized.MaxRedemptions),
+			PerUserLimit:           normalized.PerUserLimit,
+			Status:                 domainbilling.RedemptionCodeStatusActive,
+			ExpiresAt:              normalized.ExpiresAt,
+			Description:            normalized.Description,
+			CreatedByUserID:        actorUserID,
 		}
 		created, createErr := s.repo.CreateRedemptionCode(ctx, item)
 		if createErr != nil {
@@ -415,17 +419,18 @@ func (s *Service) RedeemCode(ctx context.Context, userID uint, code string) (*Re
 }
 
 type normalizedRedemptionCodeInput struct {
-	Code           string
-	Quantity       int
-	Mode           string
-	RewardType     string
-	CreditNanousd  int64
-	PlanID         uint
-	DurationDays   int
-	MaxRedemptions *int
-	PerUserLimit   int
-	ExpiresAt      *time.Time
-	Description    string
+	Code                   string
+	Quantity               int
+	Mode                   string
+	RewardType             string
+	CreditNanousd          int64
+	PlanID                 uint
+	DurationDays           int
+	BalanceDurationSeconds int64
+	MaxRedemptions         *int
+	PerUserLimit           int
+	ExpiresAt              *time.Time
+	Description            string
 }
 
 func (s *Service) normalizeRedemptionCodeInput(ctx context.Context, input RedemptionCodeInput) (normalizedRedemptionCodeInput, error) {
@@ -464,21 +469,32 @@ func (s *Service) normalizeRedemptionCodeInput(ctx context.Context, input Redemp
 	mode := normalizeRedemptionMode(input.Mode)
 	switch mode {
 	case domainbilling.RedemptionCodeModeUsage:
-		if input.CreditUSD <= 0 || math.IsNaN(input.CreditUSD) || math.IsInf(input.CreditUSD, 0) {
+		if input.DurationDays != 0 {
+			return normalizedRedemptionCodeInput{}, redemptionCodeValidationError("balanceDurationDays", "duration")
+		}
+		if input.CreditUSD <= 0 || input.CreditUSD >= float64(math.MaxInt64)/1e9 || math.IsNaN(input.CreditUSD) || math.IsInf(input.CreditUSD, 0) {
 			return normalizedRedemptionCodeInput{}, redemptionCodeValidationError("creditUSD", "credit")
 		}
+		balanceDurationSeconds, validDuration := fractionalDaysToSeconds(input.BalanceDurationDays, true)
+		if !validDuration {
+			return normalizedRedemptionCodeInput{}, redemptionCodeValidationError("balanceDurationDays", "duration")
+		}
 		return normalizedRedemptionCodeInput{
-			Code:           code,
-			Quantity:       quantity,
-			Mode:           mode,
-			RewardType:     domainbilling.RedemptionRewardTypeBalance,
-			CreditNanousd:  usdToNanousd(input.CreditUSD),
-			MaxRedemptions: maxRedemptions,
-			PerUserLimit:   perUserLimit,
-			ExpiresAt:      input.ExpiresAt,
-			Description:    strings.TrimSpace(input.Description),
+			Code:                   code,
+			Quantity:               quantity,
+			Mode:                   mode,
+			RewardType:             domainbilling.RedemptionRewardTypeBalance,
+			CreditNanousd:          usdToNanousd(input.CreditUSD),
+			BalanceDurationSeconds: balanceDurationSeconds,
+			MaxRedemptions:         maxRedemptions,
+			PerUserLimit:           perUserLimit,
+			ExpiresAt:              input.ExpiresAt,
+			Description:            strings.TrimSpace(input.Description),
 		}, nil
 	case domainbilling.RedemptionCodeModePeriod:
+		if input.BalanceDurationDays != 0 {
+			return normalizedRedemptionCodeInput{}, redemptionCodeValidationError("balanceDurationDays", "duration")
+		}
 		if input.PlanID == 0 {
 			return normalizedRedemptionCodeInput{}, redemptionCodeValidationError("planID", "plan")
 		}
@@ -492,10 +508,10 @@ func (s *Service) normalizeRedemptionCodeInput(ctx context.Context, input Redemp
 		if !plan.IsActive || strings.TrimSpace(plan.Code) == "free" {
 			return normalizedRedemptionCodeInput{}, redemptionCodeValidationError("planID", "plan")
 		}
-		durationDays := input.DurationDays
-		if durationDays <= 0 {
+		if input.DurationDays <= 0 || input.DurationDays > 3650 {
 			return normalizedRedemptionCodeInput{}, redemptionCodeValidationError("durationDays", "duration")
 		}
+		durationDays := int(input.DurationDays)
 		return normalizedRedemptionCodeInput{
 			Code:           code,
 			Quantity:       quantity,
@@ -661,4 +677,21 @@ func mapRedemptionRepositoryError(err error) error {
 	default:
 		return err
 	}
+}
+
+func redemptionSnapshotBalanceDuration(raw string) int64 {
+	var snapshot struct {
+		RewardType             string  `json:"reward_type"`
+		DurationDays           float64 `json:"duration_days"`
+		BalanceDurationSeconds int64   `json:"balance_duration_seconds"`
+	}
+	if json.Unmarshal([]byte(raw), &snapshot) != nil || snapshot.RewardType != domainbilling.RedemptionRewardTypeBalance {
+		return 0
+	}
+	if snapshot.BalanceDurationSeconds > 0 {
+		return snapshot.BalanceDurationSeconds
+	}
+	// Old custom snapshots stored fractional balance lifetimes in duration_days.
+	seconds, _ := fractionalDaysToSeconds(snapshot.DurationDays, true)
+	return seconds
 }

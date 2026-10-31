@@ -516,7 +516,7 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 		if usage.IsFreeModel || chargeNanousd <= 0 {
 			chargeNanousd = 0
 		}
-		account, err := getOrCreateBillingAccountForUpdate(tx, usage.UserID)
+		account, now, err := getOrCreateBillingAccountForUpdate(tx, usage.UserID)
 		if err != nil {
 			return err
 		}
@@ -543,6 +543,9 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 			return dberror.Translate(err)
 		}
 		if chargeNanousd > 0 {
+			if err := reduceActiveExpiringCredits(tx, usage.UserID, chargeNanousd, now, domainbilling.ExpiringCreditStatusConsumed); err != nil {
+				return err
+			}
 			if err := tx.Model(account).Updates(map[string]any{
 				"balance_nanousd": gorm.Expr("balance_nanousd - ?", chargeNanousd),
 				"currency":        "USD",
@@ -587,7 +590,7 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 	settledSnapshotJSON := ""
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 余额账户行锁是周期额度结算的串行化锚点，确保同一用户并发请求按提交顺序重算已用额度。
-		account, err := getOrCreateBillingAccountForUpdate(tx, usage.UserID)
+		account, now, err := getOrCreateBillingAccountForUpdate(tx, usage.UserID)
 		if err != nil {
 			return err
 		}
@@ -673,6 +676,9 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 			return dberror.Translate(err)
 		}
 		if overageNanousd > 0 {
+			if err := reduceActiveExpiringCredits(tx, usage.UserID, overageNanousd, now, domainbilling.ExpiringCreditStatusConsumed); err != nil {
+				return err
+			}
 			// 超出周期额度的真实用量必须完整入账；预留仅限制并发风险，不改变最终扣费金额。
 			// 扣减使用表达式更新而非内存值写回，避免任何绕开行锁的并发写导致覆盖。
 			if err := tx.Model(account).Updates(map[string]any{
@@ -755,7 +761,7 @@ func (r *Repo) GetOrCreateBillingAccount(ctx context.Context, userID uint) (*dom
 	}
 	var result *domainbilling.BillingAccount
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		account, err := getOrCreateBillingAccountForUpdate(tx, userID)
+		account, _, err := getOrCreateBillingAccountForUpdate(tx, userID)
 		if err != nil {
 			return err
 		}
@@ -772,9 +778,35 @@ func (r *Repo) ListBillingAccountsByUserIDs(ctx context.Context, userIDs []uint)
 		return []domainbilling.BillingAccount{}, nil
 	}
 	items := make([]models.BillingAccount, 0, len(userIDs))
-	if err := r.db.WithContext(ctx).
-		Where("user_id IN ?", userIDs).
-		Find(&items).Error; err != nil {
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id IN ?", userIDs).Order("user_id ASC").Find(&items).Error; err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return nil
+		}
+		now := time.Now()
+		var dueUserIDs []uint
+		if err := tx.Model(&models.ExpiringCredit{}).
+			Where("user_id IN ? AND status = ? AND remaining_nanousd > 0 AND expires_at <= ?", userIDs, domainbilling.ExpiringCreditStatusActive, now).
+			Distinct("user_id").Pluck("user_id", &dueUserIDs).Error; err != nil {
+			return err
+		}
+		dueUsers := make(map[uint]struct{}, len(dueUserIDs))
+		for _, userID := range dueUserIDs {
+			dueUsers[userID] = struct{}{}
+		}
+		for i := range items {
+			if _, due := dueUsers[items[i].UserID]; !due {
+				continue
+			}
+			if _, err := expireDueExpiringCreditsForAccount(tx, &items[i], now); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return nil, dberror.Translate(err)
 	}
 	results := make([]domainbilling.BillingAccount, 0, len(items))
@@ -791,11 +823,16 @@ func (r *Repo) SetBillingAccountBalance(ctx context.Context, userID uint, balanc
 	}
 	var result domainbilling.BillingAccount
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		account, err := getOrCreateBillingAccountForUpdate(tx, userID)
+		account, now, err := getOrCreateBillingAccountForUpdate(tx, userID)
 		if err != nil {
 			return err
 		}
 		amount := balanceNanousd - account.BalanceNanousd
+		if amount < 0 {
+			if err = reduceActiveExpiringCredits(tx, userID, -amount, now, domainbilling.ExpiringCreditStatusRevoked); err != nil {
+				return err
+			}
+		}
 		if err := tx.Model(account).Updates(map[string]any{
 			"balance_nanousd": balanceNanousd,
 			"currency":        "USD",
@@ -868,7 +905,7 @@ func (r *Repo) MarkPaymentOrderPaidAndCreditBalance(
 			return repository.ErrInvalidInput
 		}
 
-		account, err := getOrCreateBillingAccountForUpdate(tx, order.UserID)
+		account, _, err := getOrCreateBillingAccountForUpdate(tx, order.UserID)
 		if err != nil {
 			return err
 		}
@@ -1104,20 +1141,21 @@ func (r *Repo) CreateRedemptionCode(ctx context.Context, item *domainbilling.Red
 		return nil, repository.ErrInvalidInput
 	}
 	record := models.RedemptionCode{
-		CodeHash:        strings.TrimSpace(item.CodeHash),
-		CodeEncrypted:   strings.TrimSpace(item.CodeEncrypted),
-		CodeHint:        strings.TrimSpace(item.CodeHint),
-		Mode:            normalizeRedemptionMode(item.Mode),
-		RewardType:      normalizeRedemptionRewardType(item.RewardType),
-		CreditNanousd:   clampNonNegative(item.CreditNanousd),
-		PlanID:          item.PlanID,
-		DurationDays:    item.DurationDays,
-		MaxRedemptions:  copyIntPointer(item.MaxRedemptions),
-		PerUserLimit:    item.PerUserLimit,
-		Status:          normalizeRedemptionStatus(item.Status),
-		ExpiresAt:       item.ExpiresAt,
-		Description:     strings.TrimSpace(item.Description),
-		CreatedByUserID: item.CreatedByUserID,
+		CodeHash:               strings.TrimSpace(item.CodeHash),
+		CodeEncrypted:          strings.TrimSpace(item.CodeEncrypted),
+		CodeHint:               strings.TrimSpace(item.CodeHint),
+		Mode:                   normalizeRedemptionMode(item.Mode),
+		RewardType:             normalizeRedemptionRewardType(item.RewardType),
+		CreditNanousd:          clampNonNegative(item.CreditNanousd),
+		PlanID:                 item.PlanID,
+		DurationDays:           item.DurationDays,
+		BalanceDurationSeconds: item.BalanceDurationSeconds,
+		MaxRedemptions:         copyIntPointer(item.MaxRedemptions),
+		PerUserLimit:           item.PerUserLimit,
+		Status:                 normalizeRedemptionStatus(item.Status),
+		ExpiresAt:              item.ExpiresAt,
+		Description:            strings.TrimSpace(item.Description),
+		CreatedByUserID:        item.CreatedByUserID,
 	}
 	if record.PerUserLimit <= 0 {
 		record.PerUserLimit = 1
@@ -1257,7 +1295,7 @@ func (r *Repo) RedeemCode(ctx context.Context, input repository.RedemptionApplyI
 
 		switch code.RewardType {
 		case domainbilling.RedemptionRewardTypeBalance:
-			account, balanceTxID, applyErr := applyRedemptionBalance(tx, input.UserID, code, redemption.RefNo)
+			account, balanceTxID, applyErr := applyRedemptionBalance(tx, input.UserID, code, redemption.RefNo, now)
 			if applyErr != nil {
 				return applyErr
 			}
@@ -2328,7 +2366,7 @@ func toDomainUsageLedger(item models.UsageLedger) domainbilling.UsageLedger {
 	}
 }
 
-func getOrCreateBillingAccountForUpdate(tx *gorm.DB, userID uint) (*models.BillingAccount, error) {
+func lockBillingAccount(tx *gorm.DB, userID uint) (*models.BillingAccount, error) {
 	if userID == 0 {
 		return nil, repository.ErrInvalidInput
 	}
@@ -2390,24 +2428,25 @@ func toDomainSubscription(item models.Subscription) domainbilling.Subscription {
 
 func toDomainRedemptionCode(item models.RedemptionCode) domainbilling.RedemptionCode {
 	return domainbilling.RedemptionCode{
-		ID:              item.ID,
-		CodeHash:        item.CodeHash,
-		CodeEncrypted:   item.CodeEncrypted,
-		CodeHint:        item.CodeHint,
-		Mode:            item.Mode,
-		RewardType:      item.RewardType,
-		CreditNanousd:   item.CreditNanousd,
-		PlanID:          item.PlanID,
-		DurationDays:    item.DurationDays,
-		MaxRedemptions:  copyIntPointer(item.MaxRedemptions),
-		PerUserLimit:    item.PerUserLimit,
-		RedeemedCount:   item.RedeemedCount,
-		Status:          item.Status,
-		ExpiresAt:       item.ExpiresAt,
-		Description:     item.Description,
-		CreatedByUserID: item.CreatedByUserID,
-		CreatedAt:       item.CreatedAt,
-		UpdatedAt:       item.UpdatedAt,
+		ID:                     item.ID,
+		CodeHash:               item.CodeHash,
+		CodeEncrypted:          item.CodeEncrypted,
+		CodeHint:               item.CodeHint,
+		Mode:                   item.Mode,
+		RewardType:             item.RewardType,
+		CreditNanousd:          item.CreditNanousd,
+		PlanID:                 item.PlanID,
+		DurationDays:           item.DurationDays,
+		BalanceDurationSeconds: item.BalanceDurationSeconds,
+		MaxRedemptions:         copyIntPointer(item.MaxRedemptions),
+		PerUserLimit:           item.PerUserLimit,
+		RedeemedCount:          item.RedeemedCount,
+		Status:                 item.Status,
+		ExpiresAt:              item.ExpiresAt,
+		Description:            item.Description,
+		CreatedByUserID:        item.CreatedByUserID,
+		CreatedAt:              item.CreatedAt,
+		UpdatedAt:              item.UpdatedAt,
 	}
 }
 
@@ -2466,10 +2505,24 @@ func validateRedeemableCode(tx *gorm.DB, code models.RedemptionCode, userID uint
 	return nil
 }
 
-func applyRedemptionBalance(tx *gorm.DB, userID uint, code models.RedemptionCode, refNo string) (*models.BillingAccount, uint, error) {
-	account, err := getOrCreateBillingAccountForUpdate(tx, userID)
+func applyRedemptionBalance(tx *gorm.DB, userID uint, code models.RedemptionCode, refNo string, redeemedAt time.Time) (*models.BillingAccount, uint, error) {
+	account, now, err := getOrCreateBillingAccountForUpdate(tx, userID)
 	if err != nil {
 		return nil, 0, err
+	}
+	if redeemedAt.IsZero() {
+		redeemedAt = now
+	}
+	if code.CreditNanousd <= 0 || account.BalanceNanousd > math.MaxInt64-code.CreditNanousd {
+		return nil, 0, repository.ErrInvalidInput
+	}
+	balanceDurationSeconds := effectiveBalanceDurationSeconds(code)
+	if balanceDurationSeconds > 0 {
+		if _, err := createExpiringCreditBatch(tx, account, code.CreditNanousd,
+			redeemedAt.Add(time.Duration(balanceDurationSeconds)*time.Second), code.CreatedByUserID, refNo,
+			textutil.FirstNonEmpty(strings.TrimSpace(code.Description), "兑换码限时额度"), balanceDurationSeconds); err != nil {
+			return nil, 0, err
+		}
 	}
 	if err := tx.Model(account).Updates(map[string]any{
 		"balance_nanousd": gorm.Expr("balance_nanousd + ?", code.CreditNanousd),
@@ -2496,6 +2549,19 @@ func applyRedemptionBalance(tx *gorm.DB, userID uint, code models.RedemptionCode
 		return nil, 0, dberror.Translate(err)
 	}
 	return account, transaction.ID, nil
+}
+
+func effectiveBalanceDurationSeconds(code models.RedemptionCode) int64 {
+	if code.RewardType != domainbilling.RedemptionRewardTypeBalance {
+		return 0
+	}
+	if code.BalanceDurationSeconds > 0 {
+		return code.BalanceDurationSeconds
+	}
+	if code.DurationDays > 0 {
+		return int64(code.DurationDays) * 24 * 60 * 60
+	}
+	return 0
 }
 
 func applyRedemptionSubscription(tx *gorm.DB, userID uint, code models.RedemptionCode, now time.Time) (*models.Subscription, error) {
@@ -3012,13 +3078,14 @@ func subscriptionPlanRank(plan models.BillingPlan) int {
 
 func redemptionSnapshotJSON(code models.RedemptionCode) string {
 	payload := map[string]any{
-		"code_id":        code.ID,
-		"mode":           code.Mode,
-		"reward_type":    code.RewardType,
-		"credit_nanousd": code.CreditNanousd,
-		"plan_id":        code.PlanID,
-		"duration_days":  code.DurationDays,
-		"description":    strings.TrimSpace(code.Description),
+		"code_id":                  code.ID,
+		"mode":                     code.Mode,
+		"reward_type":              code.RewardType,
+		"credit_nanousd":           code.CreditNanousd,
+		"plan_id":                  code.PlanID,
+		"duration_days":            code.DurationDays,
+		"balance_duration_seconds": effectiveBalanceDurationSeconds(code),
+		"description":              strings.TrimSpace(code.Description),
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
