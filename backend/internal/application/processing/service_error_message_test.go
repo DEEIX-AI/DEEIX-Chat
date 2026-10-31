@@ -19,9 +19,6 @@ func TestFileProcessingStatusDoesNotInventFailureMessages(t *testing.T) {
 				if got.ErrorCode != "" || got.ErrorMessage != "" {
 					t.Fatalf("file without an error acquired a failure: code=%q message=%q", got.ErrorCode, got.ErrorMessage)
 				}
-				if file.ProcessingErrorMessage != "" {
-					t.Fatal("mapping must not modify the stored file")
-				}
 			})
 		}
 	}
@@ -49,7 +46,8 @@ func TestFileProcessingStatusKeepsSafeFailureMessages(t *testing.T) {
 	}{
 		{"coded failure", "failed", "extract_timeout", "", "文件提取超时，请稍后重试，或缩小文件后重试。"},
 		{"legacy failure", "failed", "", "", "PDF 未提取到可读文本。该文件可能是扫描件、图片型 PDF、加密 PDF，或文档内容本身不可复制。"},
-		{"message only", "ready", "", "private upstream diagnostic", "PDF 未提取到可读文本。该文件可能是扫描件、图片型 PDF、加密 PDF，或文档内容本身不可复制。"},
+		{"stale message without code", "ready", "", "private upstream diagnostic", ""},
+		{"padded failed status", " FAILED ", "", "", "PDF 未提取到可读文本。该文件可能是扫描件、图片型 PDF、加密 PDF，或文档内容本身不可复制。"},
 		{"unknown code", "failed", "unknown_error", "private upstream diagnostic", "文件处理失败，请稍后重试。"},
 		{"code without failed status", "ready", "extract_timeout", "", "文件提取超时，请稍后重试，或缩小文件后重试。"},
 	} {

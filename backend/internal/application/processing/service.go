@@ -1439,9 +1439,9 @@ func processingErrorSummary(err error) string {
 }
 
 // ResolveFileProcessingErrorMessage formats response errors without inventing a failure
-// for files that have no processing error. Legacy failed rows still get a safe fallback.
+// for files that have no processing error code. Legacy failed rows still get a safe fallback.
 func ResolveFileProcessingErrorMessage(fileCategory, processingStatus, code, message string) string {
-	if processingStatus != "failed" && strings.TrimSpace(code) == "" && strings.TrimSpace(message) == "" {
+	if !strings.EqualFold(strings.TrimSpace(processingStatus), "failed") && strings.TrimSpace(code) == "" {
 		return ""
 	}
 	return HumanizeFileProcessingError(fileCategory, code, message)

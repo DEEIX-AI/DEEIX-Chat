@@ -16,8 +16,9 @@ func TestFileResponsesDoNotInventFailureMessages(t *testing.T) {
 		{"queued PDF", "queued", "none", "none", "", "", ""},
 		{"extracting PDF", "extracting", "none", "none", "", "", ""},
 		{"empty PDF", "ready", "empty", "empty", "", "", ""},
-		{"embedding failed separately", "ready", "ready", "failed", "", "", ""},
+		{"stalled embedding marked failed", "ready", "ready", "failed", "embed_failed", "embedding stalled", "文件已完成文本提取，但向量化失败。"},
 		{"whitespace error fields", "ready", "ready", "none", " \t", " \n", ""},
+		{"stale message without code", "ready", "ready", "none", "", "old diagnostic", ""},
 		{"actual failure", "failed", "failed", "none", "extract_timeout", "", "文件提取超时，请稍后重试，或缩小文件后重试。"},
 		{"legacy failure without fields", "failed", "failed", "none", "", "", "PDF 未提取到可读文本。该文件可能是扫描件、图片型 PDF、加密 PDF，或文档内容本身不可复制。"},
 	} {
@@ -35,7 +36,7 @@ func TestFileResponsesDoNotInventFailureMessages(t *testing.T) {
 			status := toFileProcessingStatusResponse(&appprocessing.FileProcessingStatusDTO{
 				FileID: file.FileID, FileCategory: file.FileCategory, ProcessingStatus: tc.status,
 				ProcessingReady: file.ProcessingReady, ExtractStatus: tc.extract, EmbedStatus: tc.embed,
-				ErrorCode: tc.code, ErrorMessage: tc.message, ExtractChars: 638, ExtractPages: 1,
+				ErrorCode: tc.code, ErrorMessage: object.ProcessingErrorMessage, ExtractChars: 638, ExtractPages: 1,
 			})
 			if status.ErrorMessage != tc.want {
 				t.Errorf("processing response message = %q, want %q", status.ErrorMessage, tc.want)

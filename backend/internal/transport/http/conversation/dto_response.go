@@ -1478,7 +1478,7 @@ func toFileProcessingStatusResponse(d *appprocessing.FileProcessingStatusDTO) Fi
 		RAGReady:            d.RAGReady,
 		RAGReason:           d.RAGReason,
 		ErrorCode:           d.ErrorCode,
-		ErrorMessage:        appprocessing.ResolveFileProcessingErrorMessage(d.FileCategory, d.ProcessingStatus, d.ErrorCode, d.ErrorMessage),
+		ErrorMessage:        d.ErrorMessage,
 		ExtractChars:        d.ExtractChars,
 		ExtractPages:        d.ExtractPages,
 		ChunkCount:          d.ChunkCount,
