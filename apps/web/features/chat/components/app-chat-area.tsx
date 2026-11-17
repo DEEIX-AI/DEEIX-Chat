@@ -213,6 +213,28 @@ export function AppChatArea() {
     [renameByPublicID, router, t, upsertConversation],
   );
 
+  const discussionSeedBindings = React.useMemo<Record<string, string> | null>(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const discussion = messages[index]?.discussion;
+      if (!discussion?.enabled) {
+        continue;
+      }
+      const bindings: Record<string, string> = {};
+      for (const round of discussion.rounds ?? []) {
+        for (const step of round.steps ?? []) {
+          if (step.participant && step.model && !bindings[step.participant]) {
+            bindings[step.participant] = step.model;
+          }
+        }
+      }
+      if (discussion.summary?.participant && discussion.summary.model) {
+        bindings[discussion.summary.participant] = discussion.summary.model;
+      }
+      return bindings;
+    }
+    return null;
+  }, [messages]);
+
   const {
     modelOptions,
     refreshModelCatalog,
@@ -246,6 +268,7 @@ export function AppChatArea() {
     conversationModel: currentConversation?.model ?? null,
     newConversationDefaultModel: newConversationProject?.defaultModel ?? "",
     newConversationDefaultsPending,
+    discussionSeedBindings,
     resetToken: newConversationRevision,
   });
   const {

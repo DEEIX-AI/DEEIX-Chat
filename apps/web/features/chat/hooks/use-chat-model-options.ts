@@ -429,17 +429,48 @@ function parseModalities(value: unknown): ModelModality[] {
   return MODEL_MODALITIES.filter((modality) => value.includes(modality));
 }
 
+function discussionBindingsStorageKey(conversationPublicID: string | null, templatePublicID: string): string {
+  return `deeix:discussion-bindings:${conversationPublicID || "new"}:${templatePublicID}`;
+}
+
+function readStoredDiscussionBindings(key: string): Record<string, string> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw);
+    if (!isRecord(parsed)) {
+      return {};
+    }
+    const result: Record<string, string> = {};
+    for (const [name, value] of Object.entries(parsed)) {
+      if (typeof value === "string" && value.trim()) {
+        result[name] = value;
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 export function useChatModelOptions({
   conversationPublicID,
   conversationModel,
   newConversationDefaultModel,
   newConversationDefaultsPending = false,
+  discussionSeedBindings = null,
   resetToken,
 }: {
   conversationPublicID: string | null;
   conversationModel?: string | null;
   newConversationDefaultModel?: string | null;
   newConversationDefaultsPending?: boolean;
+  discussionSeedBindings?: Record<string, string> | null;
   resetToken?: number;
 }) {
   const t = useTranslations("chat.models");
@@ -458,6 +489,7 @@ export function useChatModelOptions({
   const [mcpMaxSelectedTools, setMCPMaxSelectedTools] = React.useState(32);
   const activeConversationRef = React.useRef<string | null>(null);
   const userSelectedModelRef = React.useRef(false);
+  const discussionBindingsTouchedRef = React.useRef(false);
   // Inputs of the last default-model resolution other than the catalog itself (see below).
   const defaultModelResolutionKeyRef = React.useRef("");
   const previousResetTokenRef = React.useRef(resetToken);
@@ -705,22 +737,49 @@ export function useChatModelOptions({
     return discussionTemplates.find((item) => `discussion:${item.publicID}` === normalized) ?? null;
   }, [discussionTemplates, selectedPlatformModelName]);
 
+  const discussionTemplateID = selectedDiscussionTemplate?.publicID ?? "";
+
   React.useEffect(() => {
-    setDiscussionBindings((previous) => {
-      if (!selectedDiscussionTemplate) {
-        return Object.keys(previous).length === 0 ? previous : {};
-      }
-      const next: Record<string, string> = {};
-      for (const placeholder of selectedDiscussionTemplate.config.placeholders) {
-        next[placeholder.key] = previous[placeholder.key] || placeholder.defaultModel || "";
+    discussionBindingsTouchedRef.current = false;
+  }, [conversationPublicID, discussionTemplateID]);
+
+  React.useEffect(() => {
+    const template = selectedDiscussionTemplate;
+    if (!template) {
+      setDiscussionBindings((previous) => (Object.keys(previous).length === 0 ? previous : {}));
+      return;
+    }
+    if (discussionBindingsTouchedRef.current) {
+      return;
+    }
+    const stored = readStoredDiscussionBindings(
+      discussionBindingsStorageKey(conversationPublicID, template.publicID),
+    );
+    const next: Record<string, string> = {};
+    for (const placeholder of template.config.placeholders) {
+      next[placeholder.key] =
+        discussionSeedBindings?.[placeholder.key] || stored[placeholder.key] || placeholder.defaultModel || "";
+    }
+    setDiscussionBindings(next);
+  }, [conversationPublicID, discussionSeedBindings, selectedDiscussionTemplate]);
+
+  const setDiscussionBinding = React.useCallback((participant: string, model: string) => {
+    discussionBindingsTouchedRef.current = true;
+    setDiscussionBindings((current) => {
+      const next = { ...current, [participant]: model };
+      if (selectedDiscussionTemplate && typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            discussionBindingsStorageKey(conversationPublicID, selectedDiscussionTemplate.publicID),
+            JSON.stringify(next),
+          );
+        } catch {
+          // Draft persistence is best-effort; the server record remains the source of truth.
+        }
       }
       return next;
     });
-  }, [selectedDiscussionTemplate]);
-
-  const setDiscussionBinding = React.useCallback((participant: string, model: string) => {
-    setDiscussionBindings((current) => ({ ...current, [participant]: model }));
-  }, []);
+  }, [conversationPublicID, selectedDiscussionTemplate]);
 
   const modelOptions = React.useMemo<ChatModelOption[]>(
     () => [

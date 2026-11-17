@@ -63,6 +63,13 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 	if runID == "" {
 		runID = "run_" + normalizePublicID(uuid.NewString())
 	}
+	if input.ClientRunID != "" && s.generationStreams != nil {
+		runCtx, cancel := context.WithCancel(ctx)
+		ctx = runCtx
+		if err = s.generationStreams.register(ctx, runID, input.UserID, conversation.PublicID, cancel); err != nil {
+			return nil, err
+		}
+	}
 	sendInput := SendMessageInput{
 		UserID:                input.UserID,
 		ConversationID:        input.ConversationID,

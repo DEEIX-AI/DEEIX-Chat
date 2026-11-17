@@ -7,9 +7,11 @@ import (
 	"strings"
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // DiscussionSendRequest 是讨论消息发送请求。
@@ -51,6 +53,22 @@ func (h *Handler) StreamDiscussionMessage(c *gin.Context) {
 		handleSendMessageError(c, err)
 		return
 	}
+	runID := strings.TrimSpace(req.ClientRunID)
+	if runID == "" {
+		runID = "run_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	}
+	generationCtx, releaseLifecycle, ok := h.service.AcquireMessageGenerationLifecycle(
+		background.Detach(c.Request.Context()),
+	)
+	if !ok {
+		response.ErrorWithCode(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable)
+		return
+	}
+	defer releaseLifecycle()
+	if generationCtx == nil {
+		generationCtx = background.Detach(c.Request.Context())
+	}
+	defer h.service.FinishMessageGeneration(generationCtx, runID)
 	c.Header("Content-Type", "application/x-ndjson; charset=utf-8")
 	c.Header("Cache-Control", "no-cache, no-transform")
 	c.Header("Connection", "keep-alive")
@@ -58,6 +76,9 @@ func (h *Handler) StreamDiscussionMessage(c *gin.Context) {
 	c.Status(http.StatusOK)
 
 	writeEvent := func(payload map[string]any) error {
+		if published, owned := h.service.PublishMessageGenerationEvent(generationCtx, runID, payload); owned {
+			payload = published
+		}
 		encoded, marshalErr := json.Marshal(payload)
 		if marshalErr != nil {
 			return marshalErr
@@ -79,12 +100,12 @@ func (h *Handler) StreamDiscussionMessage(c *gin.Context) {
 		ParentMessagePublicID: req.ParentMessagePublicID,
 		SourceMessagePublicID: req.SourceMessagePublicID,
 		BranchReason:          req.BranchReason,
-		ClientRunID:           req.ClientRunID,
+		ClientRunID:           runID,
 		OnEvent: func(eventType string, payload map[string]any) error {
 			return writeEvent(normalizeStreamEventPayload(eventType, payload))
 		},
 	}
-	result, err := h.service.StreamDiscussionMessage(c.Request.Context(), input)
+	result, err := h.service.StreamDiscussionMessage(generationCtx, input)
 	if err != nil {
 		if errors.Is(err, appconversation.ErrMessageGenerationCanceled) {
 			return
