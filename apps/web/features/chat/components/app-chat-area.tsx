@@ -22,6 +22,7 @@ import { ChatUIBlockPanel } from "@/features/chat/components/sections/chat-ui-bl
 import { ChatEmptyState } from "@/features/chat/components/sections/chat-empty";
 import { ChatInput } from "@/features/chat/components/sections/chat-input";
 import { ChatDiscussionConfig } from "@/features/chat/components/sections/chat-discussion-config";
+import { ChatLayoutControl } from "@/features/chat/components/sections/chat-layout-control";
 import { ChatScreenshotPreviewDialog } from "@/features/chat/components/sections/chat-screenshot-preview-dialog";
 import { TemporaryChatModeControl } from "@/features/chat/components/sections/chat-temporary-mode-control";
 import { useChatSession } from "@/features/chat/context/chat-session-context";
@@ -890,6 +891,9 @@ export function AppChatArea() {
             ) : undefined}
             contentWidthClassName={chatContentWidthClassName}
           >
+            <div className="mb-2 flex justify-end">
+              <ChatLayoutControl showLabel />
+            </div>
             {selectedDiscussionTemplate ? (
               <ChatDiscussionConfig
                 template={selectedDiscussionTemplate}
@@ -999,6 +1003,9 @@ export function AppChatArea() {
             {!isConversationLoadFailed ? (
               <div className="relative z-10 shrink-0 px-3 pb-3 md:px-6">
                 <div className={cn("w-full", chatContentWidthClassName)}>
+                  <div className="mb-2 flex justify-end">
+                    <ChatLayoutControl showLabel />
+                  </div>
                   {selectedDiscussionTemplate ? (
                     <ChatDiscussionConfig
                       template={selectedDiscussionTemplate}

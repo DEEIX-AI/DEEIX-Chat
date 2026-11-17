@@ -18,7 +18,7 @@ import {
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
-export function ChatLayoutControl() {
+export function ChatLayoutControl({ showLabel = false }: { showLabel?: boolean }) {
   const { accessToken } = useAuthSession();
   const { settings } = useUserSettings();
   const t = useTranslations("settings.chatPage.display");
@@ -52,9 +52,14 @@ export function ChatLayoutControl() {
           type="button"
           aria-label={t("widthTitle")}
           title={t("widthTitle")}
-          className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className={
+            showLabel
+              ? "inline-flex h-8 items-center gap-1.5 rounded-full border border-border/60 bg-background/80 px-3 text-[11px] font-medium text-muted-foreground shadow-sm transition-colors hover:border-primary/40 hover:text-foreground"
+              : "inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          }
         >
-          <Columns3 className="size-4" />
+          <Columns3 className="size-3.5" />
+          {showLabel ? <span>{t("layoutButton")}</span> : null}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-3">

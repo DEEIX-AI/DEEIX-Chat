@@ -28,7 +28,6 @@ import {
   chatMessageScrollerID,
 } from "@/features/chat/components/sections/chat-message-position-rail";
 import { ChatResponseOutlineRail } from "@/features/chat/components/sections/chat-response-outline-rail";
-import { ChatLayoutControl } from "@/features/chat/components/sections/chat-layout-control";
 import { ChatScreenshotSelectionBar } from "@/features/chat/components/sections/chat-screenshot-selection-bar";
 import { useChatMessageFeedback } from "@/features/chat/hooks/use-chat-message-feedback";
 import { useChatUIBlockStateBinding } from "@/features/chat/hooks/use-chat-ui-block-state";
@@ -665,7 +664,6 @@ export function ChatArea({
             onScreenshotSelect={onScreenshotSelect}
           />
           <div className="flex items-center gap-1">
-            <ChatLayoutControl />
             {canOperateConversation ? (
               <ConversationShareExportIconDropdown
                 label={shareExportLabel}

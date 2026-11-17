@@ -424,7 +424,8 @@
       "align": {
         "center": "Center",
         "left": "Left"
-      }
+      },
+      "layoutButton": "Layout"
     },
     "context": {
       "sectionTitle": "Context management",

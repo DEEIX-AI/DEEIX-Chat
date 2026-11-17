@@ -424,7 +424,8 @@
       "align": {
         "center": "居中",
         "left": "左对齐"
-      }
+      },
+      "layoutButton": "宽度"
     },
     "context": {
       "sectionTitle": "上下文管理",
