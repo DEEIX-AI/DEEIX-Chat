@@ -1,6 +1,7 @@
 import type { ConversationRuns } from "@deeix/api-contract";
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
 import type { PagePayload } from "@/shared/api/common-types";
+import type { DiscussionSendRequest } from "@/shared/api/discussion-types";
 import type {
   ActiveConversationRunEvent,
   ActiveConversationRunSnapshot,
@@ -319,6 +320,9 @@ function extractJSONDocuments(source: string): { documents: string[]; remainder:
 }
 
 function handleStreamEvent(event: ParsedStreamEvent, options: ConversationStreamOptions, responseStatus: number): SendMessageResult | null {
+  if (event.type === "unrecognized") {
+    return null;
+  }
   const seq = streamEventSeq(event);
   if (seq > 0) {
     options.onEventSeq?.(seq);
@@ -1450,6 +1454,15 @@ export async function streamMessage(
   options: ConversationStreamOptions = {},
 ): Promise<SendMessageResult> {
   return postConversationStream(accessToken, conversationPublicID, "/messages/stream", payload, options);
+}
+
+export async function streamDiscussionMessage(
+  accessToken: string,
+  conversationPublicID: string,
+  payload: DiscussionSendRequest,
+  options: ConversationStreamOptions = {},
+): Promise<SendMessageResult> {
+  return postConversationStream(accessToken, conversationPublicID, "/messages/discussion/stream", payload, options);
 }
 
 export async function streamTemporaryChatMessage(

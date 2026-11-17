@@ -5,6 +5,7 @@ import type {
   MessageAttachment,
 } from "@/features/chat/types/messages";
 import type { ConversationOptions } from "@/shared/api/conversation-types";
+import type { DiscussionTemplateDTO } from "@/shared/api/discussion-types";
 import type { PublicModelPricingDTO } from "@/shared/api/model-types";
 import type { ModelControl, ModelNativeToolConfig, ModelReasoningCapability, ReasoningEffortLevel } from "@/entities/model";
 
@@ -46,6 +47,8 @@ export type ChatModelOption = {
   outputModalities: ModelModality[];
   // Context window in tokens (administrator setting, else models.dev); null when unknown.
   contextWindow: number | null;
+  // 讨论模型模板；普通模型为 undefined。
+  discussionTemplate?: DiscussionTemplateDTO;
 };
 
 export const MODEL_MODALITIES = ["text", "image", "pdf", "audio", "video"] as const;

@@ -17,6 +17,7 @@ import type { PendingAttachment, PendingExchange } from "@/features/chat/types/c
 import {
   type ConversationStreamOptions,
   streamMessage as streamConversationMessage,
+  streamDiscussionMessage,
   streamImageEdit,
   streamImageGeneration,
   streamVideoExtension,
@@ -83,6 +84,7 @@ export function useChatRunStream({
       sourceMessagePublicID,
       branchReason,
       assistantOnlyBranch,
+      discussion,
       signal,
     }: {
       token: string;
@@ -104,6 +106,7 @@ export function useChatRunStream({
       sourceMessagePublicID: string | null;
       branchReason: "default" | "retry" | "edit";
       assistantOnlyBranch: boolean;
+      discussion?: { templatePublicID: string; models: Record<string, string> };
       signal: AbortSignal;
     }): Promise<SendMessageResult> => {
       let terminalStreamError: Extract<StreamMessageEvent, { type: "error" }> | null = null;
@@ -253,6 +256,26 @@ export function useChatRunStream({
       };
       let completed: SendMessageResult;
       if (submitTask === "chat") {
+        if (platformModelName.startsWith("discussion:") && !discussion) {
+          throw new Error(t("discussionConfigureRequired"));
+        }
+        if (discussion) {
+          completed = await streamDiscussionMessage(
+            token,
+            conversationID,
+            {
+              contentType: "text",
+              content,
+              templatePublicID: discussion.templatePublicID,
+              models: discussion.models,
+              clientRunID: commonStreamPayload.clientRunID,
+              parentMessagePublicID: commonStreamPayload.parentMessagePublicID,
+              sourceMessagePublicID: commonStreamPayload.sourceMessagePublicID,
+              branchReason: commonStreamPayload.branchReason,
+            },
+            streamOptions,
+          );
+        } else {
         const chatPayload: SendMessageRequest = {
           ...commonStreamPayload,
           contentType: effectiveAttachments.length > 0 ? "mixed" : "text",
@@ -267,6 +290,7 @@ export function useChatRunStream({
           uiStates: uiStates && uiStates.length > 0 ? uiStates : undefined,
         };
         completed = await streamConversationMessage(token, conversationID, chatPayload, streamOptions);
+        }
       } else if (submitTask === "video_generation") {
         const mediaPayload: MediaVideoRequest = {
           ...commonStreamPayload,

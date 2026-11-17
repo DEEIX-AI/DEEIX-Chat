@@ -137,6 +137,7 @@ type Message struct {
 	ErrorMessage             string     `gorm:"size:255;not null;default:'';comment:错误信息"`
 	ModerationEventID        string     `gorm:"size:40;not null;default:'';index:idx_chat_messages_moderation_event_id;comment:内容审核事件编号"`
 	ModerationCategoriesJSON string     `gorm:"type:text;not null;default:'[]';comment:内容审核命中分类JSON"`
+	DiscussionJSON           string     `gorm:"type:text;not null;default:'';comment:多模型讨论记录JSON"`
 	KnowledgeSourcesJSON     string     `gorm:"type:text;not null;default:'[]';comment:本轮回答实际使用的知识来源JSON"`
 	IsCompacted              bool       `gorm:"not null;default:false;index:idx_chat_messages_is_compacted;comment:预留未使用(祖先链未按此过滤，无读写方)"`
 	EditedAt                 *time.Time `gorm:"index:idx_chat_messages_edited_at;comment:用户编辑时间"`

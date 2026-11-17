@@ -22,6 +22,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
 	appcontentmoderation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
+	appdiscussion "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/discussion"
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	apperrorlog "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/errorlog"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
@@ -70,6 +71,7 @@ import (
 	channelrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/channel"
 	contentmoderationrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/contentmoderation"
 	conversationrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/conversation"
+	discussionrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/discussion"
 	errorlogrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/errorlog"
 	knowledgebaserepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/knowledgebase"
 	logcleanuprepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/logcleanup"
@@ -94,6 +96,7 @@ import (
 	billinghttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/billing"
 	channelhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/channel"
 	contentmoderationhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/contentmoderation"
+	discussionhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/discussion"
 	conversationhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/conversation"
 	knowledgebasehttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/knowledgebase"
 	mcphttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/mcp"
@@ -482,6 +485,11 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	mcpService.SetBillingModeProvider(billingService)
 	mcpHandler := mcphttp.NewHandler(mcpService)
 	mcpModule := mcphttp.NewModule(mcpHandler)
+	discussionRepo := discussionrepo.NewRepo(db)
+	discussionService := appdiscussion.NewService(discussionRepo)
+	discussionHandler := discussionhttp.NewHandler(discussionService)
+	discussionModule := discussionhttp.NewModule(discussionHandler)
+	conversationService.SetDiscussionTemplateProvider(discussionService)
 	adminService := admin.NewService(userService, auditService)
 	adminService.SetAuthSecurityService(authService)
 	adminService.SetUsageLogService(billingService)
@@ -548,6 +556,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 		Channel:           channelModule,
 		Conversation:      conversationModule,
 		MCP:               mcpModule,
+		Discussion:        discussionModule,
 		Memory:            memoryModule,
 		Billing:           billingModule,
 		Admin:             adminModule,

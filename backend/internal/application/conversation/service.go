@@ -20,6 +20,7 @@ import (
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	domaindiscussion "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/discussion"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
@@ -60,6 +61,11 @@ type memoryRecorder interface {
 	ListUserMemories(ctx context.Context, userID uint) ([]domainmemory.UserMemory, error)
 	SearchUserMemoriesByEmbedding(ctx context.Context, userID uint, queryEmbedding []float32, embeddingSignature string, topK int, minSimilarity float64) ([]domainmemory.UserMemory, error)
 	UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memoryKey string, expectedValue string, embedding []float32, embeddingSignature string) error
+}
+
+// discussionTemplateProvider 提供讨论模板解析，避免会话域直接依赖后台管理服务。
+type discussionTemplateProvider interface {
+	ResolvePlan(ctx context.Context, publicID string, overrides map[string]string) (*domaindiscussion.Template, domaindiscussion.TemplateConfig, domaindiscussion.RuntimePlan, error)
 }
 
 type skillResolver interface {
@@ -142,6 +148,7 @@ type Service struct {
 	processingSvc            *appprocessing.Service
 	extractSvc               *extraction.Service
 	ragSvc                   *apprag.Service
+	discussionTemplates      discussionTemplateProvider
 	skillResolver            skillResolver
 	uiComponentResolver      uiComponentResolver
 	knowledgeBaseResolver    knowledgeBaseResolver
@@ -234,6 +241,11 @@ type SendMessageInput struct {
 // SetSkillResolver 注入会话技能解析器。
 func (s *Service) SetSkillResolver(resolver skillResolver) {
 	s.skillResolver = resolver
+}
+
+// SetDiscussionTemplateProvider 注入讨论模板解析器。
+func (s *Service) SetDiscussionTemplateProvider(provider discussionTemplateProvider) {
+	s.discussionTemplates = provider
 }
 
 // SetUIComponentResolver 注入交互式组件解析器。

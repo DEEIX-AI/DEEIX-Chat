@@ -1,4 +1,5 @@
 import type { UpstreamDebugInfo } from "@/shared/api/conversation-types";
+import type { DiscussionState } from "@/shared/api/discussion-types";
 import type { UIBlockState } from "@/shared/components/markdown/ui-blocks/ui-block-state";
 import type { ReasoningEffortLevel } from "@/entities/model";
 
@@ -182,6 +183,7 @@ export type ChatAreaMessage = {
   billingCost?: ChatBillingCost;
   knowledgeSources?: RAGCitation[];
   processTrace?: ChatMessageProcessTrace;
+  discussion?: DiscussionState;
   inlineAlert?: ChatInlineAlert;
   compactDone?: { method: string; freed_tokens: number; summary_preview: string };
 };

@@ -51,6 +51,8 @@ import type {
   RunResponse,
   SendMessageResponse,
 } from "@deeix/api-contract";
+
+import type { DiscussionState } from "@/shared/api/discussion-types";
 import type { UserStorageQuotaDTO } from "@/shared/api/file-types";
 
 export type ConversationDTO = ConversationResponse;
@@ -104,6 +106,7 @@ export type MessageDTO = Omit<
   processTrace?: MessageProcessTraceDTO;
   myFeedback: "up" | "down" | "";
   billingCost?: MessageBillingCostDTO;
+  discussion?: DiscussionState;
 };
 
 export type ConversationRunDTO = Omit<RunResponse, "taskType">;

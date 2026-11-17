@@ -17,6 +17,7 @@ import { MessageKnowledgeSources } from "@/features/chat/components/message/mess
 import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
 import { AssistantMessageMeta } from "@/features/chat/components/message/message-meta";
 import { MessageAgentTrace, MessageProcessTrace } from "@/features/chat/components/message/message-process-trace";
+import { MessageDiscussion } from "@/features/chat/components/message/message-discussion";
 import { UpstreamExchangeDetails } from "@/features/chat/components/message/message-upstream-debug";
 import { useChatInlineVideoSource } from "@/features/chat/hooks/use-chat-inline-video-source";
 import { useChatMessageTraceDetail } from "@/features/chat/hooks/use-chat-message-trace-detail";
@@ -425,6 +426,7 @@ export function ChatMessageBot({
         detailFailed={traceDetailFailed}
         onLoadDetail={loadTraceDetail}
       />
+      <MessageDiscussion discussion={item.discussion} />
 
       <div
         data-chat-assistant-content=""

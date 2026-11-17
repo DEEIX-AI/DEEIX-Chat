@@ -88,7 +88,7 @@ export function resolveChatSubmitDecision(
   const mp4AttachmentCount = attachments.filter(isMP4Attachment).length;
   const videoAttachmentCount = attachments.filter(isVideoAttachment).length;
   const nonImageAttachmentCount = attachmentCount - imageAttachmentCount;
-  const supportsChat = kinds.size === 0 || kinds.has("chat") || kinds.has("audio");
+  const supportsChat = kinds.size === 0 || kinds.has("chat") || kinds.has("audio") || kinds.has("discussion");
   const supportsImageGeneration = kinds.has("image_gen");
   const supportsImageEdit = kinds.has("image_edit");
   const supportsVideoGeneration = kinds.has("video_gen");

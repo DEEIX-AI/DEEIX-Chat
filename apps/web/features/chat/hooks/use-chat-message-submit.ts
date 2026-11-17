@@ -69,6 +69,7 @@ import type {
 } from "@/shared/api/conversation-types";
 import { ApiError } from "@/shared/api/http-client";
 import type { SkillSummaryDTO } from "@/shared/api/skills-types";
+import type { DiscussionTemplateDTO } from "@/shared/api/discussion-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { notifyResponseCompletion } from "@/shared/lib/system-notifications";
 
@@ -78,6 +79,8 @@ export function useChatMessageSubmit({
   activeConversation,
   selectedPlatformModelName,
   modelOptions,
+  discussionTemplate,
+  discussionBindings,
   selectedToolIDs,
   selectedSkills,
   selectedKnowledgeBaseIDs,
@@ -132,6 +135,8 @@ export function useChatMessageSubmit({
   activeConversation: ConversationDTO | null;
   selectedPlatformModelName: string;
   modelOptions: ChatModelOption[];
+  discussionTemplate?: DiscussionTemplateDTO | null;
+  discussionBindings?: Record<string, string>;
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
@@ -555,6 +560,10 @@ export function useChatMessageSubmit({
           options: plan.sanitizedOptions,
           effectiveAttachments,
           platformModelName,
+          discussion:
+            discussionTemplate && Object.values(discussionBindings ?? {}).every((value) => value.trim())
+              ? { templatePublicID: discussionTemplate.publicID, models: discussionBindings ?? {} }
+              : undefined,
           selectedToolIDs: plan.selectedToolIDs,
           selectedSkills: plan.selectedSkills,
           selectedKnowledgeBaseIDs: plan.selectedKnowledgeBaseIDs,
@@ -784,6 +793,8 @@ export function useChatMessageSubmit({
       autoGenerateLabels,
       collectUIStates,
       combinedMessages,
+      discussionBindings,
+      discussionTemplate,
       flushStreamTextNow,
       flushUpstreamThinkNow,
       htmlVisualPromptEnabled,

@@ -441,7 +441,8 @@
     "moderationBlockedDescription": "安全检查后已撤回本轮回答。",
     "moderationEventId": "事件编号：{id}",
     "moderationCategories": "命中分类：{categories}",
-    "moderationBlockedBilled": "拦截前上游已产生的用量照常计费。"
+    "moderationBlockedBilled": "拦截前上游已产生的用量照常计费。",
+    "discussionConfigureRequired": "请先为讨论模型的每个占位符选择模型"
   },
   "data": {
     "signInRequired": "未登录，无法加载会话消息",
@@ -1183,5 +1184,26 @@
     "increase": "增加",
     "decrease": "减少",
     "empty": "该模型没有可调参数。"
+  },
+  "discussion": {
+    "title": "多模型讨论",
+    "rounds": "{count} 轮",
+    "participants": "{count} 个模型",
+    "summaryModel": "总结：{model}",
+    "expand": "详情",
+    "collapse": "收起",
+    "all": "全部",
+    "round": "第 {round} 轮",
+    "thinking": "思考中",
+    "done": "已完成",
+    "failed": "失败",
+    "empty": "还没有发言",
+    "statusRunning": "讨论中",
+    "statusCompleted": "已完成",
+    "statusStopped": "已停止",
+    "statusError": "出错",
+    "statusSummarizing": "总结中",
+    "selectAllModels": "请为每个占位符选择模型",
+    "chooseModel": "选择模型"
   }
 }

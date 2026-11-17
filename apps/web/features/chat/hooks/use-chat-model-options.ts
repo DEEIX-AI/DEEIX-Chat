@@ -15,6 +15,8 @@ import { parseSendShortcut, type SendShortcut } from "@/features/settings";
 import { getBillingConfig } from "@/shared/api/billing";
 import { listConversationRuns } from "@/shared/api/conversation";
 import type { ConversationOptions } from "@/shared/api/conversation-types";
+import { listDiscussionTemplates } from "@/shared/api/discussion";
+import type { DiscussionTemplateDTO } from "@/shared/api/discussion-types";
 import { listPublicModels } from "@/shared/api/model";
 import type { PublicModelDTO } from "@/shared/api/model-types";
 import { getMCPPolicy, getModelOptionPolicy } from "@/shared/api/settings";
@@ -388,6 +390,37 @@ function toChatModelOption(
   };
 }
 
+// 讨论模板作为合成模型进入同一选择器；不占用平台模型路由，发送时走后端讨论编排。
+function toDiscussionModelOption(template: DiscussionTemplateDTO): ChatModelOption {
+  return {
+    platformModelName: `discussion:${template.publicID}`,
+    icon: template.icon || "messages-square",
+    vendor: "deeix",
+    vendorName: "DEEIX",
+    vendorIcon: "",
+    displayGroupID: null,
+    displayGroupName: "讨论模型",
+    displayGroupIcon: "",
+    personalProviderName: null,
+    personalProviderIcon: "",
+    kinds: ["discussion"],
+    protocols: [],
+    defaultOptions: {},
+    optionControls: [],
+    lockedOptionPaths: [],
+    nativeToolKeys: [],
+    nativeTools: [],
+    pricing: null,
+    videoExtension: null,
+    reasoning: null,
+    controls: [],
+    inputModalities: ["text"],
+    outputModalities: ["text"],
+    contextWindow: null,
+    discussionTemplate: template,
+  };
+}
+
 // Older servers omit the fields; unknown values are dropped so the UI never shows an unsupported badge.
 function parseModalities(value: unknown): ModelModality[] {
   if (!Array.isArray(value)) {
@@ -412,6 +445,8 @@ export function useChatModelOptions({
   const t = useTranslations("chat.models");
   const { settings: userSettings } = useUserSettings();
   const [availableModels, setAvailableModels] = React.useState<PublicModelDTO[]>([]);
+  const [discussionTemplates, setDiscussionTemplates] = React.useState<DiscussionTemplateDTO[]>([]);
+  const [discussionBindings, setDiscussionBindings] = React.useState<Record<string, string>>({});
   const [modelsLoading, setModelsLoading] = React.useState(true);
   const [defaultModelResolving, setDefaultModelResolving] = React.useState(false);
   const [modelsErrorMsg, setModelsErrorMsg] = React.useState("");
@@ -497,10 +532,15 @@ export function useChatModelOptions({
     if (!normalizedName) {
       return null;
     }
+    if (normalizedName.startsWith("discussion:")) {
+      const template = discussionTemplates.find((item) => `discussion:${item.publicID}` === normalizedName);
+      return template ? toDiscussionModelOption(template) : null;
+    }
+
     const catalog = await refreshModelCatalog();
     const nextModel = catalog.models.find((item) => item.platformModelName === normalizedName);
     return nextModel ? toChatModelOption(nextModel, catalog.modelOptionPolicy?.nativeTools ?? []) : null;
-  }, [refreshModelCatalog]);
+  }, [discussionTemplates, refreshModelCatalog]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -514,15 +554,17 @@ export function useChatModelOptions({
           setModelsErrorMsg(t("signInRequired"));
           return;
         }
-        const [catalog, billingConfig, nextMCPPolicy] = await Promise.all([
+        const [catalog, billingConfig, nextMCPPolicy, templates] = await Promise.all([
           loadModelCatalog(token),
           getBillingConfig(token).catch((): null => null),
           getMCPPolicy(token).catch((): null => null),
+          listDiscussionTemplates(token).catch((): DiscussionTemplateDTO[] => []),
         ]);
         if (cancelled) {
           return;
         }
         applyModelCatalog(catalog);
+        setDiscussionTemplates(templates);
         setMCPMaxSelectedTools(resolveMCPMaxSelectedTools(nextMCPPolicy?.maxSelectedToolsPerMessage));
         setBillingCostAvailable((billingConfig?.config.mode ?? "self") !== "self");
         setBillingDisplayCurrency(normalizeBillingDisplayCurrency(billingConfig?.config.displayCurrency));
@@ -655,10 +697,37 @@ export function useChatModelOptions({
     };
   }, [availableModels, conversationPublicID, newConversationDefaultModel, newConversationDefaultsPending, resetToken, userDefaultModel]);
 
+  const selectedDiscussionTemplate = React.useMemo(() => {
+    const normalized = selectedPlatformModelName.trim();
+    if (!normalized.startsWith("discussion:")) {
+      return null;
+    }
+    return discussionTemplates.find((item) => `discussion:${item.publicID}` === normalized) ?? null;
+  }, [discussionTemplates, selectedPlatformModelName]);
+
+  React.useEffect(() => {
+    setDiscussionBindings((previous) => {
+      if (!selectedDiscussionTemplate) {
+        return Object.keys(previous).length === 0 ? previous : {};
+      }
+      const next: Record<string, string> = {};
+      for (const placeholder of selectedDiscussionTemplate.config.placeholders) {
+        next[placeholder.key] = previous[placeholder.key] || placeholder.defaultModel || "";
+      }
+      return next;
+    });
+  }, [selectedDiscussionTemplate]);
+
+  const setDiscussionBinding = React.useCallback((participant: string, model: string) => {
+    setDiscussionBindings((current) => ({ ...current, [participant]: model }));
+  }, []);
+
   const modelOptions = React.useMemo<ChatModelOption[]>(
-    () =>
-      availableModels.map((model) => toChatModelOption(model, modelOptionPolicy?.nativeTools ?? [])),
-    [availableModels, modelOptionPolicy?.nativeTools],
+    () => [
+      ...availableModels.map((model) => toChatModelOption(model, modelOptionPolicy?.nativeTools ?? [])),
+      ...discussionTemplates.map((template) => toDiscussionModelOption(template)),
+    ],
+    [availableModels, discussionTemplates, modelOptionPolicy?.nativeTools],
   );
 
   return {
@@ -686,5 +755,8 @@ export function useChatModelOptions({
     mcpMaxSelectedTools,
     selectedPlatformModelName,
     setSelectedPlatformModelName: selectPlatformModelName,
+    selectedDiscussionTemplate,
+    discussionBindings,
+    setDiscussionBinding,
   };
 }

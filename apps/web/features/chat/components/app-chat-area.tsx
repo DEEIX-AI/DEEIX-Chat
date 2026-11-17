@@ -21,6 +21,7 @@ import { ChatArtifactWorkspace } from "@/features/chat/components/sections/chat-
 import { ChatUIBlockPanel } from "@/features/chat/components/sections/chat-ui-block-panel";
 import { ChatEmptyState } from "@/features/chat/components/sections/chat-empty";
 import { ChatInput } from "@/features/chat/components/sections/chat-input";
+import { ChatDiscussionConfig } from "@/features/chat/components/sections/chat-discussion-config";
 import { ChatScreenshotPreviewDialog } from "@/features/chat/components/sections/chat-screenshot-preview-dialog";
 import { TemporaryChatModeControl } from "@/features/chat/components/sections/chat-temporary-mode-control";
 import { useChatSession } from "@/features/chat/context/chat-session-context";
@@ -237,6 +238,9 @@ export function AppChatArea() {
     mcpMaxSelectedTools,
     selectedPlatformModelName,
     setSelectedPlatformModelName,
+    selectedDiscussionTemplate,
+    discussionBindings,
+    setDiscussionBinding,
   } = useChatModelOptions({
     conversationPublicID: conversationID,
     conversationModel: currentConversation?.model ?? null,
@@ -451,6 +455,8 @@ export function AppChatArea() {
     activeConversation: currentConversation,
     selectedPlatformModelName,
     modelOptions,
+    discussionTemplate: selectedModel?.discussionTemplate ?? null,
+    discussionBindings,
     selectedToolIDs,
     selectedSkills,
     selectedKnowledgeBaseIDs,
@@ -861,6 +867,15 @@ export function AppChatArea() {
             ) : undefined}
             contentWidthClassName={chatContentWidthClassName}
           >
+            {selectedDiscussionTemplate ? (
+              <ChatDiscussionConfig
+                template={selectedDiscussionTemplate}
+                modelOptions={modelOptions}
+                bindings={discussionBindings}
+                onChange={setDiscussionBinding}
+                disabled={modelsLoading}
+              />
+            ) : null}
             <ChatInput {...chatInputProps} />
           </ChatEmptyState>
         </div>
@@ -961,6 +976,15 @@ export function AppChatArea() {
             {!isConversationLoadFailed ? (
               <div className="relative z-10 shrink-0 px-3 pb-3 md:px-6">
                 <div className={cn("w-full", chatContentWidthClassName)}>
+                  {selectedDiscussionTemplate ? (
+                    <ChatDiscussionConfig
+                      template={selectedDiscussionTemplate}
+                      modelOptions={modelOptions}
+                      bindings={discussionBindings}
+                      onChange={setDiscussionBinding}
+                      disabled={modelsLoading}
+                    />
+                  ) : null}
                   <ChatInput {...chatInputProps} />
                 </div>
               </div>

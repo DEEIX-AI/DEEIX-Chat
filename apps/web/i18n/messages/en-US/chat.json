@@ -441,7 +441,8 @@
     "moderationBlockedDescription": "This response was withdrawn after a safety check.",
     "moderationEventId": "Event ID: {id}",
     "moderationCategories": "Categories: {categories}",
-    "moderationBlockedBilled": "Upstream usage incurred before the block is billed as usual."
+    "moderationBlockedBilled": "Upstream usage incurred before the block is billed as usual.",
+    "discussionConfigureRequired": "Select a model for every discussion placeholder first"
   },
   "data": {
     "signInRequired": "Sign in before loading conversation messages.",
@@ -1183,5 +1184,26 @@
     "increase": "Increase",
     "decrease": "Decrease",
     "empty": "This model has no adjustable parameters."
+  },
+  "discussion": {
+    "title": "Multi-model discussion",
+    "rounds": "{count} rounds",
+    "participants": "{count} models",
+    "summaryModel": "Summary: {model}",
+    "expand": "Details",
+    "collapse": "Collapse",
+    "all": "All",
+    "round": "Round {round}",
+    "thinking": "Thinking",
+    "done": "Done",
+    "failed": "Failed",
+    "empty": "No turns yet",
+    "statusRunning": "Discussing",
+    "statusCompleted": "Completed",
+    "statusStopped": "Stopped",
+    "statusError": "Error",
+    "statusSummarizing": "Summarizing",
+    "selectAllModels": "Select a model for every placeholder",
+    "chooseModel": "Choose model"
   }
 }
