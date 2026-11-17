@@ -44,5 +44,6 @@
   "saving": "Saving…",
   "close": "Close",
   "roundModels": "Models in this round",
-  "summaryUses": "Summary model: {model}"
+  "summaryUses": "Summary model: {model}",
+  "allModels": "All"
 }

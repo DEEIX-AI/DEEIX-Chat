@@ -244,6 +244,56 @@ export function AdminDiscussionsPage() {
     }));
   };
 
+  // Selecting every model of a round is the common case, so it gets its own switch. The
+  // per-model selection it replaces is remembered and restored when the switch is turned off.
+  const roundSelectionsRef = React.useRef(new Map<number, string[]>());
+
+  const setRoundParticipants = (
+    current: Draft,
+    roundIndex: number,
+    participants: readonly string[],
+  ): Draft => ({
+    ...current,
+    config: {
+      ...current.config,
+      rounds: current.config.rounds.map((round, index) => {
+        if (index !== roundIndex) return round;
+        const prompt = round.steps[0]?.prompt ?? "";
+        const kept = round.steps.filter((step) => participants.includes(step.participant));
+        const added = participants
+          .filter((participant) => !kept.some((step) => step.participant === participant))
+          .map((participant) => ({ id: newStepID(), participant, prompt }));
+        const ordered = participants
+          .map((participant) => [...kept, ...added].find((step) => step.participant === participant))
+          .filter((step): step is NonNullable<typeof step> => Boolean(step));
+        return { ...round, steps: ordered };
+      }),
+    },
+  });
+
+  const toggleRoundAll = (roundIndex: number) => {
+    setDraft((current) => {
+      const round = current.config.rounds[roundIndex];
+      if (!round) return current;
+      const keys = current.config.placeholders
+        .filter((item) => item.key !== current.config.summary.participant)
+        .map((item) => item.key);
+      if (keys.length === 0) return current;
+      const allActive = keys.every((key) => round.steps.some((step) => step.participant === key));
+      if (allActive) {
+        const remembered = (roundSelectionsRef.current.get(roundIndex) ?? []).filter((key) =>
+          keys.includes(key),
+        );
+        return setRoundParticipants(current, roundIndex, remembered.length > 0 ? remembered : keys.slice(0, 1));
+      }
+      roundSelectionsRef.current.set(
+        roundIndex,
+        round.steps.map((step) => step.participant),
+      );
+      return setRoundParticipants(current, roundIndex, keys);
+    });
+  };
+
   const addRound = () => {
     setDraft((current) => ({
       ...current,
@@ -280,6 +330,7 @@ export function AdminDiscussionsPage() {
 
   const reorderRound = (from: number, to: number) => {
     if (from === to) return;
+    roundSelectionsRef.current.clear();
     setDraft((current) => {
       const rounds = [...current.config.rounds];
       const [item] = rounds.splice(from, 1);
@@ -582,28 +633,55 @@ export function AdminDiscussionsPage() {
 
                 <p className="mt-2 mb-1 text-[11px] text-muted-foreground">{t("roundModels")}</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {discussionPlaceholders.map((placeholder) => {
-                    const active = round.steps.some((step) => step.participant === placeholder.key);
+                  {(() => {
+                    const allActive =
+                      discussionPlaceholders.length > 0 &&
+                      discussionPlaceholders.every((placeholder) =>
+                        round.steps.some((step) => step.participant === placeholder.key),
+                      );
                     return (
-                      <button
-                        key={placeholder.key}
-                        type="button"
-                        aria-pressed={active}
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition-colors",
-                          active
-                            ? "border-primary/50 bg-primary/10 text-primary"
-                            : "border-border/60 text-muted-foreground hover:text-foreground",
-                        )}
-                        onClick={() => toggleRoundParticipant(roundIndex, placeholder.key)}
-                      >
-                        {labels.get(placeholder.key) ?? placeholder.key}
-                        <span className="font-mono text-[10px] opacity-70">
-                          {placeholder.defaultModel || t("chooseAtChat")}
-                        </span>
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          aria-pressed={allActive}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition-colors",
+                            allActive
+                              ? "border-primary/50 bg-primary/10 text-primary"
+                              : "border-border/60 text-muted-foreground hover:text-foreground",
+                          )}
+                          onClick={() => toggleRoundAll(roundIndex)}
+                        >
+                          {t("allModels")}
+                        </button>
+                        {discussionPlaceholders.map((placeholder) => {
+                          const active = round.steps.some((step) => step.participant === placeholder.key);
+                          return (
+                            <button
+                              key={placeholder.key}
+                              type="button"
+                              aria-pressed={active}
+                              disabled={allActive}
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition-colors",
+                                allActive
+                                  ? "border-primary/20 bg-primary/5 text-primary/50"
+                                  : active
+                                    ? "border-primary/50 bg-primary/10 text-primary"
+                                    : "border-border/60 text-muted-foreground hover:text-foreground",
+                              )}
+                              onClick={() => toggleRoundParticipant(roundIndex, placeholder.key)}
+                            >
+                              {labels.get(placeholder.key) ?? placeholder.key}
+                              <span className="font-mono text-[10px] opacity-70">
+                                {placeholder.defaultModel || t("chooseAtChat")}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </>
                     );
-                  })}
+                  })()}
                 </div>
               </div>
             ))}
@@ -649,10 +727,14 @@ export function AdminDiscussionsPage() {
           <DiscussionsWorkflowPreview config={draft.config} onClose={() => setWorkflowOpen(false)} />
         </div>
       ) : null}
-      {/* Wide screens: a floating panel that never shrinks the editor. */}
+      {/* Wide screens: the workflow is docked to the right edge, full height, without squeezing the editor. */}
       {workflowOpen ? (
-        <div className="fixed top-24 right-4 z-40 hidden w-72 max-h-[calc(100vh-7rem)] overflow-y-auto rounded-xl shadow-xl 2xl:w-80 xl:block">
-          <DiscussionsWorkflowPreview config={draft.config} onClose={() => setWorkflowOpen(false)} />
+        <div className="fixed inset-y-0 right-0 z-30 hidden w-[23rem] overflow-y-auto border-l border-border/60 bg-background px-4 py-6 shadow-[-16px_0_32px_-28px_rgba(0,0,0,0.35)] xl:block 2xl:w-[27rem] 2xl:px-6">
+          <DiscussionsWorkflowPreview
+            config={draft.config}
+            onClose={() => setWorkflowOpen(false)}
+            className="rounded-none border-0 bg-transparent p-0"
+          />
         </div>
       ) : null}
     </div>

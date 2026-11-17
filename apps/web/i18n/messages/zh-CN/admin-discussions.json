@@ -44,5 +44,6 @@
   "saving": "保存中…",
   "close": "关闭",
   "roundModels": "参与模型",
-  "summaryUses": "总结模型：{model}"
+  "summaryUses": "总结模型：{model}",
+  "allModels": "全部"
 }
