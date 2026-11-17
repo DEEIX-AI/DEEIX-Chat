@@ -190,8 +190,8 @@
       },
       "full_context_max_tokens": {
         "label": "全文 Token 上限",
-        "description": "用于限制全文注入允许的最大 Token 预算；留空或填 0 表示不限制 Token。",
-        "placeholder": "留空或 0 表示不限制"
+        "description": "单个文件全文发送给模型的最大 Token 数。系统还会按当前模型的上下文大小自动限制（约 70%），两者取较小值；留空表示只按模型自动限制。",
+        "placeholder": "留空表示只按模型自动限制"
       },
       "full_context_pdf_max_pages": {
         "label": "全文页数上限",

@@ -733,9 +733,9 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         namespace: "file",
         key: "full_context_max_tokens",
         label: "Full-text token limit",
-        description: "Maximum token budget allowed for full-context injection. Leave empty or use 0 for no token limit.",
+        description: "Maximum tokens of a single file sent to the model in full. The system also limits this automatically to about 70% of the current model's context, and uses the smaller of the two. Leave empty to use only the automatic limit.",
         type: "int",
-        placeholder: "Empty or 0 means unlimited",
+        placeholder: "Empty uses only the automatic limit",
         visibleWhen: { field: "file.full_context_limit_enabled", equals: FULL_CONTEXT_LIMIT_MODES.ON },
       },
       {

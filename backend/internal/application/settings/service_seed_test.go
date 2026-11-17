@@ -192,6 +192,41 @@ func TestSeedKeepsExistingFullContextMaxBytes(t *testing.T) {
 	}
 }
 
+func TestSeedMigratesLegacyFullContextMaxTokensToModelBudget(t *testing.T) {
+	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
+		Namespace: "file",
+		Key:       "full_context_max_tokens",
+		Value:     legacyDefaultFullContextMaxTokens,
+		ValueType: "int",
+	})
+	service := NewService(repo, nil)
+
+	if err := service.Seed(context.Background()); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	if got := repo.items["file:full_context_max_tokens"].Value; got != "" {
+		t.Fatalf("expected legacy fixed token cap to be cleared, got %q", got)
+	}
+}
+
+func TestSeedKeepsCustomFullContextMaxTokens(t *testing.T) {
+	const customValue = "200000"
+	repo := newSettingsSeedRepo(domainsettings.SystemSetting{
+		Namespace: "file",
+		Key:       "full_context_max_tokens",
+		Value:     customValue,
+		ValueType: "int",
+	})
+	service := NewService(repo, nil)
+
+	if err := service.Seed(context.Background()); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	if got := repo.items["file:full_context_max_tokens"].Value; got != customValue {
+		t.Fatalf("expected custom token cap to remain %q, got %q", customValue, got)
+	}
+}
+
 func TestSeedMigratesLegacyDefaultModelOptionAllowedPaths(t *testing.T) {
 	legacy := map[string][]string{}
 	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &legacy); err != nil {

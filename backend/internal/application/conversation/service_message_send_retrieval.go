@@ -182,7 +182,7 @@ func (s *Service) retrieveMessageRAGContext(ctx context.Context, in messageRAGRe
 			zap.Uint("user_id", input.UserID),
 			zap.Error(ragErr),
 		)
-		fallbacks, skipped := splitRetrievalFallbackAttachments(fileContextPlan.RAGAttachments, cfg)
+		fallbacks, skipped := splitRetrievalFallbackAttachments(fileContextPlan.RAGAttachments, fileContextPlan.Limits)
 		fallbackLabel := "已改用全文"
 		if len(fallbacks) == 0 {
 			fallbackLabel = "没有可用全文"
@@ -210,7 +210,7 @@ func (s *Service) retrieveMessageRAGContext(ctx context.Context, in messageRAGRe
 	case knowledgeBaseSelected && ragResult.Status == apprag.RetrieveStatusUnavailable:
 		return result, ErrKnowledgeBaseUnavailable
 	case len(ragChunks) == 0:
-		fallbacks, skipped := splitRetrievalFallbackAttachments(fileContextPlan.RAGAttachments, cfg)
+		fallbacks, skipped := splitRetrievalFallbackAttachments(fileContextPlan.RAGAttachments, fileContextPlan.Limits)
 		fallbackLabel := "已改用全文"
 		if len(fallbacks) == 0 {
 			fallbackLabel = "没有可用全文"
