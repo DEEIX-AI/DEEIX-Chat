@@ -119,12 +119,15 @@ export function resolveConfiguredApiBaseURL(): string {
   });
 }
 
-// resolveApiBaseURL falls back to the current page origin when not explicitly configured (:8080 in local development).
+// resolveApiBaseURL falls back to the current page origin when not explicitly configured.
+// Only `next dev` points a loopback page at the Go server on :8080; the production export is
+// served by the Go server itself, so its origin is right on any published port (#902).
 export function resolveApiBaseURL(): string {
   return resolveApiBaseUrl({
     runtimeOverride: runtimeApiBaseURLResolver?.(),
     configured: process.env.NEXT_PUBLIC_API_BASE_URL,
     location: typeof window === "undefined" ? null : window.location,
+    localDevApiPort: process.env.NODE_ENV === "development",
   });
 }
 

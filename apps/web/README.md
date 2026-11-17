@@ -223,7 +223,7 @@ pnpm dev
 cd deploy && docker compose -f docker-compose.full.yml up -d
 ```
 
-只启动前端时访问 `http://localhost:3000`。后端默认监听 `http://localhost:8080`。API 地址按“运行时覆盖（桌面端）→ `NEXT_PUBLIC_API_BASE_URL` → 页面 origin”的顺序解析；未设置构建变量且页面运行在本机回环地址的非 8080 端口时，自动指向同主机的 8080 端口。
+只启动前端时访问 `http://localhost:3000`。后端默认监听 `http://localhost:8080`。API 地址按“运行时覆盖（桌面端）→ `NEXT_PUBLIC_API_BASE_URL` → 页面 origin”的顺序解析；仅在 `next dev` 开发模式下，未设置构建变量且页面运行在本机回环地址的非 8080 端口时，自动指向同主机的 8080 端口；生产构建（包括 Docker 镜像）始终使用页面 origin。
 
 从 `apps/web/` 目录工作时，等价命令是：
 
