@@ -39,97 +39,97 @@ type Template struct {
 
 // Placeholder 是模板中的模型占位符，运行时由用户绑定真实平台模型。
 type Placeholder struct {
-	Key          string `json:"key"`
-	Label        string `json:"label"`
-	DefaultModel string `json:"defaultModel,omitempty"`
-	Required     bool   `json:"required,omitempty"`
+	Key          string
+	Label        string
+	DefaultModel string
+	Required     bool
 }
 
 // Step 是一轮中的一次模型发言。
 type Step struct {
-	ID          string `json:"id"`
-	Participant string `json:"participant"`
-	Prompt      string `json:"prompt"`
+	ID          string
+	Participant string
+	Prompt      string
 }
 
 // Round 是一轮讨论；同轮步骤并行，轮次之间串行。
 type Round struct {
-	Index    int    `json:"index"`
-	Parallel bool   `json:"parallel"`
-	Steps    []Step `json:"steps"`
+	Index    int
+	Parallel bool
+	Steps    []Step
 }
 
 // Summary 是全部轮次结束后的总结节点。
 type Summary struct {
-	Participant string `json:"participant"`
-	Prompt      string `json:"prompt"`
+	Participant string
+	Prompt      string
 }
 
 // TemplateConfig 是模板的完整编排定义。
 type TemplateConfig struct {
-	Placeholders []Placeholder `json:"placeholders"`
-	Rounds       []Round       `json:"rounds"`
-	Summary      Summary       `json:"summary"`
+	Placeholders []Placeholder
+	Rounds       []Round
+	Summary      Summary
 }
 
 // RuntimeStep 是运行时解析后的一次发言。
 type RuntimeStep struct {
-	ID          string `json:"id"`
-	Participant string `json:"participant"`
-	Model       string `json:"model"`
-	Prompt      string `json:"prompt"`
+	ID          string
+	Participant string
+	Model       string
+	Prompt      string
 }
 
 // RuntimeRound 是运行时解析后的一轮。
 type RuntimeRound struct {
-	Index int           `json:"index"`
-	Steps []RuntimeStep `json:"steps"`
+	Index int
+	Steps []RuntimeStep
 }
 
 // RuntimeSummary 是运行时解析后的总结节点。
 type RuntimeSummary struct {
-	Participant string `json:"participant"`
-	Model       string `json:"model"`
-	Prompt      string `json:"prompt"`
+	Participant string
+	Model       string
+	Prompt      string
 }
 
 // RuntimePlan 是用户确认后的实际编排。
 type RuntimePlan struct {
-	Rounds  []RuntimeRound `json:"rounds"`
-	Summary RuntimeSummary `json:"summary"`
+	Rounds  []RuntimeRound
+	Summary RuntimeSummary
 }
 
 // Turn 是一次模型调用的结果。
 type Turn struct {
-	Round            int    `json:"round"`
-	StepID           string `json:"stepId"`
-	Participant      string `json:"participant"`
-	Model            string `json:"model"`
-	Status           string `json:"status"`
-	Content          string `json:"content,omitempty"`
-	Error            string `json:"error,omitempty"`
-	InputTokens      int64  `json:"inputTokens,omitempty"`
-	OutputTokens     int64  `json:"outputTokens,omitempty"`
-	CacheReadTokens  int64  `json:"cacheReadTokens,omitempty"`
-	CacheWriteTokens int64  `json:"cacheWriteTokens,omitempty"`
-	ReasoningTokens  int64  `json:"reasoningTokens,omitempty"`
-	LatencyMS        int64  `json:"latencyMs,omitempty"`
+	Round            int
+	StepID           string
+	Participant      string
+	Model            string
+	Status           string
+	Content          string
+	Error            string
+	InputTokens      int64
+	OutputTokens     int64
+	CacheReadTokens  int64
+	CacheWriteTokens int64
+	ReasoningTokens  int64
+	LatencyMS        int64
 }
 
 // State 是持久化到 assistant 消息里的完整讨论记录。
 type State struct {
-	Enabled      bool           `json:"enabled"`
-	Status       string         `json:"status"`
-	TemplateID   string         `json:"templateId"`
-	TemplateName string         `json:"templateName"`
-	Placeholders []Placeholder  `json:"placeholders"`
-	Rounds       []RuntimeRound `json:"rounds"`
-	Summary      RuntimeSummary `json:"summary"`
-	Turns        []Turn         `json:"turns"`
-	FinalContent string         `json:"finalContent,omitempty"`
-	Error        string         `json:"error,omitempty"`
-	CreatedAt    int64          `json:"createdAt"`
-	UpdatedAt    int64          `json:"updatedAt"`
+	Enabled      bool
+	Status       string
+	TemplateID   string
+	TemplateName string
+	Placeholders []Placeholder
+	Rounds       []RuntimeRound
+	Summary      RuntimeSummary
+	Turns        []Turn
+	FinalContent string
+	Error        string
+	CreatedAt    int64
+	UpdatedAt    int64
 }
 
 // ParseConfig 解析并校验模板配置。

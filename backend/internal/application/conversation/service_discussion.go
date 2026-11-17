@@ -195,7 +195,7 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 	if summaryTurn.Status == "error" && state.Status == "completed" {
 		state.Status = "completed_with_errors"
 	}
-	stateJSON, _ := json.Marshal(state)
+	stateJSON, _ := json.Marshal(discussionStatePayloadOf(state))
 
 	assistantStatus := "success"
 	errorCode := ""

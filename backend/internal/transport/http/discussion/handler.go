@@ -17,18 +17,48 @@ func NewHandler(service *appdiscussion.Service) *Handler {
 	return &Handler{service: service}
 }
 
+type PlaceholderDTO struct {
+	Key          string `json:"key"`
+	Label        string `json:"label"`
+	DefaultModel string `json:"defaultModel,omitempty"`
+	Required     bool   `json:"required,omitempty"`
+}
+
+type StepDTO struct {
+	ID          string `json:"id"`
+	Participant string `json:"participant"`
+	Prompt      string `json:"prompt"`
+}
+
+type RoundDTO struct {
+	Index    int       `json:"index"`
+	Parallel bool      `json:"parallel"`
+	Steps    []StepDTO `json:"steps"`
+}
+
+type SummaryDTO struct {
+	Participant string `json:"participant"`
+	Prompt      string `json:"prompt"`
+}
+
+type TemplateConfigDTO struct {
+	Placeholders []PlaceholderDTO `json:"placeholders"`
+	Rounds       []RoundDTO       `json:"rounds"`
+	Summary      SummaryDTO       `json:"summary"`
+}
+
 type TemplateResponse struct {
-	ID          uint                            `json:"id"`
-	PublicID    string                          `json:"publicID"`
-	Name        string                          `json:"name"`
-	Description string                          `json:"description"`
-	Icon        string                          `json:"icon"`
-	Status      string                          `json:"status"`
-	MaxRounds   int                             `json:"maxRounds"`
-	Config      domaindiscussion.TemplateConfig `json:"config"`
-	SortOrder   int                             `json:"sortOrder"`
-	CreatedAt   string                          `json:"createdAt"`
-	UpdatedAt   string                          `json:"updatedAt"`
+	ID          uint              `json:"id"`
+	PublicID    string            `json:"publicID"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Icon        string            `json:"icon"`
+	Status      string            `json:"status"`
+	MaxRounds   int               `json:"maxRounds"`
+	Config      TemplateConfigDTO `json:"config"`
+	SortOrder   int               `json:"sortOrder"`
+	CreatedAt   string            `json:"createdAt"`
+	UpdatedAt   string            `json:"updatedAt"`
 }
 
 type TemplateListResponse struct {
@@ -40,13 +70,13 @@ type TemplateDataResponse struct {
 }
 
 type TemplateRequest struct {
-	Name        string                          `json:"name" binding:"required,max=128"`
-	Description string                          `json:"description,omitempty" binding:"max=500"`
-	Icon        string                          `json:"icon,omitempty" binding:"max=128"`
-	Status      string                          `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
-	MaxRounds   int                             `json:"maxRounds,omitempty" binding:"omitempty,min=1,max=10"`
-	Config      domaindiscussion.TemplateConfig `json:"config" binding:"required"`
-	SortOrder   int                             `json:"sortOrder,omitempty"`
+	Name        string            `json:"name" binding:"required,max=128"`
+	Description string            `json:"description,omitempty" binding:"max=500"`
+	Icon        string            `json:"icon,omitempty" binding:"max=128"`
+	Status      string            `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
+	MaxRounds   int               `json:"maxRounds,omitempty" binding:"omitempty,min=1,max=10"`
+	Config      TemplateConfigDTO `json:"config" binding:"required"`
+	SortOrder   int               `json:"sortOrder,omitempty"`
 }
 
 func (h *Handler) ListActive(c *gin.Context) {
@@ -134,9 +164,37 @@ func toTemplateResponse(item appdiscussion.TemplateView) TemplateResponse {
 		Icon:        item.Icon,
 		Status:      item.Status,
 		MaxRounds:   item.MaxRounds,
-		Config:      item.Config,
+		Config:      toTemplateConfigDTO(item.Config),
 		SortOrder:   item.SortOrder,
 		CreatedAt:   item.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:   item.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
+}
+
+func toTemplateConfigDTO(config domaindiscussion.TemplateConfig) TemplateConfigDTO {
+	result := TemplateConfigDTO{
+		Placeholders: make([]PlaceholderDTO, 0, len(config.Placeholders)),
+		Rounds:       make([]RoundDTO, 0, len(config.Rounds)),
+		Summary:      SummaryDTO{Participant: config.Summary.Participant, Prompt: config.Summary.Prompt},
+	}
+	for _, item := range config.Placeholders {
+		result.Placeholders = append(result.Placeholders, PlaceholderDTO{
+			Key:          item.Key,
+			Label:        item.Label,
+			DefaultModel: item.DefaultModel,
+			Required:     item.Required,
+		})
+	}
+	for _, round := range config.Rounds {
+		roundDTO := RoundDTO{Index: round.Index, Parallel: round.Parallel, Steps: make([]StepDTO, 0, len(round.Steps))}
+		for _, step := range round.Steps {
+			roundDTO.Steps = append(roundDTO.Steps, StepDTO{
+				ID:          step.ID,
+				Participant: step.Participant,
+				Prompt:      step.Prompt,
+			})
+		}
+		result.Rounds = append(result.Rounds, roundDTO)
+	}
+	return result
 }
