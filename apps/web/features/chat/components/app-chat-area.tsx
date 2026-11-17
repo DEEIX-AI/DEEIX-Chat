@@ -983,6 +983,7 @@ export function AppChatArea() {
                   billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
                   splitRightInset={hasInlineArtifact}
                   contentWidthClassName={chatContentWidthClassName}
+                  contentAlign={contentAlign}
                   onScreenshotLatest={screenshot.captureLatestMessages}
                   onScreenshotSelect={screenshot.startSelectionScreenshot}
                   screenshot={{

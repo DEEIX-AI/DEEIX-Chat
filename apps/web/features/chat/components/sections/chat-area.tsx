@@ -146,6 +146,8 @@ type ChatAreaProps = {
   billingDisplayUsdToCnyRate?: number | null;
   splitRightInset?: boolean;
   contentWidthClassName?: string;
+  /** Message column alignment; a left-aligned chat also left-aligns the user bubble. */
+  contentAlign?: "center" | "left";
   onScreenshotLatest?: () => void;
   onScreenshotSelect?: () => void;
   screenshot?: {
@@ -311,6 +313,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   billingDisplayCurrency,
   billingDisplayUsdToCnyRate,
   contentWidthClassName,
+  userMessageAlign,
   screenshotMetaAlign,
   screenshotMetaModelName,
   screenshotMetaTimestamp,
@@ -352,6 +355,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   billingDisplayCurrency: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate: number | null;
   contentWidthClassName: string;
+  userMessageAlign: "start" | "end";
   screenshotMetaAlign: "start" | "end";
   screenshotMetaModelName: string;
   screenshotMetaTimestamp: string;
@@ -431,6 +435,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         readOnly={readOnly}
         sendShortcut={sendShortcut}
         screenshotMeta={screenshotMeta}
+        align={userMessageAlign}
       />
     );
   }
@@ -575,6 +580,7 @@ export function ChatArea({
   billingDisplayUsdToCnyRate = null,
   splitRightInset = false,
   contentWidthClassName = "max-w-[1080px]",
+  contentAlign = "center",
   onScreenshotLatest,
   onScreenshotSelect,
   screenshot,
@@ -769,7 +775,8 @@ export function ChatArea({
                       billingDisplayCurrency={billingDisplayCurrency}
                       billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
                       contentWidthClassName={contentWidthClassName}
-                      screenshotMetaAlign={item.role === "user" ? "end" : "start"}
+                      userMessageAlign={contentAlign === "left" ? "start" : "end"}
+                      screenshotMetaAlign={item.role === "user" ? (contentAlign === "left" ? "start" : "end") : "start"}
                       screenshotMetaModelName={item.role === "assistant" ? item.platformModelName?.trim() || "" : ""}
                       screenshotMetaTimestamp={screenshotTimestamp}
                     />
