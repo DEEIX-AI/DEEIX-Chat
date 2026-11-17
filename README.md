@@ -148,7 +148,7 @@ The backend keeps clear internal boundaries: `backend/cmd/server` is the executa
 └── Dockerfile                 # frontend + backend production image
 ```
 
-`apps/web/` and `backend/` are independent workspaces managed by pnpm and Turborepo. `packages/api-contract/` connects them through generated Swagger types; update the Go transport contract first, then regenerate the shared package. `packages/core/` holds client logic that must stay identical across platforms and is forbidden from importing any UI or platform framework. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for platform boundaries and rules.
+`apps/web/` and `backend/` are independent workspaces managed by pnpm and Turborepo. `packages/api-contract/` connects them through generated Swagger types; update the Go transport contract first, then regenerate the shared package. `packages/core/` holds client logic that must stay identical across platforms and is forbidden from importing any UI or platform framework. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for platform boundaries and rules, and [docs/DISCUSSIONS.md](docs/DISCUSSIONS.md) for multi-model discussion templates and their event stream.
 
 ## Prerequisites
 
