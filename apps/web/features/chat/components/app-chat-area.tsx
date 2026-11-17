@@ -62,7 +62,7 @@ import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversa
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { DeleteFilesOption } from "@/entities/file";
 import { hasMultipleImageAttachmentProcessors, normalizeImageAttachmentProcessorSelection } from "@/entities/mcp";
-import { resolveChatContentWidthClassName } from "@/entities/user-settings";
+import { CHAT_COMPOSER_WIDTH_CLASSNAME, resolveChatContentWidthClassName } from "@/entities/user-settings";
 
 const EMPTY_CONVERSATION_OPTIONS: ConversationOptions = {};
 const EMPTY_LIST: never[] = [];
@@ -855,6 +855,7 @@ export function AppChatArea() {
     onGuideQueuedMessage,
   };
   const chatContentWidthClassName = resolveChatContentWidthClassName(contentWidth, contentAlign);
+  const composerWidthClassName = CHAT_COMPOSER_WIDTH_CLASSNAME;
   const isConversationLoading = !temporaryMode && Boolean(conversationID) && loading && visibleMessageCount === 0 && displayMessages.length === 0;
   const isConversationLoadFailed = !temporaryMode && Boolean(conversationID) && !loading && errorMsg.trim().length > 0 && visibleMessageCount === 0;
   const shouldUseCenteredComposer =
@@ -889,7 +890,7 @@ export function AppChatArea() {
                 strokeWidth={1.6}
               />
             ) : undefined}
-            contentWidthClassName={chatContentWidthClassName}
+            contentWidthClassName={composerWidthClassName}
           >
             <div className="mb-2 flex justify-end">
               <ChatLayoutControl showLabel />
@@ -1002,7 +1003,7 @@ export function AppChatArea() {
 
             {!isConversationLoadFailed ? (
               <div className="relative z-10 shrink-0 px-3 pb-3 md:px-6">
-                <div className={cn("w-full", chatContentWidthClassName)}>
+                <div className={cn("w-full", composerWidthClassName)}>
                   <div className="mb-2 flex justify-end">
                     <ChatLayoutControl showLabel />
                   </div>

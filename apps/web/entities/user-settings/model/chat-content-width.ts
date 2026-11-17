@@ -11,6 +11,10 @@ export type ChatContentWidthOption = {
 export const DEFAULT_CHAT_CONTENT_WIDTH: ChatContentWidth = "compact";
 export const DEFAULT_CHAT_CONTENT_ALIGN: ChatContentAlign = "center";
 
+// The composer keeps one fixed width and position. The width/alignment setting reshapes the
+// message column only, so changing it never moves the input box under the cursor.
+export const CHAT_COMPOSER_WIDTH_CLASSNAME = "mx-auto w-full max-w-[900px]";
+
 export const CHAT_CONTENT_WIDTH_OPTIONS: ChatContentWidthOption[] = [
   {
     value: "compact",

@@ -66,6 +66,7 @@ export function ChatLayoutControl({ showLabel = false }: { showLabel?: boolean }
         <div className="space-y-3">
           <div>
             <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t("widthTitle")}</p>
+            <p className="mb-2 text-[11px] leading-4 text-muted-foreground/80">{t("widthHint")}</p>
             <div className="grid grid-cols-4 gap-1.5">
               {CHAT_CONTENT_WIDTH_OPTIONS.map((item) => (
                 <button

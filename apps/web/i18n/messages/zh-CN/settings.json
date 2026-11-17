@@ -399,7 +399,8 @@
       "costDescription": "控制 AI 回复下方是否展示本次调用的总费用。",
       "processTraceTitle": "显示处理过程",
       "processTraceDescription": "控制 AI 回复上方是否展示本轮的处理过程，如上下文规划、检索与工具调用摘要。",
-      "widthTitle": "对话区域宽度",
+      "widthTitle": "消息区宽度",
+      "widthHint": "只改变消息内容的宽度与对齐，输入框保持固定。",
       "width": {
         "compact": "紧凑",
         "standard": "标准",
@@ -420,7 +421,7 @@
         "semibold": "半粗",
         "bold": "粗体"
       },
-      "alignTitle": "对话区对齐",
+      "alignTitle": "消息区对齐",
       "align": {
         "center": "居中",
         "left": "左对齐"
