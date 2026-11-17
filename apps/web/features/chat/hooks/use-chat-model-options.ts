@@ -458,6 +458,17 @@ function readStoredDiscussionBindings(key: string): Record<string, string> {
   }
 }
 
+function writeStoredDiscussionBindings(key: string, bindings: Record<string, string>): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(key, JSON.stringify(bindings));
+  } catch {
+    // Draft persistence is best-effort; the server record remains the source of truth.
+  }
+}
+
 export function useChatModelOptions({
   conversationPublicID,
   conversationModel,
@@ -738,19 +749,40 @@ export function useChatModelOptions({
     return discussionTemplates.find((item) => `discussion:${item.publicID}` === normalized) ?? null;
   }, [discussionTemplates, selectedPlatformModelName]);
 
-  const discussionTemplateID = selectedDiscussionTemplate?.publicID ?? "";
-
+  // Scope is conversation + template: only a real change reloads the bindings.
+  const discussionBindingScopeRef = React.useRef("");
+  const discussionBindingsRef = React.useRef<Record<string, string>>({});
   React.useEffect(() => {
-    discussionBindingsTouchedRef.current = false;
-  }, [conversationPublicID, discussionTemplateID]);
+    discussionBindingsRef.current = discussionBindings;
+  }, [discussionBindings]);
 
   React.useEffect(() => {
     const template = selectedDiscussionTemplate;
+    const scope = `${conversationPublicID || "new"}|${template?.publicID ?? ""}`;
+    if (discussionBindingScopeRef.current === scope) {
+      return;
+    }
+    const previousScope = discussionBindingScopeRef.current;
+    discussionBindingScopeRef.current = scope;
+    discussionBindingsTouchedRef.current = false;
     if (!template) {
       setDiscussionBindings((previous) => (Object.keys(previous).length === 0 ? previous : {}));
       return;
     }
-    if (discussionBindingsTouchedRef.current) {
+    const [previousConversationID, previousTemplateID] = previousScope.split("|");
+    // Sending the first message turns the draft into a conversation. The models just picked
+    // belong to that message, so they carry over instead of being reset by the new key.
+    const carriedOver =
+      previousConversationID === "new" && previousTemplateID === template.publicID
+        ? discussionBindingsRef.current
+        : null;
+    if (carriedOver && Object.keys(carriedOver).length > 0) {
+      const next = { ...carriedOver };
+      writeStoredDiscussionBindings(
+        discussionBindingsStorageKey(conversationPublicID, template.publicID),
+        next,
+      );
+      setDiscussionBindings(next);
       return;
     }
     const stored = readStoredDiscussionBindings(
@@ -768,15 +800,11 @@ export function useChatModelOptions({
     discussionBindingsTouchedRef.current = true;
     setDiscussionBindings((current) => {
       const next = { ...current, [participant]: model };
-      if (selectedDiscussionTemplate && typeof window !== "undefined") {
-        try {
-          window.localStorage.setItem(
-            discussionBindingsStorageKey(conversationPublicID, selectedDiscussionTemplate.publicID),
-            JSON.stringify(next),
-          );
-        } catch {
-          // Draft persistence is best-effort; the server record remains the source of truth.
-        }
+      if (selectedDiscussionTemplate) {
+        writeStoredDiscussionBindings(
+          discussionBindingsStorageKey(conversationPublicID, selectedDiscussionTemplate.publicID),
+          next,
+        );
       }
       return next;
     });
