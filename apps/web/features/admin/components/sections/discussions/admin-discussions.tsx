@@ -113,6 +113,7 @@ export function AdminDiscussionsPage() {
   const [draft, setDraft] = React.useState<Draft>(createDraft());
   const [saving, setSaving] = React.useState(false);
   const [formError, setFormError] = React.useState("");
+  const [workflowOpen, setWorkflowOpen] = React.useState(false);
   const [dragRound, setDragRound] = React.useState<number | null>(null);
   const [dragStep, setDragStep] = React.useState<{ round: number; step: number } | null>(null);
 
@@ -345,17 +346,33 @@ export function AdminDiscussionsPage() {
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">{t("description")}</p>
         </div>
-        <button
-          type="button"
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm hover:bg-muted"
-          onClick={() => setDraft(createDraft())}
-        >
-          <Plus className="size-4" />
-          {t("newTemplate")}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-pressed={workflowOpen}
+            className={cn(
+              "inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors",
+              workflowOpen
+                ? "border-primary/50 bg-primary/10 text-primary"
+                : "border-border hover:bg-muted",
+            )}
+            onClick={() => setWorkflowOpen((open) => !open)}
+          >
+            <Workflow className="size-4" />
+            {t("workflow")}
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm hover:bg-muted"
+            onClick={() => setDraft(createDraft())}
+          >
+            <Plus className="size-4" />
+            {t("newTemplate")}
+          </button>
+        </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[200px_minmax(0,1fr)_260px]">
+      <div className="grid gap-4 xl:grid-cols-[200px_minmax(0,1fr)]">
         <aside className="space-y-1.5 self-start rounded-xl border border-border/60 p-2">
           {loading ? <p className="p-2 text-sm text-muted-foreground">{t("loading")}</p> : null}
           {templates.map((template) => (
@@ -466,7 +483,7 @@ export function AdminDiscussionsPage() {
                 return (
                   <div
                     key={placeholder.key}
-                    className="grid items-center gap-2 rounded-lg border border-border/50 p-2 md:grid-cols-[7rem_minmax(0,1fr)_minmax(0,14rem)_auto]"
+                    className="grid items-center gap-2 rounded-lg border border-border/50 p-2 md:grid-cols-[7rem_minmax(0,1fr)_minmax(0,12rem)_auto]"
                   >
                     <span
                       className={cn(
@@ -674,10 +691,20 @@ export function AdminDiscussionsPage() {
           </div>
         </section>
 
-        <aside className="min-w-0 self-start xl:sticky xl:top-4">
-          <DiscussionsWorkflowPreview config={draft.config} />
-        </aside>
       </div>
+
+      {/* Narrow screens: the workflow opens at the bottom of the page, after the editor. */}
+      {workflowOpen ? (
+        <div className="xl:hidden">
+          <DiscussionsWorkflowPreview config={draft.config} onClose={() => setWorkflowOpen(false)} />
+        </div>
+      ) : null}
+      {/* Wide screens: a floating panel that never shrinks the editor. */}
+      {workflowOpen ? (
+        <div className="fixed top-24 right-4 z-40 hidden w-72 max-h-[calc(100vh-7rem)] overflow-y-auto rounded-xl shadow-xl 2xl:w-80 xl:block">
+          <DiscussionsWorkflowPreview config={draft.config} onClose={() => setWorkflowOpen(false)} />
+        </div>
+      ) : null}
     </div>
   );
 }

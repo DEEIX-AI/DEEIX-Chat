@@ -40,5 +40,6 @@
   "workflowHint": "Rounds run serially and steps inside a round run in parallel. From round 2 on, every model sees the previous round and all earlier discussion; the summary model then writes the final answer. Placeholders bind to real models at chat time; this page only defines the structure.",
   "delete": "Delete",
   "save": "Save",
-  "saving": "Saving…"
+  "saving": "Saving…",
+  "close": "Close"
 }

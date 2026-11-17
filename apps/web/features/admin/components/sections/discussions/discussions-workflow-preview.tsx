@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, Workflow } from "lucide-react";
+import { ArrowDown, Workflow, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
@@ -20,15 +20,33 @@ function Connector() {
  * Read-only shape of the template: question -> rounds -> summary. It follows the editor state, so
  * dragging a round or renaming a placeholder is visible here without saving first.
  */
-export function DiscussionsWorkflowPreview({ config }: { config: DiscussionTemplateConfig }) {
+export function DiscussionsWorkflowPreview({
+  config,
+  onClose,
+  className,
+}: {
+  config: DiscussionTemplateConfig;
+  onClose?: () => void;
+  className?: string;
+}) {
   const t = useTranslations("adminDiscussions");
   const summaryModel = config.placeholders.find((item) => item.key === config.summary.participant)?.defaultModel;
 
   return (
-    <div className="rounded-xl border border-border/60 p-3">
+    <div className={cn("rounded-xl border border-border/60 bg-background p-3", className)}>
       <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
         <Workflow className="size-4 text-primary" />
         {t("workflow")}
+        {onClose ? (
+          <button
+            type="button"
+            className="ml-auto rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label={t("close")}
+            onClick={onClose}
+          >
+            <X className="size-3.5" />
+          </button>
+        ) : null}
       </h3>
       <div className="rounded-lg border border-border/50 bg-muted/30 px-2 py-1.5 text-xs text-foreground">
         {t("workflowQuestion")}
