@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ChevronRight, Loader2, Users } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Loader2, Minus, Users, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
@@ -32,6 +32,42 @@ function turnStatusClass(status: string): string {
       return "border-sky-200 bg-sky-50/60 dark:border-sky-900/60 dark:bg-sky-950/20";
     default:
       return "border-border/60 bg-background/60";
+  }
+}
+
+function usageSeconds(latencyMs?: number): number {
+  return latencyMs && latencyMs > 0 ? Math.round(latencyMs / 100) / 10 : 0;
+}
+
+type UsageFormat = (input: number, output: number, seconds: number) => string;
+
+function usageText(format: UsageFormat, turn: DiscussionTurn): string {
+  return format(turn.inputTokens ?? 0, turn.outputTokens ?? 0, usageSeconds(turn.latencyMs));
+}
+
+function usageCellClass(status: string): string {
+  switch (status) {
+    case "completed":
+      return "border-border/60 bg-background/60";
+    case "error":
+      return "border-rose-200 bg-rose-50/60 dark:border-rose-900/60 dark:bg-rose-950/20";
+    case "running":
+      return "border-sky-200 bg-sky-50/60 dark:border-sky-900/60 dark:bg-sky-950/20";
+    default:
+      return "border-dashed border-border/50 bg-transparent";
+  }
+}
+
+function usageStatusMark(status: string) {
+  switch (status) {
+    case "completed":
+      return <Check className="size-3 text-emerald-600 dark:text-emerald-400" />;
+    case "error":
+      return <X className="size-3 text-rose-500" />;
+    case "running":
+      return <Loader2 className="size-3 animate-spin text-sky-500" />;
+    default:
+      return <Minus className="size-3 text-muted-foreground/50" />;
   }
 }
 
@@ -155,17 +191,71 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                 key={participant.key}
                 type="button"
                 className={cn(
-                  "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                  "inline-flex max-w-64 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
                   selected === participant.key
                     ? "border-primary/50 bg-primary/10 text-primary"
                     : "border-border/60 text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setSelected(participant.key)}
-                title={participant.model || undefined}
+                title={participant.model || participant.label}
               >
-                {participant.label}
+                <span className="truncate">{participant.label}</span>
+                {participant.model && participant.model !== participant.label ? (
+                  <span className="truncate font-mono text-[10px] opacity-70">{participant.model}</span>
+                ) : null}
               </button>
             ))}
+          </div>
+
+          {/* One row per round, one cell per model: the whole run is visible without scrolling. */}
+          <p className="mb-1 text-[10px] font-medium text-muted-foreground">{t("roundUsage")}</p>
+          <div className="mb-2 space-y-1">
+            {discussion.rounds.map((round) => (
+              <div key={`usage-${round.index}`} className="rounded-lg border border-border/50 bg-background/40 p-1.5">
+                <p className="mb-1 text-[10px] font-medium text-muted-foreground">
+                  {t("round", { round: round.index })}
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {round.steps.map((step) => {
+                    const turn = turns.find(
+                      (item) =>
+                        item.round === round.index &&
+                        (item.stepId === step.id || item.participant === step.participant),
+                    );
+                    const status = turn?.status ?? "pending";
+                    return (
+                      <div
+                        key={`usage-${round.index}-${step.id}`}
+                        className={cn(
+                          "flex min-w-36 flex-1 flex-col gap-0.5 rounded-md border px-1.5 py-1",
+                          usageCellClass(status),
+                        )}
+                      >
+                        <div className="flex min-w-0 items-center gap-1">
+                          <span className="truncate text-[11px] font-medium text-foreground">
+                            {discussionSpeakerLabel(placeholders, step.participant, step.model)}
+                          </span>
+                          <span className="truncate font-mono text-[10px] text-muted-foreground">
+                            {step.model || "—"}
+                          </span>
+                          <span className="ml-auto shrink-0">{usageStatusMark(status)}</span>
+                        </div>
+                        <span className="tabular-nums text-[10px] text-muted-foreground">
+                          {turn ? usageText((input, output, seconds) => t("usage", { input, output, seconds }), turn) : t("pendingTurn")}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <div className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2 py-1 text-[10px]">
+              <span className="shrink-0 font-medium text-foreground">{t("summaryBadge")}</span>
+              <span className="truncate font-mono text-muted-foreground">{discussion.summary?.model || "—"}</span>
+              {discussion.finalContent ? (
+                <span className="ml-auto shrink-0 text-muted-foreground">{t("done")}</span>
+              ) : null}
+            </div>
           </div>
 
           <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
@@ -185,8 +275,9 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                     {turn.model ? <span className="font-mono text-[10px]">{turn.model}</span> : null}
                     <span>
                       {turn.status === "running" ? t("thinking") : turn.status === "error" ? t("failed") : t("done")}
-                      {turn.outputTokens ? ` · ${turn.outputTokens} tokens` : ""}
-                      {turn.latencyMs ? ` · ${Math.round(turn.latencyMs / 100) / 10}s` : ""}
+                      {turn.inputTokens || turn.outputTokens || turn.latencyMs
+                        ? ` · ${usageText((input, output, seconds) => t("usage", { input, output, seconds }), turn)}`
+                        : ""}
                     </span>
                   </div>
                   <div className="mt-1 whitespace-pre-wrap break-words text-xs leading-6 text-foreground/90">

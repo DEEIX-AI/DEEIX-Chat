@@ -1207,6 +1207,9 @@
     "statusSummarizing": "Summarizing",
     "selectAllModels": "Select a model for every placeholder",
     "chooseModel": "Choose model",
-    "summaryBadge": "Summary"
+    "summaryBadge": "Summary",
+    "usage": "in {input} / out {output} / {seconds}s",
+    "pendingTurn": "Not started",
+    "roundUsage": "Round usage"
   }
 }

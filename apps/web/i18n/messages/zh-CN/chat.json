@@ -1207,6 +1207,9 @@
     "statusSummarizing": "总结中",
     "selectAllModels": "请为每个占位符选择模型",
     "chooseModel": "选择模型",
-    "summaryBadge": "总结"
+    "summaryBadge": "总结",
+    "usage": "入 {input} / 出 {output} / {seconds}s",
+    "pendingTurn": "未开始",
+    "roundUsage": "轮次用量"
   }
 }
