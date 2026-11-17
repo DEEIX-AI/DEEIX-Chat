@@ -892,11 +892,11 @@ type MessageResponse struct {
 	KnowledgeSources []MessageKnowledgeSourceResponse `json:"knowledgeSources,omitempty"`
 	ProcessTrace     *MessageProcessTraceResponse     `json:"processTrace,omitempty"`
 	// Discussion 是多模型讨论的完整记录；普通消息省略。
-	Discussion       json.RawMessage                  `json:"discussion,omitempty" swaggertype:"object"`
-	Moderation       *MessageModerationResponse       `json:"moderation,omitempty"`
-	EditedAt         *time.Time                       `json:"editedAt" extensions:"x-nullable,!x-omitempty"`
-	CreatedAt        time.Time                        `json:"createdAt"`
-	UpdatedAt        time.Time                        `json:"updatedAt"`
+	Discussion json.RawMessage            `json:"discussion,omitempty" swaggertype:"object"`
+	Moderation *MessageModerationResponse `json:"moderation,omitempty"`
+	EditedAt   *time.Time                 `json:"editedAt" extensions:"x-nullable,!x-omitempty"`
+	CreatedAt  time.Time                  `json:"createdAt"`
+	UpdatedAt  time.Time                  `json:"updatedAt"`
 }
 
 // MessageModerationResponse 向客户端暴露软审核状态。

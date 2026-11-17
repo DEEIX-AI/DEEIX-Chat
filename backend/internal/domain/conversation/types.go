@@ -223,10 +223,10 @@ type Message struct {
 	ThumbsDownCount int64
 	ProcessTrace    *MessageProcessTrace
 	// DiscussionJSON 保存多模型讨论的完整记录；普通消息为空。
-	DiscussionJSON  string
-	EditedAt        *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	DiscussionJSON string
+	EditedAt       *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // MessageUIState 表示一条助手消息内单个交互式组件块的状态快照。

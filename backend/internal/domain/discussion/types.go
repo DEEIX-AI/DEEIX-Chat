@@ -12,8 +12,8 @@ const (
 	StatusActive   = "active"
 	StatusInactive = "inactive"
 
-	MaxPlaceholders = 12
-	MaxRounds       = 10
+	MaxPlaceholders  = 12
+	MaxRounds        = 10
 	MaxStepsPerRound = 8
 )
 
@@ -101,19 +101,19 @@ type RuntimePlan struct {
 
 // Turn 是一次模型调用的结果。
 type Turn struct {
-	Round       int    `json:"round"`
-	StepID      string `json:"stepId"`
-	Participant string `json:"participant"`
-	Model       string `json:"model"`
-	Status      string `json:"status"`
-	Content     string `json:"content,omitempty"`
-	Error       string `json:"error,omitempty"`
-	InputTokens  int64  `json:"inputTokens,omitempty"`
-	OutputTokens int64  `json:"outputTokens,omitempty"`
-	CacheReadTokens int64 `json:"cacheReadTokens,omitempty"`
-	CacheWriteTokens int64 `json:"cacheWriteTokens,omitempty"`
-	ReasoningTokens int64 `json:"reasoningTokens,omitempty"`
-	LatencyMS    int64  `json:"latencyMs,omitempty"`
+	Round            int    `json:"round"`
+	StepID           string `json:"stepId"`
+	Participant      string `json:"participant"`
+	Model            string `json:"model"`
+	Status           string `json:"status"`
+	Content          string `json:"content,omitempty"`
+	Error            string `json:"error,omitempty"`
+	InputTokens      int64  `json:"inputTokens,omitempty"`
+	OutputTokens     int64  `json:"outputTokens,omitempty"`
+	CacheReadTokens  int64  `json:"cacheReadTokens,omitempty"`
+	CacheWriteTokens int64  `json:"cacheWriteTokens,omitempty"`
+	ReasoningTokens  int64  `json:"reasoningTokens,omitempty"`
+	LatencyMS        int64  `json:"latencyMs,omitempty"`
 }
 
 // State 是持久化到 assistant 消息里的完整讨论记录。

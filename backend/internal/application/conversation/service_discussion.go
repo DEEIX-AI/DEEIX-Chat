@@ -18,11 +18,11 @@ import (
 )
 
 const (
-	discussionModelPrefix       = "discussion:"
-	discussionDefaultStepPrompt = "你是多模型讨论中的一员。请独立、具体地回答用户问题，指出关键假设与风险。"
-	discussionFollowupPrompt    = "你是多模型讨论中的一员。请阅读已有讨论，补充遗漏、纠正错误、挑战薄弱推理，不要重复已经充分的内容。"
-	discussionSummaryPrompt     = "你是多模型讨论的主持人。请只依据成功的讨论发言，给出面向用户的最终答案；失败的发言不是观点或证据。"
-	discussionMaxTurnRunes      = 12000
+	discussionModelPrefix        = "discussion:"
+	discussionDefaultStepPrompt  = "你是多模型讨论中的一员。请独立、具体地回答用户问题，指出关键假设与风险。"
+	discussionFollowupPrompt     = "你是多模型讨论中的一员。请阅读已有讨论，补充遗漏、纠正错误、挑战薄弱推理，不要重复已经充分的内容。"
+	discussionSummaryPrompt      = "你是多模型讨论的主持人。请只依据成功的讨论发言，给出面向用户的最终答案；失败的发言不是观点或证据。"
+	discussionMaxTurnRunes       = 12000
 	discussionMaxTranscriptRunes = 60000
 )
 
@@ -444,12 +444,6 @@ func discussionFallbackSummary(turns []domaindiscussion.Turn, failure string) st
 		builder.WriteString(failure)
 	}
 	return builder.String()
-}
-
-type discussionUsage struct {
-	InputTokens     int64
-	OutputTokens    int64
-	ReasoningTokens int64
 }
 
 func discussionModelName(publicID string) string {

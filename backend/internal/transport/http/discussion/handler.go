@@ -18,17 +18,17 @@ func NewHandler(service *appdiscussion.Service) *Handler {
 }
 
 type TemplateResponse struct {
-	ID          uint                              `json:"id"`
-	PublicID    string                            `json:"publicID"`
-	Name        string                            `json:"name"`
-	Description string                            `json:"description"`
-	Icon        string                            `json:"icon"`
-	Status      string                            `json:"status"`
-	MaxRounds   int                               `json:"maxRounds"`
-	Config      domaindiscussion.TemplateConfig   `json:"config"`
-	SortOrder   int                               `json:"sortOrder"`
-	CreatedAt   string                            `json:"createdAt"`
-	UpdatedAt   string                            `json:"updatedAt"`
+	ID          uint                            `json:"id"`
+	PublicID    string                          `json:"publicID"`
+	Name        string                          `json:"name"`
+	Description string                          `json:"description"`
+	Icon        string                          `json:"icon"`
+	Status      string                          `json:"status"`
+	MaxRounds   int                             `json:"maxRounds"`
+	Config      domaindiscussion.TemplateConfig `json:"config"`
+	SortOrder   int                             `json:"sortOrder"`
+	CreatedAt   string                          `json:"createdAt"`
+	UpdatedAt   string                          `json:"updatedAt"`
 }
 
 type TemplateListResponse struct {
@@ -40,13 +40,13 @@ type TemplateDataResponse struct {
 }
 
 type TemplateRequest struct {
-	Name        string                         `json:"name" binding:"required,max=128"`
-	Description string                         `json:"description,omitempty" binding:"max=500"`
-	Icon        string                         `json:"icon,omitempty" binding:"max=128"`
-	Status      string                         `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
-	MaxRounds   int                            `json:"maxRounds,omitempty" binding:"omitempty,min=1,max=10"`
+	Name        string                          `json:"name" binding:"required,max=128"`
+	Description string                          `json:"description,omitempty" binding:"max=500"`
+	Icon        string                          `json:"icon,omitempty" binding:"max=128"`
+	Status      string                          `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
+	MaxRounds   int                             `json:"maxRounds,omitempty" binding:"omitempty,min=1,max=10"`
 	Config      domaindiscussion.TemplateConfig `json:"config" binding:"required"`
-	SortOrder   int                            `json:"sortOrder,omitempty"`
+	SortOrder   int                             `json:"sortOrder,omitempty"`
 }
 
 func (h *Handler) ListActive(c *gin.Context) {

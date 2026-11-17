@@ -149,7 +149,7 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "deeix-deepseek-search/1.0"
 
     def log_message(self, fmt, *args):  # noqa: A003
-        sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
+        sys.stderr.write(f"{self.address_string()} - {fmt % args}\n")
 
     def _authorized(self) -> bool:
         if not AUTH_TOKEN:
