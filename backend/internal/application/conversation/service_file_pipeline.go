@@ -12,7 +12,6 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -336,26 +335,6 @@ func (s *Service) hydrateAttachmentsForSend(
 		}
 	}
 	return items, nil
-}
-
-func canUseAttachmentFullContext(att AttachmentInput, cfg config.Config) bool {
-	if att.FileCategory == fileCategoryVideo || att.FileCategory == fileCategoryAudio {
-		return false
-	}
-	text := strings.TrimSpace(att.ExtractedText)
-	if text == "" {
-		return false
-	}
-	if cfg.FileFullContextMaxBytes > 0 && int64(len([]byte(text))) > cfg.FileFullContextMaxBytes {
-		return false
-	}
-	if cfg.FileFullContextMaxTokens > 0 && tokenestimate.Estimate(text) > int64(cfg.FileFullContextMaxTokens) {
-		return false
-	}
-	if att.FileCategory == fileCategoryPDF && cfg.FileFullContextPDFMaxPages > 0 && att.PageCount > cfg.FileFullContextPDFMaxPages {
-		return false
-	}
-	return true
 }
 
 func buildFileAttachmentSnapshot(att AttachmentInput) map[string]any {

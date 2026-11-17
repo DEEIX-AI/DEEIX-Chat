@@ -1,0 +1,11 @@
+{
+  // name 和 command 必填，args、cwd、env 可选。按 F5 运行，⇧F5 停止。
+  "configurations": [
+    { "name": "dev", "command": "pnpm run dev" },
+    { "name": "build", "command": "pnpm run build" },
+    { "name": "test", "command": "pnpm run test" },
+    { "name": "api:check", "command": "pnpm run api:check" },
+    { "name": "api:generate", "command": "pnpm run api:generate" },
+    { "name": "check", "command": "pnpm run check" }
+  ]
+}

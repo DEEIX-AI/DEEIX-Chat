@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	apprag "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/rag"
-	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
@@ -38,6 +37,8 @@ type conversationFileContextPlan struct {
 	FullAttachments []AttachmentInput
 	RAGAttachments  []AttachmentInput
 	Skipped         []AttachmentInput
+	// Limits 是按本次路由模型解析的全文注入上限，检索回退时复用同一结果。
+	Limits fullContextLimits
 }
 
 func collectConversationFileIDs(messages []model.Message, currentFileIDs []string) []string {
@@ -178,6 +179,7 @@ func buildConversationFileContextPlan(
 ) conversationFileContextPlan {
 	plan := conversationFileContextPlan{
 		Attachments: make([]AttachmentInput, 0, len(attachments)),
+		Limits:      resolveFullContextLimits(cfg, capabilityModelName, capabilitiesJSON),
 	}
 	for _, item := range attachments {
 		kind := normalizeAttachmentKind(item.Kind, item.DetectedMIME)
@@ -188,7 +190,7 @@ func buildConversationFileContextPlan(
 			continue
 		}
 
-		useRAG := shouldUseRAGForAttachment(item, fileMode, cfg, capabilityModelName, capabilitiesJSON, ragAvailable)
+		useRAG := shouldUseRAGForAttachment(item, fileMode, cfg, plan.Limits, capabilityModelName, capabilitiesJSON, ragAvailable)
 		if useRAG {
 			item.ContextMode = fileContextModeRAG
 			plan.Attachments = append(plan.Attachments, item)
@@ -196,21 +198,23 @@ func buildConversationFileContextPlan(
 			continue
 		}
 
-		canUseFullContext := canUseAttachmentFullContext(item, cfg)
+		rejection := fullContextRejection(item, plan.Limits)
 		if fileMode == "rag" && !canRetrieveAttachment(item, ragAvailable) {
-			if canUseFullContext {
+			if rejection == "" {
 				item.ContextMode = fileContextModeRAGFallback
 				plan.Attachments = append(plan.Attachments, item)
 				plan.FullAttachments = append(plan.FullAttachments, item)
 				continue
 			}
 			item.ContextMode = fileContextModeSkipped
+			item.SkipReason = rejection
 			plan.Attachments = append(plan.Attachments, item)
 			plan.Skipped = append(plan.Skipped, item)
 			continue
 		}
-		if !canUseFullContext {
+		if rejection != "" {
 			item.ContextMode = fileContextModeSkipped
+			item.SkipReason = rejection
 			plan.Attachments = append(plan.Attachments, item)
 			plan.Skipped = append(plan.Skipped, item)
 			continue
@@ -222,7 +226,7 @@ func buildConversationFileContextPlan(
 	return plan
 }
 
-func shouldUseRAGForAttachment(item AttachmentInput, fileMode string, cfg config.Config, capabilityModelName string, capabilitiesJSON string, ragAvailable bool) bool {
+func shouldUseRAGForAttachment(item AttachmentInput, fileMode string, cfg config.Config, limits fullContextLimits, capabilityModelName string, capabilitiesJSON string, ragAvailable bool) bool {
 	if !cfg.RAGEnabled || !cfg.EmbeddingEnabled {
 		return false
 	}
@@ -235,13 +239,13 @@ func shouldUseRAGForAttachment(item AttachmentInput, fileMode string, cfg config
 	case "full_context":
 		return false
 	default:
-		if !canUseAttachmentFullContext(item, cfg) {
+		if !canUseAttachmentFullContext(item, limits) {
 			return true
 		}
+		// 可以检索时按更低的比例改走检索，为对话历史与检索片段留出空间。
 		if cfg.ContextTokenBudgetEnabled {
-			budget := domainchannel.EffectiveContextBudgetFromCapabilitiesWithFallback(capabilityModelName, capabilitiesJSON, cfg.ContextWindowFallbackTokens)
-			fileTokens := int(tokenestimate.Estimate(item.ExtractedText))
-			return budget > 0 && fileTokens > budget*2/5
+			retrievalLimit := fullContextModelTokenLimit(cfg, capabilityModelName, capabilitiesJSON, fullContextRetrievalPercent)
+			return retrievalLimit > 0 && tokenestimate.Estimate(item.ExtractedText) > retrievalLimit
 		}
 		return false
 	}
@@ -341,16 +345,18 @@ func mergeRAGFileObjects(groups ...[]model.FileObject) []model.FileObject {
 	return result
 }
 
-func splitRetrievalFallbackAttachments(items []AttachmentInput, cfg config.Config) ([]AttachmentInput, []AttachmentInput) {
+func splitRetrievalFallbackAttachments(items []AttachmentInput, limits fullContextLimits) ([]AttachmentInput, []AttachmentInput) {
 	fallbacks := make([]AttachmentInput, 0, len(items))
 	skipped := make([]AttachmentInput, 0)
 	for _, item := range items {
-		if canUseAttachmentFullContext(item, cfg) {
+		rejection := fullContextRejection(item, limits)
+		if rejection == "" {
 			item.ContextMode = fileContextModeRAGFallback
 			fallbacks = append(fallbacks, item)
 			continue
 		}
 		item.ContextMode = fileContextModeSkipped
+		item.SkipReason = rejection
 		skipped = append(skipped, item)
 	}
 	return fallbacks, skipped

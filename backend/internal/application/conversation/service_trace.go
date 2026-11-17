@@ -1888,6 +1888,8 @@ type attachmentTraceFileRef struct {
 	Kind        string `json:"kind"`
 	MimeType    string `json:"mime_type"`
 	ContextMode string `json:"context_mode"`
+	// SkipReason 为未纳入文件的原因（no_extracted_text / exceeds_full_context_limit）。
+	SkipReason string `json:"skip_reason,omitempty"`
 }
 
 type attachmentTraceFileGroups struct {
@@ -1979,8 +1981,22 @@ func buildAttachmentProcessTrace(
 	skippedCount := len(payload.FileGroups.Skipped) + len(payload.FileGroups.Unsupported)
 	includedCount := len(attachments) - skippedCount
 	summary := formatAttachmentProcessCounts(includedCount, skippedCount, "已纳入")
-	detail := fmt.Sprintf("文件已就绪，%s。", formatAttachmentProcessCounts(includedCount, skippedCount, "纳入"))
+	detail := fmt.Sprintf("文件已就绪，%s%s。", formatAttachmentProcessCounts(includedCount, skippedCount, "纳入"), attachmentSkipReasonSuffix(attachments))
 	return summary, formatTraceStep("文件上下文", detail), attachmentTracePayloadMap(payload)
+}
+
+// attachmentSkipReasonSuffix 说明超出全文注入上限而未纳入的文件，与「没有可用提取文本」区分开。
+func attachmentSkipReasonSuffix(attachments []AttachmentInput) string {
+	tooLarge := 0
+	for _, item := range attachments {
+		if item.ContextMode == fileContextModeSkipped && item.SkipReason == fullContextSkipTooLarge {
+			tooLarge++
+		}
+	}
+	if tooLarge == 0 {
+		return ""
+	}
+	return fmt.Sprintf("（%d 个文件超出当前模型的全文注入上限，且无法按片段检索）", tooLarge)
 }
 
 func formatAttachmentProcessCounts(includedCount int, skippedCount int, includedVerb string) string {
@@ -2008,6 +2024,7 @@ func newAttachmentTraceFileRef(item AttachmentInput, fallbackName string) attach
 		Kind:        strings.TrimSpace(item.Kind),
 		MimeType:    strings.TrimSpace(item.MimeType),
 		ContextMode: strings.TrimSpace(item.ContextMode),
+		SkipReason:  strings.TrimSpace(item.SkipReason),
 	}
 }
 

@@ -9,6 +9,9 @@ const (
 	defaultRAGModel         = "sentence-transformers/all-MiniLM-L6-v2"
 )
 
+// legacyDefaultFullContextMaxTokens 是全文 Token 上限的历史固定默认值，启动时迁移为跟随模型预算。
+const legacyDefaultFullContextMaxTokens = "65536"
+
 // legacyDefaultAllowedMIMETypes 是历史版本的白名单默认值。数据库中仍是其中之一（管理员未改动过）时，
 // 启动时升级为当前默认值；改动过的白名单保持不变。
 var legacyDefaultAllowedMIMETypes = []string{
