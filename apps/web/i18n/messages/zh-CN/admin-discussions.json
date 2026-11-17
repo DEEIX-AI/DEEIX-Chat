@@ -21,6 +21,7 @@
   "addDiscussionModel": "添加讨论模型",
   "summaryModel": "总结模型",
   "discussionModel": "讨论模型 {index}",
+  "defaultModelLabel": "模型 {index}",
   "placeholderLabel": "显示名称",
   "defaultModel": "默认模型（可留空）",
   "chooseAtChat": "对话时选择",

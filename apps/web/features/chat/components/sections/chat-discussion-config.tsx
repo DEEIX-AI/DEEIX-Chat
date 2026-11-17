@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import type { DiscussionTemplateDTO } from "@/shared/api/discussion-types";
-import { orderDiscussionPlaceholders } from "@/shared/lib/discussion";
+import { discussionPlaceholderLabels, orderDiscussionPlaceholders } from "@/shared/lib/discussion";
 
 export function ChatDiscussionConfig({
   template,
@@ -30,6 +30,7 @@ export function ChatDiscussionConfig({
   const missing = template.config.placeholders.some((item) => !bindings[item.key]);
   const summaryKey = template.config.summary.participant;
   const ordered = orderDiscussionPlaceholders(template.config.placeholders, summaryKey);
+  const labels = discussionPlaceholderLabels(template.config.placeholders, summaryKey);
 
   return (
     <div className="mb-2 rounded-xl border border-border/60 bg-muted/25 px-3 py-2">
@@ -55,7 +56,7 @@ export function ChatDiscussionConfig({
             className="flex min-w-0 items-center gap-2 rounded-md border border-border/50 bg-background/40 px-2 py-1"
           >
             <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="truncate">{placeholder.label || placeholder.key}</span>
+              <span className="truncate">{labels.get(placeholder.key) ?? placeholder.key}</span>
               {placeholder.key === summaryKey ? (
                 <span className="shrink-0 rounded-full bg-primary/10 px-1.5 text-[10px] text-primary">
                   {t("summaryBadge")}

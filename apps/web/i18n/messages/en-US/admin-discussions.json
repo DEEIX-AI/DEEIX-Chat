@@ -21,6 +21,7 @@
   "addDiscussionModel": "Add discussion model",
   "summaryModel": "Summary model",
   "discussionModel": "Discussion model {index}",
+  "defaultModelLabel": "Model {index}",
   "placeholderLabel": "Display name",
   "defaultModel": "Default model (optional)",
   "chooseAtChat": "Chosen at chat time",

@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { DiscussionState, DiscussionTurn } from "@/shared/api/discussion-types";
 import {
-  discussionSpeakerLabel,
+  discussionPlaceholderLabels,
   orderDiscussionPlaceholders,
 } from "@/shared/lib/discussion";
 
@@ -90,6 +90,14 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
     }
     return bound;
   }, [discussion?.rounds]);
+  const labels = React.useMemo(
+    () => discussionPlaceholderLabels(placeholders, discussion?.summary?.participant ?? ""),
+    [discussion?.summary?.participant, placeholders],
+  );
+  const speakerName = React.useCallback(
+    (participant: string, model?: string) => labels.get(participant) || model?.trim() || participant,
+    [labels],
+  );
   const participants = React.useMemo(() => {
     // The summary model is a placeholder too, but it never speaks inside a round: only speakers get a tab.
     const speakers = new Set(modelsByParticipant.keys());
@@ -101,7 +109,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
       .filter((placeholder) => speakers.has(placeholder.key))
       .map((placeholder) => ({
         key: placeholder.key,
-        label: discussionSpeakerLabel(placeholders, placeholder.key, modelsByParticipant.get(placeholder.key)),
+        label: speakerName(placeholder.key, modelsByParticipant.get(placeholder.key)),
         model: modelsByParticipant.get(placeholder.key) ?? placeholder.defaultModel ?? "",
       }));
     const named = new Set(names.map((item) => item.key));
@@ -111,7 +119,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
       }
     }
     return names;
-  }, [discussion?.summary?.participant, modelsByParticipant, placeholders, turns]);
+  }, [discussion?.summary?.participant, modelsByParticipant, placeholders, speakerName, turns]);
 
   if (!discussion?.enabled) {
     return null;
@@ -233,7 +241,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                       >
                         <div className="flex min-w-0 items-center gap-1">
                           <span className="truncate text-[11px] font-medium text-foreground">
-                            {discussionSpeakerLabel(placeholders, step.participant, step.model)}
+                            {speakerName(step.participant, step.model)}
                           </span>
                           <span className="truncate font-mono text-[10px] text-muted-foreground">
                             {step.model || "—"}
@@ -270,7 +278,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
                     <span className="font-medium text-foreground">
                       {t("round", { round: turn.round })} ·{" "}
-                      {discussionSpeakerLabel(placeholders, turn.participant, turn.model)}
+                      {speakerName(turn.participant, turn.model)}
                     </span>
                     {turn.model ? <span className="font-mono text-[10px]">{turn.model}</span> : null}
                     <span>

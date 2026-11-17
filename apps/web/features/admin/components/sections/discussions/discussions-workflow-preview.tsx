@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import type { DiscussionTemplateConfig } from "@/shared/api/discussion-types";
-import { discussionPlaceholderLabel } from "@/shared/lib/discussion";
+import { discussionPlaceholderLabels } from "@/shared/lib/discussion";
 
 function Connector() {
   return (
@@ -31,6 +31,10 @@ export function DiscussionsWorkflowPreview({
 }) {
   const t = useTranslations("adminDiscussions");
   const summaryModel = config.placeholders.find((item) => item.key === config.summary.participant)?.defaultModel;
+  const labels = React.useMemo(
+    () => discussionPlaceholderLabels(config.placeholders, config.summary.participant),
+    [config.placeholders, config.summary.participant],
+  );
 
   return (
     <div className={cn("rounded-xl border border-border/60 bg-background p-3", className)}>
@@ -67,7 +71,7 @@ export function DiscussionsWorkflowPreview({
                 return (
                   <div key={step.id} className="flex min-w-0 items-baseline gap-1.5 text-[11px]">
                     <span className="min-w-0 truncate text-foreground">
-                      {discussionPlaceholderLabel(config.placeholders, step.participant)}
+                      {labels.get(step.participant) ?? step.participant}
                     </span>
                     <span className="shrink-0 truncate font-mono text-[10px] text-muted-foreground">
                       {placeholder?.defaultModel || t("chooseAtChat")}
@@ -95,7 +99,7 @@ export function DiscussionsWorkflowPreview({
         <div className="font-medium text-foreground">{t("workflowSummary")}</div>
         <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5 text-[11px]">
           <span className="min-w-0 truncate">
-            {discussionPlaceholderLabel(config.placeholders, config.summary.participant)}
+            {labels.get(config.summary.participant) ?? config.summary.participant}
           </span>
           <span className="shrink-0 truncate font-mono text-[10px] text-muted-foreground">
             {summaryModel || t("chooseAtChat")}

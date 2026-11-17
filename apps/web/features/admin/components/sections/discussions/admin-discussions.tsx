@@ -15,7 +15,7 @@ import type {
   DiscussionTemplateConfig,
   DiscussionTemplateDTO,
 } from "@/shared/api/discussion-types";
-import { orderDiscussionPlaceholders } from "@/shared/lib/discussion";
+import { discussionPlaceholderLabels, orderDiscussionPlaceholders } from "@/shared/lib/discussion";
 
 type Draft = {
   publicID?: string;
@@ -53,8 +53,8 @@ function createDraft(): Draft {
       // The summary placeholder leads the list: it is the last node of the workflow.
       placeholders: [
         { key: "judge", label: "总结模型", defaultModel: "", required: true },
-        { key: "p1", label: "讨论模型 1", defaultModel: "", required: true },
-        { key: "p2", label: "讨论模型 2", defaultModel: "", required: true },
+        { key: "p1", label: "模型 1", defaultModel: "", required: true },
+        { key: "p2", label: "模型 2", defaultModel: "", required: true },
       ],
       rounds: [
         {
@@ -80,6 +80,13 @@ function createDraft(): Draft {
 }
 
 function toDraft(template: DiscussionTemplateDTO): Draft {
+  const config = structuredClone(template.config);
+  // Legacy templates name their models A/B/C; load them as 模型 1, 模型 2 so saving persists it.
+  const labels = discussionPlaceholderLabels(config.placeholders, config.summary.participant);
+  config.placeholders = config.placeholders.map((item) => ({
+    ...item,
+    label: labels.get(item.key) ?? item.label,
+  }));
   return {
     publicID: template.publicID,
     name: template.name,
@@ -88,7 +95,7 @@ function toDraft(template: DiscussionTemplateDTO): Draft {
     status: template.status,
     maxRounds: template.maxRounds,
     sortOrder: template.sortOrder,
-    config: structuredClone(template.config),
+    config,
   };
 }
 
@@ -158,7 +165,7 @@ export function AdminDiscussionsPage() {
           ...current.config,
           placeholders: [
             ...current.config.placeholders,
-            { key, label: t("discussionModel", { index }), defaultModel: "", required: true },
+            { key, label: t("defaultModelLabel", { index }), defaultModel: "", required: true },
           ],
         },
       };
