@@ -28,6 +28,7 @@ import {
   chatMessageScrollerID,
 } from "@/features/chat/components/sections/chat-message-position-rail";
 import { ChatResponseOutlineRail } from "@/features/chat/components/sections/chat-response-outline-rail";
+import { ChatLayoutControl } from "@/features/chat/components/sections/chat-layout-control";
 import { ChatScreenshotSelectionBar } from "@/features/chat/components/sections/chat-screenshot-selection-bar";
 import { useChatMessageFeedback } from "@/features/chat/hooks/use-chat-message-feedback";
 import { useChatUIBlockStateBinding } from "@/features/chat/hooks/use-chat-ui-block-state";
@@ -663,20 +664,23 @@ export function ChatArea({
             onScreenshotLatest={onScreenshotLatest}
             onScreenshotSelect={onScreenshotSelect}
           />
-          {canOperateConversation ? (
-            <ConversationShareExportIconDropdown
-              label={shareExportLabel}
-              shareLabel={shareLabel}
-              exportLabel={t("labelMenu.exportJSON")}
-              active={shareActive}
-              onShare={onShare}
-              onExport={onExport}
-              screenshotLatestLabel={tScreenshot("captureLatest")}
-              screenshotSelectLabel={tScreenshot("captureSelect")}
-              onScreenshotLatest={onScreenshotLatest}
-              onScreenshotSelect={onScreenshotSelect}
-            />
-          ) : null}
+          <div className="flex items-center gap-1">
+            <ChatLayoutControl />
+            {canOperateConversation ? (
+              <ConversationShareExportIconDropdown
+                label={shareExportLabel}
+                shareLabel={shareLabel}
+                exportLabel={t("labelMenu.exportJSON")}
+                active={shareActive}
+                onShare={onShare}
+                onExport={onExport}
+                screenshotLatestLabel={tScreenshot("captureLatest")}
+                screenshotSelectLabel={tScreenshot("captureSelect")}
+                onScreenshotLatest={onScreenshotLatest}
+                onScreenshotSelect={onScreenshotSelect}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
 
