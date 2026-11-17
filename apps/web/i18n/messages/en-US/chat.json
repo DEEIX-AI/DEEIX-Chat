@@ -1188,6 +1188,7 @@
   "discussion": {
     "title": "Multi-model discussion",
     "groupName": "Multi-round discussion",
+    "modelLabel": "Multi-round discussion - {name} - {rounds} rounds",
     "rounds": "{count} rounds",
     "participants": "{count} models",
     "summaryModel": "Summary: {model}",

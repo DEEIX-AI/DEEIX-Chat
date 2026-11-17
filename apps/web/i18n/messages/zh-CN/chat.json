@@ -1188,6 +1188,7 @@
   "discussion": {
     "title": "多模型讨论",
     "groupName": "多轮讨论",
+    "modelLabel": "多轮讨论-{name}-共{rounds}轮",
     "rounds": "{count} 轮",
     "participants": "{count} 个模型",
     "summaryModel": "总结：{model}",

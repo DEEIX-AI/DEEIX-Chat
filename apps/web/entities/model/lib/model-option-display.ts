@@ -40,14 +40,21 @@ export function resolveModelOptionLabel(platformModelName: string): string {
 
 /**
  * Name to show for a model row. A discussion pseudo-model is stored as `discussion:<public id>`,
- * so it shows its template name instead of leaking the id into the picker.
+ * so it shows its template name (formatted by the caller, which owns the translations) instead of
+ * leaking the id into the picker.
  */
-export function resolveModelDisplayLabel(model: {
-  platformModelName: string;
-  discussionTemplate?: { name?: string } | null;
-}): string {
+export function resolveModelDisplayLabel(
+  model: {
+    platformModelName: string;
+    discussionTemplate?: { name?: string; config?: { rounds?: readonly unknown[] } } | null;
+  },
+  formatDiscussion?: (name: string, rounds: number) => string,
+): string {
   const templateName = model.discussionTemplate?.name?.trim();
   if (templateName) {
+    if (formatDiscussion) {
+      return formatDiscussion(templateName, model.discussionTemplate?.config?.rounds?.length ?? 0);
+    }
     return templateName;
   }
   return resolveModelOptionLabel(model.platformModelName);

@@ -118,8 +118,19 @@ function PersonalGroupBadge({ label }: { label: string }) {
   );
 }
 
+/** A discussion pseudo-model reads as `多轮讨论-<name>-共<n>轮` instead of its storage id. */
+function useModelDisplayLabel() {
+  const t = useTranslations("chat.discussion");
+  return React.useCallback(
+    (model: ChatModelOption) =>
+      resolveModelDisplayLabel(model, (name, rounds) => t("modelLabel", { name, rounds })),
+    [t],
+  );
+}
+
 function ChatModelIdentity({ model }: { model: ChatModelOption }) {
-  const platformModelName = resolveModelDisplayLabel(model);
+  const displayLabel = useModelDisplayLabel();
+  const platformModelName = displayLabel(model);
   const iconURL = React.useMemo(() => resolveModelOptionIconUrl(model), [model]);
 
   return (
@@ -555,7 +566,8 @@ function ChatModelMenuItem({
   /** The row element, so the detail pane can be placed level with the row it describes. */
   rowRef?: (node: HTMLDivElement | null) => void;
 }) {
-  const platformModelName = resolveModelDisplayLabel(model);
+  const displayLabel = useModelDisplayLabel();
+  const platformModelName = displayLabel(model);
   const iconURL = React.useMemo(() => resolveModelOptionIconUrl(model), [model]);
   const inputModalityDescription = describeInputModalities(model.inputModalities, inputModalityLabels);
 
@@ -732,6 +744,7 @@ function ChatModelDetailPanel({
   billingEnabled: boolean;
 }) {
   const t = useTranslations("chat.modelPicker.detail");
+  const displayLabel = useModelDisplayLabel();
   const pricing = model.pricing;
   const paid = pricing && !pricing.isFree ? pricing : null;
   const table = paid ? resolveDetailPriceTable(paid, model.protocols, billingDisplay, pricingLabels) : null;
@@ -746,7 +759,7 @@ function ChatModelDetailPanel({
       className="flex max-h-full min-h-0 flex-col overflow-y-auto p-1.5 text-[11px] leading-4"
     >
       <div className="flex h-7 shrink-0 items-center px-2">
-        <span className="min-w-0 truncate font-medium text-foreground">{resolveModelDisplayLabel(model)}</span>
+        <span className="min-w-0 truncate font-medium text-foreground">{displayLabel(model)}</span>
       </div>
       <dl className="shrink-0">
         <ModelDetailLine label={t("modalities")}>
