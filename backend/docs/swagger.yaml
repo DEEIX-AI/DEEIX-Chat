@@ -3440,6 +3440,42 @@ definitions:
     - data
     - errorMsg
     type: object
+  DiscussionSendRequest:
+    properties:
+      branchReason:
+        enum:
+        - default
+        - retry
+        - edit
+        type: string
+      clientRunID:
+        maxLength: 64
+        type: string
+      content:
+        type: string
+      contentType:
+        enum:
+        - text
+        - markdown
+        type: string
+      models:
+        additionalProperties:
+          type: string
+        type: object
+      parentMessagePublicID:
+        maxLength: 32
+        type: string
+      sourceMessagePublicID:
+        maxLength: 32
+        type: string
+      templatePublicID:
+        maxLength: 32
+        type: string
+    required:
+    - content
+    - contentType
+    - templatePublicID
+    type: object
   EmailBootstrapCompleteRequest:
     properties:
       code:
@@ -5377,6 +5413,9 @@ definitions:
         type: integer
       createdAt:
         type: string
+      discussion:
+        description: Discussion 是多模型讨论的完整记录；普通消息省略。
+        type: object
       editedAt:
         type: string
         x-nullable: true
@@ -20152,6 +20191,47 @@ paths:
       security:
       - BearerAuth: []
       summary: 保存消息内交互式组件的状态
+      tags:
+      - chat
+  /conversations/{id}/messages/discussion/stream:
+    post:
+      consumes:
+      - application/json
+      description: 按后台讨论模板编排多模型轮次，并流式返回讨论事件与最终总结
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 讨论参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/DiscussionSendRequest'
+      produces:
+      - application/x-ndjson
+      responses:
+        "200":
+          description: NDJSON stream
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 流式发送多模型讨论消息
       tags:
       - chat
   /conversations/{id}/messages/preview:
