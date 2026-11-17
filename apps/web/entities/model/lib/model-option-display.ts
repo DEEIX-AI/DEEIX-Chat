@@ -38,6 +38,21 @@ export function resolveModelOptionLabel(platformModelName: string): string {
   return PERSONAL_MODEL_REF.exec(value)?.[1] ?? value;
 }
 
+/**
+ * Name to show for a model row. A discussion pseudo-model is stored as `discussion:<public id>`,
+ * so it shows its template name instead of leaking the id into the picker.
+ */
+export function resolveModelDisplayLabel(model: {
+  platformModelName: string;
+  discussionTemplate?: { name?: string } | null;
+}): string {
+  const templateName = model.discussionTemplate?.name?.trim();
+  if (templateName) {
+    return templateName;
+  }
+  return resolveModelOptionLabel(model.platformModelName);
+}
+
 export function resolveModelOptionIconUrl({
   platformModelName,
   vendor,

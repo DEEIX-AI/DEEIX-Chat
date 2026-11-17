@@ -1187,6 +1187,7 @@
   },
   "discussion": {
     "title": "多模型讨论",
+    "groupName": "多轮讨论",
     "rounds": "{count} 轮",
     "participants": "{count} 个模型",
     "summaryModel": "总结：{model}",
@@ -1204,6 +1205,7 @@
     "statusError": "出错",
     "statusSummarizing": "总结中",
     "selectAllModels": "请为每个占位符选择模型",
-    "chooseModel": "选择模型"
+    "chooseModel": "选择模型",
+    "summaryBadge": "总结"
   }
 }

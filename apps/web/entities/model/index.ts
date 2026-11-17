@@ -13,6 +13,7 @@ export { resolveModelIconURL, resolveModelIdentity } from "@/entities/model/lib/
 export {
   isPersonalModelRef,
   isRoutableChatPlatformModel,
+  resolveModelDisplayLabel,
   resolveModelOptionIconUrl,
   resolveModelOptionLabel,
 } from "@/entities/model/lib/model-option-display";

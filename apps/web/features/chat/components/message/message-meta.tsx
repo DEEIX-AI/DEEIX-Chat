@@ -81,6 +81,8 @@ type ChatMetaMessage = {
   reasoningTokens?: number;
   latencyMS?: number;
   billingCost?: ChatBillingCost;
+  // Discussion messages carry the template that produced them, so the badge shows its name.
+  discussion?: { templateName?: string };
 };
 
 export type AssistantReaction = "up" | "down" | null;
@@ -1106,7 +1108,11 @@ export function AssistantMessageMeta({
       <div className="flex min-w-0 max-w-full flex-col items-start gap-1.5 pt-0.5">
         {hasDetailBadges ? (
           <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
-            {showModelInfo ? <ModelBadge label={resolveModelOptionLabel(item.platformModelName ?? "")} /> : null}
+            {showModelInfo ? (
+              <ModelBadge
+                label={item.discussion?.templateName?.trim() || resolveModelOptionLabel(item.platformModelName ?? "")}
+              />
+            ) : null}
             {showTokenUsage ? (
               <TokenBadge
                 inputTokens={item.inputTokens}

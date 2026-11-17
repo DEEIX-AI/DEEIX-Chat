@@ -391,15 +391,15 @@ function toChatModelOption(
 }
 
 // 讨论模板作为合成模型进入同一选择器；不占用平台模型路由，发送时走后端讨论编排。
-function toDiscussionModelOption(template: DiscussionTemplateDTO): ChatModelOption {
+function toDiscussionModelOption(template: DiscussionTemplateDTO, groupName: string): ChatModelOption {
   return {
     platformModelName: `discussion:${template.publicID}`,
-    icon: template.icon || "messages-square",
+    icon: template.icon,
     vendor: "deeix",
     vendorName: "DEEIX",
     vendorIcon: "",
     displayGroupID: null,
-    displayGroupName: "讨论模型",
+    displayGroupName: groupName,
     displayGroupIcon: "",
     personalProviderName: null,
     personalProviderIcon: "",
@@ -474,6 +474,7 @@ export function useChatModelOptions({
   resetToken?: number;
 }) {
   const t = useTranslations("chat.models");
+  const discussionT = useTranslations("chat.discussion");
   const { settings: userSettings } = useUserSettings();
   const [availableModels, setAvailableModels] = React.useState<PublicModelDTO[]>([]);
   const [discussionTemplates, setDiscussionTemplates] = React.useState<DiscussionTemplateDTO[]>([]);
@@ -566,13 +567,13 @@ export function useChatModelOptions({
     }
     if (normalizedName.startsWith("discussion:")) {
       const template = discussionTemplates.find((item) => `discussion:${item.publicID}` === normalizedName);
-      return template ? toDiscussionModelOption(template) : null;
+      return template ? toDiscussionModelOption(template, discussionT("groupName")) : null;
     }
 
     const catalog = await refreshModelCatalog();
     const nextModel = catalog.models.find((item) => item.platformModelName === normalizedName);
     return nextModel ? toChatModelOption(nextModel, catalog.modelOptionPolicy?.nativeTools ?? []) : null;
-  }, [discussionTemplates, refreshModelCatalog]);
+  }, [discussionT, discussionTemplates, refreshModelCatalog]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -784,9 +785,9 @@ export function useChatModelOptions({
   const modelOptions = React.useMemo<ChatModelOption[]>(
     () => [
       ...availableModels.map((model) => toChatModelOption(model, modelOptionPolicy?.nativeTools ?? [])),
-      ...discussionTemplates.map((template) => toDiscussionModelOption(template)),
+      ...discussionTemplates.map((template) => toDiscussionModelOption(template, discussionT("groupName"))),
     ],
-    [availableModels, discussionTemplates, modelOptionPolicy?.nativeTools],
+    [availableModels, discussionT, discussionTemplates, modelOptionPolicy?.nativeTools],
   );
 
   return {

@@ -25,6 +25,7 @@ import {
   ModelIcon,
   resolveModelIconURL,
   resolveModelOptionIconUrl,
+  resolveModelDisplayLabel,
   resolveModelOptionLabel,
   resolveModelPresentationGroup,
 } from "@/entities/model";
@@ -118,7 +119,7 @@ function PersonalGroupBadge({ label }: { label: string }) {
 }
 
 function ChatModelIdentity({ model }: { model: ChatModelOption }) {
-  const platformModelName = resolveModelOptionLabel(model.platformModelName);
+  const platformModelName = resolveModelDisplayLabel(model);
   const iconURL = React.useMemo(() => resolveModelOptionIconUrl(model), [model]);
 
   return (
@@ -554,7 +555,7 @@ function ChatModelMenuItem({
   /** The row element, so the detail pane can be placed level with the row it describes. */
   rowRef?: (node: HTMLDivElement | null) => void;
 }) {
-  const platformModelName = resolveModelOptionLabel(model.platformModelName);
+  const platformModelName = resolveModelDisplayLabel(model);
   const iconURL = React.useMemo(() => resolveModelOptionIconUrl(model), [model]);
   const inputModalityDescription = describeInputModalities(model.inputModalities, inputModalityLabels);
 
@@ -745,7 +746,7 @@ function ChatModelDetailPanel({
       className="flex max-h-full min-h-0 flex-col overflow-y-auto p-1.5 text-[11px] leading-4"
     >
       <div className="flex h-7 shrink-0 items-center px-2">
-        <span className="min-w-0 truncate font-medium text-foreground">{resolveModelOptionLabel(model.platformModelName)}</span>
+        <span className="min-w-0 truncate font-medium text-foreground">{resolveModelDisplayLabel(model)}</span>
       </div>
       <dl className="shrink-0">
         <ModelDetailLine label={t("modalities")}>

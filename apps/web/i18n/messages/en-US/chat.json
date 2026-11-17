@@ -1187,6 +1187,7 @@
   },
   "discussion": {
     "title": "Multi-model discussion",
+    "groupName": "Multi-round discussion",
     "rounds": "{count} rounds",
     "participants": "{count} models",
     "summaryModel": "Summary: {model}",
@@ -1204,6 +1205,7 @@
     "statusError": "Error",
     "statusSummarizing": "Summarizing",
     "selectAllModels": "Select a model for every placeholder",
-    "chooseModel": "Choose model"
+    "chooseModel": "Choose model",
+    "summaryBadge": "Summary"
   }
 }

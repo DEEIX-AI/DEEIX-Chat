@@ -6,6 +6,10 @@ import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import type { DiscussionState, DiscussionTurn } from "@/shared/api/discussion-types";
+import {
+  discussionSpeakerLabel,
+  orderDiscussionPlaceholders,
+} from "@/shared/lib/discussion";
 
 function statusClass(status: string): string {
   switch (status) {
@@ -37,17 +41,41 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
   const [selected, setSelected] = React.useState<string>("all");
 
   const turns = React.useMemo(() => discussion?.turns ?? [], [discussion?.turns]);
-  const participants = React.useMemo(() => {
-    const seen = new Map<string, string>();
+  const placeholders = React.useMemo(() => discussion?.placeholders ?? [], [discussion?.placeholders]);
+  // Bound models live on the runtime rounds; placeholders supply the names shown in the panel.
+  const modelsByParticipant = React.useMemo(() => {
+    const bound = new Map<string, string>();
     for (const round of discussion?.rounds ?? []) {
       for (const step of round.steps) {
-        if (!seen.has(step.participant)) {
-          seen.set(step.participant, step.model);
+        if (step.model && !bound.has(step.participant)) {
+          bound.set(step.participant, step.model);
         }
       }
     }
-    return Array.from(seen.entries()).map(([key, model]) => ({ key, model }));
+    return bound;
   }, [discussion?.rounds]);
+  const participants = React.useMemo(() => {
+    // The summary model is a placeholder too, but it never speaks inside a round: only speakers get a tab.
+    const speakers = new Set(modelsByParticipant.keys());
+    for (const turn of turns) {
+      speakers.add(turn.participant);
+    }
+    const ordered = orderDiscussionPlaceholders(placeholders, discussion?.summary?.participant ?? "");
+    const names = ordered
+      .filter((placeholder) => speakers.has(placeholder.key))
+      .map((placeholder) => ({
+        key: placeholder.key,
+        label: discussionSpeakerLabel(placeholders, placeholder.key, modelsByParticipant.get(placeholder.key)),
+        model: modelsByParticipant.get(placeholder.key) ?? placeholder.defaultModel ?? "",
+      }));
+    const named = new Set(names.map((item) => item.key));
+    for (const [key, model] of modelsByParticipant) {
+      if (!named.has(key)) {
+        names.push({ key, label: model || key, model });
+      }
+    }
+    return names;
+  }, [discussion?.summary?.participant, modelsByParticipant, placeholders, turns]);
 
   if (!discussion?.enabled) {
     return null;
@@ -133,8 +161,9 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                     : "border-border/60 text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setSelected(participant.key)}
+                title={participant.model || undefined}
               >
-                {participant.model}
+                {participant.label}
               </button>
             ))}
           </div>
@@ -150,9 +179,10 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
                     <span className="font-medium text-foreground">
-                      {t("round", { round: turn.round })} · {turn.participant}
+                      {t("round", { round: turn.round })} ·{" "}
+                      {discussionSpeakerLabel(placeholders, turn.participant, turn.model)}
                     </span>
-                    <span>{turn.model}</span>
+                    {turn.model ? <span className="font-mono text-[10px]">{turn.model}</span> : null}
                     <span>
                       {turn.status === "running" ? t("thinking") : turn.status === "error" ? t("failed") : t("done")}
                       {turn.outputTokens ? ` · ${turn.outputTokens} tokens` : ""}
