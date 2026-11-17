@@ -17,7 +17,7 @@
     "knowledgeBases": "知识库",
     "about": "关于",
     "contentModeration": "内容审核",
-    "discussions": "讨论模型"
+    "discussions": "多轮讨论"
   },
   "aboutPage": {
     "title": "关于",
