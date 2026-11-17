@@ -17,11 +17,6 @@ const docTemplate = `{
     "paths": {
         "/admin/announcements": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "分页查询站点公告",
                 "consumes": [
                     "application/json"
@@ -84,14 +79,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AnnouncementErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "创建一条 Markdown 站点公告",
                 "consumes": [
                     "application/json"
@@ -133,16 +128,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AnnouncementErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/announcements/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/announcements/{id}": {
+            "delete": {
                 "description": "软删除公告",
                 "consumes": [
                     "application/json"
@@ -188,14 +183,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AnnouncementErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "更新公告标题、内容、状态、优先级和有效期",
                 "consumes": [
                     "application/json"
@@ -250,16 +245,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AnnouncementErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/audit-logs": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/audit-logs": {
+            "get": {
                 "description": "管理员分页查看全量可追溯审计日志",
                 "consumes": [
                     "application/json"
@@ -340,16 +335,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/auth/provider-order": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/auth/provider-order": {
+            "patch": {
                 "description": "管理员保存第三方身份源的展示顺序",
                 "consumes": [
                     "application/json"
@@ -385,16 +380,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/auth/providers": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/auth/providers": {
+            "get": {
                 "description": "管理员查看已配置的 OIDC 和 OAuth2 身份源",
                 "produces": [
                     "application/json"
@@ -416,14 +411,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "管理员创建一个 OIDC 或 OAuth2 身份源",
                 "consumes": [
                     "application/json"
@@ -465,16 +460,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/auth/providers/{provider_id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/auth/providers/{provider_id}": {
+            "delete": {
                 "description": "管理员删除第三方身份源；force=true 时允许删除仍有关联用户的身份源",
                 "produces": [
                     "application/json"
@@ -517,14 +512,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "管理员更新一个 OIDC 或 OAuth2 身份源",
                 "consumes": [
                     "application/json"
@@ -573,16 +568,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/billing/accounts/{user_id}/balance": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/billing/accounts/{user_id}/balance": {
+            "patch": {
                 "description": "设置指定用户的按量计费余额，金额单位为美元",
                 "consumes": [
                     "application/json"
@@ -631,16 +626,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/billing/config": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/billing/config": {
+            "get": {
                 "description": "查询当前全局计费模式",
                 "consumes": [
                     "application/json"
@@ -665,14 +660,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "更新当前全局计费模式",
                 "consumes": [
                     "application/json"
@@ -714,16 +709,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/billing/model-prices": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/billing/model-prices": {
+            "get": {
                 "description": "按平台模型名查询模型按量计费配置",
                 "consumes": [
                     "application/json"
@@ -768,14 +763,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "按平台模型名创建或更新模型按量计费配置，金额单位为美元",
                 "consumes": [
                     "application/json"
@@ -817,16 +812,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/billing/official-pricing/openrouter": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/billing/official-pricing/openrouter": {
+            "get": {
                 "description": "从 storage 缓存读取 OpenRouter 模型标识（缓存缺失或远端不可达时使用随版本发布的内置快照，origin 为 builtin）、基础定价、输入 token 阶梯覆盖和上下文限制；无法映射到当前 token 计费模型的附加字段会在 unsupportedFields 中标记，快速配置会忽略这些字段并继续导入可识别的 token 价格。由原生工具计费负责的按次字段（例如 web_search）会被忽略。",
                 "consumes": [
                     "application/json"
@@ -865,16 +860,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/billing/plans/{id}": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/billing/plans/{id}": {
+            "patch": {
                 "description": "更新周期套餐基础配置与默认价格",
                 "consumes": [
                     "application/json"
@@ -929,16 +924,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/billing/redemption-codes": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/billing/redemption-codes": {
+            "get": {
                 "description": "分页查询计费兑换码配置",
                 "consumes": [
                     "application/json"
@@ -1001,14 +996,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "创建手动兑换码或随机兑换码，明文只在创建响应中返回",
                 "consumes": [
                     "application/json"
@@ -1050,16 +1045,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/billing/redemption-codes/batch-delete": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/billing/redemption-codes/batch-delete": {
+            "post": {
                 "description": "批量软删除兑换码，历史兑换记录保留，删除后不可再兑换",
                 "consumes": [
                     "application/json"
@@ -1095,16 +1090,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/billing/redemption-codes/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/billing/redemption-codes/{id}": {
+            "delete": {
                 "description": "软删除兑换码，历史兑换记录保留，删除后不可再兑换",
                 "consumes": [
                     "application/json"
@@ -1150,14 +1145,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "更新兑换码状态、次数限制、过期时间和说明，不允许修改奖励本身",
                 "consumes": [
                     "application/json"
@@ -1206,16 +1201,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/billing/redemption-codes/{id}/code": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/billing/redemption-codes/{id}/code": {
+            "get": {
                 "description": "解密单个兑换码明文用于复制；列表接口不会返回明文",
                 "consumes": [
                     "application/json"
@@ -1261,16 +1256,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/call-logs": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/call-logs": {
+            "get": {
                 "description": "管理员分页查看全量模型调用与计费用量账本",
                 "consumes": [
                     "application/json"
@@ -1357,16 +1352,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/content-moderation/config": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/content-moderation/config": {
+            "get": {
                 "description": "返回当前内容审核配置与可选审核类别目录",
                 "produces": [
                     "application/json"
@@ -1394,14 +1389,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "保存内容审核服务、策略与队列配置；启用时必须提供审核服务配置与策略",
                 "consumes": [
                     "application/json"
@@ -1449,16 +1444,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/content-moderation/events": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/content-moderation/events": {
+            "get": {
                 "description": "按结果、方向、模态、类别、用户、运行与时间范围筛选审核事件，按事件 ID 倒序返回",
                 "produces": [
                     "application/json"
@@ -1560,16 +1555,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/content-moderation/events/{eventID}": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/content-moderation/events/{eventID}": {
+            "get": {
                 "description": "返回单个审核事件；文本仍在保留期内时一并返回解密后的文本，并记录审计日志",
                 "produces": [
                     "application/json"
@@ -1612,16 +1607,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/content-moderation/events/{eventID}/images/{index}": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/content-moderation/events/{eventID}/images/{index}": {
+            "get": {
                 "description": "返回审核事件中按序号指定的隔离图片原始内容，并记录审计日志",
                 "produces": [
                     "application/octet-stream"
@@ -1677,16 +1672,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/content-moderation/probe": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/content-moderation/probe": {
+            "post": {
                 "description": "使用当前配置向审核服务发送探测请求，验证连通性以及文本与图片审核能力",
                 "produces": [
                     "application/json"
@@ -1720,16 +1715,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/content-moderation/stats": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/content-moderation/stats": {
+            "get": {
                 "description": "按天汇总指定时间范围内的内容审核结果",
                 "produces": [
                     "application/json"
@@ -1777,16 +1772,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/conversation-events": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/conversation-events": {
+            "get": {
                 "description": "管理员分页查看对话运行轨迹、工具、MCP 与处理事件",
                 "consumes": [
                     "application/json"
@@ -1885,16 +1880,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/conversation-events/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/conversation-events/{id}": {
+            "get": {
                 "description": "管理员按事件 ID 查看单条对话运行事件详情；超大历史负载会被安全省略",
                 "consumes": [
                     "application/json"
@@ -1940,16 +1935,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/conversations/export": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/conversations/export": {
+            "get": {
                 "description": "流式导出全量会话及消息为 NDJSON 文件，最后一行为 export_manifest 元数据",
                 "produces": [
                     "application/x-ndjson"
@@ -1971,16 +1966,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/error-logs": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/error-logs": {
+            "get": {
                 "description": "分页查看失败请求（5xx 与以错误结束的流式请求）的原始原因；按错误 ID（request_id）精确检索",
                 "consumes": [
                     "application/json"
@@ -2081,16 +2076,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases": {
+            "get": {
                 "tags": [
                     "admin-knowledge-bases"
                 ],
@@ -2144,14 +2139,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBasePageResponseDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "tags": [
                     "admin-knowledge-bases"
                 ],
@@ -2174,16 +2169,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases/files": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases/files": {
+            "get": {
                 "description": "分页返回供内置知识库复用的全部平台资料",
                 "tags": [
                     "admin-knowledge-bases"
@@ -2228,14 +2223,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "上传平台级资料，不占用管理员个人存储额度",
                 "consumes": [
                     "multipart/form-data"
@@ -2281,16 +2276,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases/files/embeddings": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases/files/embeddings": {
+            "post": {
                 "description": "为管理员选中的平台资料提交向量化任务，最多100个；重复提交会幂等跳过",
                 "consumes": [
                     "application/json"
@@ -2338,16 +2333,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases/files/{file_id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases/files/{file_id}": {
+            "delete": {
                 "description": "仅允许删除未被任何知识库、会话或账户资料引用的平台资料",
                 "tags": [
                     "admin-knowledge-bases"
@@ -2393,16 +2388,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases/files/{file_id}/content": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases/files/{file_id}/content": {
+            "get": {
                 "description": "仅允许管理员读取平台资料池中的文件",
                 "produces": [
                     "application/octet-stream"
@@ -2445,16 +2440,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases/{id}": {
+            "get": {
                 "tags": [
                     "admin-knowledge-bases"
                 ],
@@ -2475,14 +2470,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseResponseDoc"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "tags": [
                     "admin-knowledge-bases"
                 ],
@@ -2509,14 +2504,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseDeleteResponseDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "tags": [
                     "admin-knowledge-bases"
                 ],
@@ -2546,16 +2541,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases/{id}/available-files": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases/{id}/available-files": {
+            "get": {
                 "description": "分页返回尚未关联到指定内置知识库的平台资料",
                 "tags": [
                     "admin-knowledge-bases"
@@ -2613,16 +2608,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases/{id}/files": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases/{id}/files": {
+            "get": {
                 "tags": [
                     "admin-knowledge-bases"
                 ],
@@ -2655,14 +2650,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseFilePageResponseDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "tags": [
                     "admin-knowledge-bases"
                 ],
@@ -2692,16 +2687,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseFileMutationResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases/{id}/files/processing/snapshot": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases/{id}/files/processing/snapshot": {
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -2749,16 +2744,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases/{id}/files/processing/statuses": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases/{id}/files/processing/statuses": {
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -2815,16 +2810,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases/{id}/files/{file_id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases/{id}/files/{file_id}": {
+            "delete": {
                 "tags": [
                     "admin-knowledge-bases"
                 ],
@@ -2852,16 +2847,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseFileMutationResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/knowledge-bases/{id}/files/{file_id}/content": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/knowledge-bases/{id}/files/{file_id}/content": {
+            "get": {
                 "description": "仅允许读取仍与指定内置知识库关联的文件",
                 "produces": [
                     "application/octet-stream"
@@ -2911,16 +2906,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/icon-assets": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/icon-assets": {
+            "get": {
                 "description": "分页查询仍在图标库中的已上传图标，按上传时间倒序返回",
                 "produces": [
                     "application/json"
@@ -2956,14 +2951,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "上传 PNG、JPEG 或 WebP 图标；后端校验内容、尺寸并按 SHA-256 去重",
                 "consumes": [
                     "multipart/form-data"
@@ -3009,16 +3004,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/icon-assets/{public_id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/icon-assets/{public_id}": {
+            "delete": {
                 "description": "仅允许移除无引用图标；立即从图标库隐藏，持续 24 小时无引用后物理清理",
                 "produces": [
                     "application/json"
@@ -3055,16 +3050,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ModelIconAssetDeleteConflictDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/model-catalog": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/model-catalog": {
+            "get": {
                 "description": "返回目录数据来源（远端同步或内置快照）、拉取时间、条目数、是否正在同步与最近一次同步错误；目录过期时在后台发起一次同步",
                 "produces": [
                     "application/json"
@@ -3080,16 +3075,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ModelCatalogStatusResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/model-catalog/refresh": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/model-catalog/refresh": {
+            "post": {
                 "description": "拉取最新目录并替换当前目录；失败时保留当前目录并记录错误",
                 "produces": [
                     "application/json"
@@ -3111,16 +3106,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/model-catalog/resolve": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/model-catalog/resolve": {
+            "post": {
                 "description": "按表单中的平台模型名、技术厂商、路由协议与能力 JSON，返回 models.dev 目录中的输入/输出模态与上下文窗口、自动识别的推理强度，以及自定义推理强度的编辑模板；目录过期时在后台发起一次同步",
                 "consumes": [
                     "application/json"
@@ -3156,16 +3151,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/model-display-groups": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/model-display-groups": {
+            "get": {
                 "description": "分页查询自定义展示分组；未绑定分组的模型继续按技术厂商展示",
                 "produces": [
                     "application/json"
@@ -3207,14 +3202,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "创建仅影响用户界面归类的自定义模型分组",
                 "consumes": [
                     "application/json"
@@ -3256,16 +3251,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/model-display-groups/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/model-display-groups/{id}": {
+            "delete": {
                 "description": "删除展示分组后，关联模型恢复按技术厂商展示",
                 "produces": [
                     "application/json"
@@ -3302,14 +3297,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "consumes": [
                     "application/json"
                 ],
@@ -3363,16 +3358,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/model-vendors": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/model-vendors": {
+            "get": {
                 "description": "分页查询模型技术厂商目录；技术厂商是路由、权限和计费使用的稳定身份",
                 "produces": [
                     "application/json"
@@ -3414,14 +3409,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "创建新的稳定技术厂商身份；创建后可供平台模型选择",
                 "consumes": [
                     "application/json"
@@ -3463,16 +3458,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/model-vendors/{key}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/model-vendors/{key}": {
+            "delete": {
                 "description": "仅允许删除未被平台模型引用的非内置厂商；冲突响应包含关联模型预览",
                 "produces": [
                     "application/json"
@@ -3515,14 +3510,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ModelVendorDeleteConflictDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "更新厂商展示名称和图标；稳定技术 key 不可修改",
                 "consumes": [
                     "application/json"
@@ -3571,16 +3566,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/models": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/models": {
+            "get": {
                 "description": "管理员分页查询平台模型目录，可按 only_active 过滤",
                 "consumes": [
                     "application/json"
@@ -3667,14 +3662,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "管理员新增平台模型目录项",
                 "consumes": [
                     "application/json"
@@ -3722,16 +3717,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/models/batch-delete": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/models/batch-delete": {
+            "post": {
                 "description": "管理员批量删除模型目录及其关联路由绑定，保留上游",
                 "consumes": [
                     "application/json"
@@ -3767,16 +3762,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/models/display-group": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/models/display-group": {
+            "patch": {
                 "description": "在单个事务中将指定模型归入展示分组；displayGroupID 为 0 时恢复按技术厂商展示",
                 "consumes": [
                     "application/json"
@@ -3818,16 +3813,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/models/order": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/models/order": {
+            "post": {
                 "description": "管理员调整平台模型在用户侧模型选择器中的展示顺序",
                 "consumes": [
                     "application/json"
@@ -3875,16 +3870,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/models/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/models/{id}": {
+            "delete": {
                 "description": "管理员删除平台模型目录项及其关联路由绑定",
                 "consumes": [
                     "application/json"
@@ -3930,14 +3925,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "管理员更新平台模型目录项",
                 "consumes": [
                     "application/json"
@@ -3992,16 +3987,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/models/{id}/protocols": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/models/{id}/protocols": {
+            "patch": {
                 "description": "在单个数据库事务中更新平台模型能力类型，并将该模型全部上游绑定替换为指定的完整协议集合",
                 "consumes": [
                     "application/json"
@@ -4062,16 +4057,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/models/{id}/sources": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/models/{id}/sources": {
+            "get": {
                 "description": "管理员分页查询指定模型在各上游上的路由来源",
                 "consumes": [
                     "application/json"
@@ -4129,14 +4124,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "管理员将当前平台模型绑定到一个已存在的上游模型",
                 "consumes": [
                     "application/json"
@@ -4197,16 +4192,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/models/{id}/sources/{route_id}": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/models/{id}/sources/{route_id}": {
+            "patch": {
                 "description": "管理员快速启停指定模型在某上游上的来源",
                 "consumes": [
                     "application/json"
@@ -4268,16 +4263,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/models/{id}/test": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/models/{id}/test": {
+            "post": {
                 "description": "按平台模型当前活跃路由选择一个来源执行轻量连通性测试；返回结果内的调试信息已脱敏且不包含 Base URL 或密钥",
                 "consumes": [
                     "application/json"
@@ -4331,16 +4326,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/models/{id}/test-all": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/models/{id}/test-all": {
+            "post": {
                 "description": "按平台模型当前全部匹配的活跃路由并发执行轻量连通性测试；返回结果内的调试信息已脱敏且不包含 Base URL 或密钥",
                 "consumes": [
                     "application/json"
@@ -4394,16 +4389,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/settings": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/settings": {
+            "get": {
                 "description": "管理员查询 LLM 全局设置列表",
                 "consumes": [
                     "application/json"
@@ -4428,16 +4423,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/settings/{key}": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/settings/{key}": {
+            "patch": {
                 "description": "管理员更新指定 LLM 全局设置项",
                 "consumes": [
                     "application/json"
@@ -4495,16 +4490,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams": {
+            "get": {
                 "description": "管理员分页查询 LLM 上游配置",
                 "consumes": [
                     "application/json"
@@ -4567,14 +4562,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "管理员新增上游来源配置，内部标识自动分配",
                 "consumes": [
                     "application/json"
@@ -4622,16 +4617,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/batch-delete": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/batch-delete": {
+            "post": {
                 "description": "管理员批量删除上游及其关联路由绑定，保留模型目录",
                 "consumes": [
                     "application/json"
@@ -4667,16 +4662,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}": {
+            "delete": {
                 "description": "管理员删除上游配置及其关联路由绑定",
                 "consumes": [
                     "application/json"
@@ -4722,14 +4717,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "管理员更新上游配置（地址、密钥、状态等）",
                 "consumes": [
                     "application/json"
@@ -4784,16 +4779,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/circuit/open": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/circuit/open": {
+            "post": {
                 "description": "管理员手动开启上游熔断状态",
                 "consumes": [
                     "application/json"
@@ -4845,16 +4840,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/circuit/reset": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/circuit/reset": {
+            "post": {
                 "description": "管理员手动清空上游失败计数并关闭熔断状态",
                 "consumes": [
                     "application/json"
@@ -4900,16 +4895,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/models": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/models": {
+            "get": {
                 "description": "管理员分页查询指定上游的路由绑定列表",
                 "consumes": [
                     "application/json"
@@ -4997,14 +4992,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "管理员配置平台模型到指定上游真实模型的路由绑定与覆盖请求头",
                 "consumes": [
                     "application/json"
@@ -5065,16 +5060,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/models/batch-delete": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/models/batch-delete": {
+            "post": {
                 "description": "管理员批量删除指定上游下的路由绑定，保留模型目录",
                 "consumes": [
                     "application/json"
@@ -5117,16 +5112,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/models/import": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/models/import": {
+            "post": {
                 "description": "选择性导入上游模型，支持绑定平台模型与自定义条目",
                 "consumes": [
                     "application/json"
@@ -5187,16 +5182,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/models/remote": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/models/remote": {
+            "get": {
                 "description": "调用上游 models 接口，返回可导入模型与目录变更预览，不直接落库",
                 "consumes": [
                     "application/json"
@@ -5248,16 +5243,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/models/sync": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/models/sync": {
+            "post": {
                 "description": "调用上游 models 接口获取完整目录，原子更新远端管理模型可用状态，不删除平台模型或路由配置",
                 "consumes": [
                     "application/json"
@@ -5327,16 +5322,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/models/{route_id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/models/{route_id}": {
+            "delete": {
                 "description": "管理员删除指定上游的路由绑定",
                 "consumes": [
                     "application/json"
@@ -5389,16 +5384,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/models/{route_id}/circuit/open": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/models/{route_id}/circuit/open": {
+            "post": {
                 "description": "管理员手动开启上游模型路由绑定熔断状态",
                 "consumes": [
                     "application/json"
@@ -5457,16 +5452,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/models/{route_id}/circuit/reset": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/models/{route_id}/circuit/reset": {
+            "post": {
                 "description": "管理员手动清空上游模型路由绑定失败计数并关闭熔断状态",
                 "consumes": [
                     "application/json"
@@ -5519,16 +5514,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/models/{route_id}/disable": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/models/{route_id}/disable": {
+            "patch": {
                 "description": "管理员停用该路由绑定，后续路由不会选中",
                 "produces": [
                     "application/json"
@@ -5578,16 +5573,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/models/{route_id}/enable": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/models/{route_id}/enable": {
+            "patch": {
                 "description": "管理员启用该路由绑定，使该上游模型重新参与路由",
                 "produces": [
                     "application/json"
@@ -5637,16 +5632,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/llm/upstreams/{id}/models/{route_id}/test": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/llm/upstreams/{id}/models/{route_id}/test": {
+            "post": {
                 "description": "使用指定路由绑定的当前上游配置执行一次轻量连通性测试；返回结果内的调试信息已脱敏且不包含 Base URL 或密钥",
                 "consumes": [
                     "application/json"
@@ -5707,16 +5702,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/logs/cleanup": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/logs/cleanup": {
+            "post": {
                 "description": "按日志类型物理删除指定时间点之前的日志；操作不可恢复",
                 "consumes": [
                     "application/json"
@@ -5758,16 +5753,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/mcp/servers": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/mcp/servers": {
+            "get": {
                 "description": "管理员查看已配置的 MCP 服务及其工具统计",
                 "produces": [
                     "application/json"
@@ -5789,14 +5784,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/McpErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "管理员创建一个 MCP 服务配置",
                 "consumes": [
                     "application/json"
@@ -5838,16 +5833,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/McpErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/mcp/servers/order": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/mcp/servers/order": {
+            "patch": {
                 "description": "管理员保存 MCP 服务及其工具的展示顺序",
                 "consumes": [
                     "application/json"
@@ -5889,16 +5884,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/McpErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/mcp/servers/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/mcp/servers/{id}": {
+            "delete": {
                 "description": "管理员删除一个 MCP 服务及其工具",
                 "produces": [
                     "application/json"
@@ -5935,14 +5930,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/McpErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "管理员更新一个 MCP 服务配置",
                 "consumes": [
                     "application/json"
@@ -5991,16 +5986,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/McpErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/mcp/servers/{id}/sync": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/mcp/servers/{id}/sync": {
+            "post": {
                 "description": "管理员从 MCP 服务同步工具定义",
                 "produces": [
                     "application/json"
@@ -6043,16 +6038,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/McpErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/mcp/servers/{id}/tools": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/mcp/servers/{id}/tools": {
+            "get": {
                 "description": "管理员查看指定 MCP 服务已同步的工具",
                 "produces": [
                     "application/json"
@@ -6089,16 +6084,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/McpErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/mcp/servers/{id}/tools/status": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/mcp/servers/{id}/tools/status": {
+            "patch": {
                 "description": "管理员批量启用或停用指定 MCP 服务的工具",
                 "consumes": [
                     "application/json"
@@ -6147,16 +6142,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/McpErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/mcp/tools/{id}": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/mcp/tools/{id}": {
+            "patch": {
                 "description": "管理员更新 MCP 工具的展示信息、附件处理配置或状态",
                 "consumes": [
                     "application/json"
@@ -6205,16 +6200,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/McpErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/model-providers": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/model-providers": {
+            "get": {
                 "description": "分页列出所有用户添加的模型服务；只有元数据与打码提示，不包含 API Key",
                 "produces": [
                     "application/json"
@@ -6274,16 +6269,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/model-providers/batch-delete": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/model-providers/batch-delete": {
+            "post": {
                 "description": "删除指定服务及其加密保存的 API Key",
                 "consumes": [
                     "application/json"
@@ -6319,16 +6314,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/model-providers/suspend": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/model-providers/suspend": {
+            "post": {
                 "description": "停用后用户不能自行启用，该服务的模型立即不可用",
                 "consumes": [
                     "application/json"
@@ -6364,16 +6359,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/model-providers/suspend-host": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/model-providers/suspend-host": {
+            "post": {
                 "description": "停用指定域名下的全部用户模型服务；如需阻止今后再添加，请同时把域名加入禁止列表",
                 "consumes": [
                     "application/json"
@@ -6409,16 +6404,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/models/{modelID}/permission-groups": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/models/{modelID}/permission-groups": {
+            "get": {
                 "description": "返回平台模型的手动权限组与动态规则命中的有效权限组",
                 "consumes": [
                     "application/json"
@@ -6464,14 +6459,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "全量替换平台模型的手动权限组，不影响权限组动态规则",
                 "consumes": [
                     "application/json"
@@ -6526,16 +6521,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/payment-orders": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/payment-orders": {
+            "get": {
                 "description": "管理员分页查看订阅和充值支付单",
                 "consumes": [
                     "application/json"
@@ -6628,16 +6623,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/permission-groups": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/permission-groups": {
+            "get": {
                 "description": "返回全部模型访问权限组，默认组优先",
                 "consumes": [
                     "application/json"
@@ -6662,14 +6657,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "创建模型访问权限组并设置计费倍率",
                 "consumes": [
                     "application/json"
@@ -6711,16 +6706,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/permission-groups/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/permission-groups/{id}": {
+            "delete": {
                 "description": "删除权限组及其模型、用户关联；默认组和被套餐引用的权限组不可删除",
                 "consumes": [
                     "application/json"
@@ -6772,14 +6767,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "更新权限组名称、说明与计费倍率",
                 "consumes": [
                     "application/json"
@@ -6834,16 +6829,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/permission-groups/{id}/models": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/permission-groups/{id}/models": {
+            "get": {
                 "description": "返回权限组授权的平台模型 ID 集合",
                 "consumes": [
                     "application/json"
@@ -6889,14 +6884,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "全量替换权限组授权的平台模型 ID 集合与动态访问规则",
                 "consumes": [
                     "application/json"
@@ -6951,16 +6946,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/permission-groups/{id}/users": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/permission-groups/{id}/users": {
+            "get": {
                 "description": "返回权限组内的用户 ID 集合",
                 "consumes": [
                     "application/json"
@@ -7012,14 +7007,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "全量替换权限组内的用户 ID 集合",
                 "consumes": [
                     "application/json"
@@ -7080,16 +7075,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/prompt-presets": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/prompt-presets": {
+            "get": {
                 "consumes": [
                     "application/json"
                 ],
@@ -7139,14 +7134,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/PromptPresetErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -7193,16 +7188,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PromptPresetErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/prompt-presets/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/prompt-presets/{id}": {
+            "delete": {
                 "consumes": [
                     "application/json"
                 ],
@@ -7247,14 +7242,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/PromptPresetErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "consumes": [
                     "application/json"
                 ],
@@ -7314,16 +7309,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PromptPresetErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/redemptions": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/redemptions": {
+            "get": {
                 "description": "管理员分页查看兑换码兑换明细，含奖励内容与余额变动，已删除兑换码的历史仍可查询",
                 "consumes": [
                     "application/json"
@@ -7410,16 +7405,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings": {
+            "get": {
                 "description": "按 namespace 分组返回全部动态配置项",
                 "produces": [
                     "application/json"
@@ -7435,14 +7430,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "批量更新动态配置并清除缓存，下次读取自动刷新",
                 "consumes": [
                     "application/json"
@@ -7472,16 +7467,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/docling/runtime": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/docling/runtime": {
+            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -7496,16 +7491,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/embedding/reindex": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/embedding/reindex": {
+            "post": {
                 "description": "为尚未索引、失效、失败及停滞的文件补建向量，已就绪的文件不会重建。已有文本的文件直接向量化；处理失败或排队停滞的文件重新提取后再向量化；include_empty=true 时无文本文件也重新提取，适用于更换 OCR 引擎后",
                 "produces": [
                     "application/json"
@@ -7553,16 +7548,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/embedding/runtime": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/embedding/runtime": {
+            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -7577,16 +7572,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/embedding/status": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/embedding/status": {
+            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -7601,16 +7596,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/EmbeddingIndexStatusResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/embedding/tasks": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/embedding/tasks": {
+            "get": {
                 "description": "按分组分页列出全平台文件的向量化任务，并返回每个文件当前能否重试",
                 "produces": [
                     "application/json"
@@ -7679,16 +7674,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/embedding/tasks/retry": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/embedding/tasks/retry": {
+            "post": {
                 "description": "管理员跨用户重试失败、待处理、失效或无文本文件的向量化任务；不可重试的文件在 skipped 中返回原因",
                 "consumes": [
                     "application/json"
@@ -7736,16 +7731,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/mineru/runtime": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/mineru/runtime": {
+            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -7760,16 +7755,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/rapidocr/runtime": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/rapidocr/runtime": {
+            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -7784,16 +7779,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/rapidocr/runtime/restart": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/rapidocr/runtime/restart": {
+            "post": {
                 "produces": [
                     "application/json"
                 ],
@@ -7808,16 +7803,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/rapidocr/runtime/start": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/rapidocr/runtime/start": {
+            "post": {
                 "produces": [
                     "application/json"
                 ],
@@ -7832,16 +7827,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/rapidocr/runtime/stop": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/rapidocr/runtime/stop": {
+            "post": {
                 "produces": [
                     "application/json"
                 ],
@@ -7856,16 +7851,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/tesseract/runtime": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/tesseract/runtime": {
+            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -7880,16 +7875,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/tika/runtime": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/tika/runtime": {
+            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -7904,16 +7899,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/tika/runtime/restart": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/tika/runtime/restart": {
+            "post": {
                 "produces": [
                     "application/json"
                 ],
@@ -7928,16 +7923,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/tika/runtime/start": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/tika/runtime/start": {
+            "post": {
                 "produces": [
                     "application/json"
                 ],
@@ -7952,16 +7947,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/tika/runtime/stop": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/tika/runtime/stop": {
+            "post": {
                 "produces": [
                     "application/json"
                 ],
@@ -7976,16 +7971,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/settings/{namespace}": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/settings/{namespace}": {
+            "get": {
                 "description": "查询指定 namespace 下的全部配置项",
                 "produces": [
                     "application/json"
@@ -8010,16 +8005,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/admin/skills": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/skills": {
+            "get": {
                 "consumes": [
                     "application/json"
                 ],
@@ -8069,14 +8064,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/SkillErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -8123,16 +8118,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/SkillErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/skills/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/skills/{id}": {
+            "delete": {
                 "consumes": [
                     "application/json"
                 ],
@@ -8177,14 +8172,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/SkillErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "consumes": [
                     "application/json"
                 ],
@@ -8244,16 +8239,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/SkillErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/ui-components": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/ui-components": {
+            "get": {
                 "consumes": [
                     "application/json"
                 ],
@@ -8315,14 +8310,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/UicomponentErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -8369,16 +8364,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/UicomponentErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/ui-components/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/ui-components/{id}": {
+            "delete": {
                 "description": "内置组件受保护，不允许删除",
                 "consumes": [
                     "application/json"
@@ -8424,14 +8419,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/UicomponentErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "内置组件只允许修改启用状态、描述与排序",
                 "consumes": [
                     "application/json"
@@ -8492,16 +8487,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/UicomponentErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/usage-statistics": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/usage-statistics": {
+            "get": {
                 "description": "管理员按日期、统计对象、平台模型和计费范围查看全局费用、Token、调用次数及排名；用户与权限组筛选互斥",
                 "consumes": [
                     "application/json"
@@ -8594,16 +8589,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/user-auth-events": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/user-auth-events": {
+            "get": {
                 "description": "管理员分页查询认证事件，支持 user_id/event_type/result 过滤",
                 "consumes": [
                     "application/json"
@@ -8666,16 +8661,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/users": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/users": {
+            "get": {
                 "description": "管理员分页查看所有用户，实现账户隔离管理",
                 "consumes": [
                     "application/json"
@@ -8732,14 +8727,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "创建普通用户账号；需要授予管理员权限时，可在账户编辑中调整角色",
                 "consumes": [
                     "application/json"
@@ -8787,16 +8782,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/users/import/openwebui": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/users/import/openwebui": {
+            "post": {
                 "description": "从 OpenWebUI SQLite 或 PostgreSQL 数据库读取用户，按 email 去重导入；已存在用户不会修改",
                 "consumes": [
                     "application/json"
@@ -8844,16 +8839,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/users/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/users/{id}": {
+            "delete": {
                 "description": "管理员硬删除指定普通用户及其主要用户域数据",
                 "consumes": [
                     "application/json"
@@ -8905,14 +8900,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "管理员统一维护角色、状态、时区等可编辑字段",
                 "consumes": [
                     "application/json"
@@ -8973,16 +8968,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/users/{id}/reset-2fa": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/users/{id}/reset-2fa": {
+            "post": {
                 "description": "管理员清除指定用户的 TOTP 与恢复码并吊销其全部会话；不允许重置超级管理员",
                 "produces": [
                     "application/json"
@@ -9037,16 +9032,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/users/{id}/reset-password": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/users/{id}/reset-password": {
+            "post": {
                 "description": "管理员重置指定用户密码并吊销其全部会话",
                 "consumes": [
                     "application/json"
@@ -9107,16 +9102,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/users/{id}/revoke-sessions": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/users/{id}/revoke-sessions": {
+            "post": {
                 "description": "管理员吊销指定用户全部活跃会话，用于安全治理和风险控制",
                 "consumes": [
                     "application/json"
@@ -9162,16 +9157,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/admin/users/{id}/status": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/admin/users/{id}/status": {
+            "patch": {
                 "description": "管理员维护用户状态（active/locked/suspended/deactivated），并联动会话治理",
                 "consumes": [
                     "application/json"
@@ -9232,16 +9227,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/announcements": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/announcements": {
+            "get": {
                 "description": "登录用户获取当前可展示的站点公告列表",
                 "consumes": [
                     "application/json"
@@ -9274,16 +9269,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AnnouncementErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/announcements/{id}/close": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/announcements/{id}/close": {
+            "post": {
                 "description": "登录用户关闭当前公告版本；公告更新后会重新展示",
                 "consumes": [
                     "application/json"
@@ -9338,16 +9333,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AnnouncementErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/announcements/{id}/dismiss-today": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/announcements/{id}/dismiss-today": {
+            "post": {
                 "description": "登录用户对当前公告版本记录今日不再显示",
                 "consumes": [
                     "application/json"
@@ -9402,7 +9397,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/AnnouncementErrorDoc"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/auth/2fa/email/start": {
@@ -9655,11 +9655,6 @@ const docTemplate = `{
         },
         "/auth/logout": {
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "吊销当前 access token 对应会话",
                 "consumes": [
                     "application/json"
@@ -9690,16 +9685,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/auth/logout-all": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/auth/logout-all": {
+            "post": {
                 "description": "吊销当前用户所有活跃会话",
                 "consumes": [
                     "application/json"
@@ -9730,16 +9725,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/auth/password/change/complete": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/auth/password/change/complete": {
+            "post": {
                 "description": "校验当前密码及安全验证码后修改密码；成功后吊销该用户全部会话并清除刷新令牌 Cookie",
                 "consumes": [
                     "application/json"
@@ -9787,16 +9782,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/auth/password/change/start": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/auth/password/change/start": {
+            "post": {
                 "description": "为当前用户发起修改密码前的安全验证；请求体可省略，未指定验证方式时由服务端选择可用方式",
                 "consumes": [
                     "application/json"
@@ -9843,7 +9838,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/auth/password/reset/complete": {
@@ -10259,11 +10259,6 @@ const docTemplate = `{
         },
         "/auth/sessions": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "查询当前登录用户仍然有效的活跃会话列表",
                 "consumes": [
                     "application/json"
@@ -10294,16 +10289,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/auth/sessions/current/location": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/auth/sessions/current/location": {
+            "put": {
                 "description": "用户授权后，用浏览器定位能力补充当前登录会话的精确位置",
                 "consumes": [
                     "application/json"
@@ -10351,16 +10346,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/auth/sessions/{session_id}/logout": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/auth/sessions/{session_id}/logout": {
+            "post": {
                 "description": "吊销当前用户指定 session_id 对应的活跃会话",
                 "consumes": [
                     "application/json"
@@ -10400,16 +10395,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/billing/account": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/billing/account": {
+            "get": {
                 "description": "查询当前用户按量余额",
                 "consumes": [
                     "application/json"
@@ -10434,16 +10429,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/billing/overview": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/billing/overview": {
+            "get": {
                 "description": "查询当前计费方式、周期额度或按量余额",
                 "consumes": [
                     "application/json"
@@ -10468,16 +10463,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/billing/payments/checkout": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/billing/payments/checkout": {
+            "post": {
                 "description": "为当前用户创建套餐支付单，并返回支付跳转地址",
                 "consumes": [
                     "application/json"
@@ -10519,7 +10514,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/billing/payments/epay/notify": {
@@ -10565,11 +10565,6 @@ const docTemplate = `{
         },
         "/billing/plans": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "查询所有启用的订阅套餐及价格",
                 "consumes": [
                     "application/json"
@@ -10594,16 +10589,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/billing/redemptions": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/billing/redemptions": {
+            "post": {
                 "description": "当前用户兑换余额或订阅权益",
                 "consumes": [
                     "application/json"
@@ -10645,16 +10640,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/billing/subscriptions": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/billing/subscriptions": {
+            "post": {
                 "description": "为当前用户创建或替换订阅",
                 "consumes": [
                     "application/json"
@@ -10696,16 +10691,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/billing/usage": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/billing/usage": {
+            "get": {
                 "description": "查询当前用户的每日用量与费用",
                 "consumes": [
                     "application/json"
@@ -10762,16 +10757,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/billing/usage/daily": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/billing/usage/daily": {
+            "get": {
                 "description": "查询当前用户按日期聚合的用量与费用",
                 "consumes": [
                     "application/json"
@@ -10804,16 +10799,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/billing/usage/monthly": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/billing/usage/monthly": {
+            "get": {
                 "description": "查询当前用户按月份聚合的用量与费用",
                 "consumes": [
                     "application/json"
@@ -10846,7 +10841,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/BillingErrorDoc"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/branding": {
@@ -10909,11 +10909,6 @@ const docTemplate = `{
         },
         "/context-artifacts/{id}": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "查询当前用户可访问的上下文证据详情，用于 Prompt Trace 来源查看",
                 "consumes": [
                     "application/json"
@@ -10959,16 +10954,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversation-projects": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversation-projects": {
+            "get": {
                 "description": "查询当前用户的会话项目分组",
                 "consumes": [
                     "application/json"
@@ -11001,14 +10996,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "创建当前用户的会话项目分组",
                 "consumes": [
                     "application/json"
@@ -11050,16 +11045,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversation-projects/reorder": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversation-projects/reorder": {
+            "post": {
                 "description": "更新当前用户项目分组展示顺序",
                 "consumes": [
                     "application/json"
@@ -11107,16 +11102,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversation-projects/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversation-projects/{id}": {
+            "delete": {
                 "description": "删除当前用户项目分组。默认仅解除其下会话归属；delete_conversations=true 时同时软删除项目内会话；delete_files=true 时同步删除不再被其他会话引用的文件。",
                 "consumes": [
                     "application/json"
@@ -11174,14 +11169,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "更新当前用户的会话项目分组",
                 "consumes": [
                     "application/json"
@@ -11236,16 +11231,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversation-runs/statuses": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversation-runs/statuses": {
+            "post": {
                 "description": "按运行 ID 一次查询当前用户多个会话任务的最小状态快照",
                 "consumes": [
                     "application/json"
@@ -11290,16 +11285,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversation-runs/stream": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversation-runs/stream": {
+            "get": {
                 "description": "先推送当前用户进行中运行的权威快照，再持续推送该用户范围内的运行状态事件；快照会定期重发，供客户端对账",
                 "produces": [
                     "text/event-stream"
@@ -11321,16 +11316,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversation-runs/{run_id}/cancel": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversation-runs/{run_id}/cancel": {
+            "post": {
                 "description": "仅在用户显式点击暂停时取消对应 run；浏览器刷新或断开连接不会调用此接口",
                 "produces": [
                     "application/json"
@@ -11361,16 +11356,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversation-runs/{run_id}/stream": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversation-runs/{run_id}/stream": {
+            "get": {
                 "description": "页面刷新后按 run_id 重新订阅仍在运行的生成流，返回 NDJSON 事件",
                 "produces": [
                     "application/x-ndjson"
@@ -11413,16 +11408,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversation-runs/{run_id}/tool-calls/{tool_call_id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversation-runs/{run_id}/tool-calls/{tool_call_id}": {
+            "get": {
                 "description": "查询当前用户指定会话运行内的持久化工具调用结果；超限字段仅返回原始大小与省略标记",
                 "consumes": [
                     "application/json"
@@ -11475,16 +11470,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations": {
+            "get": {
                 "description": "查询当前用户会话列表",
                 "consumes": [
                     "application/json"
@@ -11553,14 +11548,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "创建新的聊天会话",
                 "consumes": [
                     "application/json"
@@ -11602,16 +11597,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/default-model-candidate": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/default-model-candidate": {
+            "get": {
                 "description": "返回后台配置的新会话系统推荐模型；未配置时返回空候选",
                 "consumes": [
                     "application/json"
@@ -11636,16 +11631,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/export": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/export": {
+            "get": {
                 "description": "流式导出当前用户全部会话及消息为 NDJSON 文件",
                 "produces": [
                     "application/x-ndjson"
@@ -11667,16 +11662,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/project": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/project": {
+            "post": {
                 "description": "批量设置当前用户会话的项目归属",
                 "consumes": [
                     "application/json"
@@ -11724,16 +11719,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/search": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/search": {
+            "get": {
                 "description": "分页搜索当前用户的会话标题、元数据、项目和消息正文，并返回是否还有下一页",
                 "consumes": [
                     "application/json"
@@ -11784,16 +11779,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/shares/revoke": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/shares/revoke": {
+            "post": {
                 "description": "批量关闭当前用户会话的公开分享链接",
                 "consumes": [
                     "application/json"
@@ -11841,16 +11836,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}": {
+            "get": {
                 "description": "查询当前用户的单个会话元信息",
                 "consumes": [
                     "application/json"
@@ -11896,14 +11891,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "删除指定会话",
                 "consumes": [
                     "application/json"
@@ -11955,16 +11950,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/archive": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/archive": {
+            "patch": {
                 "description": "设置指定会话归档状态",
                 "consumes": [
                     "application/json"
@@ -12019,16 +12014,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/export": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/export": {
+            "get": {
                 "description": "导出当前用户单个会话的元信息、消息、运行日志和可见处理轨迹",
                 "consumes": [
                     "application/json"
@@ -12074,16 +12069,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/labels": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/labels": {
+            "patch": {
                 "description": "替换指定会话的标签；传入空数组可清空标签",
                 "consumes": [
                     "application/json"
@@ -12138,16 +12133,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/media/images/edits/stream": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/media/images/edits/stream": {
+            "post": {
                 "description": "在会话中基于参考图片（可附遮罩）按提示词编辑图片，并以 NDJSON 流式返回任务状态事件",
                 "consumes": [
                     "application/json"
@@ -12238,16 +12233,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/media/images/generations/stream": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/media/images/generations/stream": {
+            "post": {
                 "description": "在会话中按提示词生成图片，并以 NDJSON 流式返回任务状态事件",
                 "consumes": [
                     "application/json"
@@ -12338,16 +12333,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/media/videos/extensions/stream": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/media/videos/extensions/stream": {
+            "post": {
                 "description": "在会话中基于来源视频按提示词扩展视频，并以 NDJSON 流式返回任务状态事件",
                 "consumes": [
                     "application/json"
@@ -12438,16 +12433,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/media/videos/generations/stream": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/media/videos/generations/stream": {
+            "post": {
                 "description": "在会话中按提示词生成视频，并以 NDJSON 流式返回任务状态事件",
                 "consumes": [
                     "application/json"
@@ -12538,16 +12533,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/messages": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/messages": {
+            "get": {
                 "description": "查询会话内消息列表",
                 "consumes": [
                     "application/json"
@@ -12626,14 +12621,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "在会话中发送消息，支持文件/图片等多模态附件",
                 "consumes": [
                     "application/json"
@@ -12694,16 +12689,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/messages/preview": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/messages/preview": {
+            "get": {
                 "description": "返回当前用户会话最新分支最近 10 条用户或助手消息",
                 "consumes": [
                     "application/json"
@@ -12749,16 +12744,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/messages/stream": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/messages/stream": {
+            "post": {
                 "description": "在会话中发送消息并以 NDJSON 流式返回 assistant 增量文本",
                 "consumes": [
                     "application/json"
@@ -12813,16 +12808,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/messages/{message_id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/messages/{message_id}": {
+            "delete": {
                 "description": "删除会话中任意位置的一条消息；其子消息将重接到被删消息的父消息上，后续消息保留并向前衔接。会话第一条消息与生成中的消息不允许删除",
                 "consumes": [
                     "application/json"
@@ -12881,16 +12876,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/messages/{message_id}/fork": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/messages/{message_id}/fork": {
+            "post": {
                 "description": "仅允许从助手消息 fork；将会话从开头到指定助手消息（含）的祖先链复制为一个新会话，保留历史展示轨迹；不携带原会话的运行记录与计费，附件以引用方式复用",
                 "consumes": [
                     "application/json"
@@ -12949,16 +12944,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/messages/{message_id}/ui-state": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/messages/{message_id}/ui-state": {
+            "put": {
                 "description": "按块保存 assistant 消息里交互式组件的当前状态快照（只保存与块初始值不同的键）。blocks 以块 id 为键：出现的块整块替换，值为 null 或空对象表示清除，没出现的块保持不变",
                 "consumes": [
                     "application/json"
@@ -13026,16 +13021,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/project": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/project": {
+            "patch": {
                 "description": "设置当前用户单个会话的项目归属",
                 "consumes": [
                     "application/json"
@@ -13090,16 +13085,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/runs": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/runs": {
+            "get": {
                 "description": "查询会话内模型调用运行日志（tokens/时长/错误）",
                 "consumes": [
                     "application/json"
@@ -13157,16 +13152,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/share": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/share": {
+            "get": {
                 "description": "查询当前用户指定会话的最近分享状态",
                 "consumes": [
                     "application/json"
@@ -13212,14 +13207,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "创建当前会话全部分支的公开快照分享链接",
                 "consumes": [
                     "application/json"
@@ -13273,14 +13268,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "关闭当前会话的有效公开分享链接",
                 "consumes": [
                     "application/json"
@@ -13326,16 +13321,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/share/regenerate": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/share/regenerate": {
+            "post": {
                 "description": "关闭当前有效分享并创建新的公开快照链接",
                 "consumes": [
                     "application/json"
@@ -13389,16 +13384,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/star": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/star": {
+            "patch": {
                 "description": "设置指定会话是否星标",
                 "consumes": [
                     "application/json"
@@ -13453,16 +13448,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/title": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/title": {
+            "patch": {
                 "description": "修改指定会话标题",
                 "consumes": [
                     "application/json"
@@ -13517,16 +13512,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/conversations/{id}/title/regenerate": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/conversations/{id}/title/regenerate": {
+            "post": {
                 "description": "根据指定会话已有内容重新生成标题",
                 "consumes": [
                     "application/json"
@@ -13572,16 +13567,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/files": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/files": {
+            "get": {
                 "description": "查询当前用户上传的文件",
                 "consumes": [
                     "application/json"
@@ -13638,14 +13633,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "上传对话附件文件，统一存储并扣减用户配额（默认100MB）",
                 "consumes": [
                     "multipart/form-data"
@@ -13703,16 +13698,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/files/embeddings": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/files/embeddings": {
+            "post": {
                 "description": "为当前用户已完成文本提取的文件提交向量化任务，最多100个；重复提交会幂等跳过",
                 "consumes": [
                     "application/json"
@@ -13760,16 +13755,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/files/processing/statuses": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/files/processing/statuses": {
+            "post": {
                 "description": "一次查询当前用户多个文件的处理状态",
                 "consumes": [
                     "application/json"
@@ -13814,16 +13809,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/files/{file_id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/files/{file_id}": {
+            "delete": {
                 "description": "删除指定文件并回收用户配额",
                 "consumes": [
                     "application/json"
@@ -13869,14 +13864,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "修改文件名或 RAG 检索开关，file_name 和 rag_opt_out 至少填一个",
                 "consumes": [
                     "application/json"
@@ -13931,16 +13926,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/files/{file_id}/content": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/files/{file_id}/content": {
+            "get": {
                 "description": "按当前登录用户权限读取文件内容，用于在线预览或下载",
                 "produces": [
                     "application/octet-stream"
@@ -13983,16 +13978,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/files/{file_id}/extract": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/files/{file_id}/extract": {
+            "get": {
                 "description": "返回当前用户文件已完成提取的文本内容；提取尚未就绪时返回 409",
                 "produces": [
                     "application/json"
@@ -14047,16 +14042,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/files/{file_id}/processing": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/files/{file_id}/processing": {
+            "get": {
                 "description": "查询当前用户单个文件的文本提取与向量化处理状态",
                 "produces": [
                     "application/json"
@@ -14105,16 +14100,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/knowledge-bases": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/knowledge-bases": {
+            "get": {
                 "tags": [
                     "knowledge-bases"
                 ],
@@ -14162,16 +14157,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBasePageResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/knowledge-bases/mine": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/knowledge-bases/mine": {
+            "get": {
                 "tags": [
                     "knowledge-bases"
                 ],
@@ -14225,14 +14220,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBasePageResponseDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "tags": [
                     "knowledge-bases"
                 ],
@@ -14255,16 +14250,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/knowledge-bases/mine/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/knowledge-bases/mine/{id}": {
+            "delete": {
                 "tags": [
                     "knowledge-bases"
                 ],
@@ -14291,14 +14286,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseDeleteResponseDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "tags": [
                     "knowledge-bases"
                 ],
@@ -14328,16 +14323,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/knowledge-bases/mine/{id}/available-files": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/knowledge-bases/mine/{id}/available-files": {
+            "get": {
                 "description": "分页返回当前用户尚未关联到指定个人知识库的有效文件",
                 "tags": [
                     "knowledge-bases"
@@ -14395,16 +14390,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/knowledge-bases/mine/{id}/files": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/knowledge-bases/mine/{id}/files": {
+            "post": {
                 "tags": [
                     "knowledge-bases"
                 ],
@@ -14434,16 +14429,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseFileMutationResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/knowledge-bases/mine/{id}/files/{file_id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/knowledge-bases/mine/{id}/files/{file_id}": {
+            "delete": {
                 "tags": [
                     "knowledge-bases"
                 ],
@@ -14471,16 +14466,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseFileMutationResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/knowledge-bases/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/knowledge-bases/{id}": {
+            "get": {
                 "tags": [
                     "knowledge-bases"
                 ],
@@ -14501,16 +14496,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/knowledge-bases/{id}/files": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/knowledge-bases/{id}/files": {
+            "get": {
                 "tags": [
                     "knowledge-bases"
                 ],
@@ -14543,16 +14538,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgeBaseFilePageResponseDoc"
                         }
                     }
-                }
-            }
-        },
-        "/knowledge-bases/{id}/files/processing/snapshot": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/knowledge-bases/{id}/files/processing/snapshot": {
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -14600,16 +14595,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/knowledge-bases/{id}/files/processing/statuses": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/knowledge-bases/{id}/files/processing/statuses": {
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -14666,16 +14661,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/knowledge-bases/{id}/files/{file_id}/content": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/knowledge-bases/{id}/files/{file_id}/content": {
+            "get": {
                 "description": "仅允许读取当前用户可见且仍与知识库关联的文件",
                 "produces": [
                     "application/octet-stream"
@@ -14725,7 +14720,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/llm/icon-assets/{public_id}": {
@@ -14767,11 +14767,6 @@ const docTemplate = `{
         },
         "/mcp/tools": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "获取当前聊天侧可选择的 MCP 工具",
                 "produces": [
                     "application/json"
@@ -14793,16 +14788,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/McpErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me": {
+            "get": {
                 "description": "查询当前登录用户资料",
                 "consumes": [
                     "application/json"
@@ -14833,14 +14828,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "删除当前登录用户账户及主要用户域数据",
                 "consumes": [
                     "application/json"
@@ -14894,14 +14889,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "更新当前登录用户的头像、昵称、时区、对话偏好",
                 "consumes": [
                     "application/json"
@@ -14949,16 +14944,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/2fa": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/2fa": {
+            "get": {
                 "description": "返回 TOTP 是否可用、是否已启用、是否强制及剩余恢复码数量",
                 "produces": [
                     "application/json"
@@ -14993,16 +14988,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/2fa/disable": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/2fa/disable": {
+            "post": {
                 "description": "校验 TOTP 验证码或恢复码后关闭当前用户的双因素认证",
                 "consumes": [
                     "application/json"
@@ -15057,16 +15052,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/2fa/recovery/regenerate": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/2fa/recovery/regenerate": {
+            "post": {
                 "description": "校验 TOTP 验证码或恢复码（恢复码校验通过即被消耗）后作废旧恢复码，并返回新的一次性恢复码",
                 "consumes": [
                     "application/json"
@@ -15121,16 +15116,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/2fa/setup": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/2fa/setup": {
+            "delete": {
                 "description": "丢弃当前用户尚未确认的 TOTP 设置",
                 "produces": [
                     "application/json"
@@ -15165,16 +15160,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/2fa/setup/confirm": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/2fa/setup/confirm": {
+            "post": {
                 "description": "使用 TOTP 验证码确认设置并启用双因素认证，返回一次性恢复码",
                 "consumes": [
                     "application/json"
@@ -15229,16 +15224,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/2fa/setup/start": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/2fa/setup/start": {
+            "post": {
                 "description": "为当前用户生成新的 TOTP 密钥与 otpauth URL，需在过期前确认",
                 "produces": [
                     "application/json"
@@ -15273,16 +15268,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/delete/start": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/delete/start": {
+            "post": {
                 "description": "发送删除当前账号前所需的邮箱验证码，或返回可用的两步验证方式",
                 "consumes": [
                     "application/json"
@@ -15329,16 +15324,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/email/bootstrap/complete": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/email/bootstrap/complete": {
+            "post": {
                 "description": "使用邮箱与验证码为当前用户绑定初始邮箱，返回更新后的用户信息",
                 "consumes": [
                     "application/json"
@@ -15392,16 +15387,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/email/bootstrap/start": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/email/bootstrap/start": {
+            "post": {
                 "description": "为尚未绑定邮箱的当前用户向指定邮箱发送验证码",
                 "consumes": [
                     "application/json"
@@ -15449,16 +15444,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/email/change/complete": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/email/change/complete": {
+            "post": {
                 "description": "校验当前身份验证码与新邮箱验证码后更换邮箱，返回更新后的用户信息",
                 "consumes": [
                     "application/json"
@@ -15512,16 +15507,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/email/change/start-current": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/email/change/start-current": {
+            "post": {
                 "description": "更换邮箱前先按指定方式验证当前身份；请求体可省略，未指定验证方式时由服务端选择可用方式",
                 "consumes": [
                     "application/json"
@@ -15568,16 +15563,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/email/change/start-new": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/email/change/start-new": {
+            "post": {
                 "description": "更换邮箱时向新邮箱发送验证码",
                 "consumes": [
                     "application/json"
@@ -15625,16 +15620,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/email/verify-current/complete": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/email/verify-current/complete": {
+            "post": {
                 "description": "使用验证码验证当前用户已绑定的邮箱，返回更新后的用户信息",
                 "consumes": [
                     "application/json"
@@ -15688,16 +15683,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/email/verify-current/start": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/email/verify-current/start": {
+            "post": {
                 "description": "向当前用户已绑定但未验证的邮箱发送验证码",
                 "produces": [
                     "application/json"
@@ -15731,16 +15726,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/identities": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/identities": {
+            "get": {
                 "description": "列出当前用户已关联的 OIDC/OAuth2 第三方身份",
                 "produces": [
                     "application/json"
@@ -15774,16 +15769,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/identities/providers/{slug}/authorize": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/identities/providers/{slug}/authorize": {
+            "post": {
                 "description": "为当前登录用户创建 PKCE 保护的绑定事务；外部身份源仅回调当前 DEEIX 实例，绑定在兑换时才生效",
                 "consumes": [
                     "application/json"
@@ -15832,16 +15827,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/identities/providers/{slug}/exchange": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/identities/providers/{slug}/exchange": {
+            "post": {
                 "description": "使用客户端 PKCE verifier 兑换绑定用的一次性授权凭证，将身份绑到当前登录用户",
                 "consumes": [
                     "application/json"
@@ -15890,16 +15885,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/identities/{identity_id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/identities/{identity_id}": {
+            "delete": {
                 "description": "解除当前用户与指定第三方身份的关联；不允许移除最后一种登录方式",
                 "produces": [
                     "application/json"
@@ -15942,16 +15937,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/model-providers": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/model-providers": {
+            "get": {
                 "description": "返回当前用户添加的模型服务；响应不包含 API Key",
                 "produces": [
                     "application/json"
@@ -15979,14 +15974,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "检测并保存模型服务。API Key 加密保存，之后任何接口都不会返回明文",
                 "consumes": [
                     "application/json"
@@ -16046,16 +16041,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/model-providers/access": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/model-providers/access": {
+            "get": {
                 "description": "返回当前用户能否添加自己的模型服务、能否通过链接导入、数量上限与可选协议",
                 "produces": [
                     "application/json"
@@ -16077,16 +16072,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/model-providers/probe": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/model-providers/probe": {
+            "post": {
                 "description": "使用地址与 API Key 拉取上游模型列表，不保存任何内容。地址必须是 HTTPS 公网地址",
                 "consumes": [
                     "application/json"
@@ -16140,16 +16135,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/model-providers/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/model-providers/{id}": {
+            "delete": {
                 "description": "删除服务及其加密保存的 API Key。功能被关闭后仍可删除",
                 "produces": [
                     "application/json"
@@ -16186,14 +16181,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "修改名称、更换 API Key、调整启用的模型或启用/停用。更换 Key 或调整模型时会重新检测",
                 "consumes": [
                     "application/json"
@@ -16266,16 +16261,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/model-providers/{id}/models": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/model-providers/{id}/models": {
+            "get": {
                 "description": "使用已保存的 API Key 重新拉取上游模型列表",
                 "produces": [
                     "application/json"
@@ -16324,16 +16319,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PersonalproviderErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/onboarding/complete": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/onboarding/complete": {
+            "post": {
                 "description": "标记当前用户已完成首次引导",
                 "consumes": [
                     "application/json"
@@ -16370,16 +16365,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/me/username": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/me/username": {
+            "patch": {
                 "description": "当前用户仅可自主修改一次登录用户名",
                 "consumes": [
                     "application/json"
@@ -16433,16 +16428,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/memories/profile": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/memories/profile": {
+            "get": {
                 "description": "查询当前用户的长期个性化记忆",
                 "consumes": [
                     "application/json"
@@ -16467,14 +16462,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/MemoryErrorDoc"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "新增或更新当前用户的长期个性化记忆",
                 "consumes": [
                     "application/json"
@@ -16516,16 +16511,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/MemoryErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/memories/profile/{memory_key}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/memories/profile/{memory_key}": {
+            "delete": {
                 "description": "删除当前用户的指定 key 长期记忆",
                 "consumes": [
                     "application/json"
@@ -16565,16 +16560,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/MemoryErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/messages/{id}": {
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/messages/{id}": {
+            "patch": {
                 "description": "就地更新当前用户会话中的 user 或 assistant 消息内容并标记为已编辑，不触发重新生成",
                 "consumes": [
                     "application/json"
@@ -16629,16 +16624,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/messages/{id}/feedback": {
-            "put": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/messages/{id}/feedback": {
+            "put": {
                 "description": "对 assistant 消息设置点赞/点踩，传空 feedback 表示取消反馈",
                 "consumes": [
                     "application/json"
@@ -16693,16 +16688,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/messages/{id}/trace": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/messages/{id}/trace": {
+            "get": {
                 "description": "返回当前用户一条助手消息的完整处理轨迹（思考全文与工具输入输出）；消息列表以 trace=summary 查询时只带摘要",
                 "produces": [
                     "application/json"
@@ -16745,16 +16740,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/models": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/models": {
+            "get": {
                 "description": "用户侧查询启用模型目录，用于聊天模型选择器",
                 "consumes": [
                     "application/json"
@@ -16779,16 +16774,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/prompt-presets": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/prompt-presets": {
+            "get": {
                 "description": "返回管理员内置和当前用户自定义的已启用提示词，用于 slash 选择器",
                 "consumes": [
                     "application/json"
@@ -16833,16 +16828,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PromptPresetErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/prompt-presets/mine": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/prompt-presets/mine": {
+            "get": {
                 "description": "分页查询当前用户自定义提示词",
                 "consumes": [
                     "application/json"
@@ -16893,14 +16888,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/PromptPresetErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -16947,16 +16942,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PromptPresetErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/prompt-presets/mine/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/prompt-presets/mine/{id}": {
+            "delete": {
                 "consumes": [
                     "application/json"
                 ],
@@ -17001,14 +16996,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/PromptPresetErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "consumes": [
                     "application/json"
                 ],
@@ -17068,16 +17063,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/PromptPresetErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/runtime/chat-file-policy": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/runtime/chat-file-policy": {
+            "get": {
                 "description": "返回当前用户在聊天中上传与使用文件的运行时策略（大小、数量、类型与处理模式等）",
                 "produces": [
                     "application/json"
@@ -17105,16 +17100,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/settings/chat-context-policy": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/settings/chat-context-policy": {
+            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -17129,16 +17124,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/settings/feature-policy": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/settings/feature-policy": {
+            "get": {
                 "description": "返回管理员配置的用户侧功能开关，包括知识库、处理轨迹与网页端「下载桌面端」入口",
                 "produces": [
                     "application/json"
@@ -17154,7 +17149,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/FeaturePolicyResponseDoc"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/settings/login-page": {
@@ -17178,11 +17178,6 @@ const docTemplate = `{
         },
         "/settings/mcp-policy": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -17197,16 +17192,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/settings/model-option-policy": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/settings/model-option-policy": {
+            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -17221,7 +17216,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/shared-conversations/{share_id}": {
@@ -17276,11 +17276,6 @@ const docTemplate = `{
         },
         "/shared-conversations/{share_id}/clone": {
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "将公开分享快照克隆到当前登录用户账户，包含全部分支消息和分享内附件",
                 "consumes": [
                     "application/json"
@@ -17332,7 +17327,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/shared-conversations/{share_id}/files/{file_id}/content": {
@@ -17391,11 +17391,6 @@ const docTemplate = `{
         },
         "/skills": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "返回管理员内置和当前用户自定义的已启用技能摘要，用于会话按需选择 Skill 上下文",
                 "consumes": [
                     "application/json"
@@ -17456,16 +17451,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/SkillErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/skills/mine": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/skills/mine": {
+            "get": {
                 "consumes": [
                     "application/json"
                 ],
@@ -17515,14 +17510,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/SkillErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -17569,16 +17564,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/SkillErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/skills/mine/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/skills/mine/{id}": {
+            "delete": {
                 "consumes": [
                     "application/json"
                 ],
@@ -17623,14 +17618,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/SkillErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "consumes": [
                     "application/json"
                 ],
@@ -17690,16 +17685,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/SkillErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/skills/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/skills/{id}": {
+            "get": {
                 "description": "按需返回单个可用 Skill 的完整 SKILL.md 内容，用于用户查看详情",
                 "consumes": [
                     "application/json"
@@ -17745,16 +17740,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/SkillErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/temporary-chat/messages/stream": {
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/temporary-chat/messages/stream": {
+            "post": {
                 "description": "由浏览器提交完整上下文和可选请求级附件；服务端不创建会话、消息、运行、文件或断线续传记录",
                 "consumes": [
                     "application/json",
@@ -17797,16 +17792,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/ui-components": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/ui-components": {
+            "get": {
                 "description": "返回已启用的内置、平台组件与当前用户自定义组件，含渲染源，用于会话勾选与消息渲染",
                 "consumes": [
                     "application/json"
@@ -17851,16 +17846,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/UicomponentErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/ui-components/mine": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/ui-components/mine": {
+            "get": {
                 "consumes": [
                     "application/json"
                 ],
@@ -17910,14 +17905,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/UicomponentErrorDoc"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "consumes": [
                     "application/json"
                 ],
@@ -17964,16 +17959,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/UicomponentErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/ui-components/mine/{id}": {
-            "delete": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/ui-components/mine/{id}": {
+            "delete": {
                 "consumes": [
                     "application/json"
                 ],
@@ -18018,14 +18013,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/UicomponentErrorDoc"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "consumes": [
                     "application/json"
                 ],
@@ -18085,16 +18080,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/UicomponentErrorDoc"
                         }
                     }
-                }
-            }
-        },
-        "/user/settings": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/user/settings": {
+            "get": {
                 "description": "返回当前用户全部个人偏好配置，缺失项以默认值填充",
                 "produces": [
                     "application/json"
@@ -18116,14 +18111,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            },
-            "patch": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            },
+            "patch": {
                 "description": "批量更新用户个人偏好配置，返回更新后的全量配置",
                 "consumes": [
                     "application/json"
@@ -18165,16 +18160,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/Envelope"
                         }
                     }
-                }
-            }
-        },
-        "/user/stats/activity": {
-            "get": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
-                ],
+                ]
+            }
+        },
+        "/user/stats/activity": {
+            "get": {
                 "description": "查询当前用户按计费归属日聚合的模型请求数与 token 消耗，逐日补零",
                 "consumes": [
                     "application/json"
@@ -18213,7 +18208,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/UserErrorDoc"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/users/{public_id}/avatar": {
