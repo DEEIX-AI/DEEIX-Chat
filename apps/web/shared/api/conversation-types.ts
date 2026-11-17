@@ -52,7 +52,13 @@ import type {
   SendMessageResponse,
 } from "@deeix/api-contract";
 
-import type { DiscussionState } from "@/shared/api/discussion-types";
+import type {
+  DiscussionPlaceholder,
+  DiscussionRuntimeRound,
+  DiscussionRuntimeSummary,
+  DiscussionState,
+  DiscussionTurn,
+} from "@/shared/api/discussion-types";
 import type { UserStorageQuotaDTO } from "@/shared/api/file-types";
 
 export type ConversationDTO = ConversationResponse;
@@ -388,6 +394,45 @@ export type StreamMessageEvent =
       summary_preview: string;
     }
   | {
+      type: "discussion_start";
+      seq?: number;
+      template: string;
+      templateName: string;
+      placeholders?: DiscussionPlaceholder[];
+      rounds: DiscussionRuntimeRound[];
+      summary: DiscussionRuntimeSummary;
+    }
+  | {
+      type: "discussion_turn_delta";
+      seq?: number;
+      round: number;
+      stepId: string;
+      participant: string;
+      model: string;
+      delta: string;
+    }
+  | {
+      type: "discussion_turn_done";
+      seq?: number;
+      turn: DiscussionTurn;
+    }
+  | {
+      type: "discussion_round_done";
+      seq?: number;
+      round: number;
+      turns: DiscussionTurn[];
+    }
+  | {
+      type: "discussion_summary_delta";
+      seq?: number;
+      delta: string;
+    }
+  | {
+      type: "discussion_done";
+      seq?: number;
+      state: DiscussionState;
+    }
+  | {
       type: "error";
       seq?: number;
       status?: number;
@@ -397,3 +442,6 @@ export type StreamMessageEvent =
       debug?: UpstreamDebugInfo;
       data?: SendMessageResult;
     };
+
+/** Progress of a multi-model discussion run: rounds stream while the summary is generated last. */
+export type DiscussionStreamEvent = Extract<StreamMessageEvent, { type: `discussion_${string}` }>;

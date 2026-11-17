@@ -7,6 +7,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { ChatSubmitTask } from "@/features/chat/model/chat-task";
 import { buildMediaImagePreviewMarkdown } from "@/features/chat/model/media-image-preview";
+import { applyDiscussionEvent } from "@/features/chat/model/discussion-stream";
 import { mergeProcessTraceSnapshot, toPendingProcessTrace } from "@/features/chat/model/message-submit";
 import { settleCompletedExchange } from "@/features/chat/model/message-submit-exchange";
 import {
@@ -163,6 +164,32 @@ export function useChatRunStream({
               summary_preview: event.summary_preview,
             },
           }));
+        },
+        onDiscussionEvent: (event) => {
+          if (event.type === "discussion_summary_delta") {
+            // The summary is the assistant message body; the final delta replaces this preview.
+            updatePendingExchange(exchangeKey, (current) =>
+              current.assistantFileProc
+                ? { ...current, assistantFileProc: false, assistantActivityLabel: undefined }
+                : current,
+            );
+            enqueueStreamText(exchangeKey, event.delta);
+            return;
+          }
+          updatePendingExchange(exchangeKey, (current) => {
+            const discussion = applyDiscussionEvent(current.assistantDiscussion, event);
+            if (!discussion) {
+              return current;
+            }
+            return {
+              ...current,
+              assistantDiscussion: discussion,
+              assistantPending: false,
+              assistantStreaming: discussion.status === "running" || discussion.status === "summarizing",
+              assistantFileProc: false,
+              assistantActivityLabel: undefined,
+            };
+          });
         },
         onProcessUpdate: (event) => {
           updatePendingExchange(exchangeKey, (current) => ({

@@ -5,6 +5,7 @@ import { Check, ChevronDown, ChevronRight, Loader2, Minus, Users, X } from "luci
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import type { DiscussionState, DiscussionTurn } from "@/shared/api/discussion-types";
 import {
   discussionPlaceholderLabels,
@@ -24,17 +25,6 @@ function statusClass(status: string): string {
   }
 }
 
-function turnStatusClass(status: string): string {
-  switch (status) {
-    case "error":
-      return "border-rose-200 bg-rose-50/60 dark:border-rose-900/60 dark:bg-rose-950/20";
-    case "running":
-      return "border-sky-200 bg-sky-50/60 dark:border-sky-900/60 dark:bg-sky-950/20";
-    default:
-      return "border-border/60 bg-background/60";
-  }
-}
-
 function usageSeconds(latencyMs?: number): number {
   return latencyMs && latencyMs > 0 ? Math.round(latencyMs / 100) / 10 : 0;
 }
@@ -48,13 +38,13 @@ function usageText(format: UsageFormat, turn: DiscussionTurn): string {
 function usageCellClass(status: string): string {
   switch (status) {
     case "completed":
-      return "border-border/60 bg-background/60";
+      return "border-border/60 bg-background/60 hover:border-primary/40";
     case "error":
-      return "border-rose-200 bg-rose-50/60 dark:border-rose-900/60 dark:bg-rose-950/20";
+      return "border-rose-200 bg-rose-50/60 dark:border-rose-900/60 dark:bg-rose-950/20 hover:border-rose-300";
     case "running":
-      return "border-sky-200 bg-sky-50/60 dark:border-sky-900/60 dark:bg-sky-950/20";
+      return "border-sky-200 bg-sky-50/60 dark:border-sky-900/60 dark:bg-sky-950/20 hover:border-sky-300";
     default:
-      return "border-dashed border-border/50 bg-transparent";
+      return "border-dashed border-border/50 bg-transparent hover:border-border";
   }
 }
 
@@ -74,7 +64,9 @@ function usageStatusMark(status: string) {
 export function MessageDiscussion({ discussion }: { discussion?: DiscussionState }) {
   const t = useTranslations("chat.discussion");
   const [expanded, setExpanded] = React.useState(false);
-  const [selected, setSelected] = React.useState<string>("all");
+  // Which model speaks for a round: absent means "follow the round" (first running or first model).
+  const [selectedByRound, setSelectedByRound] = React.useState<Record<number, string>>({});
+  const roundRefs = React.useRef(new Map<number, HTMLDivElement>());
 
   const turns = React.useMemo(() => discussion?.turns ?? [], [discussion?.turns]);
   const placeholders = React.useMemo(() => discussion?.placeholders ?? [], [discussion?.placeholders]);
@@ -98,28 +90,31 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
     (participant: string, model?: string) => labels.get(participant) || model?.trim() || participant,
     [labels],
   );
-  const participants = React.useMemo(() => {
-    // The summary model is a placeholder too, but it never speaks inside a round: only speakers get a tab.
-    const speakers = new Set(modelsByParticipant.keys());
-    for (const turn of turns) {
-      speakers.add(turn.participant);
-    }
-    const ordered = orderDiscussionPlaceholders(placeholders, discussion?.summary?.participant ?? "");
-    const names = ordered
-      .filter((placeholder) => speakers.has(placeholder.key))
-      .map((placeholder) => ({
-        key: placeholder.key,
-        label: speakerName(placeholder.key, modelsByParticipant.get(placeholder.key)),
-        model: modelsByParticipant.get(placeholder.key) ?? placeholder.defaultModel ?? "",
-      }));
-    const named = new Set(names.map((item) => item.key));
-    for (const [key, model] of modelsByParticipant) {
-      if (!named.has(key)) {
-        names.push({ key, label: model || key, model });
-      }
-    }
-    return names;
-  }, [discussion?.summary?.participant, modelsByParticipant, placeholders, speakerName, turns]);
+  // Discussion models always read 模型 1 … 模型 n, whatever order a round stored its steps in.
+  const placeholderOrder = React.useMemo(() => {
+    const order = new Map<string, number>();
+    orderDiscussionPlaceholders(placeholders, discussion?.summary?.participant ?? "").forEach((item, index) => {
+      order.set(item.key, index);
+    });
+    return order;
+  }, [discussion?.summary?.participant, placeholders]);
+  const orderedSteps = React.useCallback(
+    (round: NonNullable<DiscussionState["rounds"]>[number]) =>
+      [...round.steps].sort(
+        (left, right) =>
+          (placeholderOrder.get(left.participant) ?? Number.MAX_SAFE_INTEGER) -
+          (placeholderOrder.get(right.participant) ?? Number.MAX_SAFE_INTEGER),
+      ),
+    [placeholderOrder],
+  );
+  const turnOf = React.useCallback(
+    (round: number, stepId: string, participant: string) =>
+      turns.find(
+        (turn) =>
+          turn.round === round && (turn.stepId === stepId || (!turn.stepId && turn.participant === participant)),
+      ),
+    [turns],
+  );
 
   if (!discussion?.enabled) {
     return null;
@@ -137,8 +132,25 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
           : status === "summarizing"
             ? t("statusSummarizing")
             : t("statusRunning");
-  const visibleTurns: DiscussionTurn[] =
-    selected === "all" ? turns : turns.filter((turn) => turn.participant === selected);
+  const participantCount = Math.max(
+    new Set(modelsByParticipant.keys()).size,
+    Math.max(labels.size - 1, 0),
+  );
+
+  const scrollToRound = (round: number) => {
+    roundRefs.current.get(round)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+  const showRoundModel = (round: number, participant: string) => {
+    setSelectedByRound((current) => ({ ...current, [round]: participant }));
+    scrollToRound(round);
+  };
+  const resetSelection = () => {
+    setSelectedByRound({});
+    const first = discussion.rounds[0]?.index;
+    if (first !== undefined) {
+      scrollToRound(first);
+    }
+  };
 
   return (
     <div className="my-3 overflow-hidden rounded-xl border border-border/60 bg-muted/20 text-sm">
@@ -160,7 +172,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
               {t("rounds", { count: discussion.rounds.length })}
             </span>
             <span className="rounded-full bg-muted px-2 py-0.5">
-              {t("participants", { count: participants.length })}
+              {t("participants", { count: participantCount })}
             </span>
             {discussion.summary?.model ? (
               <span className="rounded-full bg-muted px-2 py-0.5">
@@ -179,43 +191,116 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
         </button>
       </div>
 
+      {/* One utterance per round: the round streams in the transcript like any other assistant turn. */}
+      {discussion.rounds.map((round) => {
+        const steps = orderedSteps(round);
+        const turnsOfRound = steps
+          .map((step) => ({ step, turn: turnOf(round.index, step.id, step.participant) }))
+          .filter((item) => item.turn);
+        const preferred = selectedByRound[round.index];
+        const active =
+          steps.find((step) => step.participant === preferred) ??
+          turnsOfRound.find((item) => item.turn?.status === "running")?.step ??
+          turnsOfRound.find((item) => item.turn?.content)?.step ??
+          steps[0];
+        const activeTurn = active ? turnOf(round.index, active.id, active.participant) : undefined;
+        const roundStatuses = steps.map(
+          (step) => turnOf(round.index, step.id, step.participant)?.status ?? "pending",
+        );
+        const roundStatus = roundStatuses.some((item) => item === "running")
+          ? "running"
+          : roundStatuses.every((item) => item === "error")
+            ? "failed"
+            : roundStatuses.every((item) => item === "completed" || item === "error")
+              ? "done"
+              : "pending";
+        return (
+          <div
+            key={`round-speech-${round.index}`}
+            ref={(node) => {
+              if (node) {
+                roundRefs.current.set(round.index, node);
+              } else {
+                roundRefs.current.delete(round.index);
+              }
+            }}
+            className="border-t border-border/50 px-3 py-2.5"
+          >
+            <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-xs font-medium text-foreground">{t("round", { round: round.index })}</span>
+              <span className="text-[10px] text-muted-foreground">
+                {roundStatus === "running"
+                  ? t("thinking")
+                  : roundStatus === "failed"
+                    ? t("failed")
+                    : roundStatus === "done"
+                      ? t("done")
+                      : t("pendingTurn")}
+              </span>
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+                {steps.map((step) => {
+                  const turn = turnOf(round.index, step.id, step.participant);
+                  const isActive = active?.participant === step.participant;
+                  return (
+                    <button
+                      key={`round-${round.index}-${step.id}`}
+                      type="button"
+                      className={cn(
+                        "inline-flex max-w-56 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                        isActive
+                          ? "border-primary/50 bg-primary/10 text-primary"
+                          : "border-border/60 text-muted-foreground hover:text-foreground",
+                      )}
+                      title={step.model}
+                      onClick={() => showRoundModel(round.index, step.participant)}
+                    >
+                      <span className="truncate">{speakerName(step.participant, step.model)}</span>
+                      <span className="truncate font-mono text-[10px] opacity-70">{step.model || "—"}</span>
+                      <span className="shrink-0">{usageStatusMark(turn?.status ?? "pending")}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {activeTurn?.error ? (
+              <p className="whitespace-pre-wrap break-words text-xs leading-6 text-rose-600 dark:text-rose-300">
+                {activeTurn.error}
+              </p>
+            ) : activeTurn?.content ? (
+              <div className="text-sm leading-7 text-foreground/90">
+                <StreamdownRender content={activeTurn.content} streaming={activeTurn.status === "running"} />
+              </div>
+            ) : (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                {activeTurn?.status === "running" ? <Loader2 className="size-3 animate-spin" /> : null}
+                {activeTurn?.status === "running" ? t("thinking") : t("pendingTurn")}
+              </p>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="flex items-center gap-1.5 border-t border-border/50 bg-primary/5 px-3 py-1.5 text-[11px]">
+        <span className="shrink-0 font-medium text-foreground">{t("summaryBadge")}</span>
+        <span className="truncate font-mono text-muted-foreground">{discussion.summary?.model || "—"}</span>
+        <span className="ml-auto shrink-0 text-muted-foreground">
+          {discussion.finalContent ? t("done") : status === "summarizing" ? t("statusSummarizing") : t("pendingTurn")}
+        </span>
+      </div>
+
       {expanded ? (
         <div className="border-t border-border/50 px-3 py-2.5">
           <div className="mb-2 flex flex-wrap gap-1.5">
             <button
               type="button"
-              className={cn(
-                "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-                selected === "all"
-                  ? "border-primary/50 bg-primary/10 text-primary"
-                  : "border-border/60 text-muted-foreground hover:text-foreground",
-              )}
-              onClick={() => setSelected("all")}
+              className="rounded-full border border-primary/50 bg-primary/10 px-3 py-1.5 text-xs text-primary transition-colors"
+              onClick={resetSelection}
             >
               {t("all")}
             </button>
-            {participants.map((participant) => (
-              <button
-                key={participant.key}
-                type="button"
-                className={cn(
-                  "inline-flex max-w-64 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-                  selected === participant.key
-                    ? "border-primary/50 bg-primary/10 text-primary"
-                    : "border-border/60 text-muted-foreground hover:text-foreground",
-                )}
-                onClick={() => setSelected(participant.key)}
-                title={participant.model || participant.label}
-              >
-                <span className="truncate">{participant.label}</span>
-                {participant.model && participant.model !== participant.label ? (
-                  <span className="truncate font-mono text-[10px] opacity-70">{participant.model}</span>
-                ) : null}
-              </button>
-            ))}
           </div>
 
-          {/* One row per round, one cell per model: the whole run is visible without scrolling. */}
+          {/* One row per round, one cell per model: clicking a cell opens that model's turn. */}
           <p className="mb-1 text-[10px] font-medium text-muted-foreground">{t("roundUsage")}</p>
           <div className="mb-2 space-y-1">
             {discussion.rounds.map((round) => (
@@ -224,20 +309,20 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                   {t("round", { round: round.index })}
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  {round.steps.map((step) => {
-                    const turn = turns.find(
-                      (item) =>
-                        item.round === round.index &&
-                        (item.stepId === step.id || item.participant === step.participant),
-                    );
-                    const status = turn?.status ?? "pending";
+                  {orderedSteps(round).map((step) => {
+                    const turn = turnOf(round.index, step.id, step.participant);
+                    const turnStatus = turn?.status ?? "pending";
+                    const isActive = selectedByRound[round.index] === step.participant;
                     return (
-                      <div
+                      <button
                         key={`usage-${round.index}-${step.id}`}
+                        type="button"
                         className={cn(
-                          "flex min-w-36 flex-1 flex-col gap-0.5 rounded-md border px-1.5 py-1",
-                          usageCellClass(status),
+                          "flex min-w-36 flex-1 flex-col gap-0.5 rounded-md border px-1.5 py-1 text-left transition-colors",
+                          usageCellClass(turnStatus),
+                          isActive && "ring-1 ring-primary/50",
                         )}
+                        onClick={() => showRoundModel(round.index, step.participant)}
                       >
                         <div className="flex min-w-0 items-center gap-1">
                           <span className="truncate text-[11px] font-medium text-foreground">
@@ -246,54 +331,19 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                           <span className="truncate font-mono text-[10px] text-muted-foreground">
                             {step.model || "—"}
                           </span>
-                          <span className="ml-auto shrink-0">{usageStatusMark(status)}</span>
+                          <span className="ml-auto shrink-0">{usageStatusMark(turnStatus)}</span>
                         </div>
                         <span className="tabular-nums text-[10px] text-muted-foreground">
-                          {turn ? usageText((input, output, seconds) => t("usage", { input, output, seconds }), turn) : t("pendingTurn")}
+                          {turn
+                            ? usageText((input, output, seconds) => t("usage", { input, output, seconds }), turn)
+                            : t("pendingTurn")}
                         </span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
               </div>
             ))}
-            <div className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2 py-1 text-[10px]">
-              <span className="shrink-0 font-medium text-foreground">{t("summaryBadge")}</span>
-              <span className="truncate font-mono text-muted-foreground">{discussion.summary?.model || "—"}</span>
-              {discussion.finalContent ? (
-                <span className="ml-auto shrink-0 text-muted-foreground">{t("done")}</span>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-            {visibleTurns.length === 0 ? (
-              <p className="py-3 text-xs text-muted-foreground">{t("empty")}</p>
-            ) : (
-              visibleTurns.map((turn, index) => (
-                <div
-                  key={`${turn.round}-${turn.stepId}-${index}`}
-                  className={cn("rounded-lg border px-2.5 py-2", turnStatusClass(turn.status))}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      {t("round", { round: turn.round })} ·{" "}
-                      {speakerName(turn.participant, turn.model)}
-                    </span>
-                    {turn.model ? <span className="font-mono text-[10px]">{turn.model}</span> : null}
-                    <span>
-                      {turn.status === "running" ? t("thinking") : turn.status === "error" ? t("failed") : t("done")}
-                      {turn.inputTokens || turn.outputTokens || turn.latencyMs
-                        ? ` · ${usageText((input, output, seconds) => t("usage", { input, output, seconds }), turn)}`
-                        : ""}
-                    </span>
-                  </div>
-                  <div className="mt-1 whitespace-pre-wrap break-words text-xs leading-6 text-foreground/90">
-                    {turn.error || turn.content || "…"}
-                  </div>
-                </div>
-              ))
-            )}
           </div>
         </div>
       ) : null}

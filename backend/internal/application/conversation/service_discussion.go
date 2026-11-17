@@ -131,6 +131,7 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 	emit("discussion_start", map[string]any{
 		"template":     template.PublicID,
 		"templateName": template.Name,
+		"placeholders": cfg.Placeholders,
 		"rounds":       plan.Rounds,
 		"summary":      plan.Summary,
 	})
@@ -241,7 +242,8 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 	_ = s.repo.UpdateMessageState(ctx, pair.user.ID, "success", "", "")
 
 	if finalText != "" {
-		emit("delta", map[string]any{"delta": finalText})
+		// The summary already streamed as discussion_summary_delta; this replaces the preview.
+		emit("delta", map[string]any{"delta": finalText, "replace": true})
 	}
 	emit("discussion_done", map[string]any{"state": state})
 	return &SendMessageResult{

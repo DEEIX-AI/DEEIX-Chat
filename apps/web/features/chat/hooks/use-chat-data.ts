@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { buildMediaImagePreviewMarkdown } from "@/features/chat/model/media-image-preview";
+import { applyDiscussionEvent } from "@/features/chat/model/discussion-stream";
 import { mergeProcessTraceSnapshot } from "@/features/chat/model/message-submit";
 import { upsertLiveUpstreamThinkTrace } from "@/features/chat/model/upstream-think-store";
 import { cancelMessageGeneration, listMessagesPage, resumeMessageGenerationStream } from "@/shared/api/conversation";
@@ -435,6 +436,32 @@ export function useChatData(
               messages: prev.messages.map((message) =>
                 message.runID === pendingRunID && message.role === "assistant" && message.status === "pending"
                   ? { ...message, processTrace: event.trace ? mergeProcessTraceSnapshot(message.processTrace, event.trace) : message.processTrace }
+                  : message,
+              ),
+            }));
+          },
+          onDiscussionEvent: (event) => {
+            if (isResumeInactive()) {
+              return;
+            }
+            if (event.type === "discussion_summary_delta") {
+              const nextContent = `${resumedTextByRun[pendingRunID] ?? ""}${event.delta}`;
+              resumedTextByRun[pendingRunID] = nextContent;
+              updateResumeState((prev) => ({
+                ...prev,
+                messages: prev.messages.map((message) =>
+                  message.runID === pendingRunID && message.role === "assistant"
+                    ? { ...message, content: nextContent }
+                    : message,
+                ),
+              }));
+              return;
+            }
+            updateResumeState((prev) => ({
+              ...prev,
+              messages: prev.messages.map((message) =>
+                message.runID === pendingRunID && message.role === "assistant"
+                  ? { ...message, discussion: applyDiscussionEvent(message.discussion, event) ?? message.discussion }
                   : message,
               ),
             }));

@@ -27,6 +27,7 @@ import type {
   CreateConversationRequest,
   CreateConversationShareRequest,
   DeleteConversationData,
+  DiscussionStreamEvent,
   MediaImageRequest,
   MediaVideoExtensionRequest,
   MediaVideoRequest,
@@ -189,6 +190,12 @@ const STREAM_MESSAGE_EVENT_TYPES = [
   "moderation_checking",
   "moderation_blocked",
   "compact_done",
+  "discussion_start",
+  "discussion_turn_delta",
+  "discussion_turn_done",
+  "discussion_round_done",
+  "discussion_summary_delta",
+  "discussion_done",
   "error",
 ] as const satisfies readonly StreamMessageEvent["type"][];
 
@@ -348,6 +355,18 @@ function handleStreamEvent(event: ParsedStreamEvent, options: ConversationStream
     return null;
   }
 
+  if (
+    event.type === "discussion_start" ||
+    event.type === "discussion_turn_delta" ||
+    event.type === "discussion_turn_done" ||
+    event.type === "discussion_round_done" ||
+    event.type === "discussion_summary_delta" ||
+    event.type === "discussion_done"
+  ) {
+    options.onDiscussionEvent?.(event);
+    return null;
+  }
+
   if (event.type === "process_update") {
     options.onProcessUpdate?.(event);
     return null;
@@ -405,15 +424,16 @@ function handleStreamEvent(event: ParsedStreamEvent, options: ConversationStream
       options.onInterrupted?.(event);
       return event.data;
     }
+    throw new ApiError(
+      event.message || "stream failed",
+      event.status ?? responseStatus,
+      event.debug,
+      event.errorCode,
+      event.requestId,
+    );
   }
 
-  throw new ApiError(
-    event.message || "stream failed",
-    event.status ?? responseStatus,
-    event.debug,
-    event.errorCode,
-    event.requestId,
-  );
+  throw new ApiError("stream failed", responseStatus);
 }
 
 type ListConversationsOptions = {
@@ -1305,6 +1325,7 @@ export type ConversationStreamOptions = {
   onMediaStatus?: (event: Extract<StreamMessageEvent, { type: "media_status" }>) => void;
   onMediaImageDelta?: (event: Extract<StreamMessageEvent, { type: "media_image_delta" }>) => void;
   onCompactDone?: (event: CompactDoneEvent) => void;
+  onDiscussionEvent?: (event: DiscussionStreamEvent) => void;
   onProcessUpdate?: (event: Extract<StreamMessageEvent, { type: "process_update" }>) => void;
   onUpstreamThinkDelta?: (event: Extract<StreamMessageEvent, { type: "upstream_think_delta" }>) => void;
   onUsage?: (event: Extract<StreamMessageEvent, { type: "usage" }>) => void;

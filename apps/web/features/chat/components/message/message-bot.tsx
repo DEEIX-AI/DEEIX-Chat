@@ -320,6 +320,10 @@ export function ChatMessageBot({
   const hasTraceBlocks = hasTraceEvents || Boolean(upstreamThink) || Boolean(toolTrace);
   const isImageGenerationLoading = item.contentType === "image" && item.isStreaming && !hasStreamdownContent;
   const isVideoGenerationLoading = item.contentType === "video" && item.isStreaming && !hasStreamdownContent;
+  // A discussion speaks round by round inside its panel, so an empty body is not an empty answer.
+  const discussionSpeaking = Boolean(
+    item.discussion?.enabled && (item.discussion.status === "running" || item.discussion.status === "summarizing"),
+  );
   const editableImageAttachments = React.useMemo(
     () => (item.attachments ?? []).filter(isEditableImageAttachment),
     [item.attachments],
@@ -437,7 +441,7 @@ export function ChatMessageBot({
           <AssistantImageGenerationSkeleton label={item.activityLabel} aspectRatio={item.imageAspectRatio} />
         ) : isVideoGenerationLoading && !item.inlineAlert ? (
           <AssistantVideoGenerationSkeleton label={item.activityLabel} />
-        ) : item.isStreaming && !hasStreamdownContent && !item.inlineAlert ? (
+        ) : item.isStreaming && !hasStreamdownContent && !item.inlineAlert && !discussionSpeaking ? (
           <AssistantMessageSkeleton fileProc={item.isFileProc} label={item.activityLabel} />
         ) : leadingImagePending ? (
           <AssistantImageGenerationSkeleton label={leadingImageAlt} aspectRatio={item.imageAspectRatio} />
