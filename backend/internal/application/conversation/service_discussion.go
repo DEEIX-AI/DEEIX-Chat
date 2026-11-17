@@ -280,7 +280,8 @@ func (s *Service) runDiscussionTurn(
 	}
 	userContent := "用户问题：\n" + strings.TrimSpace(input.Content)
 	if transcript != "" {
-		userContent += "\n\n已有讨论：\n" + transcript
+		// From the second round on, every model sees the previous round and all earlier rounds.
+		userContent += "\n\n上一轮及更早的讨论记录：\n" + transcript
 	}
 	messages := []llm.Message{
 		{Role: "system", Content: prompt},
@@ -414,10 +415,16 @@ func discussionTranscript(turns []domaindiscussion.Turn) string {
 			if builder.Len() > 0 {
 				builder.WriteString("\n")
 			}
-			builder.WriteString(fmt.Sprintf("Round %d\n", turn.Round))
+			builder.WriteString(fmt.Sprintf("第 %d 轮\n", turn.Round))
 			currentRound = turn.Round
 		}
-		builder.WriteString(fmt.Sprintf("- %s (%s): %s\n", turn.Participant, turn.Model, content))
+		// The speaker is named by its model: participants are internal placeholder keys and must
+		// not leak into the prompt. A turn without a model falls back to the key it was planned with.
+		speaker := strings.TrimSpace(turn.Model)
+		if speaker == "" {
+			speaker = turn.Participant
+		}
+		builder.WriteString(fmt.Sprintf("- %s: %s\n", speaker, content))
 		if builder.Len() > discussionMaxTranscriptRunes {
 			break
 		}

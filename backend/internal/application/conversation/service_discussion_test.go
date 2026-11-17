@@ -17,8 +17,12 @@ func TestDiscussionTranscriptSkipsFailedTurns(t *testing.T) {
 	if strings.Contains(text, "model-b") {
 		t.Fatalf("failed turn leaked into transcript: %s", text)
 	}
-	if !strings.Contains(text, "Round 1") || !strings.Contains(text, "Round 2") {
+	if !strings.Contains(text, "第 1 轮") || !strings.Contains(text, "第 2 轮") {
 		t.Fatalf("expected round headings, got %s", text)
+	}
+	// The speaker is named by its model, never by the internal placeholder key.
+	if !strings.Contains(text, "- model-a: A1") || strings.Contains(text, "p1") {
+		t.Fatalf("expected model-named speakers, got %s", text)
 	}
 	if !strings.Contains(text, "A1") || !strings.Contains(text, "A2") {
 		t.Fatalf("expected successful content, got %s", text)
