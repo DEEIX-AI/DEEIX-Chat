@@ -5,12 +5,7 @@ import { GripVertical, Plus, Save, Trash2, Workflow } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
-import {
-  createAdminDiscussionTemplate,
-  deleteAdminDiscussionTemplate,
-  listAdminDiscussionTemplates,
-  updateAdminDiscussionTemplate,
-} from "@/shared/api/discussion";
+import { useAdminDiscussionsTemplates } from "@/features/admin/hooks/use-admin-discussions-templates";
 import type {
   DiscussionPlaceholder,
   DiscussionRound,
@@ -18,9 +13,6 @@ import type {
   DiscussionTemplateConfig,
   DiscussionTemplateDTO,
 } from "@/shared/api/discussion-types";
-import { listPublicModels } from "@/shared/api/model";
-import type { PublicModelDTO } from "@/shared/api/model-types";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
 type Draft = {
   publicID?: string;
@@ -97,41 +89,25 @@ function normalizeRounds(rounds: DiscussionRound[]): DiscussionRound[] {
 
 export function AdminDiscussionsPage() {
   const t = useTranslations("adminDiscussions");
-  const [templates, setTemplates] = React.useState<DiscussionTemplateDTO[]>([]);
-  const [models, setModels] = React.useState<PublicModelDTO[]>([]);
+  const {
+    templates,
+    models,
+    loading,
+    error: requestError,
+    saveTemplate,
+    deleteTemplate,
+  } = useAdminDiscussionsTemplates();
   const [draft, setDraft] = React.useState<Draft>(createDraft());
-  const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const [error, setError] = React.useState("");
+  const [formError, setFormError] = React.useState("");
   const [dragRound, setDragRound] = React.useState<number | null>(null);
   const [dragStep, setDragStep] = React.useState<{ round: number; step: number } | null>(null);
 
   React.useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const token = await resolveAccessToken();
-        if (!token) return;
-        const [items, modelItems] = await Promise.all([
-          listAdminDiscussionTemplates(token),
-          listPublicModels(token).catch((): PublicModelDTO[] => []),
-        ]);
-        if (cancelled) return;
-        setTemplates(items);
-        setModels(modelItems.filter((item) => !item.kindsJSON.includes("discussion")));
-        if (items[0]) {
-          setDraft(toDraft(items[0]));
-        }
-      } catch (err) {
-        if (!cancelled) setError(String(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!draft.publicID && templates[0]) {
+      setDraft(toDraft(templates[0]));
+    }
+  }, [draft.publicID, templates]);
 
   const updateConfig = (patch: Partial<DiscussionTemplateConfig>) => {
     setDraft((current) => ({ ...current, config: { ...current.config, ...patch } }));
@@ -290,56 +266,41 @@ export function AdminDiscussionsPage() {
   };
 
   const save = async () => {
-    setError("");
+    setFormError("");
     if (!draft.name.trim()) {
-      setError(t("nameRequired"));
+      setFormError(t("nameRequired"));
       return;
     }
     if (draft.config.placeholders.length === 0) {
-      setError(t("placeholderRequired"));
+      setFormError(t("placeholderRequired"));
       return;
     }
     if (draft.config.rounds.length === 0 || draft.config.rounds.some((round) => round.steps.length === 0)) {
-      setError(t("roundRequired"));
+      setFormError(t("roundRequired"));
       return;
     }
     setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) return;
-      const payload = {
-        name: draft.name.trim(),
-        description: draft.description.trim(),
-        icon: draft.icon.trim(),
-        status: draft.status,
-        maxRounds: Math.max(draft.maxRounds, draft.config.rounds.length),
-        sortOrder: draft.sortOrder,
-        config: { ...draft.config, rounds: normalizeRounds(draft.config.rounds) },
-      };
-      const saved = draft.publicID
-        ? await updateAdminDiscussionTemplate(token, draft.publicID, payload)
-        : await createAdminDiscussionTemplate(token, payload);
-      setTemplates((current) => {
-        const next = current.some((item) => item.publicID === saved.publicID)
-          ? current.map((item) => (item.publicID === saved.publicID ? saved : item))
-          : [...current, saved];
-        return next.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
-      });
+    const payload = {
+      name: draft.name.trim(),
+      description: draft.description.trim(),
+      icon: draft.icon.trim(),
+      status: draft.status,
+      maxRounds: Math.max(draft.maxRounds, draft.config.rounds.length),
+      sortOrder: draft.sortOrder,
+      config: { ...draft.config, rounds: normalizeRounds(draft.config.rounds) },
+    };
+    const saved = await saveTemplate(draft.publicID, payload);
+    if (saved) {
       setDraft(toDraft(saved));
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setSaving(false);
     }
+    setSaving(false);
   };
 
   const remove = async (publicID: string) => {
-    const token = await resolveAccessToken();
-    if (!token) return;
-    await deleteAdminDiscussionTemplate(token, publicID);
-    setTemplates((current) => current.filter((item) => item.publicID !== publicID));
-    if (draft.publicID === publicID) {
-      setDraft(createDraft());
+    if (await deleteTemplate(publicID)) {
+      if (draft.publicID === publicID) {
+        setDraft(createDraft());
+      }
     }
   };
 
@@ -417,7 +378,7 @@ export function AdminDiscussionsPage() {
                 className="h-9 w-full rounded-lg border border-border/70 bg-background px-3 outline-none focus:border-primary"
                 value={draft.status}
                 onChange={(event) =>
-                  setDraft((current) => ({ ...current, status: event.target.value as Draft["status"] }))
+                  setDraft((current) => ({ ...current, status: event.target.value === "inactive" ? "inactive" : "active" }))
                 }
               >
                 <option value="active">{t("active")}</option>
@@ -644,7 +605,7 @@ export function AdminDiscussionsPage() {
             </div>
           </div>
 
-          {error ? <p className="text-sm text-rose-500">{error}</p> : null}
+          {formError || requestError ? <p className="text-sm text-rose-500">{formError || requestError}</p> : null}
           <div className="flex items-center justify-end gap-2">
             <button
               type="button"
