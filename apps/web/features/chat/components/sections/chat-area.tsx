@@ -682,7 +682,7 @@ export function ChatArea({
 
       {selectionMode && screenshot ? (
         <div className={cn("px-3 pb-1 md:px-6")} data-screenshot-exclude="true">
-          <div className={cn("mx-auto w-full", contentWidthClassName)}>
+          <div className={cn("w-full", contentWidthClassName)}>
             <ChatScreenshotSelectionBar
               selectedCount={screenshot.selectedCount}
               totalCount={selectableMessagePublicIDs.length}
@@ -708,7 +708,7 @@ export function ChatArea({
             >
               <MessageScrollerContent
                 ref={messageContentRef}
-                className={cn("mx-auto w-full gap-0 pb-8 data-[screenshot-capturing=true]:pb-0", contentWidthClassName)}
+                className={cn("w-full gap-0 pb-8 data-[screenshot-capturing=true]:pb-0", contentWidthClassName)}
                 style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
               >
                 <ChatScreenshotBrandMark placement="top" />
@@ -881,7 +881,7 @@ export function ChatAreaSkeleton({
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden px-3 pb-8 pt-2 md:px-6">
-        <div className={cn("mx-auto w-full space-y-6", contentWidthClassName)}>
+        <div className={cn("w-full space-y-6", contentWidthClassName)}>
           <ChatUserMessageSkeleton widthClassName="w-[min(26rem,70%)] max-sm:w-[88%]" />
 
           <ChatAssistantMessageSkeleton />

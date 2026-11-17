@@ -403,7 +403,8 @@
       "width": {
         "compact": "紧凑",
         "standard": "标准",
-        "wide": "宽屏"
+        "wide": "宽屏",
+        "full": "全宽"
       },
       "chatFont": "对话字体",
       "chatFontWeight": "对话字重",
@@ -418,6 +419,11 @@
         "medium": "中等",
         "semibold": "半粗",
         "bold": "粗体"
+      },
+      "alignTitle": "对话区对齐",
+      "align": {
+        "center": "居中",
+        "left": "左对齐"
       }
     },
     "context": {

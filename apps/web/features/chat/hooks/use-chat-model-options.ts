@@ -31,7 +31,7 @@ import {
   parseProtocolsJSON,
   resolveModelProviderIcon,
 } from "@/entities/model";
-import { type ChatContentWidth, parseChatContentWidth, useUserSettings } from "@/entities/user-settings";
+import { type ChatContentAlign, type ChatContentWidth, parseChatContentAlign, parseChatContentWidth, useUserSettings } from "@/entities/user-settings";
 import { resolveConversationDefaultModel } from "@/entities/conversation";
 import { isOneOf, isRecord, parseJSON } from "@/shared/lib/type-guards";
 
@@ -56,6 +56,10 @@ function parseJSONObject(raw: string): Record<string, unknown> | null {
 
 function resolveChatContentWidth(settings: Record<string, string>): ChatContentWidth {
   return parseChatContentWidth(settings["chat.content_width"]);
+}
+
+function resolveChatContentAlign(settings: Record<string, string>): ChatContentAlign {
+  return parseChatContentAlign(settings["chat.content_align"]);
 }
 
 function normalizeNativeToolPayload(value: unknown): Record<string, unknown> {
@@ -433,6 +437,7 @@ export function useChatModelOptions({
       ? userSettings["chat.input_height"]
       : "standard";
   const contentWidth: ChatContentWidth = resolveChatContentWidth(userSettings);
+  const contentAlign: ChatContentAlign = resolveChatContentAlign(userSettings);
   const markdownRender = userSettings["chat.markdown_render"] !== "false";
   const showModelInfo = userSettings["chat.show_model_info"] !== "false";
   const showLatency = userSettings["chat.show_latency"] !== "false";
@@ -492,7 +497,6 @@ export function useChatModelOptions({
     if (!normalizedName) {
       return null;
     }
-
     const catalog = await refreshModelCatalog();
     const nextModel = catalog.models.find((item) => item.platformModelName === normalizedName);
     return nextModel ? toChatModelOption(nextModel, catalog.modelOptionPolicy?.nativeTools ?? []) : null;
@@ -668,6 +672,7 @@ export function useChatModelOptions({
     preserveConversationDrafts,
     inputHeight,
     contentWidth,
+    contentAlign,
     markdownRender,
     showModelInfo,
     showLatency,

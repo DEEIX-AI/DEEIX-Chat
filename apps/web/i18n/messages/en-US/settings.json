@@ -403,7 +403,8 @@
       "width": {
         "compact": "Compact",
         "standard": "Standard",
-        "wide": "Wide"
+        "wide": "Wide",
+        "full": "Full width"
       },
       "chatFont": "Chat font",
       "chatFontWeight": "Chat font weight",
@@ -418,6 +419,11 @@
         "medium": "Medium",
         "semibold": "Semibold",
         "bold": "Bold"
+      },
+      "alignTitle": "Chat alignment",
+      "align": {
+        "center": "Center",
+        "left": "Left"
       }
     },
     "context": {

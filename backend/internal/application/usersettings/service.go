@@ -34,6 +34,7 @@ var allowedKeys = map[string]string{
 	"chat.reasoning_content_passback":           "true",
 	"chat.input_height":                         "standard",
 	"chat.content_width":                        "compact",
+	"chat.content_align":                        "center",
 	"chat.default_mcp_tool_ids":                 "[]",
 	"chat.model_control_placements":             "{}",
 }
@@ -63,7 +64,8 @@ var enumKeys = map[string]map[string]bool{
 	"chat.file_mode":     {"auto": true, "full_context": true, "rag": true},
 	"chat.send_on_enter": {"enter": true, "ctrl_enter": true, "meta_enter": true},
 	"chat.input_height":  {"compact": true, "standard": true, "loose": true},
-	"chat.content_width": {"compact": true, "standard": true, "wide": true},
+	"chat.content_width": {"compact": true, "standard": true, "wide": true, "full": true},
+	"chat.content_align": {"center": true, "left": true},
 }
 
 // validateValue 校验 key 对应 value 的合法性。

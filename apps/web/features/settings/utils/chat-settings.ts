@@ -1,4 +1,4 @@
-import { parseChatContentWidth } from "@/entities/user-settings";
+import { parseChatContentAlign, parseChatContentWidth } from "@/entities/user-settings";
 import type { ChatInputHeight, ChatSettings, FileMode, ModelPresentationGroup, SendShortcut } from "@/features/settings/types/settings";
 import type { UserSettingsMap } from "@/shared/api/user-settings";
 import type { PublicModelDTO } from "@/shared/api/model-types";
@@ -31,6 +31,7 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   reasoningContentPassback: true,
   inputHeight: "standard",
   contentWidth: "compact",
+  contentAlign: "center",
   fileMode: "auto",
 };
 
@@ -38,6 +39,7 @@ export function parseChatSettings(map: UserSettingsMap): ChatSettings {
   const fileMode = map["chat.file_mode"];
   const inputHeight = map["chat.input_height"];
   const contentWidth = map["chat.content_width"];
+  const contentAlign = map["chat.content_align"];
   const sendShortcut = map["chat.send_on_enter"];
 
   return {
@@ -61,6 +63,7 @@ export function parseChatSettings(map: UserSettingsMap): ChatSettings {
     reasoningContentPassback: map["chat.reasoning_content_passback"] !== "false",
     inputHeight: isChatInputHeight(inputHeight) ? inputHeight : "standard",
     contentWidth: parseChatContentWidth(contentWidth),
+    contentAlign: parseChatContentAlign(contentAlign),
     fileMode: isFileMode(fileMode) ? fileMode : "auto",
   };
 }

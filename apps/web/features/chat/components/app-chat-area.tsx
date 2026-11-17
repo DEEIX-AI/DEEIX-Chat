@@ -223,6 +223,7 @@ export function AppChatArea() {
     preserveConversationDrafts,
     inputHeight,
     contentWidth,
+    contentAlign,
     markdownRender,
     showModelInfo,
     showLatency,
@@ -823,7 +824,7 @@ export function AppChatArea() {
     onEditQueuedMessage,
     onGuideQueuedMessage,
   };
-  const chatContentWidthClassName = resolveChatContentWidthClassName(contentWidth);
+  const chatContentWidthClassName = resolveChatContentWidthClassName(contentWidth, contentAlign);
   const isConversationLoading = !temporaryMode && Boolean(conversationID) && loading && visibleMessageCount === 0 && displayMessages.length === 0;
   const isConversationLoadFailed = !temporaryMode && Boolean(conversationID) && !loading && errorMsg.trim().length > 0 && visibleMessageCount === 0;
   const shouldUseCenteredComposer =
@@ -959,7 +960,7 @@ export function AppChatArea() {
 
             {!isConversationLoadFailed ? (
               <div className="relative z-10 shrink-0 px-3 pb-3 md:px-6">
-                <div className={cn("mx-auto w-full", chatContentWidthClassName)}>
+                <div className={cn("w-full", chatContentWidthClassName)}>
                   <ChatInput {...chatInputProps} />
                 </div>
               </div>
