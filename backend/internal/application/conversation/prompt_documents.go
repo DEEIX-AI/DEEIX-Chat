@@ -1,12 +1,14 @@
 package conversation
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 // 对话文件的放置策略
@@ -38,8 +40,10 @@ const (
 const (
 	turnDocumentRetrievalNote   = "文件较大，未提供全文；需要时系统会按当前问题检索相关片段。"
 	turnDocumentUnavailableNote = "无法读取该文件的内容。"
-	turnDocumentNativeNote      = "原始文件已随此消息附上。"
-	turnDocumentUnsupportedNote = "当前模型不支持该类型的输入，未提供该文件。"
+	// turnDocumentTooLargeNoteFormat 用于超出全文注入上限且无法检索的文件（SkipReason=fullContextSkipTooLarge）。
+	turnDocumentTooLargeNoteFormat = "文件内容约 %d token，超出当前模型的全文注入上限，且无法按片段检索，未提供内容。"
+	turnDocumentNativeNote         = "原始文件已随此消息附上。"
+	turnDocumentUnsupportedNote    = "当前模型不支持该类型的输入，未提供该文件。"
 )
 
 // turnDocumentOptions 是与路由相关的放置选项：同一组文件在不同路由上可能以不同方式提供。
@@ -264,12 +268,21 @@ func renderTurnDocuments(documents []turnDocument) string {
 			builder.WriteString("</document>")
 		default:
 			builder.WriteString(" access=\"unavailable\">")
-			builder.WriteString(turnDocumentUnavailableNote)
+			builder.WriteString(turnDocumentUnavailableNoteFor(document.Attachment))
 			builder.WriteString("</document>")
 		}
 	}
 	builder.WriteString("\n</documents>")
 	return builder.String()
+}
+
+// turnDocumentUnavailableNoteFor 按未纳入原因给出说明：超出全文上限时写明文件规模，
+// 避免模型把「放不下」误判为文件损坏或格式不受支持。说明只取决于文件本身，跨轮字节一致。
+func turnDocumentUnavailableNoteFor(att AttachmentInput) string {
+	if att.SkipReason == fullContextSkipTooLarge {
+		return fmt.Sprintf(turnDocumentTooLargeNoteFormat, tokenestimate.Estimate(strings.TrimSpace(att.ExtractedText)))
+	}
+	return turnDocumentUnavailableNote
 }
 
 func turnDocumentsPart(documents []turnDocument) llm.ContentPart {

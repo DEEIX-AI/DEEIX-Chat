@@ -97,7 +97,7 @@ func (s *Service) StreamTemporaryChat(
 	for _, item := range input.Messages {
 		messages = append(messages, llm.Message{Role: item.Role, Content: item.Content})
 	}
-	attachmentContext, err := s.prepareTemporaryAttachmentContext(ctx, input, messages)
+	attachmentContext, err := s.prepareTemporaryAttachmentContext(ctx, input, messages, resolveFullContextLimits(cfg, route.UpstreamModel, route.ModelCapabilitiesJSON))
 	if input.ReleaseAttachmentSources != nil {
 		input.ReleaseAttachmentSources()
 	}

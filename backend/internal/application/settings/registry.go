@@ -193,7 +193,7 @@ var settingSpecs = []settingSpec{
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.FileFullContextLimitEnabled }, toBool)},
 	{Namespace: "file", Key: "file_full_context_max_bytes", ValueType: "int", Default: strconv.FormatInt(config.DefaultFileFullContextMaxBytes, 10), Description: "文本文件全文注入最大大小（管理页面按 MB 输入，内部以字节保存，默认2MB），留空或0表示不限制",
 		Validate: optionalInt64Min(0), Apply: applyField(func(c *config.Config) *int64 { return &c.FileFullContextMaxBytes }, toOptionalInt64)},
-	{Namespace: "file", Key: "full_context_max_tokens", ValueType: "int", Default: "65536", Description: "全文注入最大token预算，留空或0表示不限制",
+	{Namespace: "file", Key: "full_context_max_tokens", ValueType: "int", Default: "", Description: "单个文件全文发送给模型的最大 Token 数；系统还会按当前模型上下文大小自动限制（约 70%），两者取较小值，留空或0表示只按模型自动限制",
 		Validate: optionalIntZeroOrRange(128, 1000000), Apply: applyField(func(c *config.Config) *int { return &c.FileFullContextMaxTokens }, toOptionalInt)},
 	{Namespace: "file", Key: "image_max_bytes", ValueType: "int", Default: "", Description: "图片单文件大小上限（管理页面按 MB 输入，内部以字节保存），留空则回退默认附件大小上限",
 		Validate: optionalInt64Min(1), Apply: applyField(func(c *config.Config) *int64 { return &c.FileImageMaxBytes }, toOptionalInt64)},

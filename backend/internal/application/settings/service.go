@@ -112,6 +112,9 @@ func (s *Service) Seed(ctx context.Context) error {
 	if err := s.migrateDefaultAllowedMIMETypes(ctx); err != nil {
 		return err
 	}
+	if err := s.migrateLegacyFullContextMaxTokens(ctx); err != nil {
+		return err
+	}
 	return s.migrateDefaultModelOptionAllowedPaths(ctx)
 }
 
@@ -188,6 +191,22 @@ func (s *Service) resetToRegistryDefault(ctx context.Context, namespace string, 
 		return err
 	}
 	return s.repo.Upsert(ctx, updates)
+}
+
+// migrateLegacyFullContextMaxTokens 把仍停留在历史固定默认值 65536 的全文 Token 上限改为留空，
+// 让上限跟随模型上下文预算；管理员改过的值保持不变。
+func (s *Service) migrateLegacyFullContextMaxTokens(ctx context.Context) error {
+	items, err := listNamespaceSettings(ctx, s.repo, "file")
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if item.Key != "full_context_max_tokens" || strings.TrimSpace(item.Value) != legacyDefaultFullContextMaxTokens {
+			continue
+		}
+		return s.resetToRegistryDefault(ctx, "file", "full_context_max_tokens")
+	}
+	return nil
 }
 
 func (s *Service) migrateDefaultModelOptionAllowedPaths(ctx context.Context) error {

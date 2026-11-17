@@ -555,7 +555,7 @@ func TestSplitRetrievalFallbackAttachmentsRespectsFullContextBudget(t *testing.T
 			FileCategory:  "document",
 			ExtractedText: strings.Repeat("token ", 100),
 		},
-	}, cfg)
+	}, resolveFullContextLimits(cfg, "", ""))
 
 	if len(fallbacks) != 1 || fallbacks[0].FileID != "small" || fallbacks[0].ContextMode != fileContextModeRAGFallback {
 		t.Fatalf("expected only small file to fallback, got %#v", fallbacks)

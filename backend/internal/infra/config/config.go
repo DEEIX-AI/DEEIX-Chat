@@ -510,7 +510,7 @@ type Config struct {
 	ImageMaxDimension                 int    // 图片缩放最大边长（像素），0 = 不缩放
 	FileFullContextLimitEnabled       bool   // 是否启用全文注入阈值限制
 	FileFullContextMaxBytes           int64  // 文本文件全文注入阈值（字节），超出不注入
-	FileFullContextMaxTokens          int    // 文本文件全文注入阈值（token）
+	FileFullContextMaxTokens          int    // 文本文件全文注入绝对上限（token），0 表示只受模型上下文预算约束
 	FileImageMaxBytes                 int64  // 图片单文件上限（字节）
 	FileDocMaxBytes                   int64  // 文档单文件上限（字节）
 	FileFullContextPDFMaxPages        int    // PDF Full Context 页数上限，超出走 RAG
@@ -753,7 +753,7 @@ func Load() Config {
 		ImageMaxDimension:                 1024,
 		FileFullContextLimitEnabled:       true,
 		FileFullContextMaxBytes:           DefaultFileFullContextMaxBytes,
-		FileFullContextMaxTokens:          65536,
+		FileFullContextMaxTokens:          0,
 		FileImageMaxBytes:                 0,
 		FileDocMaxBytes:                   0,
 		FileFullContextPDFMaxPages:        20,

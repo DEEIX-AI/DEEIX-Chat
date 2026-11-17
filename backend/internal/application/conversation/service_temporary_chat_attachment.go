@@ -36,6 +36,7 @@ func (s *Service) prepareTemporaryAttachmentContext(
 	ctx context.Context,
 	input TemporaryChatInput,
 	messages []llm.Message,
+	limits fullContextLimits,
 ) (temporaryAttachmentContext, error) {
 	result := temporaryAttachmentContext{
 		messages: append([]llm.Message(nil), messages...),
@@ -133,7 +134,7 @@ func (s *Service) prepareTemporaryAttachmentContext(
 					ProcessingReady: true,
 					ExtractStatus:   "success",
 				}
-				if !canUseAttachmentFullContext(attachment, cfg) {
+				if !canUseAttachmentFullContext(attachment, limits) {
 					return ErrFileTooLargeForFullContext
 				}
 				// 与持久化会话一致：文件随所属轮次提供，而不是集中放在提示词开头。
