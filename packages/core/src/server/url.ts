@@ -48,12 +48,19 @@ export type ResolveApiBaseUrlInput = {
   configured?: string | null;
   /** Current page location for same-origin deployments. Absent outside a browser. */
   location?: { hostname: string; port: string; origin: string } | null;
+  /**
+   * Local-dev convention: a loopback page on a port other than 8080 (the dev
+   * server) talks to the Go server on 8080. Enable only for development builds;
+   * a production export is served by the Go server itself, on whatever host port
+   * it is published, so its own origin is always correct.
+   */
+  localDevApiPort?: boolean;
 };
 
 /**
  * Pick the API base URL in priority order: runtime override → build config →
- * same origin (with the local-dev convention that a non-8080 loopback page talks
- * to the Go server on 8080).
+ * same origin. With `localDevApiPort`, a non-8080 loopback page talks to the Go
+ * server on 8080 instead.
  */
 export function resolveApiBaseUrl(input: ResolveApiBaseUrlInput): string {
   const override = normalizeApiBaseUrl(input.runtimeOverride);
@@ -68,7 +75,7 @@ export function resolveApiBaseUrl(input: ResolveApiBaseUrlInput): string {
   if (!location) {
     return "";
   }
-  if (LOOPBACK_HOSTS.has(location.hostname) && location.port !== DEFAULT_DEV_API_PORT) {
+  if (input.localDevApiPort && LOOPBACK_HOSTS.has(location.hostname) && location.port !== DEFAULT_DEV_API_PORT) {
     const host = location.hostname === "::1" ? "[::1]" : location.hostname;
     return `http://${host}:${DEFAULT_DEV_API_PORT}`;
   }
