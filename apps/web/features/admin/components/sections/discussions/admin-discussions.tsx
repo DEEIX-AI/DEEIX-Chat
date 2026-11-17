@@ -11,7 +11,6 @@ import { DiscussionsWorkflowPreview } from "@/features/admin/components/sections
 import type {
   DiscussionPlaceholder,
   DiscussionRound,
-  DiscussionStep,
   DiscussionTemplateConfig,
   DiscussionTemplateDTO,
 } from "@/shared/api/discussion-types";
@@ -122,7 +121,6 @@ export function AdminDiscussionsPage() {
   const [formError, setFormError] = React.useState("");
   const [workflowOpen, setWorkflowOpen] = React.useState(false);
   const [dragRound, setDragRound] = React.useState<number | null>(null);
-  const [dragStep, setDragStep] = React.useState<{ round: number; step: number } | null>(null);
 
   React.useEffect(() => {
     if (!draft.publicID && templates[0]) {
@@ -136,6 +134,10 @@ export function AdminDiscussionsPage() {
     [draft.config.placeholders, summaryKey],
   );
   const discussionPlaceholders = orderedPlaceholders.filter((item) => item.key !== summaryKey);
+  const labels = React.useMemo(
+    () => discussionPlaceholderLabels(draft.config.placeholders, summaryKey),
+    [draft.config.placeholders, summaryKey],
+  );
 
   const updateConfig = (patch: Partial<DiscussionTemplateConfig>) => {
     setDraft((current) => ({ ...current, config: { ...current.config, ...patch } }));
@@ -167,6 +169,14 @@ export function AdminDiscussionsPage() {
             ...current.config.placeholders,
             { key, label: t("defaultModelLabel", { index }), defaultModel: "", required: true },
           ],
+          // A new discussion model joins every round with that round's prompt.
+          rounds: current.config.rounds.map((round) => ({
+            ...round,
+            steps: [
+              ...round.steps,
+              { id: newStepID(), participant: key, prompt: round.steps[0]?.prompt ?? "" },
+            ],
+          })),
         },
       };
     });
@@ -191,21 +201,45 @@ export function AdminDiscussionsPage() {
     });
   };
 
-  const updateStep = (roundIndex: number, stepIndex: number, patch: Partial<DiscussionStep>) => {
+  const roundPrompt = (round: DiscussionRound): string => round.steps[0]?.prompt ?? "";
+
+  const updateRoundPrompt = (roundIndex: number, prompt: string) => {
     setDraft((current) => ({
       ...current,
       config: {
         ...current.config,
         rounds: current.config.rounds.map((round, index) =>
           index === roundIndex
-            ? {
-                ...round,
-                steps: round.steps.map((step, itemIndex) =>
-                  itemIndex === stepIndex ? { ...step, ...patch } : step,
-                ),
-              }
+            ? { ...round, steps: round.steps.map((step) => ({ ...step, prompt })) }
             : round,
         ),
+      },
+    }));
+  };
+
+  const toggleRoundParticipant = (roundIndex: number, participant: string) => {
+    setDraft((current) => ({
+      ...current,
+      config: {
+        ...current.config,
+        rounds: current.config.rounds.map((round, index) => {
+          if (index !== roundIndex) return round;
+          const active = round.steps.some((step) => step.participant === participant);
+          if (active) {
+            // Keep at least one model in a round: the round prompt lives on its steps.
+            if (round.steps.length <= 1) {
+              return round;
+            }
+            return { ...round, steps: round.steps.filter((step) => step.participant !== participant) };
+          }
+          return {
+            ...round,
+            steps: [
+              ...round.steps,
+              { id: newStepID(), participant, prompt: round.steps[0]?.prompt ?? "" },
+            ],
+          };
+        }),
       },
     }));
   };
@@ -234,45 +268,12 @@ export function AdminDiscussionsPage() {
     }));
   };
 
-  const addStep = (roundIndex: number) => {
-    const participant =
-      draft.config.placeholders.find((item) => item.key !== summaryKey)?.key ?? summaryKey;
-    setDraft((current) => ({
-      ...current,
-      config: {
-        ...current.config,
-        rounds: current.config.rounds.map((round, index) =>
-          index === roundIndex
-            ? {
-                ...round,
-                steps: [...round.steps, { id: newStepID(), participant, prompt: "" }],
-              }
-            : round,
-        ),
-      },
-    }));
-  };
-
   const removeRound = (index: number) => {
     setDraft((current) => ({
       ...current,
       config: {
         ...current.config,
         rounds: current.config.rounds.filter((_, itemIndex) => itemIndex !== index),
-      },
-    }));
-  };
-
-  const removeStep = (roundIndex: number, stepIndex: number) => {
-    setDraft((current) => ({
-      ...current,
-      config: {
-        ...current.config,
-        rounds: current.config.rounds.map((round, index) =>
-          index === roundIndex
-            ? { ...round, steps: round.steps.filter((_, itemIndex) => itemIndex !== stepIndex) }
-            : round,
-        ),
       },
     }));
   };
@@ -285,23 +286,6 @@ export function AdminDiscussionsPage() {
       rounds.splice(to, 0, item);
       return { ...current, config: { ...current.config, rounds: normalizeRounds(rounds) } };
     });
-  };
-
-  const reorderStep = (roundIndex: number, from: number, to: number) => {
-    if (from === to) return;
-    setDraft((current) => ({
-      ...current,
-      config: {
-        ...current.config,
-        rounds: current.config.rounds.map((round, index) => {
-          if (index !== roundIndex) return round;
-          const steps = [...round.steps];
-          const [item] = steps.splice(from, 1);
-          steps.splice(to, 0, item);
-          return { ...round, steps };
-        }),
-      },
-    }));
   };
 
   const save = async () => {
@@ -319,6 +303,7 @@ export function AdminDiscussionsPage() {
       return;
     }
     setSaving(true);
+    const labels = discussionPlaceholderLabels(draft.config.placeholders, draft.config.summary.participant);
     const payload = {
       name: draft.name.trim(),
       description: draft.description.trim(),
@@ -326,7 +311,14 @@ export function AdminDiscussionsPage() {
       status: draft.status,
       maxRounds: Math.max(draft.maxRounds, draft.config.rounds.length),
       sortOrder: draft.sortOrder,
-      config: { ...draft.config, rounds: normalizeRounds(draft.config.rounds) },
+      config: {
+        ...draft.config,
+        placeholders: draft.config.placeholders.map((item) => ({
+          ...item,
+          label: labels.get(item.key) ?? item.label,
+        })),
+        rounds: normalizeRounds(draft.config.rounds),
+      },
     };
     const saved = await saveTemplate(draft.publicID, payload);
     if (saved) {
@@ -490,7 +482,7 @@ export function AdminDiscussionsPage() {
                 return (
                   <div
                     key={placeholder.key}
-                    className="grid items-center gap-2 rounded-lg border border-border/50 p-2 md:grid-cols-[7rem_minmax(0,1fr)_minmax(0,12rem)_auto]"
+                    className="grid items-center gap-2 rounded-lg border border-border/50 p-2 md:grid-cols-[7rem_minmax(0,1fr)_auto]"
                   >
                     <span
                       className={cn(
@@ -500,13 +492,6 @@ export function AdminDiscussionsPage() {
                     >
                       {isSummary ? t("summaryModel") : t("discussionModel", { index: discussionIndex })}
                     </span>
-                    <input
-                      className="h-8 min-w-0 rounded-md border border-border/60 bg-background px-2 text-xs"
-                      value={placeholder.label}
-                      placeholder={t("placeholderLabel")}
-                      onChange={(event) => updatePlaceholder(placeholder.key, { label: event.target.value })}
-                      aria-label={t("placeholderLabel")}
-                    />
                     <select
                       className="h-8 min-w-0 rounded-md border border-border/60 bg-background px-2 text-xs"
                       value={placeholder.defaultModel ?? ""}
@@ -588,69 +573,38 @@ export function AdminDiscussionsPage() {
                   {roundIndex === 0 ? t("roundIndependent") : t("roundSeesPrevious")}
                 </p>
 
-                <div className="space-y-2">
-                  {round.steps.map((step, stepIndex) => (
-                    <div
-                      key={step.id}
-                      className={cn(
-                        "grid gap-2 rounded-lg border border-border/40 p-2 md:grid-cols-[auto_minmax(120px,200px)_minmax(0,1fr)_auto]",
-                        dragStep?.round === roundIndex && dragStep.step === stepIndex && "border-primary/60",
-                      )}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={() => {
-                        if (dragStep?.round === roundIndex) {
-                          reorderStep(roundIndex, dragStep.step, stepIndex);
-                        }
-                        setDragStep(null);
-                      }}
-                    >
-                      <span
-                        className="mt-1.5 inline-flex cursor-grab self-start"
-                        draggable
-                        onDragStart={() => setDragStep({ round: roundIndex, step: stepIndex })}
-                        onDragEnd={() => setDragStep(null)}
-                      >
-                        <GripVertical className="size-4 text-muted-foreground" />
-                      </span>
-                      <select
-                        className="h-8 min-w-0 rounded-md border border-border/60 bg-background px-2 text-xs"
-                        value={step.participant}
-                        onChange={(event) => updateStep(roundIndex, stepIndex, { participant: event.target.value })}
-                      >
-                        {orderedPlaceholders.map((placeholder) => (
-                          <option key={placeholder.key} value={placeholder.key}>
-                            {placeholder.label || placeholder.key}
-                            {" · "}
-                            {placeholder.defaultModel || t("chooseAtChat")}
-                          </option>
-                        ))}
-                      </select>
-                      <textarea
-                        className="min-h-16 rounded-md border border-border/60 bg-background px-2 py-1 text-xs"
-                        value={step.prompt}
-                        placeholder={t("promptPlaceholder")}
-                        onChange={(event) => updateStep(roundIndex, stepIndex, { prompt: event.target.value })}
-                      />
-                      <button
-                        type="button"
-                        className="self-start text-muted-foreground hover:text-rose-500"
-                        aria-label={t("delete")}
-                        onClick={() => removeStep(roundIndex, stepIndex)}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                <textarea
+                  className="min-h-20 w-full rounded-md border border-border/60 bg-background px-2 py-1 text-xs"
+                  value={roundPrompt(round)}
+                  placeholder={t("promptPlaceholder")}
+                  onChange={(event) => updateRoundPrompt(roundIndex, event.target.value)}
+                />
 
-                <button
-                  type="button"
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-primary"
-                  onClick={() => addStep(roundIndex)}
-                >
-                  <Plus className="size-3.5" />
-                  {t("addStep")}
-                </button>
+                <p className="mt-2 mb-1 text-[11px] text-muted-foreground">{t("roundModels")}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {discussionPlaceholders.map((placeholder) => {
+                    const active = round.steps.some((step) => step.participant === placeholder.key);
+                    return (
+                      <button
+                        key={placeholder.key}
+                        type="button"
+                        aria-pressed={active}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition-colors",
+                          active
+                            ? "border-primary/50 bg-primary/10 text-primary"
+                            : "border-border/60 text-muted-foreground hover:text-foreground",
+                        )}
+                        onClick={() => toggleRoundParticipant(roundIndex, placeholder.key)}
+                      >
+                        {labels.get(placeholder.key) ?? placeholder.key}
+                        <span className="font-mono text-[10px] opacity-70">
+                          {placeholder.defaultModel || t("chooseAtChat")}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>
@@ -658,30 +612,19 @@ export function AdminDiscussionsPage() {
           <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
             <h3 className="mb-1 text-sm font-semibold">{t("summary")}</h3>
             <p className="mb-2 text-[11px] leading-4 text-muted-foreground">{t("summaryHint")}</p>
-            <div className="grid gap-2 md:grid-cols-[minmax(120px,180px)_minmax(0,1fr)]">
-              <select
-                className="h-8 min-w-0 rounded-md border border-border/60 bg-background px-2 text-xs"
-                value={draft.config.summary.participant}
-                onChange={(event) =>
-                  updateConfig({ summary: { ...draft.config.summary, participant: event.target.value } })
-                }
-              >
-                {orderedPlaceholders.map((placeholder) => (
-                  <option key={placeholder.key} value={placeholder.key}>
-                    {placeholder.label || placeholder.key}
-                    {" · "}
-                    {placeholder.defaultModel || t("chooseAtChat")}
-                  </option>
-                ))}
-              </select>
-              <textarea
-                className="min-h-16 rounded-md border border-border/60 bg-background px-2 py-1 text-xs"
-                value={draft.config.summary.prompt}
-                onChange={(event) =>
-                  updateConfig({ summary: { ...draft.config.summary, prompt: event.target.value } })
-                }
-              />
-            </div>
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              {t("summaryUses", {
+                model: draft.config.placeholders.find((item) => item.key === summaryKey)?.defaultModel ||
+                  t("chooseAtChat"),
+              })}
+            </p>
+            <textarea
+              className="min-h-16 w-full rounded-md border border-border/60 bg-background px-2 py-1 text-xs"
+              value={draft.config.summary.prompt}
+              onChange={(event) =>
+                updateConfig({ summary: { ...draft.config.summary, prompt: event.target.value } })
+              }
+            />
           </div>
 
           {formError || requestError ? <p className="text-sm text-rose-500">{formError || requestError}</p> : null}

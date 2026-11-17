@@ -42,5 +42,7 @@
   "delete": "Delete",
   "save": "Save",
   "saving": "Saving…",
-  "close": "Close"
+  "close": "Close",
+  "roundModels": "Models in this round",
+  "summaryUses": "Summary model: {model}"
 }

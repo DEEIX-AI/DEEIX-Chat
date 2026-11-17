@@ -42,5 +42,7 @@
   "delete": "删除",
   "save": "保存",
   "saving": "保存中…",
-  "close": "关闭"
+  "close": "关闭",
+  "roundModels": "参与模型",
+  "summaryUses": "总结模型：{model}"
 }
