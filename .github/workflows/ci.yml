@@ -242,7 +242,8 @@ jobs:
   dependencies:
     name: Dependencies
     needs: changes
-    if: needs.changes.outputs.lockfiles == 'true' || github.event_name == 'workflow_dispatch'
+    # Manual feature checks do not change dependencies; lockfile changes still run the full audit.
+    if: needs.changes.outputs.lockfiles == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
