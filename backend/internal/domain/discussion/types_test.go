@@ -25,7 +25,7 @@ func TestParseConfigAndResolveRuntimePlan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseConfig: %v", err)
 	}
-	if len(cfg.Rounds) != 2 || cfg.Rounds[0].Index != 1 || !cfg.Rounds[0].Parallel {
+	if len(cfg.Rounds) != 2 || cfg.Rounds[0].Index != 1 || !cfg.Rounds[0].IsParallel() {
 		t.Fatalf("unexpected rounds: %+v", cfg.Rounds)
 	}
 	if cfg.Rounds[0].Steps[0].ID != "r1s1" {
@@ -44,6 +44,41 @@ func TestParseConfigAndResolveRuntimePlan(t *testing.T) {
 	}
 	if plan.Summary.Model != "model-a" {
 		t.Fatalf("expected summary default model, got %q", plan.Summary.Model)
+	}
+}
+
+func TestResolveRuntimePlanSerialRoundUsesPlaceholderOrder(t *testing.T) {
+	cfg, err := ParseConfig(`{
+		"placeholders": [
+			{"key": "p1", "defaultModel": "model-a"},
+			{"key": "p2", "defaultModel": "model-b"},
+			{"key": "p3", "defaultModel": "model-c"},
+			{"key": "judge", "defaultModel": "model-a"}
+		],
+		"rounds": [{"parallel": false, "steps": [
+			{"participant": "p3"},
+			{"participant": "p1"},
+			{"participant": "p2"}
+		]}],
+		"summary": {"participant": "judge"}
+	}`)
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+	if cfg.Rounds[0].IsParallel() {
+		t.Fatal("explicit serial round was overwritten")
+	}
+	plan, err := ResolveRuntimePlan(cfg, nil)
+	if err != nil {
+		t.Fatalf("ResolveRuntimePlan: %v", err)
+	}
+	if plan.Rounds[0].IsParallel() {
+		t.Fatal("runtime plan lost serial mode")
+	}
+	for index, participant := range []string{"p1", "p2", "p3"} {
+		if plan.Rounds[0].Steps[index].Participant != participant {
+			t.Fatalf("runtime steps are not in model order: %#v", plan.Rounds[0].Steps)
+		}
 	}
 }
 

@@ -78,6 +78,7 @@ export type DiscussionTurn = {
 
 export type DiscussionRuntimeRound = {
   index: number;
+  parallel?: boolean;
   steps: Array<{
     id: string;
     participant: string;

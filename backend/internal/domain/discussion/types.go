@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -52,11 +53,16 @@ type Step struct {
 	Prompt      string
 }
 
-// Round 是一轮讨论；同轮步骤并行，轮次之间串行。
+// Round 是一轮讨论；同轮步骤可并行或按模型顺序串行，轮次之间串行。
 type Round struct {
 	Index    int
-	Parallel bool
+	Parallel *bool
 	Steps    []Step
+}
+
+// IsParallel 缺省按并行处理，兼容没有 parallel 字段的旧配置。
+func (r Round) IsParallel() bool {
+	return r.Parallel == nil || *r.Parallel
 }
 
 // Summary 是全部轮次结束后的总结节点。
@@ -82,8 +88,14 @@ type RuntimeStep struct {
 
 // RuntimeRound 是运行时解析后的一轮。
 type RuntimeRound struct {
-	Index int
-	Steps []RuntimeStep
+	Index    int
+	Parallel *bool
+	Steps    []RuntimeStep
+}
+
+// IsParallel 缺省按并行处理，兼容没有 parallel 字段的旧讨论记录。
+func (r RuntimeRound) IsParallel() bool {
+	return r.Parallel == nil || *r.Parallel
 }
 
 // RuntimeSummary 是运行时解析后的总结节点。
@@ -227,8 +239,9 @@ func normalizeConfig(cfg *TemplateConfig) {
 	for index := range cfg.Rounds {
 		round := &cfg.Rounds[index]
 		round.Index = index + 1
-		if len(round.Steps) > 0 {
-			round.Parallel = true
+		if round.Parallel == nil {
+			parallel := true
+			round.Parallel = &parallel
 		}
 		for stepIndex := range round.Steps {
 			if strings.TrimSpace(round.Steps[stepIndex].ID) == "" {
@@ -252,12 +265,20 @@ func ResolveRuntimePlan(cfg TemplateConfig, overrides map[string]string) (Runtim
 		}
 		return ""
 	}
+	placeholderOrder := make(map[string]int, len(cfg.Placeholders))
+	for index, item := range cfg.Placeholders {
+		placeholderOrder[item.Key] = index
+	}
 	plan := RuntimePlan{
 		Rounds: make([]RuntimeRound, 0, len(cfg.Rounds)),
 	}
 	for _, round := range cfg.Rounds {
-		runtimeRound := RuntimeRound{Index: round.Index, Steps: make([]RuntimeStep, 0, len(round.Steps))}
-		for _, step := range round.Steps {
+		runtimeRound := RuntimeRound{Index: round.Index, Parallel: round.Parallel, Steps: make([]RuntimeStep, 0, len(round.Steps))}
+		steps := append([]Step(nil), round.Steps...)
+		sort.SliceStable(steps, func(left, right int) bool {
+			return placeholderOrder[steps[left].Participant] < placeholderOrder[steps[right].Participant]
+		})
+		for _, step := range steps {
 			model := modelFor(step.Participant)
 			if model == "" {
 				return RuntimePlan{}, fmt.Errorf("%w: model is not selected for %s", ErrTemplateInvalid, step.Participant)

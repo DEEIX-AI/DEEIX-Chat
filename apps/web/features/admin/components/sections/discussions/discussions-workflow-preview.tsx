@@ -62,7 +62,7 @@ export function DiscussionsWorkflowPreview({
             <div className="flex items-center justify-between gap-2 text-xs font-medium text-foreground">
               <span>{t("round", { round: roundIndex + 1 })}</span>
               <span className="rounded-full bg-muted px-1.5 text-[10px] font-normal text-muted-foreground">
-                {t("parallel")}
+                {round.parallel ? t("parallel") : t("serial")}
               </span>
             </div>
             <div className="mt-1 space-y-0.5">

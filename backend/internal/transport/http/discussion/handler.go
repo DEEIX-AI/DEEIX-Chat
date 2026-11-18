@@ -186,7 +186,7 @@ func toTemplateConfigDTO(config domaindiscussion.TemplateConfig) TemplateConfigD
 		})
 	}
 	for _, round := range config.Rounds {
-		roundDTO := RoundDTO{Index: round.Index, Parallel: round.Parallel, Steps: make([]StepDTO, 0, len(round.Steps))}
+		roundDTO := RoundDTO{Index: round.Index, Parallel: round.IsParallel(), Steps: make([]StepDTO, 0, len(round.Steps))}
 		for _, step := range round.Steps {
 			roundDTO.Steps = append(roundDTO.Steps, StepDTO{
 				ID:          step.ID,

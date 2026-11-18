@@ -102,7 +102,7 @@ function normalizeRounds(rounds: DiscussionRound[]): DiscussionRound[] {
   return rounds.map((round, index) => ({
     ...round,
     index: index + 1,
-    parallel: true,
+    parallel: round.parallel ?? true,
   }));
 }
 
@@ -212,6 +212,18 @@ export function AdminDiscussionsPage() {
           index === roundIndex
             ? { ...round, steps: round.steps.map((step) => ({ ...step, prompt })) }
             : round,
+        ),
+      },
+    }));
+  };
+
+  const updateRoundParallel = (roundIndex: number, parallel: boolean) => {
+    setDraft((current) => ({
+      ...current,
+      config: {
+        ...current.config,
+        rounds: current.config.rounds.map((round, index) =>
+          index === roundIndex ? { ...round, parallel } : round,
         ),
       },
     }));
@@ -608,8 +620,29 @@ export function AdminDiscussionsPage() {
                     <GripVertical className="size-4 text-muted-foreground" />
                   </span>
                   {t("round", { round: roundIndex + 1 })}
-                  <span className="rounded-full bg-muted px-1.5 text-[10px] font-normal text-muted-foreground">
-                    {t("parallel")}
+                  <span className="inline-flex rounded-full bg-muted p-0.5 text-[10px] font-normal">
+                    <button
+                      type="button"
+                      aria-pressed={round.parallel}
+                      className={cn(
+                        "rounded-full px-1.5 py-0.5",
+                        round.parallel ? "bg-background text-primary" : "text-muted-foreground",
+                      )}
+                      onClick={() => updateRoundParallel(roundIndex, true)}
+                    >
+                      {t("parallel")}
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={!round.parallel}
+                      className={cn(
+                        "rounded-full px-1.5 py-0.5",
+                        !round.parallel ? "bg-background text-primary" : "text-muted-foreground",
+                      )}
+                      onClick={() => updateRoundParallel(roundIndex, false)}
+                    >
+                      {t("serial")}
+                    </button>
                   </span>
                   <button
                     type="button"
@@ -621,7 +654,11 @@ export function AdminDiscussionsPage() {
                   </button>
                 </div>
                 <p className="mb-2 text-[11px] leading-4 text-muted-foreground">
-                  {roundIndex === 0 ? t("roundIndependent") : t("roundSeesPrevious")}
+                  {round.parallel
+                    ? roundIndex === 0
+                      ? t("roundIndependent")
+                      : t("roundSeesPrevious")
+                    : t("roundSerial")}
                 </p>
 
                 <textarea

@@ -1196,6 +1196,8 @@
     "collapse": "Collapse",
     "all": "All",
     "round": "Round {round}",
+    "parallel": "Parallel",
+    "serial": "Serial",
     "thinking": "Thinking",
     "done": "Done",
     "failed": "Failed",
