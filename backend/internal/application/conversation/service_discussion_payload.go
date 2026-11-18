@@ -231,8 +231,10 @@ func discussionSnapshotContentPayloadOf(snapshot *domaindiscussion.Snapshot) any
 	if snapshot == nil {
 		return nil
 	}
+	templatePayload := discussionTemplatePayloadOf(snapshot.Template)
+	templatePayload["config"] = discussionTemplateConfigPayloadOf(snapshot.Config)
 	return map[string]any{
-		"template": discussionTemplatePayloadOf(snapshot.Template),
+		"template": templatePayload,
 		"config":   discussionTemplateConfigPayloadOf(snapshot.Config),
 		"plan":     discussionRuntimePlanPayloadOf(snapshot.Plan),
 	}

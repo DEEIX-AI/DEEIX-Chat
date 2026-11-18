@@ -164,4 +164,20 @@ func TestDiscussionSnapshotPayloadUsesCamelCase(t *testing.T) {
 			t.Fatalf("domain key %s leaked into %s", key, text)
 		}
 	}
+	var decoded struct {
+		Active struct {
+			Template struct {
+				Config struct {
+					Placeholders []json.RawMessage `json:"placeholders"`
+					Rounds       []json.RawMessage `json:"rounds"`
+				} `json:"config"`
+			} `json:"template"`
+		} `json:"active"`
+	}
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("unmarshal snapshot payload: %v", err)
+	}
+	if len(decoded.Active.Template.Config.Placeholders) == 0 || len(decoded.Active.Template.Config.Rounds) == 0 {
+		t.Fatalf("template.config must remain usable by the chat binding bar: %s", text)
+	}
 }
