@@ -33,7 +33,7 @@ func (s *Service) GetDiscussionSnapshot(ctx context.Context, userID uint, conver
 	return repo.GetDiscussionSnapshot(ctx, conversationID, templatePublicID)
 }
 
-func (s *Service) RefreshDiscussionSnapshot(ctx context.Context, userID uint, conversationID uint, templatePublicID string, models map[string]string, expectedPendingVersion int64) (*domaindiscussion.ConversationSnapshot, error) {
+func (s *Service) RefreshDiscussionSnapshot(ctx context.Context, userID uint, conversationID uint, templatePublicID string, models map[string]string, manualModels []string, expectedPendingVersion int64) (*domaindiscussion.ConversationSnapshot, error) {
 	if _, err := s.repo.GetConversationByUser(ctx, conversationID, userID); err != nil {
 		return nil, ErrConversationNotFound
 	}
@@ -56,6 +56,18 @@ func (s *Service) RefreshDiscussionSnapshot(ctx context.Context, userID uint, co
 		}
 	}
 	overrides := domaindiscussion.MergeBindings(basePlan, models)
+	if manualModels != nil {
+		manual := make(map[string]struct{}, len(manualModels))
+		for _, participant := range manualModels {
+			manual[participant] = struct{}{}
+		}
+		overrides = make(map[string]string)
+		for participant, model := range domaindiscussion.MergeBindings(basePlan, models) {
+			if _, ok := manual[participant]; ok {
+				overrides[participant] = model
+			}
+		}
+	}
 	template, config, plan, err := s.discussionTemplates.ResolvePlan(ctx, templatePublicID, overrides)
 	if err != nil {
 		return nil, err

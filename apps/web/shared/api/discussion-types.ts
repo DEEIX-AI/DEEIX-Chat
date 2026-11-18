@@ -122,6 +122,7 @@ export type DiscussionConversationSnapshot = {
 
 export type DiscussionSnapshotRequest = {
   models?: Record<string, string>;
+  manualModels?: string[];
   expectedPendingVersion: number;
 };
 

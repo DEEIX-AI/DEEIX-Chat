@@ -283,6 +283,7 @@ export function AppChatArea() {
     cancelDiscussionRefresh,
     rollbackDiscussionConfiguration,
     adoptDiscussionConfiguration,
+    useDefaultDiscussionModels,
     onDiscussionStreamEvent,
   } = useChatModelOptions({
     conversationPublicID: conversationID,
@@ -324,10 +325,11 @@ export function AppChatArea() {
     snapshotNotice: discussionSnapshotNotice,
     canAdopt: canAdoptDiscussionPending,
     refreshConfirmationPending: discussionRefreshConfirmationPending,
-    onRefresh: conversationID ? refreshDiscussionConfiguration : undefined,
+    onRefresh: refreshDiscussionConfiguration,
     onCancelRefresh: cancelDiscussionRefresh,
     onRollback: conversationID ? rollbackDiscussionConfiguration : undefined,
     onAdopt: conversationID ? adoptDiscussionConfiguration : undefined,
+    onUseDefaults: useDefaultDiscussionModels,
   };
   const modelOptionPolicyDisabled = modelOptionPolicy?.mode?.trim() === "disabled";
   const refreshModelCatalogForComposer = React.useCallback(async () => {

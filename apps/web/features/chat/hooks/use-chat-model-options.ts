@@ -487,11 +487,19 @@ export function useChatModelOptions({
     userSelectedModelRef.current = true;
     setSelectedPlatformModelName(platformModelName);
   }, []);
+  const refreshDiscussionTemplateList = React.useCallback(async () => {
+    const token = await resolveAccessToken();
+    if (!token) throw new Error("missing access token");
+    const templates = await listDiscussionTemplates(token);
+    setDiscussionTemplates(templates);
+    return templates;
+  }, []);
   const discussion = useChatDiscussion({
     conversationPublicID,
     selectedPlatformModelName,
     discussionTemplates,
     discussionSeedBindings,
+    refreshDiscussionTemplates: refreshDiscussionTemplateList,
   });
   const selectedDiscussionTemplate = discussion.selectedDiscussionTemplate;
 

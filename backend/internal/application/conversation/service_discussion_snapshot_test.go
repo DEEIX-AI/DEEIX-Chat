@@ -129,7 +129,7 @@ func TestRefreshDiscussionSnapshotKeepsExistingAndDefaultsNewBindings(t *testing
 		},
 	}
 	service := &Service{repo: repo, discussionTemplates: provider}
-	current, err := service.RefreshDiscussionSnapshot(context.Background(), 2, 1, "tpl", nil, 0)
+	current, err := service.RefreshDiscussionSnapshot(context.Background(), 2, 1, "tpl", nil, nil, 0)
 	if err != nil {
 		t.Fatalf("refresh: %v", err)
 	}
@@ -179,5 +179,34 @@ func TestDiscussionSnapshotPayloadUsesCamelCase(t *testing.T) {
 	}
 	if len(decoded.Active.Template.Config.Placeholders) == 0 || len(decoded.Active.Template.Config.Rounds) == 0 {
 		t.Fatalf("template.config must remain usable by the chat binding bar: %s", text)
+	}
+}
+
+func TestRefreshDiscussionSnapshotUsesLatestDefaultsExceptManualModels(t *testing.T) {
+	active := discussionSnapshotServiceFixture("model-old")
+	repo := &discussionSnapshotServiceRepoStub{snapshot: &domaindiscussion.ConversationSnapshot{Active: &active, ActiveVersion: 1}}
+	provider := &discussionTemplateProviderStub{
+		template: domaindiscussion.Template{PublicID: "tpl", Name: "latest"},
+		config: domaindiscussion.TemplateConfig{
+			Placeholders: []domaindiscussion.Placeholder{{Key: "p1", DefaultModel: "model-latest"}, {Key: "p2", DefaultModel: "model-new-default"}},
+			Rounds:       []domaindiscussion.Round{{Index: 1, Steps: []domaindiscussion.Step{{ID: "s1", Participant: "p1"}, {ID: "s2", Participant: "p2"}}}},
+			Summary:      domaindiscussion.Summary{Participant: "p1"},
+		},
+	}
+	service := &Service{repo: repo, discussionTemplates: provider}
+	current, err := service.RefreshDiscussionSnapshot(context.Background(), 2, 1, "tpl", map[string]string{"p1": "model-old"}, []string{}, 0)
+	if err != nil {
+		t.Fatalf("refresh with no manual models: %v", err)
+	}
+	if got := domaindiscussion.PlanBindings(current.Pending.Plan)["p1"]; got != "model-latest" {
+		t.Fatalf("non-manual binding = %q, want latest default", got)
+	}
+	current, err = service.RefreshDiscussionSnapshot(context.Background(), 2, 1, "tpl", map[string]string{"p1": "model-old"}, []string{"p1"}, 1)
+	if err != nil {
+		t.Fatalf("refresh with manual model: %v", err)
+	}
+	bindings := domaindiscussion.PlanBindings(current.Pending.Plan)
+	if bindings["p1"] != "model-old" || bindings["p2"] != "model-new-default" {
+		t.Fatalf("manual binding was not preserved: %#v", bindings)
 	}
 }

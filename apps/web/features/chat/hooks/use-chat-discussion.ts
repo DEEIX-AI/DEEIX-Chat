@@ -27,6 +27,10 @@ function discussionBindingsStorageKey(conversationPublicID: string | null, templ
   return `deeix:discussion-bindings:${conversationPublicID || "new"}:${templatePublicID}`;
 }
 
+function discussionManualStorageKey(conversationPublicID: string | null, templatePublicID: string): string {
+  return `deeix:discussion-manual-models:${conversationPublicID || "new"}:${templatePublicID}`;
+}
+
 function discussionDisabledStorageKey(conversationPublicID: string | null, templatePublicID: string): string {
   return `deeix:discussion-disabled:${conversationPublicID || "new"}:${templatePublicID}`;
 }
@@ -44,16 +48,22 @@ function readStoredBindings(key: string): Record<string, string> {
   }
 }
 
-function readStoredDisabled(key: string): string[] {
-  if (typeof window === "undefined") return [];
+function readStoredStringList(key: string): string[] | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(key);
+  if (raw === null) return null;
   try {
-    const parsed: unknown = JSON.parse(window.localStorage.getItem(key) ?? "[]");
+    const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed)
       ? Array.from(new Set(parsed.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))))
-      : [];
+      : null;
   } catch {
-    return [];
+    return null;
   }
+}
+
+function readStoredDisabled(key: string): string[] {
+  return readStoredStringList(key) ?? [];
 }
 
 function writeStored(key: string, value: unknown): void {
@@ -68,20 +78,28 @@ function snapshotBindings(content: DiscussionSnapshotContent | null | undefined)
   return content ? discussionRuntimeBindings(content.plan) : {};
 }
 
+function inferManualBindings(stored: Record<string, string>, base: Record<string, string>): Set<string> {
+  const manual = new Set<string>();
+  for (const [participant, model] of Object.entries(stored)) {
+    if (base[participant]?.trim() && base[participant] !== model) {
+      manual.add(participant);
+    }
+  }
+  return manual;
+}
+
 function bindingsForTemplate(
   template: DiscussionTemplateDTO,
   sources: readonly Record<string, string>[],
+  manualModels: ReadonlySet<string>,
 ): Record<string, string> {
+  const [snapshot, seed, stored] = sources;
   const next: Record<string, string> = {};
   for (const placeholder of template.config.placeholders) {
-    next[placeholder.key] = "";
-    for (const source of sources) {
-      if (source[placeholder.key]?.trim()) {
-        next[placeholder.key] = source[placeholder.key].trim();
-        break;
-      }
-    }
-    next[placeholder.key] ||= placeholder.defaultModel || "";
+    const key = placeholder.key;
+    next[key] = manualModels.has(key)
+      ? stored[key] || snapshot[key] || seed[key] || placeholder.defaultModel || ""
+      : snapshot[key] || seed[key] || placeholder.defaultModel || "";
   }
   return next;
 }
@@ -91,11 +109,13 @@ export function useChatDiscussion({
   selectedPlatformModelName,
   discussionTemplates,
   discussionSeedBindings,
+  refreshDiscussionTemplates,
 }: {
   conversationPublicID: string | null;
   selectedPlatformModelName: string;
   discussionTemplates: DiscussionTemplateDTO[];
   discussionSeedBindings?: Record<string, string> | null;
+  refreshDiscussionTemplates: () => Promise<DiscussionTemplateDTO[]>;
 }) {
   const t = useTranslations("chat.discussion");
   const templatePublicID = selectedPlatformModelName.startsWith("discussion:")
@@ -114,10 +134,10 @@ export function useChatDiscussion({
   const snapshotContent = snapshot?.pending ?? snapshot?.active ?? null;
   const selectedDiscussionTemplate = snapshotContent?.template ?? liveTemplate;
   const bindingsRef = React.useRef<Record<string, string>>({});
+  const manualModelsRef = React.useRef<Set<string>>(new Set());
   const snapshotRef = React.useRef<DiscussionConversationSnapshot | null>(null);
   const bindingScopeRef = React.useRef("");
   const bindingRevisionRef = React.useRef("");
-  const bindingsTouchedRef = React.useRef(false);
   const disabledScopeRef = React.useRef("");
 
   React.useEffect(() => { bindingsRef.current = discussionBindings; }, [discussionBindings]);
@@ -155,26 +175,38 @@ export function useChatDiscussion({
     const scope = `${conversationPublicID || "new"}|${templatePublicID}`;
     const revision = snapshot ? `${snapshot.activeVersion}:${snapshot.pendingVersion}:${snapshot.updatedAt}` : "";
     const scopeChanged = bindingScopeRef.current !== scope;
-    const revisionChanged = bindingRevisionRef.current !== revision;
     const previousScope = bindingScopeRef.current;
     bindingScopeRef.current = scope;
     bindingRevisionRef.current = revision;
     if (!template) {
+      manualModelsRef.current = new Set();
       setDiscussionBindings((current) => Object.keys(current).length === 0 ? current : {});
-      bindingsTouchedRef.current = false;
       return;
     }
-    if (!scopeChanged && !revisionChanged && (bindingsTouchedRef.current || !discussionSeedBindings)) return;
 
-    const stored = readStoredBindings(discussionBindingsStorageKey(conversationPublicID, templatePublicID));
+    let stored = readStoredBindings(discussionBindingsStorageKey(conversationPublicID, templatePublicID));
     const [previousConversationID, previousTemplateID] = previousScope.split("|");
     const carried = scopeChanged && previousConversationID === "new" && previousTemplateID === templatePublicID && !snapshotContent
       ? bindingsRef.current
       : null;
-    const next = carried && Object.keys(carried).length > 0
-      ? { ...carried }
-      : bindingsForTemplate(template, [snapshotBindings(snapshotContent), discussionSeedBindings ?? {}, stored]);
-    if (scopeChanged || revisionChanged) bindingsTouchedRef.current = false;
+    if (carried && Object.keys(carried).length > 0) {
+      stored = carried;
+      writeStored(discussionBindingsStorageKey(conversationPublicID, templatePublicID), carried);
+      writeStored(discussionManualStorageKey(conversationPublicID, templatePublicID), [...manualModelsRef.current]);
+    } else {
+      const savedManual = readStoredStringList(discussionManualStorageKey(conversationPublicID, templatePublicID));
+      if (savedManual) {
+        manualModelsRef.current = new Set(savedManual);
+      } else {
+        const base = snapshotBindings(snapshotContent);
+        manualModelsRef.current = inferManualBindings(stored, Object.keys(base).length > 0 ? base : discussionSeedBindings ?? {});
+      }
+    }
+    const next = bindingsForTemplate(
+      template,
+      [snapshotBindings(snapshotContent), discussionSeedBindings ?? {}, stored],
+      manualModelsRef.current,
+    );
     writeStored(discussionBindingsStorageKey(conversationPublicID, templatePublicID), next);
     setDiscussionBindings(next);
   }, [conversationPublicID, discussionSeedBindings, selectedDiscussionTemplate, snapshot, snapshotContent, templatePublicID]);
@@ -198,13 +230,19 @@ export function useChatDiscussion({
 
   const setDiscussionBinding = React.useCallback((participant: string, model: string) => {
     if (snapshotRef.current?.active && !snapshotRef.current.pending) return;
-    bindingsTouchedRef.current = true;
+    const placeholder = selectedDiscussionTemplate?.config.placeholders.find((item) => item.key === participant);
+    if (model.trim() && model.trim() === placeholder?.defaultModel?.trim()) {
+      manualModelsRef.current.delete(participant);
+    } else {
+      manualModelsRef.current.add(participant);
+    }
+    writeStored(discussionManualStorageKey(conversationPublicID, templatePublicID), [...manualModelsRef.current]);
     setDiscussionBindings((current) => {
       const next = { ...current, [participant]: model };
       writeStored(discussionBindingsStorageKey(conversationPublicID, templatePublicID), next);
       return next;
     });
-  }, [conversationPublicID, templatePublicID]);
+  }, [conversationPublicID, selectedDiscussionTemplate, templatePublicID]);
 
   const setDiscussionModelDisabled = React.useCallback((participant: string, shouldDisable: boolean) => {
     const template = selectedDiscussionTemplate;
@@ -219,10 +257,20 @@ export function useChatDiscussion({
     });
   }, [conversationPublicID, selectedDiscussionTemplate, templatePublicID]);
 
+  const useDefaultDiscussionModels = React.useCallback(() => {
+    if (!selectedDiscussionTemplate || (snapshotRef.current?.active && !snapshotRef.current.pending)) return;
+    manualModelsRef.current = new Set();
+    writeStored(discussionManualStorageKey(conversationPublicID, templatePublicID), []);
+    const next = bindingsForTemplate(selectedDiscussionTemplate, [{}, {}, {}], manualModelsRef.current);
+    writeStored(discussionBindingsStorageKey(conversationPublicID, templatePublicID), next);
+    setDiscussionBindings(next);
+    setSnapshotNotice(t("defaultsRestored"));
+  }, [conversationPublicID, selectedDiscussionTemplate, t, templatePublicID]);
+
   const runSnapshotAction = React.useCallback(async (
     action: "refresh" | "rollback" | "adopt",
   ) => {
-    if (!conversationPublicID || !templatePublicID || snapshotBusy) return;
+    if (!templatePublicID || snapshotBusy) return;
     if (action === "refresh" && snapshotRef.current?.pending && !refreshConfirmationPending) {
       setRefreshConfirmationPending(true);
       setSnapshotNotice(t("refreshAgainConfirm"));
@@ -233,12 +281,24 @@ export function useChatDiscussion({
     setSnapshotError("");
     setSnapshotNotice("");
     try {
+      if (!conversationPublicID) {
+        if (action !== "refresh") return;
+        const templates = await refreshDiscussionTemplates();
+        const latest = templates.find((item) => item.publicID === templatePublicID);
+        if (!latest) throw new Error("discussion template is no longer available");
+        const next = bindingsForTemplate(latest, [{}, {}, bindingsRef.current], manualModelsRef.current);
+        writeStored(discussionBindingsStorageKey(conversationPublicID, templatePublicID), next);
+        setDiscussionBindings(next);
+        setSnapshotNotice(t("refreshDraftDone"));
+        return;
+      }
       const token = await resolveAccessToken();
       if (!token) throw new Error("missing access token");
       const expectedPendingVersion = snapshotRef.current?.pendingVersion ?? 0;
       const result = action === "refresh"
         ? await refreshDiscussionSnapshot(token, conversationPublicID, templatePublicID, {
             models: bindingsRef.current,
+            manualModels: [...manualModelsRef.current],
             expectedPendingVersion,
           })
         : action === "rollback"
@@ -247,14 +307,13 @@ export function useChatDiscussion({
       snapshotRef.current = result;
       setSnapshot(result);
       setCanAdoptPending(false);
-      bindingsTouchedRef.current = false;
       setSnapshotNotice(t(action === "refresh" ? "refreshReady" : action === "rollback" ? "rollbackDone" : "adoptDone"));
     } catch (error) {
       setSnapshotError(error instanceof ApiError && error.status === 409 ? t("snapshotConflict") : t("snapshotActionFailed"));
     } finally {
       setSnapshotBusy(false);
     }
-  }, [conversationPublicID, refreshConfirmationPending, snapshotBusy, t, templatePublicID]);
+  }, [conversationPublicID, refreshConfirmationPending, refreshDiscussionTemplates, snapshotBusy, t, templatePublicID]);
 
   const onDiscussionStreamEvent = React.useCallback((event: StreamMessageEvent) => {
     if (event.type !== "discussion_done" || event.state.templateId !== templatePublicID) return;
@@ -283,7 +342,6 @@ export function useChatDiscussion({
     snapshotRef.current = next;
     setSnapshot(next);
     setCanAdoptPending(false);
-    bindingsTouchedRef.current = false;
     setSnapshotNotice(t("pendingCommitted"));
   }, [selectedDiscussionTemplate, t, templatePublicID]);
 
@@ -308,6 +366,7 @@ export function useChatDiscussion({
     },
     rollbackDiscussionConfiguration: () => runSnapshotAction("rollback"),
     adoptDiscussionConfiguration: () => runSnapshotAction("adopt"),
+    useDefaultDiscussionModels,
     onDiscussionStreamEvent,
   };
 }

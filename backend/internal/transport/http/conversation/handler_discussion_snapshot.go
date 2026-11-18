@@ -14,6 +14,7 @@ import (
 
 type DiscussionSnapshotRequest struct {
 	Models                 map[string]string `json:"models,omitempty"`
+	ManualModels           []string          `json:"manualModels" binding:"omitempty,max=12,dive,max=64"`
 	ExpectedPendingVersion int64             `json:"expectedPendingVersion" binding:"min=0"`
 }
 
@@ -68,7 +69,7 @@ func (h *Handler) RefreshDiscussionSnapshot(c *gin.Context) {
 		response.InvalidRequestBody(c, err)
 		return
 	}
-	snapshot, err := h.service.RefreshDiscussionSnapshot(c.Request.Context(), userID, conversationID, templateID, req.Models, req.ExpectedPendingVersion)
+	snapshot, err := h.service.RefreshDiscussionSnapshot(c.Request.Context(), userID, conversationID, templateID, req.Models, req.ManualModels, req.ExpectedPendingVersion)
 	if err != nil {
 		writeDiscussionSnapshotError(c, err)
 		return
