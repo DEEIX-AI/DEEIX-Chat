@@ -78,13 +78,13 @@
 | `type` | 负载 | 前端处理 |
 |---|---|---|
 | `discussion_start` | `template`, `templateName`, `placeholders`, `rounds`, `summary` | 建立实时状态；同一模板的重复 start 保留已收集的发言 |
-| `discussion_turn_start` | `round`, `stepId`, `participant`, `model`, `prompt` | 模型调用前建立运行中发言并写入实际 Prompt，首 token 前显示「思考中」且可查看 Prompt |
+| `discussion_turn_start` | `round`, `stepId`, `participant`, `model`, `prompt`, `promptMessages` | 模型调用前建立运行中发言并写入实际 Prompt 与结构化消息，首 token 前显示「思考中」且可查看 Prompt |
 | `discussion_turn_delta` | `round`, `stepId`, `participant`, `model`, `delta` | 按 `(round, stepId)` 追加正文 |
-| `discussion_turn_done` | `turn`（含 `prompt`） | 用最终发言替换（含用量、耗时、错误、发送的完整提示词） |
+| `discussion_turn_done` | `turn`（含 `prompt`、`promptMessages`） | 用最终发言替换（含用量、耗时、错误、发送的完整提示词） |
 | `discussion_round_done` | `round`, `turns` | 用该轮结果整体替换该轮发言 |
-| `discussion_summary_start` | `participant`, `model`, `prompt` | 总结调用前切换为「总结中」并写入实际 Prompt |
+| `discussion_summary_start` | `participant`, `model`, `prompt`, `promptMessages` | 总结调用前切换为「总结中」并写入实际 Prompt 与结构化消息 |
 | `discussion_summary_delta` | `delta` | 追加到 assistant 正文，同时保持总结状态，实现总结流式 |
-| `discussion_done` | `state`（含 `summaryPrompt`） | 换成服务端最终状态 |
+| `discussion_done` | `state`（含 `summaryPrompt`、`summaryPromptMessages`） | 换成服务端最终状态 |
 | `delta`（收尾） | `delta`, `replace: true` | 用最终正文覆盖流式预览，避免重复 |
 
 讨论事件的负载与 `discussion_json` 使用同一套 JSON 形状（小写驼峰，由 `service_discussion_payload.go` 的 `discussion*Payload` 产出），不要直接把领域结构体塞进事件：Go 字段名是大驼峰，前端会读不到字段。
@@ -106,10 +106,10 @@
 
 **调试模式**：头部「调试」按钮把开关写入 `localStorage`（`deeix:discussion-debug`），对所有讨论消息生效。开启后：
 
-- 每轮的「查看 Prompt」位于思考状态/正文上方，展开显示**当前选中模型**这一轮实际收到的完整提示词（`system` / `user` 两段原文，等宽字体、可滚动、超长不撑破布局）。切换胶囊即可查看同轮其他模型的提示词。
-- 开始事件在模型调用前携带经过实际上下文预算裁剪的 Prompt，因此思考中与流式回答期间即可查看，不必等发言完成。
-- 总结段同样可以展开查看总结模型收到的完整提示词。
-- 旧版本生成的讨论消息没有记录提示词，展开后提示「该消息未记录 Prompt」。
+- 每轮的「查看 Prompt」位于思考状态/正文上方。外层展开后，实际发送的消息按 `system` / `user` / `assistant` 分段；每条消息可独立展开/收起，折叠时显示单行摘要，默认展开第一条。切换模型胶囊即可查看同轮其他模型的提示词。
+- 开始事件在模型调用前携带经过实际上下文预算裁剪的 Prompt 与结构化消息，因此思考中与流式回答期间即可查看，不必等发言完成；结构化消息也随最终状态持久化，刷新后仍可分段查看。
+- 总结段同样支持两层展开/收起。
+- 只有旧格式 Prompt 字符串的消息保留整体文本展示；更早且未记录 Prompt 的消息提示「该消息未记录 Prompt」。
 
 模型编号规则：`discussionPlaceholderLabels` 按 `placeholders` 顺序生成「模型 N」，所以即使某轮 `steps` 存储顺序被打乱，展示也永远是 模型 1 … 模型 n。
 
@@ -287,3 +287,18 @@
 
 - 后端会话包测试与 Go 质量检查通过。
 - 前端 `pnpm --filter @deeix/web check`、`pnpm --filter @deeix/web build` 通过。
+
+## 15. v0.4.6-fork.18 变更明细
+
+### 15.1 Prompt 按消息两层折叠
+
+- 保留外层「查看/收起 Prompt」，内层按实际发送的 `system` / `user` / `assistant` 消息逐条展开/收起。
+- 内层默认展开第一条，折叠消息显示单行摘要；轮次与总结使用相同交互。
+- start 事件与最终状态新增 `promptMessages` / `summaryPromptMessages`，生成中、完成后及刷新后均可分段查看。
+- 不通过拆分文本猜测消息边界；只有旧格式 Prompt 字符串的消息回退为整体展示。
+
+### 15.2 验证
+
+- 后端会话包与讨论领域测试、Go 质量检查通过。
+- 前端 `pnpm --filter @deeix/web check`、`pnpm --filter @deeix/web build` 通过。
+- reducer 回放验证 start/delta 保留结构化轮次与总结 Prompt。

@@ -28,6 +28,11 @@ type discussionSummaryPayload struct {
 	Prompt      string `json:"prompt"`
 }
 
+type discussionPromptMessagePayload struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 type discussionTurnPayload struct {
 	Round       int    `json:"round"`
 	StepID      string `json:"stepId"`
@@ -37,29 +42,31 @@ type discussionTurnPayload struct {
 	Content     string `json:"content,omitempty"`
 	Error       string `json:"error,omitempty"`
 	// Prompt is the exact prompt sent to this model; it is debug output, not a summary.
-	Prompt           string `json:"prompt,omitempty"`
-	InputTokens      int64  `json:"inputTokens,omitempty"`
-	OutputTokens     int64  `json:"outputTokens,omitempty"`
-	CacheReadTokens  int64  `json:"cacheReadTokens,omitempty"`
-	CacheWriteTokens int64  `json:"cacheWriteTokens,omitempty"`
-	ReasoningTokens  int64  `json:"reasoningTokens,omitempty"`
-	LatencyMS        int64  `json:"latencyMs,omitempty"`
+	Prompt           string                           `json:"prompt,omitempty"`
+	PromptMessages   []discussionPromptMessagePayload `json:"promptMessages,omitempty"`
+	InputTokens      int64                            `json:"inputTokens,omitempty"`
+	OutputTokens     int64                            `json:"outputTokens,omitempty"`
+	CacheReadTokens  int64                            `json:"cacheReadTokens,omitempty"`
+	CacheWriteTokens int64                            `json:"cacheWriteTokens,omitempty"`
+	ReasoningTokens  int64                            `json:"reasoningTokens,omitempty"`
+	LatencyMS        int64                            `json:"latencyMs,omitempty"`
 }
 
 type discussionStatePayload struct {
-	Enabled       bool                           `json:"enabled"`
-	Status        string                         `json:"status"`
-	TemplateID    string                         `json:"templateId"`
-	TemplateName  string                         `json:"templateName"`
-	Placeholders  []discussionPlaceholderPayload `json:"placeholders"`
-	Rounds        []discussionRoundPayload       `json:"rounds"`
-	Summary       discussionSummaryPayload       `json:"summary"`
-	SummaryPrompt string                         `json:"summaryPrompt,omitempty"`
-	Turns         []discussionTurnPayload        `json:"turns"`
-	FinalContent  string                         `json:"finalContent,omitempty"`
-	Error         string                         `json:"error,omitempty"`
-	CreatedAt     int64                          `json:"createdAt"`
-	UpdatedAt     int64                          `json:"updatedAt"`
+	Enabled               bool                             `json:"enabled"`
+	Status                string                           `json:"status"`
+	TemplateID            string                           `json:"templateId"`
+	TemplateName          string                           `json:"templateName"`
+	Placeholders          []discussionPlaceholderPayload   `json:"placeholders"`
+	Rounds                []discussionRoundPayload         `json:"rounds"`
+	Summary               discussionSummaryPayload         `json:"summary"`
+	SummaryPrompt         string                           `json:"summaryPrompt,omitempty"`
+	SummaryPromptMessages []discussionPromptMessagePayload `json:"summaryPromptMessages,omitempty"`
+	Turns                 []discussionTurnPayload          `json:"turns"`
+	FinalContent          string                           `json:"finalContent,omitempty"`
+	Error                 string                           `json:"error,omitempty"`
+	CreatedAt             int64                            `json:"createdAt"`
+	UpdatedAt             int64                            `json:"updatedAt"`
 }
 
 func discussionPlaceholdersPayloadOf(items []domaindiscussion.Placeholder) []discussionPlaceholderPayload {
@@ -109,6 +116,17 @@ func discussionSummaryPayloadOf(summary domaindiscussion.RuntimeSummary) discuss
 	}
 }
 
+func discussionPromptMessagesPayloadOf(messages []domaindiscussion.PromptMessage) []discussionPromptMessagePayload {
+	if len(messages) == 0 {
+		return nil
+	}
+	payload := make([]discussionPromptMessagePayload, 0, len(messages))
+	for _, message := range messages {
+		payload = append(payload, discussionPromptMessagePayload{Role: message.Role, Content: message.Content})
+	}
+	return payload
+}
+
 func discussionTurnPayloadOf(turn domaindiscussion.Turn) discussionTurnPayload {
 	return discussionTurnPayload{
 		Round:            turn.Round,
@@ -119,6 +137,7 @@ func discussionTurnPayloadOf(turn domaindiscussion.Turn) discussionTurnPayload {
 		Content:          turn.Content,
 		Error:            turn.Error,
 		Prompt:           turn.Prompt,
+		PromptMessages:   discussionPromptMessagesPayloadOf(turn.PromptMessages),
 		InputTokens:      turn.InputTokens,
 		OutputTokens:     turn.OutputTokens,
 		CacheReadTokens:  turn.CacheReadTokens,
@@ -138,18 +157,19 @@ func discussionTurnsPayloadOf(turns []domaindiscussion.Turn) []discussionTurnPay
 
 func discussionStatePayloadOf(state domaindiscussion.State) discussionStatePayload {
 	return discussionStatePayload{
-		Enabled:       state.Enabled,
-		Status:        state.Status,
-		TemplateID:    state.TemplateID,
-		TemplateName:  state.TemplateName,
-		Placeholders:  discussionPlaceholdersPayloadOf(state.Placeholders),
-		Rounds:        discussionRoundsPayloadOf(state.Rounds),
-		Summary:       discussionSummaryPayloadOf(state.Summary),
-		SummaryPrompt: state.SummaryPrompt,
-		Turns:         discussionTurnsPayloadOf(state.Turns),
-		FinalContent:  state.FinalContent,
-		Error:         state.Error,
-		CreatedAt:     state.CreatedAt,
-		UpdatedAt:     state.UpdatedAt,
+		Enabled:               state.Enabled,
+		Status:                state.Status,
+		TemplateID:            state.TemplateID,
+		TemplateName:          state.TemplateName,
+		Placeholders:          discussionPlaceholdersPayloadOf(state.Placeholders),
+		Rounds:                discussionRoundsPayloadOf(state.Rounds),
+		Summary:               discussionSummaryPayloadOf(state.Summary),
+		SummaryPrompt:         state.SummaryPrompt,
+		SummaryPromptMessages: discussionPromptMessagesPayloadOf(state.SummaryPromptMessages),
+		Turns:                 discussionTurnsPayloadOf(state.Turns),
+		FinalContent:          state.FinalContent,
+		Error:                 state.Error,
+		CreatedAt:             state.CreatedAt,
+		UpdatedAt:             state.UpdatedAt,
 	}
 }

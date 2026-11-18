@@ -191,6 +191,7 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 		finalText = discussionFallbackSummary(state.Turns, summaryTurn.Error)
 	}
 	state.SummaryPrompt = summaryTurn.Prompt
+	state.SummaryPromptMessages = summaryTurn.PromptMessages
 	totalInput += summaryTurn.InputTokens
 	totalOutput += summaryTurn.OutputTokens
 	totalCacheRead += summaryTurn.CacheReadTokens
@@ -292,14 +293,15 @@ func (s *Service) runDiscussionTurn(
 	}
 	messages := append([]llm.Message{{Role: "system", Content: prompt}}, history...)
 	messages = append(messages, llm.Message{Role: "user", Content: discussionTurnUserContent(input.Content, transcript)})
-	output, promptText, err := s.generateDiscussion(ctx, input, conversation, step.Model, messages, func(promptText string) {
+	output, promptText, promptMessages, err := s.generateDiscussion(ctx, input, conversation, step.Model, messages, func(promptText string, promptMessages []domaindiscussion.PromptMessage) {
 		if input.OnEvent != nil {
 			_ = input.OnEvent("discussion_turn_start", map[string]any{
-				"round":       roundIndex,
-				"stepId":      step.ID,
-				"participant": step.Participant,
-				"model":       step.Model,
-				"prompt":      promptText,
+				"round":          roundIndex,
+				"stepId":         step.ID,
+				"participant":    step.Participant,
+				"model":          step.Model,
+				"prompt":         promptText,
+				"promptMessages": discussionPromptMessagesPayloadOf(promptMessages),
 			})
 		}
 	}, func(delta string) {
@@ -314,6 +316,7 @@ func (s *Service) runDiscussionTurn(
 		}
 	})
 	turn.Prompt = promptText
+	turn.PromptMessages = promptMessages
 	if err != nil {
 		turn.Status = "error"
 		turn.Error = err.Error()
@@ -357,16 +360,18 @@ func (s *Service) runDiscussionSummary(
 	}
 	messages := append([]llm.Message{{Role: "system", Content: prompt}}, history...)
 	messages = append(messages, llm.Message{Role: "user", Content: discussionSummaryUserContent(input.Content, transcript)})
-	output, promptText, err := s.generateDiscussion(ctx, input, conversation, plan.Summary.Model, messages, func(promptText string) {
+	output, promptText, promptMessages, err := s.generateDiscussion(ctx, input, conversation, plan.Summary.Model, messages, func(promptText string, promptMessages []domaindiscussion.PromptMessage) {
 		emit("discussion_summary_start", map[string]any{
-			"participant": plan.Summary.Participant,
-			"model":       plan.Summary.Model,
-			"prompt":      promptText,
+			"participant":    plan.Summary.Participant,
+			"model":          plan.Summary.Model,
+			"prompt":         promptText,
+			"promptMessages": discussionPromptMessagesPayloadOf(promptMessages),
 		})
 	}, func(delta string) {
 		emit("discussion_summary_delta", map[string]any{"delta": delta})
 	})
 	turn.Prompt = promptText
+	turn.PromptMessages = promptMessages
 	if err != nil {
 		turn.Status = "error"
 		turn.Error = err.Error()
@@ -389,9 +394,9 @@ func (s *Service) generateDiscussion(
 	conversation *model.Conversation,
 	platformModelName string,
 	messages []llm.Message,
-	onPrompt func(string),
+	onPrompt func(string, []domaindiscussion.PromptMessage),
 	onDelta func(string),
-) (*llm.GenerateOutput, string, error) {
+) (*llm.GenerateOutput, string, []domaindiscussion.PromptMessage, error) {
 	route, err := s.routeResolver.ResolveRoute(ctx, channel.ResolveRouteInput{
 		PlatformModelName: platformModelName,
 		TaskType:          channel.TaskTypeChat,
@@ -401,7 +406,7 @@ func (s *Service) generateDiscussion(
 		RequestID:         input.RequestID,
 	})
 	if err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
 	attributionReferer, attributionTitle := s.llmAttribution()
 	routeConfig := routeConfigFromResolved(route, llm.DefaultEndpointForAdapter(route.Protocol), attributionReferer, attributionTitle)
@@ -420,8 +425,9 @@ func (s *Service) generateDiscussion(
 		s.logPromptBudgetFit(ctx, route.UpstreamModel, budgetFit)
 	}
 	promptText := renderDiscussionPrompt(generateInput.Messages)
+	promptMessages := discussionPromptMessagesOf(generateInput.Messages)
 	if onPrompt != nil {
-		onPrompt(promptText)
+		onPrompt(promptText, promptMessages)
 	}
 	output, err := s.llmClient.GenerateStream(ctx, routeConfig, generateInput, func(event llm.GenerateStreamEvent) error {
 		if event.Delta != "" && onDelta != nil {
@@ -430,9 +436,21 @@ func (s *Service) generateDiscussion(
 		return nil
 	})
 	if err != nil {
-		return nil, promptText, err
+		return nil, promptText, promptMessages, err
 	}
-	return output, promptText, nil
+	return output, promptText, promptMessages, nil
+}
+
+func discussionPromptMessagesOf(messages []llm.Message) []domaindiscussion.PromptMessage {
+	result := make([]domaindiscussion.PromptMessage, 0, len(messages))
+	for _, message := range messages {
+		content := strings.TrimSpace(message.Content)
+		if content == "" {
+			continue
+		}
+		result = append(result, domaindiscussion.PromptMessage{Role: message.Role, Content: content})
+	}
+	return result
 }
 
 // discussionTurnUserContent 组装一次轮次发言的当前用户消息：本次问题 + 本轮之前的讨论记录。

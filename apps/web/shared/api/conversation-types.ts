@@ -54,6 +54,7 @@ import type {
 
 import type {
   DiscussionPlaceholder,
+  DiscussionPromptMessage,
   DiscussionRuntimeRound,
   DiscussionRuntimeSummary,
   DiscussionState,
@@ -410,6 +411,7 @@ export type StreamMessageEvent =
       participant: string;
       model: string;
       prompt: string;
+      promptMessages: DiscussionPromptMessage[];
     }
   | {
       type: "discussion_turn_delta";
@@ -437,6 +439,7 @@ export type StreamMessageEvent =
       participant: string;
       model: string;
       prompt: string;
+      promptMessages: DiscussionPromptMessage[];
     }
   | {
       type: "discussion_summary_delta";
