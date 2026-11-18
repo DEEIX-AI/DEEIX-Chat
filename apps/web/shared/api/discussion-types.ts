@@ -99,6 +99,32 @@ export type DiscussionRuntimeSummary = {
   prompt: string;
 };
 
+export type DiscussionRuntimePlan = {
+  rounds: DiscussionRuntimeRound[];
+  summary: DiscussionRuntimeSummary;
+};
+
+export type DiscussionSnapshotContent = {
+  template: DiscussionTemplateDTO;
+  config: DiscussionTemplateConfig;
+  plan: DiscussionRuntimePlan;
+};
+
+export type DiscussionConversationSnapshot = {
+  templatePublicID: string;
+  active: DiscussionSnapshotContent | null;
+  activeVersion: number;
+  pending: DiscussionSnapshotContent | null;
+  pendingVersion: number;
+  pendingCreatedAt?: string;
+  updatedAt: string;
+};
+
+export type DiscussionSnapshotRequest = {
+  models?: Record<string, string>;
+  expectedPendingVersion: number;
+};
+
 export type DiscussionState = {
   enabled: boolean;
   status: string;
@@ -122,6 +148,8 @@ export type DiscussionSendRequest = {
   content: string;
   templatePublicID: string;
   models: Record<string, string>;
+  disabledModels?: string[];
+  expectedPendingVersion?: number;
   clientRunID?: string;
   parentMessagePublicID?: string;
   sourceMessagePublicID?: string;

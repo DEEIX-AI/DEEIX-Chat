@@ -11,6 +11,7 @@ import type {
   ConversationOptions,
   MessageDTO,
   MessageUIStateInput,
+  StreamMessageEvent,
 } from "@/shared/api/conversation-types";
 import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 
@@ -96,6 +97,9 @@ export function useChatRuntime({
   modelOptions,
   discussionTemplate,
   discussionBindings,
+  discussionDisabledModels,
+  discussionExpectedPendingVersion,
+  onDiscussionStreamEvent,
   selectedToolIDs,
   selectedSkills,
   selectedKnowledgeBaseIDs,
@@ -136,6 +140,9 @@ export function useChatRuntime({
   modelOptions: ChatModelOption[];
   discussionTemplate?: DiscussionTemplateDTO | null;
   discussionBindings?: Record<string, string>;
+  discussionDisabledModels?: string[];
+  discussionExpectedPendingVersion?: number;
+  onDiscussionStreamEvent?: (event: StreamMessageEvent) => void;
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
@@ -219,6 +226,9 @@ export function useChatRuntime({
     modelOptions,
     discussionTemplate,
     discussionBindings,
+    discussionDisabledModels,
+    discussionExpectedPendingVersion,
+    onDiscussionStreamEvent,
     selectedToolIDs,
     selectedSkills,
     selectedKnowledgeBaseIDs,

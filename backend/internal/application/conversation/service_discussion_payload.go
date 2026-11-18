@@ -175,3 +175,81 @@ func discussionStatePayloadOf(state domaindiscussion.State) discussionStatePaylo
 		UpdatedAt:             state.UpdatedAt,
 	}
 }
+
+func discussionTemplateConfigPayloadOf(config domaindiscussion.TemplateConfig) map[string]any {
+	rounds := make([]map[string]any, 0, len(config.Rounds))
+	for _, round := range config.Rounds {
+		steps := make([]map[string]any, 0, len(round.Steps))
+		for _, step := range round.Steps {
+			steps = append(steps, map[string]any{
+				"id":          step.ID,
+				"participant": step.Participant,
+				"prompt":      step.Prompt,
+			})
+		}
+		rounds = append(rounds, map[string]any{
+			"index":          round.Index,
+			"parallel":       round.IsParallel(),
+			"parallelPrompt": round.ParallelPrompt,
+			"serialPrompt":   round.SerialPrompt,
+			"steps":          steps,
+		})
+	}
+	return map[string]any{
+		"placeholders": discussionPlaceholdersPayloadOf(config.Placeholders),
+		"rounds":       rounds,
+		"summary": map[string]any{
+			"participant": config.Summary.Participant,
+			"prompt":      config.Summary.Prompt,
+		},
+	}
+}
+
+func discussionTemplatePayloadOf(template domaindiscussion.Template) map[string]any {
+	return map[string]any{
+		"id":          template.ID,
+		"publicID":    template.PublicID,
+		"name":        template.Name,
+		"description": template.Description,
+		"icon":        template.Icon,
+		"status":      template.Status,
+		"maxRounds":   template.MaxRounds,
+		"sortOrder":   template.SortOrder,
+		"createdAt":   template.CreatedAt,
+		"updatedAt":   template.UpdatedAt,
+	}
+}
+
+func discussionRuntimePlanPayloadOf(plan domaindiscussion.RuntimePlan) map[string]any {
+	return map[string]any{
+		"rounds":  discussionRoundsPayloadOf(plan.Rounds),
+		"summary": discussionSummaryPayloadOf(plan.Summary),
+	}
+}
+
+func discussionSnapshotContentPayloadOf(snapshot *domaindiscussion.Snapshot) any {
+	if snapshot == nil {
+		return nil
+	}
+	return map[string]any{
+		"template": discussionTemplatePayloadOf(snapshot.Template),
+		"config":   discussionTemplateConfigPayloadOf(snapshot.Config),
+		"plan":     discussionRuntimePlanPayloadOf(snapshot.Plan),
+	}
+}
+
+// DiscussionSnapshotPayloadOf 是快照 HTTP 响应与完成事件共用的传输映射。
+func DiscussionSnapshotPayloadOf(snapshot *domaindiscussion.ConversationSnapshot) any {
+	if snapshot == nil {
+		return nil
+	}
+	return map[string]any{
+		"templatePublicID": snapshot.TemplatePublicID,
+		"active":           discussionSnapshotContentPayloadOf(snapshot.Active),
+		"activeVersion":    snapshot.ActiveVersion,
+		"pending":          discussionSnapshotContentPayloadOf(snapshot.Pending),
+		"pendingVersion":   snapshot.PendingVersion,
+		"pendingCreatedAt": snapshot.PendingCreatedAt,
+		"updatedAt":        snapshot.UpdatedAt,
+	}
+}

@@ -29,6 +29,23 @@ func (Conversation) TableName() string {
 	return "chat_conversations"
 }
 
+// ConversationDiscussionSnapshot 保存会话在某个讨论模板下已生效和待验证的完整配置。
+type ConversationDiscussionSnapshot struct {
+	BaseModel
+	ConversationID      uint       `gorm:"not null;uniqueIndex:idx_chat_discussion_snapshot_scope,priority:1;comment:会话ID"`
+	TemplatePublicID    string     `gorm:"size:32;not null;uniqueIndex:idx_chat_discussion_snapshot_scope,priority:2;comment:讨论模板公开ID"`
+	ActiveSnapshotJSON  string     `gorm:"type:text;not null;default:'';comment:已生效讨论配置JSON"`
+	ActiveVersion       int64      `gorm:"not null;default:0;comment:已生效配置版本"`
+	PendingSnapshotJSON string     `gorm:"type:text;not null;default:'';comment:待验证讨论配置JSON"`
+	PendingVersion      int64      `gorm:"not null;default:0;comment:待验证配置版本"`
+	PendingCreatedAt    *time.Time `gorm:"comment:待验证配置创建时间"`
+}
+
+// TableName 指定表名。
+func (ConversationDiscussionSnapshot) TableName() string {
+	return "chat_conversation_discussion_snapshots"
+}
+
 // ConversationProject 存储用户会话项目分组。
 type ConversationProject struct {
 	BaseModel

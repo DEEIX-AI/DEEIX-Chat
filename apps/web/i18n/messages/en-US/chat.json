@@ -1220,6 +1220,25 @@
     "debugHidePrompt": "Hide prompt",
     "debugPromptFor": "Full prompt sent to {model}",
     "debugSummaryPrompt": "Full prompt sent to the summary model",
-    "debugPromptMissing": "No prompt recorded for this message (older run)"
+    "debugPromptMissing": "No prompt recorded for this message (older run)",
+    "enableModel": "Enable this discussion model",
+    "disableModel": "Temporarily disable this discussion model",
+    "lastModelRequired": "Keep at least one discussion model and one non-empty round",
+    "activeBadge": "Configuration locked",
+    "pendingBadge": "New configuration pending",
+    "refreshConfiguration": "Refresh discussion configuration",
+    "rollbackConfiguration": "Discard refresh",
+    "adoptConfiguration": "Use new configuration anyway",
+    "refreshAgainConfirm": "Refreshing again discards the current pending configuration. Click again to confirm",
+    "confirmRefresh": "Confirm refresh",
+    "cancelRefresh": "Cancel",
+    "refreshReady": "New configuration is ready and takes effect after a fully successful run",
+    "rollbackDone": "Restored the previous configuration",
+    "adoptDone": "New configuration adopted",
+    "pendingCommitted": "New configuration is now active",
+    "pendingNotCommitted": "The run was not fully successful; the new configuration is still pending",
+    "snapshotConflict": "Configuration changed in another tab. Reload this conversation and retry",
+    "snapshotLoadFailed": "Failed to load discussion configuration",
+    "snapshotActionFailed": "Discussion configuration operation failed; the active configuration is unchanged"
   }
 }

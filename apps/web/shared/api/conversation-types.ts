@@ -57,6 +57,7 @@ import type {
   DiscussionPromptMessage,
   DiscussionRuntimeRound,
   DiscussionRuntimeSummary,
+  DiscussionSnapshotContent,
   DiscussionState,
   DiscussionTurn,
 } from "@/shared/api/discussion-types";
@@ -450,6 +451,10 @@ export type StreamMessageEvent =
       type: "discussion_done";
       seq?: number;
       state: DiscussionState;
+      snapshotCommitted?: boolean;
+      activeSnapshot?: DiscussionSnapshotContent | null;
+      activeVersion?: number;
+      pendingVersion?: number;
     }
   | {
       type: "error";

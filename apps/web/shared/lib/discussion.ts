@@ -1,4 +1,9 @@
-import type { DiscussionPlaceholder, DiscussionRound } from "@/shared/api/discussion-types";
+import type {
+  DiscussionPlaceholder,
+  DiscussionRound,
+  DiscussionRuntimePlan,
+  DiscussionTemplateConfig,
+} from "@/shared/api/discussion-types";
 
 const SUMMARY_PLACEHOLDER_LABEL = "总结模型";
 
@@ -70,4 +75,57 @@ export function discussionPlaceholderLabels(
     labels.set(placeholder.key, `模型 ${index}`);
   }
   return labels;
+}
+
+export function discussionRuntimeBindings(plan: DiscussionRuntimePlan): Record<string, string> {
+  const bindings: Record<string, string> = {};
+  for (const round of plan.rounds ?? []) {
+    for (const step of round.steps ?? []) {
+      if (step.participant && step.model?.trim()) {
+        bindings[step.participant] = step.model.trim();
+      }
+    }
+  }
+  if (plan.summary?.participant && plan.summary.model?.trim()) {
+    bindings[plan.summary.participant] = plan.summary.model.trim();
+  }
+  return bindings;
+}
+
+export function hasEnabledDiscussionRound(
+  config: DiscussionTemplateConfig,
+  disabledModels: readonly string[],
+): boolean {
+  const disabled = new Set(disabledModels);
+  return config.rounds.some((round) => round.steps.some((step) => !disabled.has(step.participant)));
+}
+
+export function canDisableDiscussionModel(
+  config: DiscussionTemplateConfig,
+  participant: string,
+  disabledModels: readonly string[],
+): boolean {
+  if (participant === config.summary.participant || disabledModels.includes(participant)) {
+    return false;
+  }
+  const discussionModels = new Set(
+    config.placeholders
+      .map((item) => item.key)
+      .filter((key) => key !== config.summary.participant),
+  );
+  const enabledCount = [...discussionModels].filter((key) => !disabledModels.includes(key)).length;
+  return enabledCount > 1 && hasEnabledDiscussionRound(config, [...disabledModels, participant]);
+}
+
+export function discussionBindingsComplete(
+  config: DiscussionTemplateConfig,
+  bindings: Record<string, string>,
+  disabledModels: readonly string[],
+): boolean {
+  const disabled = new Set(disabledModels);
+  return hasEnabledDiscussionRound(config, disabledModels)
+    && config.placeholders.every((placeholder) =>
+      (placeholder.key !== config.summary.participant && disabled.has(placeholder.key))
+      || Boolean(bindings[placeholder.key]?.trim()),
+    );
 }

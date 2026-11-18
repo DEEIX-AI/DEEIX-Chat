@@ -284,10 +284,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
           : status === "summarizing"
             ? t("statusSummarizing")
             : t("statusRunning");
-  const participantCount = Math.max(
-    new Set(modelsByParticipant.keys()).size,
-    Math.max(labels.size - 1, 0),
-  );
+  const participantCount = new Set(modelsByParticipant.keys()).size;
 
   const scrollToRound = (round: number) => {
     roundRefs.current.get(round)?.scrollIntoView({ behavior: "smooth", block: "nearest" });

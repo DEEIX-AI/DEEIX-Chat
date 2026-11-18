@@ -16,14 +16,16 @@ import (
 
 // DiscussionSendRequest 是讨论消息发送请求。
 type DiscussionSendRequest struct {
-	ContentType           string            `json:"contentType" binding:"required,oneof=text markdown"`
-	Content               string            `json:"content" binding:"required"`
-	TemplatePublicID      string            `json:"templatePublicID" binding:"required,max=32"`
-	Models                map[string]string `json:"models,omitempty"`
-	ClientRunID           string            `json:"clientRunID,omitempty" binding:"omitempty,max=64"`
-	ParentMessagePublicID string            `json:"parentMessagePublicID,omitempty" binding:"omitempty,max=32"`
-	SourceMessagePublicID string            `json:"sourceMessagePublicID,omitempty" binding:"omitempty,max=32"`
-	BranchReason          string            `json:"branchReason,omitempty" binding:"omitempty,oneof=default retry edit"`
+	ContentType            string            `json:"contentType" binding:"required,oneof=text markdown"`
+	Content                string            `json:"content" binding:"required"`
+	TemplatePublicID       string            `json:"templatePublicID" binding:"required,max=32"`
+	Models                 map[string]string `json:"models,omitempty"`
+	DisabledModels         []string          `json:"disabledModels,omitempty" binding:"omitempty,max=12,dive,max=64"`
+	ExpectedPendingVersion int64             `json:"expectedPendingVersion,omitempty" binding:"min=0"`
+	ClientRunID            string            `json:"clientRunID,omitempty" binding:"omitempty,max=64"`
+	ParentMessagePublicID  string            `json:"parentMessagePublicID,omitempty" binding:"omitempty,max=32"`
+	SourceMessagePublicID  string            `json:"sourceMessagePublicID,omitempty" binding:"omitempty,max=32"`
+	BranchReason           string            `json:"branchReason,omitempty" binding:"omitempty,oneof=default retry edit"`
 }
 
 // StreamDiscussionMessage godoc
@@ -90,17 +92,19 @@ func (h *Handler) StreamDiscussionMessage(c *gin.Context) {
 		return nil
 	}
 	input := appconversation.DiscussionSendInput{
-		UserID:                userID,
-		ConversationID:        conversation.ID,
-		RequestID:             middleware.MustRequestID(c),
-		ContentType:           req.ContentType,
-		Content:               req.Content,
-		TemplatePublicID:      req.TemplatePublicID,
-		ModelBindings:         req.Models,
-		ParentMessagePublicID: req.ParentMessagePublicID,
-		SourceMessagePublicID: req.SourceMessagePublicID,
-		BranchReason:          req.BranchReason,
-		ClientRunID:           runID,
+		UserID:                 userID,
+		ConversationID:         conversation.ID,
+		RequestID:              middleware.MustRequestID(c),
+		ContentType:            req.ContentType,
+		Content:                req.Content,
+		TemplatePublicID:       req.TemplatePublicID,
+		ModelBindings:          req.Models,
+		DisabledModels:         req.DisabledModels,
+		ExpectedPendingVersion: req.ExpectedPendingVersion,
+		ParentMessagePublicID:  req.ParentMessagePublicID,
+		SourceMessagePublicID:  req.SourceMessagePublicID,
+		BranchReason:           req.BranchReason,
+		ClientRunID:            runID,
 		OnEvent: func(eventType string, payload map[string]any) error {
 			return writeEvent(normalizeStreamEventPayload(eventType, payload))
 		},

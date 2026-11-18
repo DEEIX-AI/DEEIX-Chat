@@ -36,6 +36,7 @@ func Models() []any {
 		&models.ConversationProject{},
 		&models.ConversationShare{},
 		&models.DiscussionTemplate{},
+		&models.ConversationDiscussionSnapshot{},
 		&models.Message{},
 		&models.ConversationMessageFeedback{},
 		&models.ConversationMessageUIState{},
