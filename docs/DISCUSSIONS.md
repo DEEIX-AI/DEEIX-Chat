@@ -142,10 +142,10 @@
 - 总结模型独占一行（主色边框 + 「总结」徽标），讨论模型带电源开关。关闭只影响本次执行，不产生该占位符的发言或用量；总结不可关闭，至少保留一个非空轮次。
 - 临时关闭偏好按「会话 + 模板」存入 localStorage（`deeix:discussion-disabled:<conversation>:<template>`），与绑定草稿同生命周期，不写入 active/pending。
 - 首次完整成功后，服务端在 `chat_conversation_discussion_snapshots` 按 `(conversation_id, template_public_id)` 保存 active 完整模板和绑定。后台修改或删除模板不影响 active；平台模型被删除时也不自动替换，调用会按原绑定失败。
-- 「刷新讨论配置」通过 `POST .../discussion-snapshots/{templateID}/refresh` 生成 pending：已有占位符保留绑定，新占位符使用最新模板默认值，移除的占位符丢弃。pending 阶段下拉可编辑，active 阶段只读。
+- 「刷新讨论配置」通过 `POST .../discussion-snapshots/{templateID}/refresh` 生成 pending：请求中的 `manualModels` 指定要保留的手动绑定，其余已有占位符使用最新模板默认值，新占位符也使用默认值，移除的占位符丢弃。pending 阶段下拉可编辑，active 阶段只读。
 - 下一次发送携带 `disabledModels` 与 `expectedPendingVersion`。严格完整成功才原子提交 pending；失败、停止或部分失败保留 active 和 pending。`rollback` 清空 pending，部分成功后可用 `adopt` 手动采用。
 - 页面刷新只读取 `GET .../discussion-snapshots/{templateID}`，不会自动拉取后台改动。再次刷新需要内联二次确认；版本冲突返回 409，提示重新加载。
-- 新会话仍使用本地绑定草稿（`deeix:discussion-bindings:<conversation>:<template>`）；已有会话优先使用快照。后台模板删除后，前端用快照合成 `discussion:<templateID>` 选项，绑定条不会消失。
+- 新会话也显示「刷新讨论配置」，点击后重新拉取模板并更新非手动项。「使用后台默认模型」清除手动覆盖。草稿值为 `deeix:discussion-bindings:<conversation>:<template>`，手动项单独存于 `deeix:discussion-manual-models:<conversation>:<template>`；已有会话优先使用快照。后台模板删除后，前端用快照合成 `discussion:<templateID>` 选项，绑定条不会消失。
 
 ## 8. 已知边界
 

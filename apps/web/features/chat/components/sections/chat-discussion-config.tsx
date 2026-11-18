@@ -33,6 +33,7 @@ export function ChatDiscussionConfig({
   onCancelRefresh,
   onRollback,
   onAdopt,
+  onUseDefaults,
 }: {
   template: DiscussionTemplateDTO;
   modelOptions: ChatModelOption[];
@@ -52,6 +53,7 @@ export function ChatDiscussionConfig({
   onCancelRefresh?: () => void;
   onRollback?: () => Promise<void>;
   onAdopt?: () => Promise<void>;
+  onUseDefaults?: () => void;
 }) {
   const t = useTranslations("chat.discussion");
   const candidates = React.useMemo(
@@ -137,6 +139,17 @@ export function ChatDiscussionConfig({
           </span>
         ) : null}
         <span className="ml-auto flex flex-wrap gap-1">
+          {!bindingsLocked && onUseDefaults ? (
+            <button
+              type="button"
+              className="inline-flex h-6 items-center gap-1 rounded-md border border-border/60 px-2 text-[10px] text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-50"
+              disabled={disabled || snapshotBusy}
+              onClick={onUseDefaults}
+            >
+              <Undo2 className="size-3" />
+              {t("useDefaultModels")}
+            </button>
+          ) : null}
           {actionButton(t(refreshConfirmationPending ? "confirmRefresh" : "refreshConfiguration"), <RefreshCw className="size-3" />, onRefresh)}
           {refreshConfirmationPending ? (
             <button type="button" className="h-6 rounded-md px-2 text-[10px] text-muted-foreground hover:text-foreground" onClick={onCancelRefresh}>
