@@ -760,6 +760,28 @@ export function useChatModelOptions({
     const template = selectedDiscussionTemplate;
     const scope = `${conversationPublicID || "new"}|${template?.publicID ?? ""}`;
     if (discussionBindingScopeRef.current === scope) {
+      // The seed arrives with the message list, which can load after this scope was set up.
+      // Until the user picks a model themselves, the last discussion's bindings win over the
+      // template defaults; otherwise the composer would show models the last run never used.
+      if (!template || !discussionSeedBindings || discussionBindingsTouchedRef.current) {
+        return;
+      }
+      const next: Record<string, string> = {};
+      for (const placeholder of template.config.placeholders) {
+        next[placeholder.key] =
+          discussionSeedBindings[placeholder.key] ||
+          discussionBindingsRef.current[placeholder.key] ||
+          placeholder.defaultModel ||
+          "";
+      }
+      const unchanged = template.config.placeholders.every(
+        (placeholder) => discussionBindingsRef.current[placeholder.key] === next[placeholder.key],
+      );
+      if (unchanged) {
+        return;
+      }
+      writeStoredDiscussionBindings(discussionBindingsStorageKey(conversationPublicID, template.publicID), next);
+      setDiscussionBindings(next);
       return;
     }
     const previousScope = discussionBindingScopeRef.current;
