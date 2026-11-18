@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
@@ -93,23 +94,29 @@ func TestDiscussionEventPayloadsUseStateShape(t *testing.T) {
 }
 
 func TestDiscussionTurnUserContentKeepsQuestionAndTranscript(t *testing.T) {
-	text := discussionTurnUserContent("现在怎么办？", "第 1 轮\n- model-a: A1")
-	for _, want := range []string{"现在怎么办？", "上一轮及更早的讨论记录", "A1"} {
+	text := discussionTurnUserContent("现在怎么办？", "第 1 轮\n- model-a: A1", true)
+	for _, want := range []string{"现在怎么办？", "此前轮次的讨论记录（不包含本轮其他模型）", "A1"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("expected %q in user content, got %s", want, text)
 		}
+	}
+	serial := discussionTurnUserContent("现在怎么办？", "第 1 轮\n- model-a: A1", false)
+	if !strings.Contains(serial, "此前轮次及本轮在你之前的讨论记录") {
+		t.Fatalf("expected serial context heading, got %s", serial)
 	}
 	// History now travels as real user/assistant messages, not as a flattened text block.
 	if strings.Contains(text, "上次讨论的结果") {
 		t.Fatalf("prior result must not be inlined into the current question, got %s", text)
 	}
-	if bare := discussionTurnUserContent("你好", ""); strings.Contains(bare, "讨论记录") {
+	if bare := discussionTurnUserContent("你好", "", true); strings.Contains(bare, "讨论记录") {
 		t.Fatalf("an empty transcript must not add a heading, got %s", bare)
 	}
 }
 
 type discussionStreamGatewayStub struct {
 	temporaryLLMGatewayStub
+	mu        sync.Mutex
+	responses []string
 }
 
 func (g *discussionStreamGatewayStub) GenerateStream(
@@ -118,6 +125,12 @@ func (g *discussionStreamGatewayStub) GenerateStream(
 	input llm.GenerateInput,
 	onEvent func(llm.GenerateStreamEvent) error,
 ) (*llm.GenerateOutput, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if len(g.responses) > 0 {
+		g.output = &llm.GenerateOutput{Text: g.responses[0]}
+		g.responses = g.responses[1:]
+	}
 	if onEvent != nil {
 		if err := onEvent(llm.GenerateStreamEvent{Delta: "partial"}); err != nil {
 			return nil, err
@@ -126,13 +139,98 @@ func (g *discussionStreamGatewayStub) GenerateStream(
 	return g.temporaryLLMGatewayStub.GenerateStream(ctx, route, input, nil)
 }
 
-func discussionStreamTestService() *Service {
+func discussionStreamTestServiceForModels(gateway *discussionStreamGatewayStub, models ...string) *Service {
+	routes := make(map[string]*channel.ResolvedRoute, len(models))
+	for _, modelName := range models {
+		routes[modelName] = &channel.ResolvedRoute{PlatformModelName: modelName, UpstreamModel: modelName, Protocol: llm.AdapterOpenAIChatCompletions}
+	}
 	return &Service{
-		cfg: config.NewRuntime(config.Config{}),
-		routeResolver: &textTaskRouteResolverStub{routes: map[string]*channel.ResolvedRoute{
-			"model-a": {PlatformModelName: "model-a", UpstreamModel: "model-a", Protocol: llm.AdapterOpenAIChatCompletions},
-		}},
-		llmClient: &discussionStreamGatewayStub{},
+		cfg:           config.NewRuntime(config.Config{}),
+		routeResolver: &textTaskRouteResolverStub{routes: routes},
+		llmClient:     gateway,
+	}
+}
+
+func discussionStreamTestService() *Service {
+	return discussionStreamTestServiceForModels(&discussionStreamGatewayStub{}, "model-a")
+}
+
+func lastDiscussionUserContent(input llm.GenerateInput) string {
+	return input.Messages[len(input.Messages)-1].Content
+}
+
+func TestDiscussionSerialRoundBuildsIncrementalContext(t *testing.T) {
+	gateway := &discussionStreamGatewayStub{responses: []string{"first answer", "second answer", "third answer"}}
+	service := discussionStreamTestServiceForModels(gateway, "model-a", "model-b", "model-c")
+	serial := false
+	state := domaindiscussion.State{Turns: []domaindiscussion.Turn{{Round: 1, Status: "completed", Model: "previous", Content: "previous answer"}}}
+	round := domaindiscussion.RuntimeRound{Index: 2, Parallel: &serial, Steps: []domaindiscussion.RuntimeStep{
+		{ID: "s1", Participant: "p1", Model: "model-a"},
+		{ID: "s2", Participant: "p2", Model: "model-b"},
+		{ID: "s3", Participant: "p3", Model: "model-c"},
+	}}
+	results := service.runDiscussionRound(
+		context.Background(),
+		DiscussionSendInput{Content: "question"},
+		&model.Conversation{ID: 1},
+		round,
+		&state,
+		nil,
+		func(string, map[string]any) {},
+	)
+	if len(results) != 3 || results[0].Model != "model-a" || results[1].Model != "model-b" || results[2].Model != "model-c" {
+		t.Fatalf("unexpected result order: %#v", results)
+	}
+	if len(gateway.inputs) != 3 {
+		t.Fatalf("upstream calls = %d", len(gateway.inputs))
+	}
+	first := lastDiscussionUserContent(gateway.inputs[0])
+	second := lastDiscussionUserContent(gateway.inputs[1])
+	third := lastDiscussionUserContent(gateway.inputs[2])
+	if !strings.Contains(first, "previous answer") || strings.Contains(first, "first answer") {
+		t.Fatalf("unexpected first context: %s", first)
+	}
+	if !strings.Contains(second, "first answer") || strings.Contains(second, "second answer") {
+		t.Fatalf("unexpected second context: %s", second)
+	}
+	if !strings.Contains(third, "first answer") || !strings.Contains(third, "second answer") || !strings.Contains(third, "此前轮次及本轮在你之前") {
+		t.Fatalf("unexpected third context: %s", third)
+	}
+	for _, input := range gateway.inputs {
+		if !strings.Contains(input.Messages[0].Content, discussionSerialPrompt) {
+			t.Fatalf("missing serial instruction: %s", input.Messages[0].Content)
+		}
+	}
+}
+
+func TestDiscussionParallelRoundSharesPreviousContextOnly(t *testing.T) {
+	gateway := &discussionStreamGatewayStub{responses: []string{"first answer", "second answer"}}
+	service := discussionStreamTestServiceForModels(gateway, "model-a", "model-b")
+	state := domaindiscussion.State{Turns: []domaindiscussion.Turn{{Round: 1, Status: "completed", Model: "previous", Content: "previous answer"}}}
+	round := domaindiscussion.RuntimeRound{Index: 2, Steps: []domaindiscussion.RuntimeStep{
+		{ID: "s1", Participant: "p1", Model: "model-a"},
+		{ID: "s2", Participant: "p2", Model: "model-b"},
+	}}
+	results := service.runDiscussionRound(
+		context.Background(),
+		DiscussionSendInput{Content: "question"},
+		&model.Conversation{ID: 1},
+		round,
+		&state,
+		nil,
+		func(string, map[string]any) {},
+	)
+	if len(results) != 2 || len(gateway.inputs) != 2 {
+		t.Fatalf("results = %d, calls = %d", len(results), len(gateway.inputs))
+	}
+	contexts := []string{lastDiscussionUserContent(gateway.inputs[0]), lastDiscussionUserContent(gateway.inputs[1])}
+	if contexts[0] != contexts[1] || !strings.Contains(contexts[0], "previous answer") || strings.Contains(contexts[0], "first answer") || strings.Contains(contexts[0], "second answer") {
+		t.Fatalf("parallel contexts differ or include same-round answers: %#v", contexts)
+	}
+	for _, input := range gateway.inputs {
+		if !strings.Contains(input.Messages[0].Content, discussionParallelPrompt) {
+			t.Fatalf("missing parallel instruction: %s", input.Messages[0].Content)
+		}
 	}
 }
 
@@ -155,6 +253,7 @@ func TestDiscussionTurnEmitsStartWithPromptBeforeDelta(t *testing.T) {
 		domaindiscussion.RuntimeStep{ID: "s1", Participant: "p1", Model: "model-a"},
 		"",
 		nil,
+		true,
 	)
 	if strings.Join(events, ",") != "discussion_turn_start,discussion_turn_delta" {
 		t.Fatalf("events = %v", events)

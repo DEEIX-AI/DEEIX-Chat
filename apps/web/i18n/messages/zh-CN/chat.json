@@ -1196,6 +1196,8 @@
     "collapse": "收起",
     "all": "全部",
     "round": "第 {round} 轮",
+    "parallel": "并行",
+    "serial": "串行",
     "thinking": "思考中",
     "done": "已完成",
     "failed": "失败",

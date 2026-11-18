@@ -18,8 +18,9 @@ type discussionStepPayload struct {
 }
 
 type discussionRoundPayload struct {
-	Index int                     `json:"index"`
-	Steps []discussionStepPayload `json:"steps"`
+	Index    int                     `json:"index"`
+	Parallel bool                    `json:"parallel"`
+	Steps    []discussionStepPayload `json:"steps"`
 }
 
 type discussionSummaryPayload struct {
@@ -92,8 +93,9 @@ func discussionRoundsPayloadOf(rounds []domaindiscussion.RuntimeRound) []discuss
 	payload := make([]discussionRoundPayload, 0, len(rounds))
 	for _, round := range rounds {
 		roundPayload := discussionRoundPayload{
-			Index: round.Index,
-			Steps: make([]discussionStepPayload, 0, len(round.Steps)),
+			Index:    round.Index,
+			Parallel: round.IsParallel(),
+			Steps:    make([]discussionStepPayload, 0, len(round.Steps)),
 		}
 		for _, step := range round.Steps {
 			roundPayload.Steps = append(roundPayload.Steps, discussionStepPayload{

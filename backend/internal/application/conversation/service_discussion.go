@@ -21,6 +21,8 @@ const (
 	discussionModelPrefix        = "discussion:"
 	discussionDefaultStepPrompt  = "你是多模型讨论中的一员。请独立、具体地回答用户问题，指出关键假设与风险。"
 	discussionFollowupPrompt     = "你是多模型讨论中的一员。请阅读已有讨论，补充遗漏、纠正错误、挑战薄弱推理，不要重复已经充分的内容。"
+	discussionParallelPrompt     = "本轮为并行独立发言。你看不到同轮其他模型的回答，请独立判断，不要假设存在共识。"
+	discussionSerialPrompt       = "本轮为串行讨论。你可以看到同轮排在你之前的模型发言。先独立判断，再针对具体分歧进行回应；指出对方依赖的假设、逻辑跳跃或缺失证据，并给出反例或替代解释。不要重复已经充分的内容，也不要为了反对而反对。"
 	discussionSummaryPrompt      = "你是多模型讨论的主持人。请只依据成功的讨论发言，给出面向用户的最终答案；失败的发言不是观点或证据。"
 	discussionMaxTurnRunes       = 12000
 	discussionMaxTranscriptRunes = 60000
@@ -146,21 +148,8 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 		if err = ctx.Err(); err != nil {
 			break
 		}
-		transcript := discussionTranscript(state.Turns)
-		results := make([]domaindiscussion.Turn, len(round.Steps))
-		var wg sync.WaitGroup
-		for index, step := range round.Steps {
-			wg.Add(1)
-			go func(index int, step domaindiscussion.RuntimeStep) {
-				defer wg.Done()
-				turn := s.runDiscussionTurn(ctx, turnInput, conversation, round.Index, step, transcript, history)
-				results[index] = turn
-				emit("discussion_turn_done", map[string]any{"turn": discussionTurnPayloadOf(turn)})
-			}(index, step)
-		}
-		wg.Wait()
+		results := s.runDiscussionRound(ctx, turnInput, conversation, round, &state, history, emit)
 		for _, turn := range results {
-			state.Turns = append(state.Turns, turn)
 			totalInput += turn.InputTokens
 			totalOutput += turn.OutputTokens
 			totalCacheRead += turn.CacheReadTokens
@@ -266,6 +255,41 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 	}, nil
 }
 
+func (s *Service) runDiscussionRound(
+	ctx context.Context,
+	input DiscussionSendInput,
+	conversation *model.Conversation,
+	round domaindiscussion.RuntimeRound,
+	state *domaindiscussion.State,
+	history []llm.Message,
+	emit func(string, map[string]any),
+) []domaindiscussion.Turn {
+	results := make([]domaindiscussion.Turn, len(round.Steps))
+	if round.IsParallel() {
+		transcript := discussionTranscript(state.Turns)
+		var wg sync.WaitGroup
+		for index, step := range round.Steps {
+			wg.Add(1)
+			go func(index int, step domaindiscussion.RuntimeStep) {
+				defer wg.Done()
+				turn := s.runDiscussionTurn(ctx, input, conversation, round.Index, step, transcript, history, true)
+				results[index] = turn
+				emit("discussion_turn_done", map[string]any{"turn": discussionTurnPayloadOf(turn)})
+			}(index, step)
+		}
+		wg.Wait()
+		state.Turns = append(state.Turns, results...)
+		return results
+	}
+	for index, step := range round.Steps {
+		turn := s.runDiscussionTurn(ctx, input, conversation, round.Index, step, discussionTranscript(state.Turns), history, false)
+		results[index] = turn
+		state.Turns = append(state.Turns, turn)
+		emit("discussion_turn_done", map[string]any{"turn": discussionTurnPayloadOf(turn)})
+	}
+	return results
+}
+
 func (s *Service) runDiscussionTurn(
 	ctx context.Context,
 	input DiscussionSendInput,
@@ -274,6 +298,7 @@ func (s *Service) runDiscussionTurn(
 	step domaindiscussion.RuntimeStep,
 	transcript string,
 	history []llm.Message,
+	parallel bool,
 ) domaindiscussion.Turn {
 	turn := domaindiscussion.Turn{
 		Round:       roundIndex,
@@ -291,8 +316,13 @@ func (s *Service) runDiscussionTurn(
 			prompt = discussionFollowupPrompt
 		}
 	}
+	if parallel {
+		prompt += "\n\n" + discussionParallelPrompt
+	} else {
+		prompt += "\n\n" + discussionSerialPrompt
+	}
 	messages := append([]llm.Message{{Role: "system", Content: prompt}}, history...)
-	messages = append(messages, llm.Message{Role: "user", Content: discussionTurnUserContent(input.Content, transcript)})
+	messages = append(messages, llm.Message{Role: "user", Content: discussionTurnUserContent(input.Content, transcript, parallel)})
 	output, promptText, promptMessages, err := s.generateDiscussion(ctx, input, conversation, step.Model, messages, func(promptText string, promptMessages []domaindiscussion.PromptMessage) {
 		if input.OnEvent != nil {
 			_ = input.OnEvent("discussion_turn_start", map[string]any{
@@ -453,14 +483,17 @@ func discussionPromptMessagesOf(messages []llm.Message) []domaindiscussion.Promp
 	return result
 }
 
-// discussionTurnUserContent 组装一次轮次发言的当前用户消息：本次问题 + 本轮之前的讨论记录。
+// discussionTurnUserContent 组装一次轮次发言的当前用户消息：本次问题 + 当前模型可见的讨论记录。
 // 历史对话由 discussionHistoryMessages 以真实 user/assistant 消息的形式携带，不再拼进这一段。
-func discussionTurnUserContent(question string, transcript string) string {
+func discussionTurnUserContent(question string, transcript string, parallel bool) string {
 	var builder strings.Builder
 	builder.WriteString(strings.TrimSpace(question))
 	if transcript != "" {
-		// From the second round on, every model sees the previous round and all earlier rounds.
-		builder.WriteString("\n\n上一轮及更早的讨论记录：\n")
+		if parallel {
+			builder.WriteString("\n\n此前轮次的讨论记录（不包含本轮其他模型）：\n")
+		} else {
+			builder.WriteString("\n\n此前轮次及本轮在你之前的讨论记录：\n")
+		}
 		builder.WriteString(transcript)
 	}
 	return builder.String()

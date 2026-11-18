@@ -425,6 +425,9 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                           ? t("done")
                           : t("pendingTurn")}
                   </span>
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                    {round.parallel === false ? t("serial") : t("parallel")}
+                  </span>
                 </button>
                 <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
                   {steps.map((step) => {
