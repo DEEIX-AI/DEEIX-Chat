@@ -14,7 +14,12 @@ import type {
   DiscussionTemplateConfig,
   DiscussionTemplateDTO,
 } from "@/shared/api/discussion-types";
-import { discussionPlaceholderLabels, orderDiscussionPlaceholders } from "@/shared/lib/discussion";
+import {
+  defaultDiscussionRoundPrompt,
+  discussionPlaceholderLabels,
+  discussionRoundPrompt,
+  orderDiscussionPlaceholders,
+} from "@/shared/lib/discussion";
 
 type Draft = {
   publicID?: string;
@@ -59,23 +64,36 @@ function createDraft(): Draft {
         {
           index: 1,
           parallel: true,
+          parallelPrompt: defaultDiscussionRoundPrompt(0, true),
+          serialPrompt: defaultDiscussionRoundPrompt(0, false),
           steps: [
-            { id: newStepID(), participant: "p1", prompt: "请独立回答用户问题，给出清晰、具体、可执行的答案。" },
-            { id: newStepID(), participant: "p2", prompt: "请独立回答用户问题，给出清晰、具体、可执行的答案。" },
+            { id: newStepID(), participant: "p1", prompt: defaultDiscussionRoundPrompt(0, true) },
+            { id: newStepID(), participant: "p2", prompt: defaultDiscussionRoundPrompt(0, true) },
           ],
         },
         {
           index: 2,
           parallel: true,
+          parallelPrompt: defaultDiscussionRoundPrompt(1, true),
+          serialPrompt: defaultDiscussionRoundPrompt(1, false),
           steps: [
-            { id: newStepID(), participant: "p1", prompt: "阅读上一轮讨论，补充遗漏、纠正错误、挑战薄弱推理。" },
-            { id: newStepID(), participant: "p2", prompt: "阅读上一轮讨论，补充遗漏、纠正错误、挑战薄弱推理。" },
+            { id: newStepID(), participant: "p1", prompt: defaultDiscussionRoundPrompt(1, true) },
+            { id: newStepID(), participant: "p2", prompt: defaultDiscussionRoundPrompt(1, true) },
           ],
         },
       ],
       summary: { participant: "judge", prompt: "请综合成功发言，给出面向用户的最终答案；失败发言不是证据。" },
     },
   };
+}
+
+function seedRoundPrompt(round: DiscussionRound): DiscussionRound {
+  // Legacy templates only store steps[].prompt. Treat it as the prompt of the mode they were
+  // saved in, so switching away and back cannot overwrite the existing text with a default.
+  const legacyPrompt = round.steps[0]?.prompt ?? "";
+  return round.parallel
+    ? { ...round, parallelPrompt: round.parallelPrompt ?? legacyPrompt }
+    : { ...round, serialPrompt: round.serialPrompt ?? legacyPrompt };
 }
 
 function toDraft(template: DiscussionTemplateDTO): Draft {
@@ -86,6 +104,7 @@ function toDraft(template: DiscussionTemplateDTO): Draft {
     ...item,
     label: labels.get(item.key) ?? item.label,
   }));
+  config.rounds = config.rounds.map(seedRoundPrompt);
   return {
     publicID: template.publicID,
     name: template.name,
@@ -98,12 +117,23 @@ function toDraft(template: DiscussionTemplateDTO): Draft {
   };
 }
 
-function normalizeRounds(rounds: DiscussionRound[]): DiscussionRound[] {
-  return rounds.map((round, index) => ({
+function syncRoundPrompt(round: DiscussionRound, prompt: string): DiscussionRound {
+  return {
     ...round,
-    index: index + 1,
-    parallel: round.parallel ?? true,
-  }));
+    steps: round.steps.map((step) => ({ ...step, prompt })),
+  };
+}
+
+function normalizeRounds(rounds: DiscussionRound[]): DiscussionRound[] {
+  return rounds.map((round, index) => {
+    const normalized = seedRoundPrompt({
+      ...round,
+      index: index + 1,
+      parallel: round.parallel ?? true,
+    });
+    // steps[].prompt mirrors the selected mode so older readers and the runtime keep one prompt.
+    return syncRoundPrompt(normalized, discussionRoundPrompt(normalized));
+  });
 }
 
 export function AdminDiscussionsPage() {
@@ -174,7 +204,7 @@ export function AdminDiscussionsPage() {
             ...round,
             steps: [
               ...round.steps,
-              { id: newStepID(), participant: key, prompt: round.steps[0]?.prompt ?? "" },
+              { id: newStepID(), participant: key, prompt: discussionRoundPrompt(round) },
             ],
           })),
         },
@@ -201,18 +231,18 @@ export function AdminDiscussionsPage() {
     });
   };
 
-  const roundPrompt = (round: DiscussionRound): string => round.steps[0]?.prompt ?? "";
-
   const updateRoundPrompt = (roundIndex: number, prompt: string) => {
     setDraft((current) => ({
       ...current,
       config: {
         ...current.config,
-        rounds: current.config.rounds.map((round, index) =>
-          index === roundIndex
-            ? { ...round, steps: round.steps.map((step) => ({ ...step, prompt })) }
-            : round,
-        ),
+        rounds: current.config.rounds.map((round, index) => {
+          if (index !== roundIndex) return round;
+          // Editing only touches the selected mode; the other mode keeps its own prompt.
+          return round.parallel
+            ? syncRoundPrompt({ ...round, parallelPrompt: prompt }, prompt)
+            : syncRoundPrompt({ ...round, serialPrompt: prompt }, prompt);
+        }),
       },
     }));
   };
@@ -222,9 +252,35 @@ export function AdminDiscussionsPage() {
       ...current,
       config: {
         ...current.config,
-        rounds: current.config.rounds.map((round, index) =>
-          index === roundIndex ? { ...round, parallel } : round,
-        ),
+        rounds: current.config.rounds.map((round, index) => {
+          if (index !== roundIndex || round.parallel === parallel) return round;
+          // Switching modes restores that mode's own prompt. A mode that was never edited is
+          // filled with its default instead of inheriting the other mode's text.
+          const stored = parallel ? round.parallelPrompt : round.serialPrompt;
+          const prompt = stored?.trim() ? stored : defaultDiscussionRoundPrompt(index, parallel);
+          return syncRoundPrompt(
+            parallel
+              ? { ...round, parallel, parallelPrompt: prompt }
+              : { ...round, parallel, serialPrompt: prompt },
+            prompt,
+          );
+        }),
+      },
+    }));
+  };
+
+  const resetRoundPrompt = (roundIndex: number) => {
+    setDraft((current) => ({
+      ...current,
+      config: {
+        ...current.config,
+        rounds: current.config.rounds.map((round, index) => {
+          if (index !== roundIndex) return round;
+          const prompt = defaultDiscussionRoundPrompt(index, round.parallel);
+          return round.parallel
+            ? syncRoundPrompt({ ...round, parallelPrompt: prompt }, prompt)
+            : syncRoundPrompt({ ...round, serialPrompt: prompt }, prompt);
+        }),
       },
     }));
   };
@@ -248,7 +304,7 @@ export function AdminDiscussionsPage() {
             ...round,
             steps: [
               ...round.steps,
-              { id: newStepID(), participant, prompt: round.steps[0]?.prompt ?? "" },
+              { id: newStepID(), participant, prompt: discussionRoundPrompt(round) },
             ],
           };
         }),
@@ -270,7 +326,7 @@ export function AdminDiscussionsPage() {
       ...current.config,
       rounds: current.config.rounds.map((round, index) => {
         if (index !== roundIndex) return round;
-        const prompt = round.steps[0]?.prompt ?? "";
+        const prompt = discussionRoundPrompt(round);
         const kept = round.steps.filter((step) => participants.includes(step.participant));
         const added = participants
           .filter((participant) => !kept.some((step) => step.participant === participant))
@@ -307,27 +363,33 @@ export function AdminDiscussionsPage() {
   };
 
   const addRound = () => {
-    setDraft((current) => ({
-      ...current,
-      config: {
-        ...current.config,
-        rounds: [
-          ...current.config.rounds,
-          {
-            index: current.config.rounds.length + 1,
-            parallel: true,
-            steps: current.config.placeholders
-              .filter((item) => item.key !== current.config.summary.participant)
-              .map((item) => ({
-                id: newStepID(),
-                participant: item.key,
-                prompt: "阅读已有讨论，补充遗漏、纠正错误、挑战薄弱推理。",
-              })),
-          },
-        ],
-      },
-      maxRounds: Math.max(current.maxRounds, current.config.rounds.length + 1),
-    }));
+    setDraft((current) => {
+      const roundIndex = current.config.rounds.length;
+      const parallelPrompt = defaultDiscussionRoundPrompt(roundIndex, true);
+      return {
+        ...current,
+        config: {
+          ...current.config,
+          rounds: [
+            ...current.config.rounds,
+            {
+              index: roundIndex + 1,
+              parallel: true,
+              parallelPrompt,
+              serialPrompt: defaultDiscussionRoundPrompt(roundIndex, false),
+              steps: current.config.placeholders
+                .filter((item) => item.key !== current.config.summary.participant)
+                .map((item) => ({
+                  id: newStepID(),
+                  participant: item.key,
+                  prompt: parallelPrompt,
+                })),
+            },
+          ],
+        },
+        maxRounds: Math.max(current.maxRounds, roundIndex + 1),
+      };
+    });
   };
 
   const removeRound = (index: number) => {
@@ -661,9 +723,21 @@ export function AdminDiscussionsPage() {
                     : t("roundSerial")}
                 </p>
 
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-muted-foreground">
+                    {round.parallel ? t("parallelPrompt") : t("serialPrompt")}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-[11px] text-primary hover:underline"
+                    onClick={() => resetRoundPrompt(roundIndex)}
+                  >
+                    {t("resetPrompt")}
+                  </button>
+                </div>
                 <textarea
                   className="min-h-20 w-full rounded-md border border-border/60 bg-background px-2 py-1 text-xs"
-                  value={roundPrompt(round)}
+                  value={discussionRoundPrompt(round)}
                   placeholder={t("promptPlaceholder")}
                   onChange={(event) => updateRoundPrompt(roundIndex, event.target.value)}
                 />

@@ -31,9 +31,11 @@ type StepDTO struct {
 }
 
 type RoundDTO struct {
-	Index    int       `json:"index"`
-	Parallel bool      `json:"parallel"`
-	Steps    []StepDTO `json:"steps"`
+	Index          int       `json:"index"`
+	Parallel       bool      `json:"parallel"`
+	ParallelPrompt string    `json:"parallelPrompt,omitempty"`
+	SerialPrompt   string    `json:"serialPrompt,omitempty"`
+	Steps          []StepDTO `json:"steps"`
 }
 
 type SummaryDTO struct {
@@ -186,7 +188,13 @@ func toTemplateConfigDTO(config domaindiscussion.TemplateConfig) TemplateConfigD
 		})
 	}
 	for _, round := range config.Rounds {
-		roundDTO := RoundDTO{Index: round.Index, Parallel: round.IsParallel(), Steps: make([]StepDTO, 0, len(round.Steps))}
+		roundDTO := RoundDTO{
+			Index:          round.Index,
+			Parallel:       round.IsParallel(),
+			ParallelPrompt: round.ParallelPrompt,
+			SerialPrompt:   round.SerialPrompt,
+			Steps:          make([]StepDTO, 0, len(round.Steps)),
+		}
 		for _, step := range round.Steps {
 			roundDTO.Steps = append(roundDTO.Steps, StepDTO{
 				ID:          step.ID,

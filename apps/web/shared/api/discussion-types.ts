@@ -14,6 +14,12 @@ export type DiscussionStep = {
 export type DiscussionRound = {
   index: number;
   parallel: boolean;
+  /**
+   * Prompt variants per execution mode. The editor keeps them isolated, and steps[].prompt mirrors
+   * the currently selected mode for older readers and for the runtime fallback.
+   */
+  parallelPrompt?: string;
+  serialPrompt?: string;
   steps: DiscussionStep[];
 };
 

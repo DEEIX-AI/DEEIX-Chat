@@ -82,6 +82,41 @@ func TestResolveRuntimePlanSerialRoundUsesPlaceholderOrder(t *testing.T) {
 	}
 }
 
+func TestResolveRuntimePlanUsesModeSpecificPrompt(t *testing.T) {
+	cfg, err := ParseConfig(`{
+		"placeholders": [
+			{"key": "p1", "defaultModel": "model-a"},
+			{"key": "judge", "defaultModel": "model-a"}
+		],
+		"rounds": [
+			{"parallel": true, "parallelPrompt": "parallel first", "serialPrompt": "serial first", "steps": [{"participant": "p1", "prompt": "legacy first"}]},
+			{"parallel": false, "parallelPrompt": "parallel second", "serialPrompt": "serial second", "steps": [{"participant": "p1", "prompt": "legacy second"}]},
+			{"parallel": true, "steps": [{"participant": "p1", "prompt": "legacy third"}]}
+		],
+		"summary": {"participant": "judge"}
+	}`)
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+	plan, err := ResolveRuntimePlan(cfg, nil)
+	if err != nil {
+		t.Fatalf("ResolveRuntimePlan: %v", err)
+	}
+	cases := []struct {
+		round  int
+		prompt string
+	}{
+		{0, "parallel first"},
+		{1, "serial second"},
+		{2, "legacy third"},
+	}
+	for _, item := range cases {
+		if got := plan.Rounds[item.round].Steps[0].Prompt; got != item.prompt {
+			t.Fatalf("round %d prompt = %q, want %q", item.round+1, got, item.prompt)
+		}
+	}
+}
+
 func TestResolveRuntimePlanRequiresEveryModel(t *testing.T) {
 	cfg, err := ParseConfig(`{
 		"placeholders": [{"key": "p1", "label": "A"}],

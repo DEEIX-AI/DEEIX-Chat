@@ -57,12 +57,25 @@ type Step struct {
 type Round struct {
 	Index    int
 	Parallel *bool
-	Steps    []Step
+	// ParallelPrompt / SerialPrompt 按执行方式分别保存这一轮的提示词。Steps 仍保留当前
+	// 执行方式的提示词，兼容旧读取方与未单独配置时的回落。
+	ParallelPrompt string
+	SerialPrompt   string
+	Steps          []Step
 }
 
 // IsParallel 缺省按并行处理，兼容没有 parallel 字段的旧配置。
 func (r Round) IsParallel() bool {
 	return r.Parallel == nil || *r.Parallel
+}
+
+// ModePrompt 返回当前执行方式单独配置的提示词。未配置时返回空，由调用方回落到步骤提示词
+// 或页面/运行时的内置默认值。
+func (r Round) ModePrompt() string {
+	if r.IsParallel() {
+		return strings.TrimSpace(r.ParallelPrompt)
+	}
+	return strings.TrimSpace(r.SerialPrompt)
 }
 
 // Summary 是全部轮次结束后的总结节点。
@@ -209,6 +222,8 @@ func ValidateConfig(cfg *TemplateConfig) error {
 	for index := range cfg.Rounds {
 		round := &cfg.Rounds[index]
 		round.Index = index + 1
+		round.ParallelPrompt = strings.TrimSpace(round.ParallelPrompt)
+		round.SerialPrompt = strings.TrimSpace(round.SerialPrompt)
 		if len(round.Steps) == 0 {
 			return fmt.Errorf("%w: round %d has no steps", ErrTemplateInvalid, round.Index)
 		}
@@ -274,6 +289,9 @@ func ResolveRuntimePlan(cfg TemplateConfig, overrides map[string]string) (Runtim
 	}
 	for _, round := range cfg.Rounds {
 		runtimeRound := RuntimeRound{Index: round.Index, Parallel: round.Parallel, Steps: make([]RuntimeStep, 0, len(round.Steps))}
+		// The mode-specific prompt is the source of truth when it is configured; older templates
+		// keep using their per-step prompt.
+		roundPrompt := round.ModePrompt()
 		steps := append([]Step(nil), round.Steps...)
 		sort.SliceStable(steps, func(left, right int) bool {
 			return placeholderOrder[steps[left].Participant] < placeholderOrder[steps[right].Participant]
@@ -283,11 +301,15 @@ func ResolveRuntimePlan(cfg TemplateConfig, overrides map[string]string) (Runtim
 			if model == "" {
 				return RuntimePlan{}, fmt.Errorf("%w: model is not selected for %s", ErrTemplateInvalid, step.Participant)
 			}
+			prompt := step.Prompt
+			if roundPrompt != "" {
+				prompt = roundPrompt
+			}
 			runtimeRound.Steps = append(runtimeRound.Steps, RuntimeStep{
 				ID:          step.ID,
 				Participant: step.Participant,
 				Model:       model,
-				Prompt:      step.Prompt,
+				Prompt:      prompt,
 			})
 		}
 		plan.Rounds = append(plan.Rounds, runtimeRound)

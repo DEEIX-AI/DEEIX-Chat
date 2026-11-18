@@ -234,6 +234,39 @@ func TestDiscussionParallelRoundSharesPreviousContextOnly(t *testing.T) {
 	}
 }
 
+func TestDiscussionSerialTurnUsesSerialDefaultPrompt(t *testing.T) {
+	service := discussionStreamTestService()
+	cases := []struct {
+		roundIndex int
+		want       string
+	}{
+		{1, discussionSerialDefaultStepPrompt},
+		{2, discussionSerialFollowupPrompt},
+	}
+	for _, item := range cases {
+		turn := service.runDiscussionTurn(
+			context.Background(),
+			DiscussionSendInput{Content: "question"},
+			&model.Conversation{ID: 1},
+			item.roundIndex,
+			domaindiscussion.RuntimeStep{ID: "s1", Participant: "p1", Model: "model-a"},
+			"",
+			nil,
+			false,
+		)
+		if len(turn.PromptMessages) == 0 {
+			t.Fatalf("round %d has no prompt messages", item.roundIndex)
+		}
+		system := turn.PromptMessages[0].Content
+		if !strings.Contains(system, item.want) {
+			t.Fatalf("round %d serial prompt = %q, want %q", item.roundIndex, system, item.want)
+		}
+		if strings.Contains(system, discussionDefaultStepPrompt) || strings.Contains(system, discussionFollowupPrompt) {
+			t.Fatalf("round %d serial turn used a parallel default: %s", item.roundIndex, system)
+		}
+	}
+}
+
 func TestDiscussionTurnEmitsStartWithPromptBeforeDelta(t *testing.T) {
 	events := make([]string, 0, 2)
 	startPrompt := ""

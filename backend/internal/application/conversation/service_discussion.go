@@ -18,14 +18,18 @@ import (
 )
 
 const (
-	discussionModelPrefix        = "discussion:"
-	discussionDefaultStepPrompt  = "你是多模型讨论中的一员。请独立、具体地回答用户问题，指出关键假设与风险。"
-	discussionFollowupPrompt     = "你是多模型讨论中的一员。请阅读已有讨论，补充遗漏、纠正错误、挑战薄弱推理，不要重复已经充分的内容。"
-	discussionParallelPrompt     = "本轮为并行独立发言。你看不到同轮其他模型的回答，请独立判断，不要假设存在共识。"
-	discussionSerialPrompt       = "本轮为串行讨论。你可以看到同轮排在你之前的模型发言。先独立判断，再针对具体分歧进行回应；指出对方依赖的假设、逻辑跳跃或缺失证据，并给出反例或替代解释。不要重复已经充分的内容，也不要为了反对而反对。"
-	discussionSummaryPrompt      = "你是多模型讨论的主持人。请只依据成功的讨论发言，给出面向用户的最终答案；失败的发言不是观点或证据。"
-	discussionMaxTurnRunes       = 12000
-	discussionMaxTranscriptRunes = 60000
+	discussionModelPrefix       = "discussion:"
+	discussionDefaultStepPrompt = "你是多模型讨论中的一员。请独立、具体地回答用户问题，指出关键假设与风险。"
+	discussionFollowupPrompt    = "你是多模型讨论中的一员。请阅读已有讨论，补充遗漏、纠正错误、挑战薄弱推理，不要重复已经充分的内容。"
+	// 串行轮次的默认提示词单独一份：同轮后序模型能看到前序发言，任务重点是与具体分歧对话，
+	// 而不是像并行轮次那样只要求独立作答。
+	discussionSerialDefaultStepPrompt = "你是多模型讨论中的一员。请先独立回答用户问题，再针对本轮排在你之前的模型发言回应具体分歧：指出其依赖的假设、逻辑跳跃或缺失证据，给出反例或替代解释，不要重复已经充分的内容。"
+	discussionSerialFollowupPrompt    = "你是多模型讨论中的一员。请阅读此前轮次及本轮排在你之前的模型发言，针对具体分歧回应：补充遗漏、纠正错误、指出假设与证据问题，不要重复已经充分的内容。"
+	discussionParallelPrompt          = "本轮为并行独立发言。你看不到同轮其他模型的回答，请独立判断，不要假设存在共识。"
+	discussionSerialPrompt            = "本轮为串行讨论。你可以看到同轮排在你之前的模型发言。先独立判断，再针对具体分歧进行回应；指出对方依赖的假设、逻辑跳跃或缺失证据，并给出反例或替代解释。不要重复已经充分的内容，也不要为了反对而反对。"
+	discussionSummaryPrompt           = "你是多模型讨论的主持人。请只依据成功的讨论发言，给出面向用户的最终答案；失败的发言不是观点或证据。"
+	discussionMaxTurnRunes            = 12000
+	discussionMaxTranscriptRunes      = 60000
 )
 
 // DiscussionSendInput 是讨论消息发送入参。
@@ -310,9 +314,14 @@ func (s *Service) runDiscussionTurn(
 	startedAt := time.Now()
 	prompt := strings.TrimSpace(step.Prompt)
 	if prompt == "" {
-		if roundIndex <= 1 {
+		switch {
+		case !parallel && roundIndex <= 1:
+			prompt = discussionSerialDefaultStepPrompt
+		case !parallel:
+			prompt = discussionSerialFollowupPrompt
+		case roundIndex <= 1:
 			prompt = discussionDefaultStepPrompt
-		} else {
+		default:
 			prompt = discussionFollowupPrompt
 		}
 	}
