@@ -64,6 +64,7 @@ export function applyDiscussionEvent(
           participant: event.participant,
           model: event.model,
           status: "running",
+          prompt: event.prompt,
         }),
         updatedAt: now,
       };
@@ -95,7 +96,16 @@ export function applyDiscussionEvent(
       const others = current.turns.filter((turn) => turn.round !== event.round);
       return { ...current, turns: [...others, ...event.turns], updatedAt: now };
     }
-    case "discussion_summary_start":
+    case "discussion_summary_start": {
+      const current = state ?? emptyDiscussionState(now);
+      return {
+        ...current,
+        status: "summarizing",
+        summary: { ...current.summary, participant: event.participant, model: event.model },
+        summaryPrompt: event.prompt,
+        updatedAt: now,
+      };
+    }
     case "discussion_summary_delta": {
       const current = state ?? emptyDiscussionState(now);
       return { ...current, status: "summarizing", updatedAt: now };

@@ -134,12 +134,16 @@ func discussionStreamTestService() *Service {
 	}
 }
 
-func TestDiscussionTurnEmitsStartBeforeDelta(t *testing.T) {
+func TestDiscussionTurnEmitsStartWithPromptBeforeDelta(t *testing.T) {
 	events := make([]string, 0, 2)
+	startPrompt := ""
 	turn := discussionStreamTestService().runDiscussionTurn(
 		context.Background(),
-		DiscussionSendInput{Content: "question", OnEvent: func(eventType string, _ map[string]any) error {
+		DiscussionSendInput{Content: "question", OnEvent: func(eventType string, payload map[string]any) error {
 			events = append(events, eventType)
+			if eventType == "discussion_turn_start" {
+				startPrompt, _ = payload["prompt"].(string)
+			}
 			return nil
 		}},
 		&model.Conversation{ID: 1},
@@ -151,13 +155,17 @@ func TestDiscussionTurnEmitsStartBeforeDelta(t *testing.T) {
 	if strings.Join(events, ",") != "discussion_turn_start,discussion_turn_delta" {
 		t.Fatalf("events = %v", events)
 	}
+	if !strings.Contains(startPrompt, discussionDefaultStepPrompt) || !strings.Contains(startPrompt, "user:\nquestion") {
+		t.Fatalf("start prompt = %q", startPrompt)
+	}
 	if turn.Status != "completed" || turn.Content != "ok" {
 		t.Fatalf("turn = %#v", turn)
 	}
 }
 
-func TestDiscussionSummaryEmitsStartBeforeDelta(t *testing.T) {
+func TestDiscussionSummaryEmitsStartWithPromptBeforeDelta(t *testing.T) {
 	events := make([]string, 0, 2)
+	startPrompt := ""
 	turn := discussionStreamTestService().runDiscussionSummary(
 		context.Background(),
 		DiscussionSendInput{Content: "question"},
@@ -165,12 +173,18 @@ func TestDiscussionSummaryEmitsStartBeforeDelta(t *testing.T) {
 		domaindiscussion.RuntimePlan{Summary: domaindiscussion.RuntimeSummary{Participant: "judge", Model: "model-a"}},
 		nil,
 		nil,
-		func(eventType string, _ map[string]any) {
+		func(eventType string, payload map[string]any) {
 			events = append(events, eventType)
+			if eventType == "discussion_summary_start" {
+				startPrompt, _ = payload["prompt"].(string)
+			}
 		},
 	)
 	if strings.Join(events, ",") != "discussion_summary_start,discussion_summary_delta" {
 		t.Fatalf("events = %v", events)
+	}
+	if !strings.Contains(startPrompt, discussionSummaryPrompt) || !strings.Contains(startPrompt, "user:\nquestion") {
+		t.Fatalf("start prompt = %q", startPrompt)
 	}
 	if turn.Status != "completed" || turn.Content != "ok" {
 		t.Fatalf("turn = %#v", turn)
