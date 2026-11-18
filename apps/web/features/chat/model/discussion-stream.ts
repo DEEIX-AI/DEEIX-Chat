@@ -12,6 +12,25 @@ function upsertTurn(turns: readonly DiscussionTurn[], next: DiscussionTurn): Dis
 }
 
 /**
+ * A stream resumed after its retention window dropped discussion_start has no plan, but its turns
+ * still have to render: the panel derives the rounds from the turns themselves in that case.
+ */
+function emptyDiscussionState(now: number): DiscussionState {
+  return {
+    enabled: true,
+    status: "running",
+    templateId: "",
+    templateName: "",
+    placeholders: [],
+    rounds: [],
+    summary: { participant: "", model: "", prompt: "" },
+    turns: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/**
  * Folds one discussion stream event into the live state shown in the transcript.
  * Rounds stream model by model, so a turn is created on its first delta and replaced when it ends.
  */
@@ -36,15 +55,13 @@ export function applyDiscussionEvent(
         updatedAt: now,
       };
     case "discussion_turn_delta": {
-      if (!state) {
-        return state;
-      }
-      const existing = state.turns.find(
+      const current = state ?? emptyDiscussionState(now);
+      const existing = current.turns.find(
         (turn) => turn.round === event.round && turn.stepId === event.stepId,
       );
       return {
-        ...state,
-        turns: upsertTurn(state.turns, {
+        ...current,
+        turns: upsertTurn(current.turns, {
           round: event.round,
           stepId: event.stepId,
           participant: event.participant,
@@ -56,20 +73,18 @@ export function applyDiscussionEvent(
       };
     }
     case "discussion_turn_done": {
-      if (!state) {
-        return state;
-      }
-      return { ...state, turns: upsertTurn(state.turns, event.turn), updatedAt: now };
+      const current = state ?? emptyDiscussionState(now);
+      return { ...current, turns: upsertTurn(current.turns, event.turn), updatedAt: now };
     }
     case "discussion_round_done": {
-      if (!state) {
-        return state;
-      }
-      const others = state.turns.filter((turn) => turn.round !== event.round);
-      return { ...state, turns: [...others, ...event.turns], updatedAt: now };
+      const current = state ?? emptyDiscussionState(now);
+      const others = current.turns.filter((turn) => turn.round !== event.round);
+      return { ...current, turns: [...others, ...event.turns], updatedAt: now };
     }
-    case "discussion_summary_delta":
-      return state ? { ...state, status: "summarizing", updatedAt: now } : state;
+    case "discussion_summary_delta": {
+      const current = state ?? emptyDiscussionState(now);
+      return { ...current, status: "summarizing", updatedAt: now };
+    }
     case "discussion_done":
       return event.state;
     default:

@@ -6,7 +6,11 @@ import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
-import type { DiscussionState, DiscussionTurn } from "@/shared/api/discussion-types";
+import type {
+  DiscussionRuntimeRound,
+  DiscussionState,
+  DiscussionTurn,
+} from "@/shared/api/discussion-types";
 import {
   discussionPlaceholderLabels,
   orderDiscussionPlaceholders,
@@ -170,8 +174,30 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
         }
       }
     }
+    for (const turn of turns) {
+      if (turn.model && !bound.has(turn.participant)) {
+        bound.set(turn.participant, turn.model);
+      }
+    }
     return bound;
-  }, [discussion?.rounds]);
+  }, [discussion?.rounds, turns]);
+  // A resumed stream can lose discussion_start to the retention window: derive rounds from turns.
+  const displayRounds = React.useMemo<DiscussionRuntimeRound[]>(() => {
+    if (discussion?.rounds?.length) {
+      return discussion.rounds;
+    }
+    const byRound = new Map<number, DiscussionRuntimeRound["steps"]>();
+    for (const turn of turns) {
+      const steps = byRound.get(turn.round) ?? [];
+      if (!steps.some((step) => step.id === turn.stepId)) {
+        steps.push({ id: turn.stepId, participant: turn.participant, model: turn.model, prompt: "" });
+      }
+      byRound.set(turn.round, steps);
+    }
+    return [...byRound.entries()]
+      .sort((left, right) => left[0] - right[0])
+      .map(([index, steps]) => ({ index, steps }));
+  }, [discussion?.rounds, turns]);
   const labels = React.useMemo(
     () => discussionPlaceholderLabels(placeholders, discussion?.summary?.participant ?? ""),
     [discussion?.summary?.participant, placeholders],
@@ -236,7 +262,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
   };
   const resetSelection = () => {
     setSelectedByRound({});
-    const first = discussion.rounds[0]?.index;
+    const first = displayRounds[0]?.index;
     if (first !== undefined) {
       scrollToRound(first);
     }
@@ -259,7 +285,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
             <span className="rounded-full bg-muted px-2 py-0.5">
-              {t("rounds", { count: discussion.rounds.length })}
+              {t("rounds", { count: displayRounds.length })}
             </span>
             <span className="rounded-full bg-muted px-2 py-0.5">
               {t("participants", { count: participantCount })}
@@ -297,7 +323,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
       </div>
 
       {/* One utterance per round: the round streams in the transcript like any other assistant turn. */}
-      {discussion.rounds.map((round) => {
+      {displayRounds.map((round) => {
         const steps = orderedSteps(round);
         const tone = toneFor(round.index);
         const turnsOfRound = steps
@@ -433,7 +459,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
           {/* One row per round, one cell per model: clicking a cell opens that model's turn. */}
           <p className="mb-1 text-[10px] font-medium text-muted-foreground">{t("roundUsage")}</p>
           <div className="mb-2 space-y-1">
-            {discussion.rounds.map((round) => {
+            {displayRounds.map((round) => {
               const tone = toneFor(round.index);
               return (
                 <div key={`usage-${round.index}`} className="rounded-lg border border-border/50 bg-background/40 p-1.5">
