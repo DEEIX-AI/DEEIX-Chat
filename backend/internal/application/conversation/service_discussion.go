@@ -24,7 +24,6 @@ const (
 	discussionSummaryPrompt      = "你是多模型讨论的主持人。请只依据成功的讨论发言，给出面向用户的最终答案；失败的发言不是观点或证据。"
 	discussionMaxTurnRunes       = 12000
 	discussionMaxTranscriptRunes = 60000
-	discussionMaxPriorRunes      = 8000
 )
 
 // DiscussionSendInput 是讨论消息发送入参。
@@ -137,9 +136,10 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 		"summary":      discussionSummaryPayloadOf(plan.Summary),
 	})
 
-	// Every user turn carries the previous answer as context, so a follow-up question builds on
-	// the last discussion result instead of starting from the bare question.
-	priorContext := s.discussionPriorContext(ctx, conversation.ID, pair.user.ID)
+	// Every user turn keeps the branch's recent history as real user/assistant messages, so a
+	// follow-up question reads exactly like a normal chat follow-up. Earlier discussions appear
+	// as their final answer only; the per-model utterances live in discussion_json.
+	history := s.discussionHistoryMessages(ctx, conversation.ID, pair.user.ID)
 
 	var totalInput, totalOutput, totalReasoning, totalCacheRead, totalCacheWrite int64
 	for _, round := range plan.Rounds {
@@ -153,7 +153,7 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 			wg.Add(1)
 			go func(index int, step domaindiscussion.RuntimeStep) {
 				defer wg.Done()
-				turn := s.runDiscussionTurn(ctx, turnInput, conversation, round.Index, step, transcript, priorContext)
+				turn := s.runDiscussionTurn(ctx, turnInput, conversation, round.Index, step, transcript, history)
 				results[index] = turn
 				emit("discussion_turn_done", map[string]any{"turn": discussionTurnPayloadOf(turn)})
 			}(index, step)
@@ -183,7 +183,7 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 		Status:      "running",
 	}
 	if ctx.Err() == nil {
-		summaryTurn = s.runDiscussionSummary(ctx, turnInput, conversation, plan, state.Turns, priorContext, emit)
+		summaryTurn = s.runDiscussionSummary(ctx, turnInput, conversation, plan, state.Turns, history, emit)
 	}
 	if strings.TrimSpace(summaryTurn.Content) != "" {
 		finalText = summaryTurn.Content
@@ -272,7 +272,7 @@ func (s *Service) runDiscussionTurn(
 	roundIndex int,
 	step domaindiscussion.RuntimeStep,
 	transcript string,
-	priorContext string,
+	history []llm.Message,
 ) domaindiscussion.Turn {
 	turn := domaindiscussion.Turn{
 		Round:       roundIndex,
@@ -290,10 +290,8 @@ func (s *Service) runDiscussionTurn(
 			prompt = discussionFollowupPrompt
 		}
 	}
-	messages := []llm.Message{
-		{Role: "system", Content: prompt},
-		{Role: "user", Content: discussionTurnUserContent(input.Content, priorContext, transcript)},
-	}
+	messages := append([]llm.Message{{Role: "system", Content: prompt}}, history...)
+	messages = append(messages, llm.Message{Role: "user", Content: discussionTurnUserContent(input.Content, transcript)})
 	output, promptText, err := s.generateDiscussion(ctx, input, conversation, step.Model, messages, func(delta string) {
 		if input.OnEvent != nil {
 			_ = input.OnEvent("discussion_turn_delta", map[string]any{
@@ -328,7 +326,7 @@ func (s *Service) runDiscussionSummary(
 	conversation *model.Conversation,
 	plan domaindiscussion.RuntimePlan,
 	turns []domaindiscussion.Turn,
-	priorContext string,
+	history []llm.Message,
 	emit func(string, map[string]any),
 ) domaindiscussion.Turn {
 	turn := domaindiscussion.Turn{
@@ -347,10 +345,8 @@ func (s *Service) runDiscussionSummary(
 	if transcript == "" {
 		transcript = "没有成功的讨论发言。"
 	}
-	messages := []llm.Message{
-		{Role: "system", Content: prompt},
-		{Role: "user", Content: discussionSummaryUserContent(input.Content, priorContext, transcript)},
-	}
+	messages := append([]llm.Message{{Role: "system", Content: prompt}}, history...)
+	messages = append(messages, llm.Message{Role: "user", Content: discussionSummaryUserContent(input.Content, transcript)})
 	output, promptText, err := s.generateDiscussion(ctx, input, conversation, plan.Summary.Model, messages, func(delta string) {
 		emit("discussion_summary_delta", map[string]any{"delta": delta})
 	})
@@ -394,6 +390,18 @@ func (s *Service) generateDiscussion(
 	routeConfig := routeConfigFromResolved(route, llm.DefaultEndpointForAdapter(route.Protocol), attributionReferer, attributionTitle)
 	generateInput := buildTextTaskGenerateInput(route, s.cfg.Snapshot(), messages)
 	generateInput.DisableTools = true
+	// Same budget rule as a normal chat turn: trim the oldest history per model, never the
+	// system prompt or the current question.
+	generateInput, budgetFit := fitGenerateInputToModelBudget(
+		generateInput,
+		route.UpstreamModel,
+		route.ModelCapabilitiesJSON,
+		s.cfg.Snapshot().ContextWindowFallbackTokens,
+		s.cfg.Snapshot().ContextTokenBudgetEnabled,
+	)
+	if budgetFit.Trimmed {
+		s.logPromptBudgetFit(ctx, route.UpstreamModel, budgetFit)
+	}
 	output, err := s.llmClient.GenerateStream(ctx, routeConfig, generateInput, func(event llm.GenerateStreamEvent) error {
 		if event.Delta != "" && onDelta != nil {
 			onDelta(event.Delta)
@@ -406,15 +414,10 @@ func (s *Service) generateDiscussion(
 	return output, renderDiscussionPrompt(generateInput.Messages), nil
 }
 
-// discussionTurnUserContent 组装一次轮次发言的用户消息：上次讨论结果 + 本次问题 + 本轮之前的记录。
-func discussionTurnUserContent(question string, priorContext string, transcript string) string {
+// discussionTurnUserContent 组装一次轮次发言的当前用户消息：本次问题 + 本轮之前的讨论记录。
+// 历史对话由 discussionHistoryMessages 以真实 user/assistant 消息的形式携带，不再拼进这一段。
+func discussionTurnUserContent(question string, transcript string) string {
 	var builder strings.Builder
-	if priorContext != "" {
-		builder.WriteString("上次讨论的结果（同一会话上一轮的总结）：\n")
-		builder.WriteString(priorContext)
-		builder.WriteString("\n\n")
-	}
-	builder.WriteString("用户本次问题：\n")
 	builder.WriteString(strings.TrimSpace(question))
 	if transcript != "" {
 		// From the second round on, every model sees the previous round and all earlier rounds.
@@ -424,18 +427,8 @@ func discussionTurnUserContent(question string, priorContext string, transcript 
 	return builder.String()
 }
 
-func discussionSummaryUserContent(question string, priorContext string, transcript string) string {
-	var builder strings.Builder
-	if priorContext != "" {
-		builder.WriteString("上次讨论的结果（同一会话上一轮的总结）：\n")
-		builder.WriteString(priorContext)
-		builder.WriteString("\n\n")
-	}
-	builder.WriteString("用户本次问题：\n")
-	builder.WriteString(strings.TrimSpace(question))
-	builder.WriteString("\n\n讨论记录：\n")
-	builder.WriteString(transcript)
-	return builder.String()
+func discussionSummaryUserContent(question string, transcript string) string {
+	return strings.TrimSpace(question) + "\n\n讨论记录：\n" + transcript
 }
 
 // renderDiscussionPrompt 把实际发送的消息拼成可读文本，仅用于调试展示。
@@ -456,31 +449,39 @@ func renderDiscussionPrompt(messages []llm.Message) string {
 	return builder.String()
 }
 
-// discussionPriorContext 取当前分支上最近一条有内容的助手消息，作为本次提问的上文。
-func (s *Service) discussionPriorContext(ctx context.Context, conversationID uint, userMessageID uint) string {
+// discussionHistoryMessages 取当前分支上本次提问之前的对话历史，保留 user/assistant 原角色。
+// 条数受 ContextMaxTurns 约束（一轮 = user+assistant 两条），token 预算在 generateDiscussion 里按模型裁剪。
+func (s *Service) discussionHistoryMessages(ctx context.Context, conversationID uint, userMessageID uint) []llm.Message {
 	if s.repo == nil || userMessageID == 0 {
-		return ""
+		return nil
 	}
-	ancestors, err := s.repo.ListMessageAncestors(ctx, conversationID, userMessageID, 8)
+	maxDepth := s.cfg.Snapshot().ContextMaxTurns*2 + 2
+	if maxDepth < 8 {
+		maxDepth = 8
+	}
+	ancestors, err := s.repo.ListMessageAncestors(ctx, conversationID, userMessageID, maxDepth)
 	if err != nil {
-		return ""
+		return nil
 	}
-	for index := len(ancestors) - 1; index >= 0; index-- {
-		item := ancestors[index]
-		if item.ID == userMessageID || item.Role != "assistant" {
+	history := make([]llm.Message, 0, len(ancestors))
+	for _, item := range ancestors {
+		if item.ID == userMessageID {
+			// 本次提问单独组装成最后一条 user，不重复进入历史。
+			continue
+		}
+		if item.Role != "user" && item.Role != "assistant" {
+			continue
+		}
+		if !isPromptHistoryMessage(item) {
 			continue
 		}
 		content := strings.TrimSpace(item.Content)
 		if content == "" {
 			continue
 		}
-		runes := []rune(content)
-		if len(runes) > discussionMaxPriorRunes {
-			content = string(runes[:discussionMaxPriorRunes]) + "\n...[已截断]"
-		}
-		return content
+		history = append(history, llm.Message{Role: item.Role, Content: content})
 	}
-	return ""
+	return history
 }
 
 func discussionTranscript(turns []domaindiscussion.Turn) string {

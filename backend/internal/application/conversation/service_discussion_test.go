@@ -85,18 +85,18 @@ func TestDiscussionEventPayloadsUseStateShape(t *testing.T) {
 	}
 }
 
-func TestDiscussionTurnUserContentCarriesPreviousResult(t *testing.T) {
-	text := discussionTurnUserContent("现在怎么办？", "上一轮的结论", "第 1 轮\n- model-a: A1")
-	for _, want := range []string{"上次讨论的结果", "上一轮的结论", "用户本次问题", "现在怎么办？", "上一轮及更早的讨论记录", "A1"} {
+func TestDiscussionTurnUserContentKeepsQuestionAndTranscript(t *testing.T) {
+	text := discussionTurnUserContent("现在怎么办？", "第 1 轮\n- model-a: A1")
+	for _, want := range []string{"现在怎么办？", "上一轮及更早的讨论记录", "A1"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("expected %q in user content, got %s", want, text)
 		}
 	}
-	if strings.Index(text, "上一轮的结论") > strings.Index(text, "现在怎么办？") {
-		t.Fatalf("previous result must come before the question, got %s", text)
+	// History now travels as real user/assistant messages, not as a flattened text block.
+	if strings.Contains(text, "上次讨论的结果") {
+		t.Fatalf("prior result must not be inlined into the current question, got %s", text)
 	}
-	// A first discussion in a fresh conversation has nothing to chain from.
-	if bare := discussionTurnUserContent("你好", "", ""); strings.Contains(bare, "上次讨论的结果") {
-		t.Fatalf("empty prior context must not add a heading, got %s", bare)
+	if bare := discussionTurnUserContent("你好", ""); strings.Contains(bare, "讨论记录") {
+		t.Fatalf("an empty transcript must not add a heading, got %s", bare)
 	}
 }
