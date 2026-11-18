@@ -568,6 +568,7 @@ export function useChatData(
     pendingRunID,
     pendingRunIsActive,
     onConversationRunFinished,
+    onDiscussionStreamEvent,
     reload,
     tSubmit,
   ]);

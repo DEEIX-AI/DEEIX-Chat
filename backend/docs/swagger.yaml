@@ -3458,6 +3458,14 @@ definitions:
         - text
         - markdown
         type: string
+      disabledModels:
+        items:
+          type: string
+        maxItems: 12
+        type: array
+      expectedPendingVersion:
+        minimum: 0
+        type: integer
       models:
         additionalProperties:
           type: string

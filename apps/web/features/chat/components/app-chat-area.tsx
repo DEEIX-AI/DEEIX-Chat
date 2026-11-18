@@ -149,6 +149,10 @@ export function AppChatArea() {
   const renameByPublicID = useSidebarConversationField("renameByPublicID");
   const upsertConversation = useSidebarConversationField("upsertConversation");
   const discussionStreamEventHandlerRef = React.useRef<(event: StreamMessageEvent) => void>(() => {});
+  const forwardDiscussionStreamEvent = React.useCallback(
+    (event: StreamMessageEvent) => discussionStreamEventHandlerRef.current(event),
+    [],
+  );
   const {
     cancelResumedGeneration,
     conversationPublicID: messageDataConversationID,
@@ -166,7 +170,7 @@ export function AppChatArea() {
     activeGenerationRunsRef,
     activeGenerationRunsRevision,
     onConversationRunFinished: finishConversationRun,
-    onDiscussionStreamEvent: (event) => discussionStreamEventHandlerRef.current(event),
+    onDiscussionStreamEvent: forwardDiscussionStreamEvent,
   });
   const { greetingTitle } = useChatViewerProfile();
   const activeConversation = React.useMemo(() => {
