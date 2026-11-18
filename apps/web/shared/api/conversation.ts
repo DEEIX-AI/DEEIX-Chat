@@ -191,9 +191,11 @@ const STREAM_MESSAGE_EVENT_TYPES = [
   "moderation_blocked",
   "compact_done",
   "discussion_start",
+  "discussion_turn_start",
   "discussion_turn_delta",
   "discussion_turn_done",
   "discussion_round_done",
+  "discussion_summary_start",
   "discussion_summary_delta",
   "discussion_done",
   "error",
@@ -357,9 +359,11 @@ function handleStreamEvent(event: ParsedStreamEvent, options: ConversationStream
 
   if (
     event.type === "discussion_start" ||
+    event.type === "discussion_turn_start" ||
     event.type === "discussion_turn_delta" ||
     event.type === "discussion_turn_done" ||
     event.type === "discussion_round_done" ||
+    event.type === "discussion_summary_start" ||
     event.type === "discussion_summary_delta" ||
     event.type === "discussion_done"
   ) {

@@ -1210,6 +1210,8 @@
     "summaryBadge": "总结",
     "usage": "入 {input} / 出 {output} / {seconds}s",
     "pendingTurn": "未开始",
+    "expandRound": "展开本轮发言",
+    "collapseRound": "收起本轮发言",
     "roundUsage": "轮次用量",
     "debug": "调试",
     "debugShowPrompt": "查看 Prompt",

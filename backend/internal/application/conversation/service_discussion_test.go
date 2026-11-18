@@ -1,11 +1,16 @@
 package conversation
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
+	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domaindiscussion "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/discussion"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 func TestDiscussionTranscriptSkipsFailedTurns(t *testing.T) {
@@ -98,5 +103,76 @@ func TestDiscussionTurnUserContentKeepsQuestionAndTranscript(t *testing.T) {
 	}
 	if bare := discussionTurnUserContent("你好", ""); strings.Contains(bare, "讨论记录") {
 		t.Fatalf("an empty transcript must not add a heading, got %s", bare)
+	}
+}
+
+type discussionStreamGatewayStub struct {
+	temporaryLLMGatewayStub
+}
+
+func (g *discussionStreamGatewayStub) GenerateStream(
+	ctx context.Context,
+	route llm.RouteConfig,
+	input llm.GenerateInput,
+	onEvent func(llm.GenerateStreamEvent) error,
+) (*llm.GenerateOutput, error) {
+	if onEvent != nil {
+		if err := onEvent(llm.GenerateStreamEvent{Delta: "partial"}); err != nil {
+			return nil, err
+		}
+	}
+	return g.temporaryLLMGatewayStub.GenerateStream(ctx, route, input, nil)
+}
+
+func discussionStreamTestService() *Service {
+	return &Service{
+		cfg: config.NewRuntime(config.Config{}),
+		routeResolver: &textTaskRouteResolverStub{routes: map[string]*channel.ResolvedRoute{
+			"model-a": {PlatformModelName: "model-a", UpstreamModel: "model-a", Protocol: llm.AdapterOpenAIChatCompletions},
+		}},
+		llmClient: &discussionStreamGatewayStub{},
+	}
+}
+
+func TestDiscussionTurnEmitsStartBeforeDelta(t *testing.T) {
+	events := make([]string, 0, 2)
+	turn := discussionStreamTestService().runDiscussionTurn(
+		context.Background(),
+		DiscussionSendInput{Content: "question", OnEvent: func(eventType string, _ map[string]any) error {
+			events = append(events, eventType)
+			return nil
+		}},
+		&model.Conversation{ID: 1},
+		1,
+		domaindiscussion.RuntimeStep{ID: "s1", Participant: "p1", Model: "model-a"},
+		"",
+		nil,
+	)
+	if strings.Join(events, ",") != "discussion_turn_start,discussion_turn_delta" {
+		t.Fatalf("events = %v", events)
+	}
+	if turn.Status != "completed" || turn.Content != "ok" {
+		t.Fatalf("turn = %#v", turn)
+	}
+}
+
+func TestDiscussionSummaryEmitsStartBeforeDelta(t *testing.T) {
+	events := make([]string, 0, 2)
+	turn := discussionStreamTestService().runDiscussionSummary(
+		context.Background(),
+		DiscussionSendInput{Content: "question"},
+		&model.Conversation{ID: 1},
+		domaindiscussion.RuntimePlan{Summary: domaindiscussion.RuntimeSummary{Participant: "judge", Model: "model-a"}},
+		nil,
+		nil,
+		func(eventType string, _ map[string]any) {
+			events = append(events, eventType)
+		},
+	)
+	if strings.Join(events, ",") != "discussion_summary_start,discussion_summary_delta" {
+		t.Fatalf("events = %v", events)
+	}
+	if turn.Status != "completed" || turn.Content != "ok" {
+		t.Fatalf("turn = %#v", turn)
 	}
 }
