@@ -923,7 +923,7 @@ export function AppChatArea() {
         />
       ) : null}
       {shouldUseCenteredComposer ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-x-visible overflow-y-hidden">
           <ChatEmptyState
             greetingTitle={activeRouteProject?.name || greetingTitle}
             badgeLabel={activeRouteProject ? t("projectMode") : undefined}
@@ -953,7 +953,7 @@ export function AppChatArea() {
         <div
           ref={workspaceRef}
           className={cn(
-            "relative grid min-h-0 flex-1 overflow-hidden",
+            "relative grid min-h-0 flex-1 overflow-x-visible overflow-y-hidden",
             artifactResizing
               ? "transition-none"
               : "transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
@@ -961,8 +961,8 @@ export function AppChatArea() {
           )}
           style={{ gridTemplateColumns: workspaceGridColumns }}
         >
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-w-0 flex-1 flex-col overflow-x-visible overflow-y-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-x-visible overflow-y-hidden">
               {isConversationLoading ? (
                 <ChatAreaSkeleton contentWidthClassName={chatContentWidthClassName} />
               ) : isConversationLoadFailed ? (

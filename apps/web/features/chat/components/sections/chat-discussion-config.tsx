@@ -75,7 +75,7 @@ export function ChatDiscussionConfig({
       <select
         aria-label={labels.get(placeholder.key) ?? placeholder.key}
         className={cn(
-          "h-7 w-[min(11rem,50%)] shrink-0 rounded-md border border-border/70 bg-background px-1.5 text-[11px] text-foreground outline-none focus-visible:border-primary disabled:opacity-60",
+          "h-7 w-56 max-w-[65%] shrink-0 rounded-md border border-border/70 bg-background px-1.5 text-[11px] text-foreground outline-none focus-visible:border-primary disabled:opacity-60",
           !value && !modelDisabled && "border-rose-400",
           modelDisabled && "text-muted-foreground line-through",
           className,
@@ -116,7 +116,7 @@ export function ChatDiscussionConfig({
   ) : null;
 
   return (
-    <div className="mb-2 rounded-xl border border-border/60 bg-muted/25 px-3 py-2">
+    <div className="relative left-1/2 mb-2 w-[min(96vw,calc(100%_+_12rem))] -translate-x-1/2 rounded-xl border border-border/60 bg-muted/25 px-3 py-2">
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
           <Users className="size-3.5 text-primary" />
@@ -180,7 +180,7 @@ export function ChatDiscussionConfig({
             <div
               key={placeholder.key}
               className={cn(
-                "flex min-w-[13rem] flex-1 items-center gap-2 rounded-md border border-border/50 bg-background/40 px-2 py-1",
+                "flex h-9 w-80 max-w-full flex-none items-center gap-2 rounded-md border border-border/50 bg-background/40 px-2 py-1",
                 modelDisabled && "opacity-60",
               )}
             >
