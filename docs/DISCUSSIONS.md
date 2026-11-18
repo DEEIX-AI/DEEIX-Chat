@@ -29,16 +29,21 @@
     { "key": "p1", "label": "模型 1", "defaultModel": "gpt-6-astra", "required": true }
   ],
   "rounds": [
-    { "index": 1, "parallel": true, "steps": [
-      { "id": "s_ab12", "participant": "p1", "prompt": "请独立回答用户问题。" }
-    ]}
+    { "index": 1, "parallel": true,
+      "parallelPrompt": "请独立回答用户问题。",
+      "serialPrompt": "请先独立回答，再回应本轮前序模型的分歧。",
+      "steps": [
+        { "id": "s_ab12", "participant": "p1", "prompt": "请独立回答用户问题。" }
+      ]}
   ],
   "summary": { "participant": "judge", "prompt": "请综合成功发言，给出最终答案。" }
 }
 ```
 
-- 一轮只有一个 prompt：`round.steps[*].prompt` 始终同步为同一个值，编辑器只让用户填一次。
-- `round.parallel` 决定执行方式，缺省为 `true`。展示与串行执行都按 `placeholders` 的模型编号排序，不依赖 `steps` 的存储顺序（见 §5）。
+- 一轮只有一个 prompt：`round.steps[*].prompt` 始终同步为当前执行方式的 prompt，编辑器只让用户填一次。
+- `round.parallelPrompt` / `round.serialPrompt` 分别保存两种执行方式的 prompt，互不覆盖；运行时优先使用当前执行方式的那一份。
+- `round.parallel` 决定执行方式，缺省为 `true`。切换执行方式时，若目标方式从未编辑过，编辑器自动填入该方式的默认 prompt；也可用「恢复默认」按钮重新填入。
+- 展示与串行执行都按 `placeholders` 的模型编号排序，不依赖 `steps` 的存储顺序（见 §5）。
 - 新增讨论模型会追加到每一轮；删除会从每一轮移除。
 - 模板存储于 `chat_discussion_templates`，接口前缀 `/api/v1/admin/discussion-templates`。
 
@@ -52,7 +57,7 @@
 2. 复用普通消息的建对逻辑，写入 user / assistant 两条消息，会话模型记为 `discussion:<publicID>`。
 3. 沿当前分支取本次提问之前的对话历史（`ListMessageAncestors`），以**真实 user/assistant 消息**的形式放进 prompt，与普通对话的多轮结构一致。之前的讨论只以「你的提问 + 最终总结」出现一次，各模型的逐轮发言（`discussion_json`）不进入历史。
 4. 逐轮执行：并行轮次共享同一份此前轮次 transcript，整轮完成后进入下一轮；串行轮次按模型顺序逐个执行，每次成功后立即把发言加入下一个模型的 transcript。
-5. 每轮的 messages = `system（该轮 prompt + 执行方式说明）` + 历史消息 + 当前 user（本次问题 + 当前模型可见的讨论记录）。串行上下文标题明确包含「本轮在你之前」，并行明确不包含同轮其他模型。
+5. 每轮的 messages = `system（该轮 prompt + 执行方式说明）` + 历史消息 + 当前 user（本次问题 + 当前模型可见的讨论记录）。该轮 prompt 取当前执行方式对应的 `parallelPrompt` / `serialPrompt`；当前执行方式未单独配置时回落到 `steps[*].prompt`。仍然为空则使用内置默认值：并行首轮「独立、具体回答」，并行后续轮「阅读已有讨论并补充纠正」，串行首轮「先独立回答，再回应本轮前序发言的分歧」，串行后续轮「阅读此前轮次及本轮前序发言并回应分歧」。串行上下文标题明确包含「本轮在你之前」，并行明确不包含同轮其他模型。
 6. 讨论结束后调用总结模型（同样带历史）；总结失败时用讨论记录拼出回退正文，而不是把整条消息判为失败。
 7. 历史按 `ContextMaxTurns` 限制条数，并在 `generateDiscussion` 里用 `fitGenerateInputToModelBudget` 按**当前模型**的上下文预算裁掉最老的轮次（保留 system 与本次问题），与普通对话同一套规则。
 8. 结束时把完整状态写入 `chat_messages.discussion_json`，并把汇总用量写入 assistant 消息。
@@ -121,6 +126,8 @@
 
 - **模型占位符**：一行一个，总结模型在最上（带「总结」徽标），下面依次是模型 1 … n；新增按钮是「添加讨论模型」。
 - **讨论轮次**：可拖拽排序；每轮只有一个 prompt 文本框；下方「参与模型」是胶囊列表。
+  - prompt 按执行方式隔离：`并行提示词` 与 `串行提示词` 分别保存。切换「并行 / 串行」时，若目标方式已经编辑过，恢复它的文本；若从未编辑过，自动填入该方式的默认 prompt（首轮与后续轮不同）。
+  - 文本框右上角「恢复默认」按钮把当前执行方式的 prompt 重置为默认模板，不影响另一方式。
   - 首个胶囊是 `全部`：选中后其余胶囊置灰（仍显示为已选），并记住选中前的逐项选择；取消时恢复该选择（没有可恢复的则保留一个模型）。
   - 新增讨论模型会进入每一轮，因此「全部」保持满足；轮次重排会清空记忆（记忆按位置索引）。
 - **工作流**：右侧贴边、整屏高的侧栏（xl 23rem / 2xl 27rem），不挤压表单；窄屏则在页面底部展开。
@@ -317,3 +324,18 @@
 
 - 测试覆盖串行上下文逐模型递增、并行同轮隔离、显式串行配置保留和模型顺序。
 - 后端会话包、讨论领域测试及前端检查通过。
+
+## 17. v0.4.6-fork.20 变更明细
+
+### 17.1 每轮 prompt 按执行方式隔离
+
+- 模板配置新增 `rounds[*].parallelPrompt` / `rounds[*].serialPrompt`，两种执行方式各存一份 prompt；`steps[*].prompt` 继续镜像当前方式，兼容旧读取方与运行时回落。
+- 后台编辑器切换「并行 / 串行」时恢复目标方式自己的 prompt；目标方式从未编辑过则自动填入默认模板，不再沿用另一方式的文本。
+- 每轮 prompt 文本框新增「并行提示词 / 串行提示词」标签与「恢复默认」按钮，一键填入当前方式的默认模板，且不影响另一方式。
+- 新增串行默认 prompt：首轮「先独立回答，再针对本轮前序模型的分歧回应」，后续轮「阅读此前轮次及本轮前序模型并回应分歧」；后端在 prompt 为空时也使用这组串行默认值，而不是并行默认值。
+
+### 17.2 验证
+
+- 领域测试覆盖并行 / 串行 prompt 选择、旧配置 `steps[*].prompt` 回落。
+- 会话测试覆盖串行首轮与后续轮默认 prompt，确保不会误用并行默认值。
+- 前端 `pnpm --filter @deeix/web check`、`pnpm --filter @deeix/web build` 通过；后端 `go test` 与会话包测试通过。
