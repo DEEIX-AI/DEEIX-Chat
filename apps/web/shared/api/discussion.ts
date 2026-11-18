@@ -70,39 +70,35 @@ export async function deleteAdminDiscussionTemplate(
   );
 }
 
-type SnapshotResponse = { data: DiscussionConversationSnapshot };
-
 function discussionSnapshotPath(conversationPublicID: string, templatePublicID: string): string {
   return `/api/v1/conversations/${pathParam(conversationPublicID)}/discussion-snapshots/${pathParam(templatePublicID)}`;
 }
 
-export async function getDiscussionSnapshot(
+export function getDiscussionSnapshot(
   accessToken: string,
   conversationPublicID: string,
   templatePublicID: string,
   signal?: AbortSignal,
 ): Promise<DiscussionConversationSnapshot> {
-  const data = await authedRequest<SnapshotResponse>(
+  return authedRequest<DiscussionConversationSnapshot>(
     discussionSnapshotPath(conversationPublicID, templatePublicID),
     { accessToken, signal },
     true,
   );
-  return data.data;
 }
 
-async function mutateDiscussionSnapshot(
+function mutateDiscussionSnapshot(
   accessToken: string,
   conversationPublicID: string,
   templatePublicID: string,
   action: "refresh" | "rollback" | "adopt",
   payload: DiscussionSnapshotRequest,
 ): Promise<DiscussionConversationSnapshot> {
-  const data = await authedRequest<SnapshotResponse>(
+  return authedRequest<DiscussionConversationSnapshot>(
     `${discussionSnapshotPath(conversationPublicID, templatePublicID)}/${action}`,
     { method: "POST", accessToken, body: payload },
     true,
   );
-  return data.data;
 }
 
 export function refreshDiscussionSnapshot(
