@@ -129,10 +129,11 @@
 - 总结模型独占一行（主色边框 + 「总结」徽标）。
 - 讨论模型横向铺满，最小宽度 13rem，排不开才换行。
 - 绑定按「会话 + 模板」存入 localStorage（`deeix:discussion-bindings:<conversation>:<template>`），新会话回退到模板默认模型。
+- 绑定优先级：本会话最近一次讨论实际使用的模型 > 本地保存的选择 > 模板默认模型。最近一次讨论的绑定是异步随消息列表到达的，因此即使到达晚于输入区初始化也会补上；用户手动改过模型后不再被覆盖。
 
 ## 8. 已知边界
 
-- 若回放窗口跳过了 `discussion_start`（同一会话内切走再切回且序号已消费），面板要等 `discussion_done` 才完整；刷新页面会从 0 回放，正常。
+- 若回放窗口跳过了 `discussion_start`，面板会从发言事件自建状态、并按发言推导出轮次，仍然流式显示（只是没有模板名与占位符标签）；`discussion_done` 到达后换成完整状态。
 - 同一轮内模型并行，正文一次只展示一个模型的发言，其余通过胶囊切换查看。
 - 讨论记录会截断（单条 12000 / 整份 60000 字符），超长讨论的总结只基于截断后的记录。
 - 讨论消息整体计费为 0（`Billable: false`），各模型的用量记录在 `discussion_json` 中。
@@ -215,4 +216,22 @@
 ### 10.5 验证
 
 - `CGO_ENABLED=0 go build ./internal/application/conversation/ ./internal/domain/discussion/ ./internal/transport/http/conversation/` 通过（完整 `go build ./...` 需要 libsqlite3 头文件，属本机环境限制）。
+- `pnpm lint` / `pnpm typecheck` / `pnpm check:arch` / `pnpm build` 通过。
+
+## 11. v0.4.6-fork.14 变更明细
+
+### 11.1 输入区模型与实际讨论不一致
+
+- 原因：绑定 effect 在「会话 + 模板」作用域不变时直接返回，而最近一次讨论的绑定（seed）是随消息列表异步到达的。若 seed 到达时作用域已初始化，绑定就停留在模板默认值，看起来像「实际用的模型和对话框里显示的不一样」。
+- 修复：`apps/web/features/chat/hooks/use-chat-model-options.ts` 的同作用域分支现在会在 seed 到达或变化时重新套用，并写回 localStorage；用户手动改过模型后不再覆盖。
+
+### 11.2 讨论过程一直显示「未开始」
+
+- 现象：面板只有骨架/未开始，结束后内容一次性出现。
+- 原因：generation stream 只保留有限条事件（默认 1024），一次讨论的 delta 很容易把它打满，`discussion_start` 被挤出回放窗口。恢复流（切走再切回、刷新页面）时前端拿不到 start，`applyDiscussionEvent` 在 state 为空时丢弃所有发言事件，于是只能等 `discussion_done`。
+- 修复：`apps/web/features/chat/model/discussion-stream.ts` 在没有 state 时也会自建运行中状态；`message-discussion.tsx` 在没有计划（rounds 为空）时按发言推导轮次，模型名取自发言本身。
+
+### 11.3 验证
+
+- 用 Node 直接回放真实前端 reducer：有序列（start → delta → turn_done → round_done）与「无 start 只有 delta」两种场景，状态与轮次推导均正确。
 - `pnpm lint` / `pnpm typecheck` / `pnpm check:arch` / `pnpm build` 通过。
