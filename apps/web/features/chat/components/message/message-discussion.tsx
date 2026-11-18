@@ -419,6 +419,13 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
               </div>
               {roundExpanded ? (
                 <>
+                  {debug && active ? (
+                    <DebugPrompt
+                      model={active.model}
+                      prompt={activeTurn?.prompt}
+                      label={t("debugPromptFor", { model: active.model })}
+                    />
+                  ) : null}
                   {activeTurn?.error ? (
                     <p className="whitespace-pre-wrap break-words text-xs leading-6 text-rose-600 dark:text-rose-300">
                       {activeTurn.error}
@@ -433,13 +440,6 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                       {activeTurn?.status === "running" ? t("thinking") : t("pendingTurn")}
                     </p>
                   )}
-                  {debug && active ? (
-                    <DebugPrompt
-                      model={active.model}
-                      prompt={activeTurn?.prompt}
-                      label={t("debugPromptFor", { model: active.model })}
-                    />
-                  ) : null}
                 </>
               ) : null}
             </div>

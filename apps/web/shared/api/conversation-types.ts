@@ -409,6 +409,7 @@ export type StreamMessageEvent =
       stepId: string;
       participant: string;
       model: string;
+      prompt: string;
     }
   | {
       type: "discussion_turn_delta";
@@ -435,6 +436,7 @@ export type StreamMessageEvent =
       seq?: number;
       participant: string;
       model: string;
+      prompt: string;
     }
   | {
       type: "discussion_summary_delta";

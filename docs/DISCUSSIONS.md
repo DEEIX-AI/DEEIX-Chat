@@ -78,11 +78,11 @@
 | `type` | 负载 | 前端处理 |
 |---|---|---|
 | `discussion_start` | `template`, `templateName`, `placeholders`, `rounds`, `summary` | 建立实时状态；同一模板的重复 start 保留已收集的发言 |
-| `discussion_turn_start` | `round`, `stepId`, `participant`, `model` | 模型调用前建立空的运行中发言，首 token 前显示「思考中」 |
+| `discussion_turn_start` | `round`, `stepId`, `participant`, `model`, `prompt` | 模型调用前建立运行中发言并写入实际 Prompt，首 token 前显示「思考中」且可查看 Prompt |
 | `discussion_turn_delta` | `round`, `stepId`, `participant`, `model`, `delta` | 按 `(round, stepId)` 追加正文 |
 | `discussion_turn_done` | `turn`（含 `prompt`） | 用最终发言替换（含用量、耗时、错误、发送的完整提示词） |
 | `discussion_round_done` | `round`, `turns` | 用该轮结果整体替换该轮发言 |
-| `discussion_summary_start` | `participant`, `model` | 总结调用前切换为「总结中」 |
+| `discussion_summary_start` | `participant`, `model`, `prompt` | 总结调用前切换为「总结中」并写入实际 Prompt |
 | `discussion_summary_delta` | `delta` | 追加到 assistant 正文，同时保持总结状态，实现总结流式 |
 | `discussion_done` | `state`（含 `summaryPrompt`） | 换成服务端最终状态 |
 | `delta`（收尾） | `delta`, `replace: true` | 用最终正文覆盖流式预览，避免重复 |
@@ -106,7 +106,8 @@
 
 **调试模式**：头部「调试」按钮把开关写入 `localStorage`（`deeix:discussion-debug`），对所有讨论消息生效。开启后：
 
-- 每轮发言下方出现「查看 Prompt」，展开显示**当前选中模型**这一轮实际收到的完整提示词（`system` / `user` 两段原文，等宽字体、可滚动、超长不撑破布局）。切换胶囊即可查看同轮其他模型的提示词。
+- 每轮的「查看 Prompt」位于思考状态/正文上方，展开显示**当前选中模型**这一轮实际收到的完整提示词（`system` / `user` 两段原文，等宽字体、可滚动、超长不撑破布局）。切换胶囊即可查看同轮其他模型的提示词。
+- 开始事件在模型调用前携带经过实际上下文预算裁剪的 Prompt，因此思考中与流式回答期间即可查看，不必等发言完成。
 - 总结段同样可以展开查看总结模型收到的完整提示词。
 - 旧版本生成的讨论消息没有记录提示词，展开后提示「该消息未记录 Prompt」。
 
@@ -272,3 +273,17 @@
 - 后端 `go test ./internal/application/conversation -count=1` 与 Go 质量检查通过。
 - 前端 `pnpm --filter @deeix/web check`、`pnpm --filter @deeix/web build` 通过。
 - 用 Node 回放真实 reducer，验证空状态轮次开始、正文 delta、总结开始与总结 delta。
+
+## 14. v0.4.6-fork.17 变更明细
+
+### 14.1 生成期间即可查看实际 Prompt
+
+- `discussion_turn_start` / `discussion_summary_start` 新增 `prompt`，在真正调用模型前携带经过路由规范化与上下文预算裁剪的完整 Prompt。
+- 前端开始事件立即保存 Prompt；后续 delta 保留该值，不再等 `turn_done` 或 `discussion_done` 才展示。
+- 每轮「查看 Prompt」移到思考状态/正文上方，总结 Prompt 也在总结调用前可见。
+- 后端测试锁定 start 事件的 Prompt 内容与 start → delta 顺序；reducer 回放验证开始和流式阶段均保留 Prompt。
+
+### 14.2 验证
+
+- 后端会话包测试与 Go 质量检查通过。
+- 前端 `pnpm --filter @deeix/web check`、`pnpm --filter @deeix/web build` 通过。

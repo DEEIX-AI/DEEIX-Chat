@@ -281,14 +281,6 @@ func (s *Service) runDiscussionTurn(
 		Model:       step.Model,
 		Status:      "running",
 	}
-	if input.OnEvent != nil {
-		_ = input.OnEvent("discussion_turn_start", map[string]any{
-			"round":       roundIndex,
-			"stepId":      step.ID,
-			"participant": step.Participant,
-			"model":       step.Model,
-		})
-	}
 	startedAt := time.Now()
 	prompt := strings.TrimSpace(step.Prompt)
 	if prompt == "" {
@@ -300,7 +292,17 @@ func (s *Service) runDiscussionTurn(
 	}
 	messages := append([]llm.Message{{Role: "system", Content: prompt}}, history...)
 	messages = append(messages, llm.Message{Role: "user", Content: discussionTurnUserContent(input.Content, transcript)})
-	output, promptText, err := s.generateDiscussion(ctx, input, conversation, step.Model, messages, func(delta string) {
+	output, promptText, err := s.generateDiscussion(ctx, input, conversation, step.Model, messages, func(promptText string) {
+		if input.OnEvent != nil {
+			_ = input.OnEvent("discussion_turn_start", map[string]any{
+				"round":       roundIndex,
+				"stepId":      step.ID,
+				"participant": step.Participant,
+				"model":       step.Model,
+				"prompt":      promptText,
+			})
+		}
+	}, func(delta string) {
 		if input.OnEvent != nil {
 			_ = input.OnEvent("discussion_turn_delta", map[string]any{
 				"round":       roundIndex,
@@ -344,10 +346,6 @@ func (s *Service) runDiscussionSummary(
 		Model:       plan.Summary.Model,
 		Status:      "running",
 	}
-	emit("discussion_summary_start", map[string]any{
-		"participant": plan.Summary.Participant,
-		"model":       plan.Summary.Model,
-	})
 	startedAt := time.Now()
 	prompt := strings.TrimSpace(plan.Summary.Prompt)
 	if prompt == "" {
@@ -359,7 +357,13 @@ func (s *Service) runDiscussionSummary(
 	}
 	messages := append([]llm.Message{{Role: "system", Content: prompt}}, history...)
 	messages = append(messages, llm.Message{Role: "user", Content: discussionSummaryUserContent(input.Content, transcript)})
-	output, promptText, err := s.generateDiscussion(ctx, input, conversation, plan.Summary.Model, messages, func(delta string) {
+	output, promptText, err := s.generateDiscussion(ctx, input, conversation, plan.Summary.Model, messages, func(promptText string) {
+		emit("discussion_summary_start", map[string]any{
+			"participant": plan.Summary.Participant,
+			"model":       plan.Summary.Model,
+			"prompt":      promptText,
+		})
+	}, func(delta string) {
 		emit("discussion_summary_delta", map[string]any{"delta": delta})
 	})
 	turn.Prompt = promptText
@@ -385,6 +389,7 @@ func (s *Service) generateDiscussion(
 	conversation *model.Conversation,
 	platformModelName string,
 	messages []llm.Message,
+	onPrompt func(string),
 	onDelta func(string),
 ) (*llm.GenerateOutput, string, error) {
 	route, err := s.routeResolver.ResolveRoute(ctx, channel.ResolveRouteInput{
@@ -414,6 +419,10 @@ func (s *Service) generateDiscussion(
 	if budgetFit.Trimmed {
 		s.logPromptBudgetFit(ctx, route.UpstreamModel, budgetFit)
 	}
+	promptText := renderDiscussionPrompt(generateInput.Messages)
+	if onPrompt != nil {
+		onPrompt(promptText)
+	}
 	output, err := s.llmClient.GenerateStream(ctx, routeConfig, generateInput, func(event llm.GenerateStreamEvent) error {
 		if event.Delta != "" && onDelta != nil {
 			onDelta(event.Delta)
@@ -421,9 +430,9 @@ func (s *Service) generateDiscussion(
 		return nil
 	})
 	if err != nil {
-		return nil, renderDiscussionPrompt(generateInput.Messages), err
+		return nil, promptText, err
 	}
-	return output, renderDiscussionPrompt(generateInput.Messages), nil
+	return output, promptText, nil
 }
 
 // discussionTurnUserContent 组装一次轮次发言的当前用户消息：本次问题 + 本轮之前的讨论记录。
