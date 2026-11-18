@@ -1210,6 +1210,12 @@
     "summaryBadge": "总结",
     "usage": "入 {input} / 出 {output} / {seconds}s",
     "pendingTurn": "未开始",
-    "roundUsage": "轮次用量"
+    "roundUsage": "轮次用量",
+    "debug": "调试",
+    "debugShowPrompt": "查看 Prompt",
+    "debugHidePrompt": "收起 Prompt",
+    "debugPromptFor": "发送给 {model} 的完整 Prompt",
+    "debugSummaryPrompt": "总结模型收到的完整 Prompt",
+    "debugPromptMissing": "该消息未记录 Prompt（旧版本生成）"
   }
 }

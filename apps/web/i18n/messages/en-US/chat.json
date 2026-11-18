@@ -1210,6 +1210,12 @@
     "summaryBadge": "Summary",
     "usage": "in {input} / out {output} / {seconds}s",
     "pendingTurn": "Not started",
-    "roundUsage": "Round usage"
+    "roundUsage": "Round usage",
+    "debug": "Debug",
+    "debugShowPrompt": "Show prompt",
+    "debugHidePrompt": "Hide prompt",
+    "debugPromptFor": "Full prompt sent to {model}",
+    "debugSummaryPrompt": "Full prompt sent to the summary model",
+    "debugPromptMissing": "No prompt recorded for this message (older run)"
   }
 }

@@ -60,6 +60,8 @@ export type DiscussionTurn = {
   status: "running" | "completed" | "error" | string;
   content?: string;
   error?: string;
+  /** Exact prompt sent to the model; debug output, absent on messages recorded before it existed. */
+  prompt?: string;
   inputTokens?: number;
   outputTokens?: number;
   cacheReadTokens?: number;
@@ -92,6 +94,8 @@ export type DiscussionState = {
   placeholders: DiscussionPlaceholder[];
   rounds: DiscussionRuntimeRound[];
   summary: DiscussionRuntimeSummary;
+  /** Exact prompt sent to the summary model; debug output. */
+  summaryPrompt?: string;
   turns: DiscussionTurn[];
   finalContent?: string;
   error?: string;
