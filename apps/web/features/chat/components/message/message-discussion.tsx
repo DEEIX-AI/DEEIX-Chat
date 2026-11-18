@@ -140,6 +140,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
   const [debug, setDebug] = React.useState(false);
   // Which model speaks for a round: absent means "follow the round" (first running or first model).
   const [selectedByRound, setSelectedByRound] = React.useState<Record<number, string>>({});
+  const [roundExpansion, setRoundExpansion] = React.useState<Record<number, boolean>>({});
   const roundRefs = React.useRef(new Map<number, HTMLDivElement>());
 
   // The debug switch is a viewer preference, so it survives messages and reloads.
@@ -237,6 +238,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
   }
 
   const status = discussion.status || "running";
+  const hasSummary = Boolean(discussion.finalContent?.trim());
   const running = status === "running" || status === "summarizing";
   const statusLabel =
     status === "completed" || status === "completed_with_errors"
@@ -258,7 +260,11 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
   };
   const showRoundModel = (round: number, participant: string) => {
     setSelectedByRound((current) => ({ ...current, [round]: participant }));
+    setRoundExpansion((current) => ({ ...current, [round]: true }));
     scrollToRound(round);
+  };
+  const toggleRound = (round: number, expanded: boolean) => {
+    setRoundExpansion((current) => ({ ...current, [round]: !expanded }));
   };
   const resetSelection = () => {
     setSelectedByRound({});
@@ -322,7 +328,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
         </div>
       </div>
 
-      {/* One utterance per round: the round streams in the transcript like any other assistant turn. */}
+      {/* Rounds stream expanded, then keep only their headers once the final answer arrives. */}
       {displayRounds.map((round) => {
         const steps = orderedSteps(round);
         const tone = toneFor(round.index);
@@ -346,6 +352,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
             : roundStatuses.every((item) => item === "completed" || item === "error")
               ? "done"
               : "pending";
+        const roundExpanded = roundExpansion[round.index] ?? !hasSummary;
         return (
           <div
             key={`round-speech-${round.index}`}
@@ -359,19 +366,32 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
             className="border-t border-border/50 px-3 py-2.5"
           >
             <div className={cn("border-l-2 pl-2.5", tone.accent)}>
-              <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", tone.badge)}>
-                  {t("round", { round: round.index })}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {roundStatus === "running"
-                    ? t("thinking")
-                    : roundStatus === "failed"
-                      ? t("failed")
-                      : roundStatus === "done"
-                        ? t("done")
-                        : t("pendingTurn")}
-                </span>
+              <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1", roundExpanded && "mb-1.5")}>
+                <button
+                  type="button"
+                  aria-expanded={roundExpanded}
+                  className="flex items-center gap-2 rounded-md text-left"
+                  title={roundExpanded ? t("collapseRound") : t("expandRound")}
+                  onClick={() => toggleRound(round.index, roundExpanded)}
+                >
+                  {roundExpanded ? (
+                    <ChevronDown className="size-3.5 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="size-3.5 text-muted-foreground" />
+                  )}
+                  <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", tone.badge)}>
+                    {t("round", { round: round.index })}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {roundStatus === "running"
+                      ? t("thinking")
+                      : roundStatus === "failed"
+                        ? t("failed")
+                        : roundStatus === "done"
+                          ? t("done")
+                          : t("pendingTurn")}
+                  </span>
+                </button>
                 <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
                   {steps.map((step) => {
                     const turn = turnOf(round.index, step.id, step.participant);
@@ -397,26 +417,30 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                   })}
                 </div>
               </div>
-              {activeTurn?.error ? (
-                <p className="whitespace-pre-wrap break-words text-xs leading-6 text-rose-600 dark:text-rose-300">
-                  {activeTurn.error}
-                </p>
-              ) : activeTurn?.content ? (
-                <div className="text-sm leading-7 text-foreground/90">
-                  <StreamdownRender content={activeTurn.content} streaming={activeTurn.status === "running"} />
-                </div>
-              ) : (
-                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  {activeTurn?.status === "running" ? <Loader2 className="size-3 animate-spin" /> : null}
-                  {activeTurn?.status === "running" ? t("thinking") : t("pendingTurn")}
-                </p>
-              )}
-              {debug && active ? (
-                <DebugPrompt
-                  model={active.model}
-                  prompt={activeTurn?.prompt}
-                  label={t("debugPromptFor", { model: active.model })}
-                />
+              {roundExpanded ? (
+                <>
+                  {activeTurn?.error ? (
+                    <p className="whitespace-pre-wrap break-words text-xs leading-6 text-rose-600 dark:text-rose-300">
+                      {activeTurn.error}
+                    </p>
+                  ) : activeTurn?.content ? (
+                    <div className="text-sm leading-7 text-foreground/90">
+                      <StreamdownRender content={activeTurn.content} streaming={activeTurn.status === "running"} />
+                    </div>
+                  ) : (
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {activeTurn?.status === "running" ? <Loader2 className="size-3 animate-spin" /> : null}
+                      {activeTurn?.status === "running" ? t("thinking") : t("pendingTurn")}
+                    </p>
+                  )}
+                  {debug && active ? (
+                    <DebugPrompt
+                      model={active.model}
+                      prompt={activeTurn?.prompt}
+                      label={t("debugPromptFor", { model: active.model })}
+                    />
+                  ) : null}
+                </>
               ) : null}
             </div>
           </div>

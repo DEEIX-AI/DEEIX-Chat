@@ -54,6 +54,20 @@ export function applyDiscussionEvent(
         createdAt: state?.createdAt ?? now,
         updatedAt: now,
       };
+    case "discussion_turn_start": {
+      const current = state ?? emptyDiscussionState(now);
+      return {
+        ...current,
+        turns: upsertTurn(current.turns, {
+          round: event.round,
+          stepId: event.stepId,
+          participant: event.participant,
+          model: event.model,
+          status: "running",
+        }),
+        updatedAt: now,
+      };
+    }
     case "discussion_turn_delta": {
       const current = state ?? emptyDiscussionState(now);
       const existing = current.turns.find(
@@ -81,6 +95,7 @@ export function applyDiscussionEvent(
       const others = current.turns.filter((turn) => turn.round !== event.round);
       return { ...current, turns: [...others, ...event.turns], updatedAt: now };
     }
+    case "discussion_summary_start":
     case "discussion_summary_delta": {
       const current = state ?? emptyDiscussionState(now);
       return { ...current, status: "summarizing", updatedAt: now };

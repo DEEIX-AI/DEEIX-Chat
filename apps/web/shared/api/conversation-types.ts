@@ -403,6 +403,14 @@ export type StreamMessageEvent =
       summary: DiscussionRuntimeSummary;
     }
   | {
+      type: "discussion_turn_start";
+      seq?: number;
+      round: number;
+      stepId: string;
+      participant: string;
+      model: string;
+    }
+  | {
       type: "discussion_turn_delta";
       seq?: number;
       round: number;
@@ -421,6 +429,12 @@ export type StreamMessageEvent =
       seq?: number;
       round: number;
       turns: DiscussionTurn[];
+    }
+  | {
+      type: "discussion_summary_start";
+      seq?: number;
+      participant: string;
+      model: string;
     }
   | {
       type: "discussion_summary_delta";

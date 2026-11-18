@@ -1210,6 +1210,8 @@
     "summaryBadge": "Summary",
     "usage": "in {input} / out {output} / {seconds}s",
     "pendingTurn": "Not started",
+    "expandRound": "Expand this round",
+    "collapseRound": "Collapse this round",
     "roundUsage": "Round usage",
     "debug": "Debug",
     "debugShowPrompt": "Show prompt",

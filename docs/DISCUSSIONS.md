@@ -78,10 +78,12 @@
 | `type` | 负载 | 前端处理 |
 |---|---|---|
 | `discussion_start` | `template`, `templateName`, `placeholders`, `rounds`, `summary` | 建立实时状态；同一模板的重复 start 保留已收集的发言 |
+| `discussion_turn_start` | `round`, `stepId`, `participant`, `model` | 模型调用前建立空的运行中发言，首 token 前显示「思考中」 |
 | `discussion_turn_delta` | `round`, `stepId`, `participant`, `model`, `delta` | 按 `(round, stepId)` 追加正文 |
 | `discussion_turn_done` | `turn`（含 `prompt`） | 用最终发言替换（含用量、耗时、错误、发送的完整提示词） |
 | `discussion_round_done` | `round`, `turns` | 用该轮结果整体替换该轮发言 |
-| `discussion_summary_delta` | `delta` | 追加到 assistant 正文，实现总结流式 |
+| `discussion_summary_start` | `participant`, `model` | 总结调用前切换为「总结中」 |
+| `discussion_summary_delta` | `delta` | 追加到 assistant 正文，同时保持总结状态，实现总结流式 |
 | `discussion_done` | `state`（含 `summaryPrompt`） | 换成服务端最终状态 |
 | `delta`（收尾） | `delta`, `replace: true` | 用最终正文覆盖流式预览，避免重复 |
 
@@ -250,3 +252,23 @@
   - `generateDiscussion` 接入 `fitGenerateInputToModelBudget`，按 `route.UpstreamModel` + `ModelCapabilitiesJSON` 做 token 预算裁剪，与普通对话一致；裁剪时记 `logPromptBudgetFit`。
 - 调试模式因此能直接看到每次调用带上的完整历史。
 - 测试 `TestDiscussionTurnUserContentKeepsQuestionAndTranscript` 锁定新结构（问题 + 本轮记录，无「上次讨论的结果」文本块）。
+
+## 13. v0.4.6-fork.16 变更明细
+
+### 13.1 首 token 前显示真实进度
+
+- 新增 `discussion_turn_start`：每个模型调用前即建立 `running` 发言，不再等首个正文 delta 才从「未开始」变成「思考中」。
+- 新增 `discussion_summary_start`：总结模型调用前切换为「总结中」；总结 delta 现在同时更新讨论状态和 assistant 正文，正常发送与恢复流行为一致。
+- 新增后端测试，锁定轮次与总结的 start → delta 事件顺序。
+
+### 13.2 总结到达后收起轮次正文
+
+- 讨论与总结生成期间，各轮默认展开并持续流式显示。
+- `discussion_done` 带来最终总结后，未操作过的轮次自动收起正文，但保留轮次标题、状态和模型胶囊。
+- 点击轮次标题可展开/收起；点击模型胶囊会选中并展开该轮。用户已手动设置展开状态的轮次不被自动收起覆盖。
+
+### 13.3 验证
+
+- 后端 `go test ./internal/application/conversation -count=1` 与 Go 质量检查通过。
+- 前端 `pnpm --filter @deeix/web check`、`pnpm --filter @deeix/web build` 通过。
+- 用 Node 回放真实 reducer，验证空状态轮次开始、正文 delta、总结开始与总结 delta。

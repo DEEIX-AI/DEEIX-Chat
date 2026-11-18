@@ -166,16 +166,6 @@ export function useChatRunStream({
           }));
         },
         onDiscussionEvent: (event) => {
-          if (event.type === "discussion_summary_delta") {
-            // The summary is the assistant message body; the final delta replaces this preview.
-            updatePendingExchange(exchangeKey, (current) =>
-              current.assistantFileProc
-                ? { ...current, assistantFileProc: false, assistantActivityLabel: undefined }
-                : current,
-            );
-            enqueueStreamText(exchangeKey, event.delta);
-            return;
-          }
           updatePendingExchange(exchangeKey, (current) => {
             const discussion = applyDiscussionEvent(current.assistantDiscussion, event);
             if (!discussion) {
@@ -190,6 +180,10 @@ export function useChatRunStream({
               assistantActivityLabel: undefined,
             };
           });
+          if (event.type === "discussion_summary_delta") {
+            // The summary is the assistant message body; the final delta replaces this preview.
+            enqueueStreamText(exchangeKey, event.delta);
+          }
         },
         onProcessUpdate: (event) => {
           updatePendingExchange(exchangeKey, (current) => ({

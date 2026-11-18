@@ -281,6 +281,14 @@ func (s *Service) runDiscussionTurn(
 		Model:       step.Model,
 		Status:      "running",
 	}
+	if input.OnEvent != nil {
+		_ = input.OnEvent("discussion_turn_start", map[string]any{
+			"round":       roundIndex,
+			"stepId":      step.ID,
+			"participant": step.Participant,
+			"model":       step.Model,
+		})
+	}
 	startedAt := time.Now()
 	prompt := strings.TrimSpace(step.Prompt)
 	if prompt == "" {
@@ -336,6 +344,10 @@ func (s *Service) runDiscussionSummary(
 		Model:       plan.Summary.Model,
 		Status:      "running",
 	}
+	emit("discussion_summary_start", map[string]any{
+		"participant": plan.Summary.Participant,
+		"model":       plan.Summary.Model,
+	})
 	startedAt := time.Now()
 	prompt := strings.TrimSpace(plan.Summary.Prompt)
 	if prompt == "" {

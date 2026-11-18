@@ -444,26 +444,23 @@ export function useChatData(
             if (isResumeInactive()) {
               return;
             }
+            let summaryContent: string | undefined;
             if (event.type === "discussion_summary_delta") {
-              const nextContent = `${resumedTextByRun[pendingRunID] ?? ""}${event.delta}`;
-              resumedTextByRun[pendingRunID] = nextContent;
-              updateResumeState((prev) => ({
-                ...prev,
-                messages: prev.messages.map((message) =>
-                  message.runID === pendingRunID && message.role === "assistant"
-                    ? { ...message, content: nextContent }
-                    : message,
-                ),
-              }));
-              return;
+              summaryContent = `${resumedTextByRun[pendingRunID] ?? ""}${event.delta}`;
+              resumedTextByRun[pendingRunID] = summaryContent;
             }
             updateResumeState((prev) => ({
               ...prev,
-              messages: prev.messages.map((message) =>
-                message.runID === pendingRunID && message.role === "assistant"
-                  ? { ...message, discussion: applyDiscussionEvent(message.discussion, event) ?? message.discussion }
-                  : message,
-              ),
+              messages: prev.messages.map((message) => {
+                if (message.runID !== pendingRunID || message.role !== "assistant") {
+                  return message;
+                }
+                return {
+                  ...message,
+                  content: summaryContent ?? message.content,
+                  discussion: applyDiscussionEvent(message.discussion, event) ?? message.discussion,
+                };
+              }),
             }));
           },
           onUpstreamThinkDelta: (event) => {
