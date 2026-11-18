@@ -101,13 +101,15 @@ type RuntimePlan struct {
 
 // Turn 是一次模型调用的结果。
 type Turn struct {
-	Round            int
-	StepID           string
-	Participant      string
-	Model            string
-	Status           string
-	Content          string
-	Error            string
+	Round       int
+	StepID      string
+	Participant string
+	Model       string
+	Status      string
+	Content     string
+	Error       string
+	// Prompt 是本次调用实际发送给模型的完整提示词，仅供调试查看。
+	Prompt           string
 	InputTokens      int64
 	OutputTokens     int64
 	CacheReadTokens  int64
@@ -125,11 +127,13 @@ type State struct {
 	Placeholders []Placeholder
 	Rounds       []RuntimeRound
 	Summary      RuntimeSummary
-	Turns        []Turn
-	FinalContent string
-	Error        string
-	CreatedAt    int64
-	UpdatedAt    int64
+	// SummaryPrompt 是总结调用实际发送的完整提示词，仅供调试查看。
+	SummaryPrompt string
+	Turns         []Turn
+	FinalContent  string
+	Error         string
+	CreatedAt     int64
+	UpdatedAt     int64
 }
 
 // ParseConfig 解析并校验模板配置。
