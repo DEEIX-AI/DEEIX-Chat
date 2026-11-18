@@ -50,11 +50,12 @@
 
 1. `ResolvePlan` 解析模板与绑定，产出运行时的 `Rounds`（含每步绑定的模型）与 `Summary`。
 2. 复用普通消息的建对逻辑，写入 user / assistant 两条消息，会话模型记为 `discussion:<publicID>`。
-3. 沿当前分支取最近一条有内容的助手消息（`ListMessageAncestors`，截断 8000 字符）作为**上文**。于是每次用户主动发言的上下文都是「上次讨论的结果 + 本次问题」，追问能接上上一轮结论。
+3. 沿当前分支取本次提问之前的对话历史（`ListMessageAncestors`），以**真实 user/assistant 消息**的形式放进 prompt，与普通对话的多轮结构一致。之前的讨论只以「你的提问 + 最终总结」出现一次，各模型的逐轮发言（`discussion_json`）不进入历史。
 4. 逐轮执行：同一轮内所有步骤 `go` 并发，整轮 `wg.Wait()` 后才进入下一轮。
-5. 每轮的用户消息由「上文 + 本次问题 + 本轮之前的讨论记录」组成；第 1 轮没有本轮记录，只有上文与问题。
-6. 讨论结束后调用总结模型（同样带上文）；总结失败时用讨论记录拼出回退正文，而不是把整条消息判为失败。
-7. 结束时把完整状态写入 `chat_messages.discussion_json`，并把汇总用量写入 assistant 消息。
+5. 每轮的 messages = `system（该轮 prompt）` + 历史消息 + 当前 user（本次问题 + 本轮之前的讨论记录）；第 1 轮没有本轮记录。
+6. 讨论结束后调用总结模型（同样带历史）；总结失败时用讨论记录拼出回退正文，而不是把整条消息判为失败。
+7. 历史按 `ContextMaxTurns` 限制条数，并在 `generateDiscussion` 里用 `fitGenerateInputToModelBudget` 按**当前模型**的上下文预算裁掉最老的轮次（保留 system 与本次问题），与普通对话同一套规则。
+8. 结束时把完整状态写入 `chat_messages.discussion_json`，并把汇总用量写入 assistant 消息。
 
 每次调用实际发送的提示词会被记录下来（`turn.prompt` / `state.summaryPrompt`），供前端调试模式展示；记录的是 `buildTextTaskGenerateInput` 归一化之后真正发往上游的消息。
 
@@ -137,7 +138,7 @@
 - 同一轮内模型并行，正文一次只展示一个模型的发言，其余通过胶囊切换查看。
 - 讨论记录会截断（单条 12000 / 整份 60000 字符），超长讨论的总结只基于截断后的记录。
 - 讨论消息整体计费为 0（`Billable: false`），各模型的用量记录在 `discussion_json` 中。
-- 上文取的是当前分支上最近一条助手消息（截断 8000 字符）；同一条分支上连续追问会逐次接上上一轮总结，不会回溯更早的历史。
+- 历史对话条数受 `ContextMaxTurns`（默认 48 轮，压缩策略也用它）约束，超出模型上下文预算时再按 token 裁最老轮次；更早的历史依赖普通对话的压缩摘要机制，讨论自身不做摘要。
 - 调试用的提示词只对开启该能力之后生成的讨论消息可用。
 
 ## 9. v0.4.6-fork.12 变更明细
@@ -235,3 +236,17 @@
 
 - 用 Node 直接回放真实前端 reducer：有序列（start → delta → turn_done → round_done）与「无 start 只有 delta」两种场景，状态与轮次推导均正确。
 - `pnpm lint` / `pnpm typecheck` / `pnpm check:arch` / `pnpm build` 通过。
+
+## 12. v0.4.6-fork.15 变更明细
+
+### 12.1 讨论历史改为真实多轮消息
+
+之前第二次提问时，每个模型只收到「上次讨论结果 + 本次问题」两条消息，上次的用户原文被丢弃，也与普通对话的多轮结构不一致。
+
+- `backend/internal/application/conversation/service_discussion.go`：
+  - 新增 `discussionHistoryMessages`，用 `ListMessageAncestors` 取当前分支历史（排除本次提问），保留 user/assistant 原角色，过滤空内容与不可入历史的消息（`isPromptHistoryMessage`）。
+  - 每轮 messages = system + 历史 + 当前 user；总结同理。
+  - `discussionTurnUserContent` / `discussionSummaryUserContent` 不再拼接「上次讨论的结果」文本块。
+  - `generateDiscussion` 接入 `fitGenerateInputToModelBudget`，按 `route.UpstreamModel` + `ModelCapabilitiesJSON` 做 token 预算裁剪，与普通对话一致；裁剪时记 `logPromptBudgetFit`。
+- 调试模式因此能直接看到每次调用带上的完整历史。
+- 测试 `TestDiscussionTurnUserContentKeepsQuestionAndTranscript` 锁定新结构（问题 + 本轮记录，无「上次讨论的结果」文本块）。
