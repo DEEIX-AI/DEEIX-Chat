@@ -65,6 +65,7 @@ export function applyDiscussionEvent(
           model: event.model,
           status: "running",
           prompt: event.prompt,
+          promptMessages: event.promptMessages,
         }),
         updatedAt: now,
       };
@@ -103,6 +104,7 @@ export function applyDiscussionEvent(
         status: "summarizing",
         summary: { ...current.summary, participant: event.participant, model: event.model },
         summaryPrompt: event.prompt,
+        summaryPromptMessages: event.promptMessages,
         updatedAt: now,
       };
     }

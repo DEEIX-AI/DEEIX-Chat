@@ -58,11 +58,13 @@ func TestDiscussionEventPayloadsUseStateShape(t *testing.T) {
 			Index: 1,
 			Steps: []domaindiscussion.RuntimeStep{{ID: "s1", Participant: "p1", Model: "model-a", Prompt: "answer"}},
 		}},
-		Summary:       domaindiscussion.RuntimeSummary{Participant: "judge", Model: "model-s"},
-		SummaryPrompt: "system:\nsummarize",
+		Summary:               domaindiscussion.RuntimeSummary{Participant: "judge", Model: "model-s"},
+		SummaryPrompt:         "system:\nsummarize",
+		SummaryPromptMessages: []domaindiscussion.PromptMessage{{Role: "system", Content: "summarize"}},
 		Turns: []domaindiscussion.Turn{{
 			Round: 1, StepID: "s1", Participant: "p1", Model: "model-a",
 			Status: "completed", Content: "A1", Prompt: "system:\nanswer",
+			PromptMessages: []domaindiscussion.PromptMessage{{Role: "system", Content: "answer"}},
 		}},
 	}
 	encoded, err := json.Marshal(discussionStatePayloadOf(state))
@@ -71,7 +73,7 @@ func TestDiscussionEventPayloadsUseStateShape(t *testing.T) {
 	}
 	text := string(encoded)
 	// The web client reads camelCase keys; Go field names would silently render nothing.
-	for _, key := range []string{`"stepId"`, `"summaryPrompt"`, `"templateId"`, `"placeholders"`, `"rounds"`} {
+	for _, key := range []string{`"stepId"`, `"summaryPrompt"`, `"summaryPromptMessages"`, `"promptMessages"`, `"templateId"`, `"placeholders"`, `"rounds"`} {
 		if !strings.Contains(text, key) {
 			t.Fatalf("expected %s in payload, got %s", key, text)
 		}
@@ -137,12 +139,14 @@ func discussionStreamTestService() *Service {
 func TestDiscussionTurnEmitsStartWithPromptBeforeDelta(t *testing.T) {
 	events := make([]string, 0, 2)
 	startPrompt := ""
+	var startMessages []discussionPromptMessagePayload
 	turn := discussionStreamTestService().runDiscussionTurn(
 		context.Background(),
 		DiscussionSendInput{Content: "question", OnEvent: func(eventType string, payload map[string]any) error {
 			events = append(events, eventType)
 			if eventType == "discussion_turn_start" {
 				startPrompt, _ = payload["prompt"].(string)
+				startMessages, _ = payload["promptMessages"].([]discussionPromptMessagePayload)
 			}
 			return nil
 		}},
@@ -158,7 +162,10 @@ func TestDiscussionTurnEmitsStartWithPromptBeforeDelta(t *testing.T) {
 	if !strings.Contains(startPrompt, discussionDefaultStepPrompt) || !strings.Contains(startPrompt, "user:\nquestion") {
 		t.Fatalf("start prompt = %q", startPrompt)
 	}
-	if turn.Status != "completed" || turn.Content != "ok" {
+	if len(startMessages) != 2 || startMessages[0].Role != "system" || startMessages[1].Role != "user" || startMessages[1].Content != "question" {
+		t.Fatalf("start messages = %#v", startMessages)
+	}
+	if turn.Status != "completed" || turn.Content != "ok" || len(turn.PromptMessages) != 2 {
 		t.Fatalf("turn = %#v", turn)
 	}
 }
@@ -166,6 +173,7 @@ func TestDiscussionTurnEmitsStartWithPromptBeforeDelta(t *testing.T) {
 func TestDiscussionSummaryEmitsStartWithPromptBeforeDelta(t *testing.T) {
 	events := make([]string, 0, 2)
 	startPrompt := ""
+	var startMessages []discussionPromptMessagePayload
 	turn := discussionStreamTestService().runDiscussionSummary(
 		context.Background(),
 		DiscussionSendInput{Content: "question"},
@@ -177,6 +185,7 @@ func TestDiscussionSummaryEmitsStartWithPromptBeforeDelta(t *testing.T) {
 			events = append(events, eventType)
 			if eventType == "discussion_summary_start" {
 				startPrompt, _ = payload["prompt"].(string)
+				startMessages, _ = payload["promptMessages"].([]discussionPromptMessagePayload)
 			}
 		},
 	)
@@ -186,7 +195,10 @@ func TestDiscussionSummaryEmitsStartWithPromptBeforeDelta(t *testing.T) {
 	if !strings.Contains(startPrompt, discussionSummaryPrompt) || !strings.Contains(startPrompt, "user:\nquestion") {
 		t.Fatalf("start prompt = %q", startPrompt)
 	}
-	if turn.Status != "completed" || turn.Content != "ok" {
+	if len(startMessages) != 2 || startMessages[0].Role != "system" || startMessages[1].Role != "user" {
+		t.Fatalf("start messages = %#v", startMessages)
+	}
+	if turn.Status != "completed" || turn.Content != "ok" || len(turn.PromptMessages) != 2 {
 		t.Fatalf("turn = %#v", turn)
 	}
 }

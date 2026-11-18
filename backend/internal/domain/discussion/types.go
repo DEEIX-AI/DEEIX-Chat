@@ -99,6 +99,12 @@ type RuntimePlan struct {
 	Summary RuntimeSummary
 }
 
+// PromptMessage 是实际发送给模型的一条消息，供调试界面按角色分段展示。
+type PromptMessage struct {
+	Role    string
+	Content string
+}
+
 // Turn 是一次模型调用的结果。
 type Turn struct {
 	Round       int
@@ -110,6 +116,7 @@ type Turn struct {
 	Error       string
 	// Prompt 是本次调用实际发送给模型的完整提示词，仅供调试查看。
 	Prompt           string
+	PromptMessages   []PromptMessage
 	InputTokens      int64
 	OutputTokens     int64
 	CacheReadTokens  int64
@@ -128,12 +135,13 @@ type State struct {
 	Rounds       []RuntimeRound
 	Summary      RuntimeSummary
 	// SummaryPrompt 是总结调用实际发送的完整提示词，仅供调试查看。
-	SummaryPrompt string
-	Turns         []Turn
-	FinalContent  string
-	Error         string
-	CreatedAt     int64
-	UpdatedAt     int64
+	SummaryPrompt         string
+	SummaryPromptMessages []PromptMessage
+	Turns                 []Turn
+	FinalContent          string
+	Error                 string
+	CreatedAt             int64
+	UpdatedAt             int64
 }
 
 // ParseConfig 解析并校验模板配置。

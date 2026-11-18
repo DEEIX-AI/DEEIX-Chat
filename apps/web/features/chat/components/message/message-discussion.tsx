@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import type {
+  DiscussionPromptMessage,
   DiscussionRuntimeRound,
   DiscussionState,
   DiscussionTurn,
@@ -97,14 +98,40 @@ function usageStatusMark(status: string) {
   }
 }
 
+function DebugPromptMessage({ message, defaultOpen }: { message: DiscussionPromptMessage; defaultOpen: boolean }) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  const preview = message.content.trim().replace(/\s+/g, " ");
+  return (
+    <div className="overflow-hidden rounded-md border border-border/50 bg-muted/40">
+      <button
+        type="button"
+        aria-expanded={open}
+        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+        onClick={() => setOpen((value) => !value)}
+      >
+        {open ? <ChevronDown className="size-3 shrink-0" /> : <ChevronRight className="size-3 shrink-0" />}
+        <span className="shrink-0 font-mono font-medium">{message.role}</span>
+        {!open && preview ? <span className="truncate font-mono opacity-70">{preview}</span> : null}
+      </button>
+      {open ? (
+        <pre className="max-h-52 overflow-auto whitespace-pre-wrap break-words border-t border-border/50 px-2 py-1.5 font-mono text-[11px] leading-5 text-foreground/90">
+          {message.content}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
+
 /** Collapsible view of the exact prompt sent to one model; debug only. */
 function DebugPrompt({
   model,
   prompt,
+  promptMessages,
   label,
 }: {
   model: string;
   prompt?: string;
+  promptMessages?: DiscussionPromptMessage[];
   label: string;
 }) {
   const t = useTranslations("chat.discussion");
@@ -113,6 +140,7 @@ function DebugPrompt({
     <div className="mt-1.5">
       <button
         type="button"
+        aria-expanded={open}
         className="inline-flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
         onClick={() => setOpen((value) => !value)}
         title={label}
@@ -122,7 +150,13 @@ function DebugPrompt({
         <span className="font-mono opacity-70">{model || "—"}</span>
       </button>
       {open ? (
-        prompt ? (
+        promptMessages?.length ? (
+          <div className="mt-1 space-y-1">
+            {promptMessages.map((message, index) => (
+              <DebugPromptMessage key={`${index}-${message.role}`} message={message} defaultOpen={index === 0} />
+            ))}
+          </div>
+        ) : prompt ? (
           <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/50 bg-muted/40 p-2 font-mono text-[11px] leading-5 text-foreground/90">
             {prompt}
           </pre>
@@ -423,6 +457,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
                     <DebugPrompt
                       model={active.model}
                       prompt={activeTurn?.prompt}
+                      promptMessages={activeTurn?.promptMessages}
                       label={t("debugPromptFor", { model: active.model })}
                     />
                   ) : null}
@@ -462,6 +497,7 @@ export function MessageDiscussion({ discussion }: { discussion?: DiscussionState
             <DebugPrompt
               model={discussion.summary?.model ?? ""}
               prompt={discussion.summaryPrompt}
+              promptMessages={discussion.summaryPromptMessages}
               label={t("debugSummaryPrompt")}
             />
           ) : null}

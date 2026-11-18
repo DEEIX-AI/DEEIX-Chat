@@ -52,6 +52,11 @@ export type DiscussionTemplatePayload = {
   sortOrder?: number;
 };
 
+export type DiscussionPromptMessage = {
+  role: string;
+  content: string;
+};
+
 export type DiscussionTurn = {
   round: number;
   stepId: string;
@@ -62,6 +67,7 @@ export type DiscussionTurn = {
   error?: string;
   /** Exact prompt sent to the model; debug output, absent on messages recorded before it existed. */
   prompt?: string;
+  promptMessages?: DiscussionPromptMessage[];
   inputTokens?: number;
   outputTokens?: number;
   cacheReadTokens?: number;
@@ -96,6 +102,7 @@ export type DiscussionState = {
   summary: DiscussionRuntimeSummary;
   /** Exact prompt sent to the summary model; debug output. */
   summaryPrompt?: string;
+  summaryPromptMessages?: DiscussionPromptMessage[];
   turns: DiscussionTurn[];
   finalContent?: string;
   error?: string;
