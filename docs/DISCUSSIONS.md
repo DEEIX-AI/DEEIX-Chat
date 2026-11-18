@@ -50,10 +50,13 @@
 
 1. `ResolvePlan` 解析模板与绑定，产出运行时的 `Rounds`（含每步绑定的模型）与 `Summary`。
 2. 复用普通消息的建对逻辑，写入 user / assistant 两条消息，会话模型记为 `discussion:<publicID>`。
-3. 逐轮执行：同一轮内所有步骤 `go` 并发，整轮 `wg.Wait()` 后才进入下一轮。
-4. 第 1 轮不带历史；第 2 轮起，每个模型都会收到「上一轮及更早的讨论记录」。
-5. 讨论结束后调用总结模型；总结失败时用讨论记录拼出回退正文，而不是把整条消息判为失败。
-6. 结束时把完整状态写入 `chat_messages.discussion_json`，并把汇总用量写入 assistant 消息。
+3. 沿当前分支取最近一条有内容的助手消息（`ListMessageAncestors`，截断 8000 字符）作为**上文**。于是每次用户主动发言的上下文都是「上次讨论的结果 + 本次问题」，追问能接上上一轮结论。
+4. 逐轮执行：同一轮内所有步骤 `go` 并发，整轮 `wg.Wait()` 后才进入下一轮。
+5. 每轮的用户消息由「上文 + 本次问题 + 本轮之前的讨论记录」组成；第 1 轮没有本轮记录，只有上文与问题。
+6. 讨论结束后调用总结模型（同样带上文）；总结失败时用讨论记录拼出回退正文，而不是把整条消息判为失败。
+7. 结束时把完整状态写入 `chat_messages.discussion_json`，并把汇总用量写入 assistant 消息。
+
+每次调用实际发送的提示词会被记录下来（`turn.prompt` / `state.summaryPrompt`），供前端调试模式展示；记录的是 `buildTextTaskGenerateInput` 归一化之后真正发往上游的消息。
 
 讨论记录（transcript）格式：
 
@@ -75,11 +78,13 @@
 |---|---|---|
 | `discussion_start` | `template`, `templateName`, `placeholders`, `rounds`, `summary` | 建立实时状态；同一模板的重复 start 保留已收集的发言 |
 | `discussion_turn_delta` | `round`, `stepId`, `participant`, `model`, `delta` | 按 `(round, stepId)` 追加正文 |
-| `discussion_turn_done` | `turn` | 用最终发言替换（含用量、耗时、错误） |
+| `discussion_turn_done` | `turn`（含 `prompt`） | 用最终发言替换（含用量、耗时、错误、发送的完整提示词） |
 | `discussion_round_done` | `round`, `turns` | 用该轮结果整体替换该轮发言 |
 | `discussion_summary_delta` | `delta` | 追加到 assistant 正文，实现总结流式 |
-| `discussion_done` | `state` | 换成服务端最终状态 |
+| `discussion_done` | `state`（含 `summaryPrompt`） | 换成服务端最终状态 |
 | `delta`（收尾） | `delta`, `replace: true` | 用最终正文覆盖流式预览，避免重复 |
+
+讨论事件的负载与 `discussion_json` 使用同一套 JSON 形状（小写驼峰，由 `service_discussion_payload.go` 的 `discussion*Payload` 产出），不要直接把领域结构体塞进事件：Go 字段名是大驼峰，前端会读不到字段。
 
 所有事件同时写入 generation stream 缓存，因此切走会话再回来时，`resumeMessageGenerationStream` 能按 `afterSeq` 回放（见 `apps/web/features/chat/hooks/use-chat-data.ts`）。
 
@@ -89,10 +94,18 @@
 
 面板自上而下：
 
-1. **头部**：模板名、状态（讨论中 / 总结中 / 已完成 / 已停止 / 出错）、轮数、模型数、总结模型。
-2. **每轮一条发言**：`第 N 轮` + 状态 + 该轮模型胶囊（`模型 1 <model>` 按占位符顺序排列，带状态图标）。点胶囊切换查看该轮哪个模型的发言；内容用 Markdown 渲染并随 delta 流式增长。默认跟随：用户显式选择 → 正在运行的发言 → 第一个有内容的发言 → 第一个模型。
-3. **总结条**：`总结 <model>` + 状态，紧接其后的消息正文就是总结。
+1. **头部**：模板名、状态（讨论中 / 总结中 / 已完成 / 已停止 / 出错）、轮数、模型数、总结模型，以及「调试」「详情」两个开关。
+2. **每轮一条发言**：`第 N 轮` 徽标 + 状态 + 该轮模型胶囊（`模型 1 <model>` 按占位符顺序排列，带状态图标）。点胶囊切换查看该轮哪个模型的发言；内容用 Markdown 渲染并随 delta 流式增长。默认跟随：用户显式选择 → 正在运行的发言 → 第一个有内容的发言 → 第一个模型。
+3. **总结**：`总结 <model>` + 状态，紧接其后的消息正文就是总结。
 4. **详情**（可折叠）：`全部` 胶囊（点击复位各轮选择并滚到第一轮）+ 轮次用量网格。用量卡片可点击，直接选中并滚动到对应轮次的对应模型。
+
+**颜色区分**：轮次按序号取固定色板（天蓝 / 紫 / 琥珀 / 翠绿 / 玫瑰 / 青 / 靛 / 黄绿 / 橙 / 品红，循环使用），左侧竖条、`第 N 轮` 徽标、用量网格标题同色；总结段固定用主色（primary），与所有轮次区分开。轮次之间仍有分隔线。
+
+**调试模式**：头部「调试」按钮把开关写入 `localStorage`（`deeix:discussion-debug`），对所有讨论消息生效。开启后：
+
+- 每轮发言下方出现「查看 Prompt」，展开显示**当前选中模型**这一轮实际收到的完整提示词（`system` / `user` 两段原文，等宽字体、可滚动、超长不撑破布局）。切换胶囊即可查看同轮其他模型的提示词。
+- 总结段同样可以展开查看总结模型收到的完整提示词。
+- 旧版本生成的讨论消息没有记录提示词，展开后提示「该消息未记录 Prompt」。
 
 模型编号规则：`discussionPlaceholderLabels` 按 `placeholders` 顺序生成「模型 N」，所以即使某轮 `steps` 存储顺序被打乱，展示也永远是 模型 1 … 模型 n。
 
@@ -123,6 +136,8 @@
 - 同一轮内模型并行，正文一次只展示一个模型的发言，其余通过胶囊切换查看。
 - 讨论记录会截断（单条 12000 / 整份 60000 字符），超长讨论的总结只基于截断后的记录。
 - 讨论消息整体计费为 0（`Billable: false`），各模型的用量记录在 `discussion_json` 中。
+- 上文取的是当前分支上最近一条助手消息（截断 8000 字符）；同一条分支上连续追问会逐次接上上一轮总结，不会回溯更早的历史。
+- 调试用的提示词只对开启该能力之后生成的讨论消息可用。
 
 ## 9. v0.4.6-fork.12 变更明细
 
@@ -160,3 +175,44 @@
 - `pnpm lint`、`pnpm typecheck`、`pnpm check:arch`、`pnpm build` 通过。
 - PR CI：API / Web / Desktop / Docker / CodeQL 全绿。
 - 线上：`/readyz` 返回 `db=ok, redis=ok`；镜像内二进制含 `discussion_summary_delta`，前端 chunk 含 `allModels`。
+
+## 10. v0.4.6-fork.13 变更明细
+
+### 10.1 调试模式：查看每轮真实提示词
+
+- `backend/internal/domain/discussion/types.go`：`Turn.Prompt`、`State.SummaryPrompt`。
+- `backend/internal/application/conversation/service_discussion.go`：`generateDiscussion` 返回归一化后实际发送的消息文本（`renderDiscussionPrompt`），轮次与总结都记录；`discussion_turn_done` / `discussion_round_done` / `discussion_done` 的负载随之携带。
+- `backend/internal/application/conversation/service_discussion_payload.go`：`discussionTurnPayload.prompt`、`discussionStatePayload.summaryPrompt`。
+- `apps/web/shared/api/discussion-types.ts`：`DiscussionTurn.prompt`、`DiscussionState.summaryPrompt`。
+- `apps/web/features/chat/components/message/message-discussion.tsx`：头部「调试」开关（`localStorage: deeix:discussion-debug`）；开启后每轮发言可展开当前模型的完整提示词，总结段可展开总结提示词。
+- `i18n/messages/{zh-CN,en-US}/chat.json`：`debug*` 六个文案。
+
+### 10.2 轮次与总结的颜色区分
+
+- 同一文件新增 `ROUND_TONES` 色板（10 色循环）与 `SUMMARY_TONE`：轮次左侧竖条、`第 N 轮` 徽标、用量网格标题同色；总结段固定主色，轮次之间保留分隔线。
+
+### 10.3 追问带上上次讨论结果
+
+- `service_discussion.go` 新增 `discussionPriorContext`：用 `ListMessageAncestors` 取当前分支最近一条有内容的助手消息（截断 8000 字符），拼进每轮与总结的用户消息：
+
+  ```
+  上次讨论的结果（同一会话上一轮的总结）：
+  <上一轮 assistant 正文>
+
+  用户本次问题：
+  <本次输入>
+
+  上一轮及更早的讨论记录：
+  <本轮之前的发言>
+  ```
+
+- 新增 `discussionTurnUserContent` / `discussionSummaryUserContent` 两个组装函数，保证轮次与总结的上下文结构一致。
+
+### 10.4 事件负载形状修复
+
+之前 `discussion_start`、`discussion_turn_done`、`discussion_round_done`、`discussion_done` 直接把 Go 领域结构体塞进事件，序列化后是 `Round` / `StepID` 等大驼峰字段，前端读不到，导致流式阶段的轮次与状态显示异常（结束后才被 `discussion_done` 的落库状态纠正）。现在统一经 `service_discussion_payload.go` 转成与 `discussion_json` 相同的小驼峰负载。
+
+### 10.5 验证
+
+- `CGO_ENABLED=0 go build ./internal/application/conversation/ ./internal/domain/discussion/ ./internal/transport/http/conversation/` 通过（完整 `go build ./...` 需要 libsqlite3 头文件，属本机环境限制）。
+- `pnpm lint` / `pnpm typecheck` / `pnpm check:arch` / `pnpm build` 通过。
