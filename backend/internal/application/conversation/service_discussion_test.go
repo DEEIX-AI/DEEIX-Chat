@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -38,5 +39,64 @@ func TestDiscussionFallbackSummaryWithoutSuccess(t *testing.T) {
 	}
 	if !strings.Contains(text, "summary failed") {
 		t.Fatalf("expected failure note, got %s", text)
+	}
+}
+
+func TestDiscussionEventPayloadsUseStateShape(t *testing.T) {
+	state := domaindiscussion.State{
+		Enabled:      true,
+		Status:       "completed",
+		TemplateID:   "tpl",
+		TemplateName: "demo",
+		Placeholders: []domaindiscussion.Placeholder{{Key: "p1", Label: "模型 1"}},
+		Rounds: []domaindiscussion.RuntimeRound{{
+			Index: 1,
+			Steps: []domaindiscussion.RuntimeStep{{ID: "s1", Participant: "p1", Model: "model-a", Prompt: "answer"}},
+		}},
+		Summary:       domaindiscussion.RuntimeSummary{Participant: "judge", Model: "model-s"},
+		SummaryPrompt: "system:\nsummarize",
+		Turns: []domaindiscussion.Turn{{
+			Round: 1, StepID: "s1", Participant: "p1", Model: "model-a",
+			Status: "completed", Content: "A1", Prompt: "system:\nanswer",
+		}},
+	}
+	encoded, err := json.Marshal(discussionStatePayloadOf(state))
+	if err != nil {
+		t.Fatalf("marshal state payload: %v", err)
+	}
+	text := string(encoded)
+	// The web client reads camelCase keys; Go field names would silently render nothing.
+	for _, key := range []string{`"stepId"`, `"summaryPrompt"`, `"templateId"`, `"placeholders"`, `"rounds"`} {
+		if !strings.Contains(text, key) {
+			t.Fatalf("expected %s in payload, got %s", key, text)
+		}
+	}
+	for _, key := range []string{`"StepID"`, `"SummaryPrompt"`, `"TemplateID"`} {
+		if strings.Contains(text, key) {
+			t.Fatalf("domain field name %s leaked into payload: %s", key, text)
+		}
+	}
+	turnEncoded, err := json.Marshal(discussionTurnPayloadOf(state.Turns[0]))
+	if err != nil {
+		t.Fatalf("marshal turn payload: %v", err)
+	}
+	if !strings.Contains(string(turnEncoded), `"prompt":"system:\nanswer"`) {
+		t.Fatalf("expected prompt in turn payload, got %s", turnEncoded)
+	}
+}
+
+func TestDiscussionTurnUserContentCarriesPreviousResult(t *testing.T) {
+	text := discussionTurnUserContent("现在怎么办？", "上一轮的结论", "第 1 轮\n- model-a: A1")
+	for _, want := range []string{"上次讨论的结果", "上一轮的结论", "用户本次问题", "现在怎么办？", "上一轮及更早的讨论记录", "A1"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("expected %q in user content, got %s", want, text)
+		}
+	}
+	if strings.Index(text, "上一轮的结论") > strings.Index(text, "现在怎么办？") {
+		t.Fatalf("previous result must come before the question, got %s", text)
+	}
+	// A first discussion in a fresh conversation has nothing to chain from.
+	if bare := discussionTurnUserContent("你好", "", ""); strings.Contains(bare, "上次讨论的结果") {
+		t.Fatalf("empty prior context must not add a heading, got %s", bare)
 	}
 }
