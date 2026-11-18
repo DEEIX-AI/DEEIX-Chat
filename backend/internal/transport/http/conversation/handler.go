@@ -99,6 +99,10 @@ type sendMessageErrorStatus struct {
 
 var sendMessageErrorStatuses = []sendMessageErrorStatus{
 	{err: appconversation.ErrConversationNotFound, status: http.StatusNotFound},
+	{err: appconversation.ErrDiscussionSnapshotConflict, status: http.StatusConflict},
+	{err: appconversation.ErrDiscussionPendingNotFound, status: http.StatusNotFound},
+	{err: appconversation.ErrDiscussionNoEnabledModels, status: http.StatusBadRequest},
+	{err: appconversation.ErrDiscussionSummaryModelLocked, status: http.StatusBadRequest},
 	{err: appconversation.ErrInvalidFileReference, status: http.StatusBadRequest},
 	{err: appconversation.ErrFileNotFound, status: http.StatusNotFound},
 	{err: appconversation.ErrFileTooLarge, status: http.StatusRequestEntityTooLarge},

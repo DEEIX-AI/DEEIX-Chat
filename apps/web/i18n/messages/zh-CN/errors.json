@@ -164,6 +164,12 @@
     "streamInterrupted": "生成连接已中断，请重试本条消息。",
     "streamNotFound": "生成流不存在。"
   },
+  "discussion": {
+    "snapshotConflict": "讨论配置已在其他标签页变化，请重新加载后重试。",
+    "pendingNotFound": "当前没有可采用的待验证讨论配置。",
+    "noEnabledModels": "至少保留一个讨论模型和一个非空轮次。",
+    "summaryModelLocked": "总结模型不能关闭。"
+  },
   "conversationShare": {
     "invalid": "分享对话无效。",
     "invalidId": "分享 ID 无效。",

@@ -23216,6 +23216,17 @@ const docTemplate = `{
                         "markdown"
                     ]
                 },
+                "disabledModels": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "expectedPendingVersion": {
+                    "type": "integer",
+                    "minimum": 0
+                },
                 "models": {
                     "type": "object",
                     "additionalProperties": {

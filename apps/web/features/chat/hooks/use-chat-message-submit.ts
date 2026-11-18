@@ -70,6 +70,7 @@ import type {
 import { ApiError } from "@/shared/api/http-client";
 import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 import type { DiscussionTemplateDTO } from "@/shared/api/discussion-types";
+import { discussionBindingsComplete } from "@/shared/lib/discussion";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { notifyResponseCompletion } from "@/shared/lib/system-notifications";
 
@@ -81,6 +82,9 @@ export function useChatMessageSubmit({
   modelOptions,
   discussionTemplate,
   discussionBindings,
+  discussionDisabledModels,
+  discussionExpectedPendingVersion,
+  onDiscussionStreamEvent,
   selectedToolIDs,
   selectedSkills,
   selectedKnowledgeBaseIDs,
@@ -137,6 +141,9 @@ export function useChatMessageSubmit({
   modelOptions: ChatModelOption[];
   discussionTemplate?: DiscussionTemplateDTO | null;
   discussionBindings?: Record<string, string>;
+  discussionDisabledModels?: string[];
+  discussionExpectedPendingVersion?: number;
+  onDiscussionStreamEvent?: (event: StreamMessageEvent) => void;
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
@@ -285,6 +292,7 @@ export function useChatMessageSubmit({
     resetStreamBuffer,
     setStreamTextSnapshot,
     onConversationRunFinished,
+    onDiscussionStreamEvent,
   });
 
   const submitMessage = React.useCallback(
@@ -561,8 +569,17 @@ export function useChatMessageSubmit({
           effectiveAttachments,
           platformModelName,
           discussion:
-            discussionTemplate && Object.values(discussionBindings ?? {}).every((value) => value.trim())
-              ? { templatePublicID: discussionTemplate.publicID, models: discussionBindings ?? {} }
+            discussionTemplate && discussionBindingsComplete(
+              discussionTemplate.config,
+              discussionBindings ?? {},
+              discussionDisabledModels ?? [],
+            )
+              ? {
+                  templatePublicID: discussionTemplate.publicID,
+                  models: discussionBindings ?? {},
+                  disabledModels: discussionDisabledModels ?? [],
+                  expectedPendingVersion: discussionExpectedPendingVersion ?? 0,
+                }
               : undefined,
           selectedToolIDs: plan.selectedToolIDs,
           selectedSkills: plan.selectedSkills,
@@ -794,6 +811,8 @@ export function useChatMessageSubmit({
       collectUIStates,
       combinedMessages,
       discussionBindings,
+      discussionDisabledModels,
+      discussionExpectedPendingVersion,
       discussionTemplate,
       flushStreamTextNow,
       flushUpstreamThinkNow,

@@ -7,7 +7,7 @@ import { applyDiscussionEvent } from "@/features/chat/model/discussion-stream";
 import { mergeProcessTraceSnapshot } from "@/features/chat/model/message-submit";
 import { upsertLiveUpstreamThinkTrace } from "@/features/chat/model/upstream-think-store";
 import { cancelMessageGeneration, listMessagesPage, resumeMessageGenerationStream } from "@/shared/api/conversation";
-import type { MessageDTO } from "@/shared/api/conversation-types";
+import type { MessageDTO, StreamMessageEvent } from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
 // The first page covers recent turns; older ones load as the user scrolls up.
@@ -35,10 +35,12 @@ export function useChatData(
     activeGenerationRunsRef,
     activeGenerationRunsRevision = 0,
     onConversationRunFinished,
+    onDiscussionStreamEvent,
   }: {
     activeGenerationRunsRef?: React.RefObject<Set<string>>;
     activeGenerationRunsRevision?: number;
     onConversationRunFinished?: (runID: string) => void;
+    onDiscussionStreamEvent?: (event: StreamMessageEvent) => void;
   } = {},
 ) {
   const t = useTranslations("chat.data");
@@ -444,6 +446,7 @@ export function useChatData(
             if (isResumeInactive()) {
               return;
             }
+            onDiscussionStreamEvent?.(event);
             let summaryContent: string | undefined;
             if (event.type === "discussion_summary_delta") {
               summaryContent = `${resumedTextByRun[pendingRunID] ?? ""}${event.delta}`;
@@ -565,6 +568,7 @@ export function useChatData(
     pendingRunID,
     pendingRunIsActive,
     onConversationRunFinished,
+    onDiscussionStreamEvent,
     reload,
     tSubmit,
   ]);

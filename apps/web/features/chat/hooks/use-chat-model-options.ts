@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
+import { useChatDiscussion } from "@/features/chat/hooks/use-chat-discussion";
 import {
   type ChatModelOption,
   MODEL_MODALITIES,
@@ -429,46 +430,6 @@ function parseModalities(value: unknown): ModelModality[] {
   return MODEL_MODALITIES.filter((modality) => value.includes(modality));
 }
 
-function discussionBindingsStorageKey(conversationPublicID: string | null, templatePublicID: string): string {
-  return `deeix:discussion-bindings:${conversationPublicID || "new"}:${templatePublicID}`;
-}
-
-function readStoredDiscussionBindings(key: string): Record<string, string> {
-  if (typeof window === "undefined") {
-    return {};
-  }
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) {
-      return {};
-    }
-    const parsed = JSON.parse(raw);
-    if (!isRecord(parsed)) {
-      return {};
-    }
-    const result: Record<string, string> = {};
-    for (const [name, value] of Object.entries(parsed)) {
-      if (typeof value === "string" && value.trim()) {
-        result[name] = value;
-      }
-    }
-    return result;
-  } catch {
-    return {};
-  }
-}
-
-function writeStoredDiscussionBindings(key: string, bindings: Record<string, string>): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-  try {
-    window.localStorage.setItem(key, JSON.stringify(bindings));
-  } catch {
-    // Draft persistence is best-effort; the server record remains the source of truth.
-  }
-}
-
 export function useChatModelOptions({
   conversationPublicID,
   conversationModel,
@@ -489,7 +450,6 @@ export function useChatModelOptions({
   const { settings: userSettings } = useUserSettings();
   const [availableModels, setAvailableModels] = React.useState<PublicModelDTO[]>([]);
   const [discussionTemplates, setDiscussionTemplates] = React.useState<DiscussionTemplateDTO[]>([]);
-  const [discussionBindings, setDiscussionBindings] = React.useState<Record<string, string>>({});
   const [modelsLoading, setModelsLoading] = React.useState(true);
   const [defaultModelResolving, setDefaultModelResolving] = React.useState(false);
   const [modelsErrorMsg, setModelsErrorMsg] = React.useState("");
@@ -501,7 +461,6 @@ export function useChatModelOptions({
   const [mcpMaxSelectedTools, setMCPMaxSelectedTools] = React.useState(32);
   const activeConversationRef = React.useRef<string | null>(null);
   const userSelectedModelRef = React.useRef(false);
-  const discussionBindingsTouchedRef = React.useRef(false);
   // Inputs of the last default-model resolution other than the catalog itself (see below).
   const defaultModelResolutionKeyRef = React.useRef("");
   const previousResetTokenRef = React.useRef(resetToken);
@@ -528,6 +487,13 @@ export function useChatModelOptions({
     userSelectedModelRef.current = true;
     setSelectedPlatformModelName(platformModelName);
   }, []);
+  const discussion = useChatDiscussion({
+    conversationPublicID,
+    selectedPlatformModelName,
+    discussionTemplates,
+    discussionSeedBindings,
+  });
+  const selectedDiscussionTemplate = discussion.selectedDiscussionTemplate;
 
   const loadModelCatalog = React.useCallback((accessToken?: string): Promise<ModelCatalogRefreshResult> => {
     if (modelCatalogRequestRef.current) {
@@ -577,14 +543,15 @@ export function useChatModelOptions({
       return null;
     }
     if (normalizedName.startsWith("discussion:")) {
-      const template = discussionTemplates.find((item) => `discussion:${item.publicID}` === normalizedName);
-      return template ? toDiscussionModelOption(template, discussionT("groupName")) : null;
+      return selectedDiscussionTemplate?.publicID === normalizedName.slice("discussion:".length)
+        ? toDiscussionModelOption(selectedDiscussionTemplate, discussionT("groupName"))
+        : null;
     }
 
     const catalog = await refreshModelCatalog();
     const nextModel = catalog.models.find((item) => item.platformModelName === normalizedName);
     return nextModel ? toChatModelOption(nextModel, catalog.modelOptionPolicy?.nativeTools ?? []) : null;
-  }, [discussionT, discussionTemplates, refreshModelCatalog]);
+  }, [discussionT, refreshModelCatalog, selectedDiscussionTemplate]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -741,110 +708,25 @@ export function useChatModelOptions({
     };
   }, [availableModels, conversationPublicID, newConversationDefaultModel, newConversationDefaultsPending, resetToken, userDefaultModel]);
 
-  const selectedDiscussionTemplate = React.useMemo(() => {
-    const normalized = selectedPlatformModelName.trim();
-    if (!normalized.startsWith("discussion:")) {
-      return null;
-    }
-    return discussionTemplates.find((item) => `discussion:${item.publicID}` === normalized) ?? null;
-  }, [discussionTemplates, selectedPlatformModelName]);
-
-  // Scope is conversation + template: only a real change reloads the bindings.
-  const discussionBindingScopeRef = React.useRef("");
-  const discussionBindingsRef = React.useRef<Record<string, string>>({});
-  React.useEffect(() => {
-    discussionBindingsRef.current = discussionBindings;
-  }, [discussionBindings]);
-
-  React.useEffect(() => {
-    const template = selectedDiscussionTemplate;
-    const scope = `${conversationPublicID || "new"}|${template?.publicID ?? ""}`;
-    if (discussionBindingScopeRef.current === scope) {
-      // The seed arrives with the message list, which can load after this scope was set up.
-      // Until the user picks a model themselves, the last discussion's bindings win over the
-      // template defaults; otherwise the composer would show models the last run never used.
-      if (!template || !discussionSeedBindings || discussionBindingsTouchedRef.current) {
-        return;
-      }
-      const next: Record<string, string> = {};
-      for (const placeholder of template.config.placeholders) {
-        next[placeholder.key] =
-          discussionSeedBindings[placeholder.key] ||
-          discussionBindingsRef.current[placeholder.key] ||
-          placeholder.defaultModel ||
-          "";
-      }
-      const unchanged = template.config.placeholders.every(
-        (placeholder) => discussionBindingsRef.current[placeholder.key] === next[placeholder.key],
-      );
-      if (unchanged) {
-        return;
-      }
-      writeStoredDiscussionBindings(discussionBindingsStorageKey(conversationPublicID, template.publicID), next);
-      setDiscussionBindings(next);
-      return;
-    }
-    const previousScope = discussionBindingScopeRef.current;
-    discussionBindingScopeRef.current = scope;
-    discussionBindingsTouchedRef.current = false;
-    if (!template) {
-      setDiscussionBindings((previous) => (Object.keys(previous).length === 0 ? previous : {}));
-      return;
-    }
-    const [previousConversationID, previousTemplateID] = previousScope.split("|");
-    // Sending the first message turns the draft into a conversation. The models just picked
-    // belong to that message, so they carry over instead of being reset by the new key.
-    const carriedOver =
-      previousConversationID === "new" && previousTemplateID === template.publicID
-        ? discussionBindingsRef.current
-        : null;
-    if (carriedOver && Object.keys(carriedOver).length > 0) {
-      const next = { ...carriedOver };
-      writeStoredDiscussionBindings(
-        discussionBindingsStorageKey(conversationPublicID, template.publicID),
-        next,
-      );
-      setDiscussionBindings(next);
-      return;
-    }
-    const stored = readStoredDiscussionBindings(
-      discussionBindingsStorageKey(conversationPublicID, template.publicID),
-    );
-    const next: Record<string, string> = {};
-    for (const placeholder of template.config.placeholders) {
-      next[placeholder.key] =
-        discussionSeedBindings?.[placeholder.key] || stored[placeholder.key] || placeholder.defaultModel || "";
-    }
-    setDiscussionBindings(next);
-  }, [conversationPublicID, discussionSeedBindings, selectedDiscussionTemplate]);
-
-  const setDiscussionBinding = React.useCallback((participant: string, model: string) => {
-    discussionBindingsTouchedRef.current = true;
-    setDiscussionBindings((current) => {
-      const next = { ...current, [participant]: model };
-      if (selectedDiscussionTemplate) {
-        writeStoredDiscussionBindings(
-          discussionBindingsStorageKey(conversationPublicID, selectedDiscussionTemplate.publicID),
-          next,
-        );
-      }
-      return next;
-    });
-  }, [conversationPublicID, selectedDiscussionTemplate]);
-
   const modelOptions = React.useMemo<ChatModelOption[]>(
-    () => [
-      ...availableModels.map((model) => toChatModelOption(model, modelOptionPolicy?.nativeTools ?? [])),
-      ...discussionTemplates.map((template) => toDiscussionModelOption(template, discussionT("groupName"))),
-    ],
-    [availableModels, discussionT, discussionTemplates, modelOptionPolicy?.nativeTools],
+    () => {
+      const templates = [...discussionTemplates];
+      if (selectedDiscussionTemplate && !templates.some((item) => item.publicID === selectedDiscussionTemplate.publicID)) {
+        templates.push(selectedDiscussionTemplate);
+      }
+      return [
+        ...availableModels.map((model) => toChatModelOption(model, modelOptionPolicy?.nativeTools ?? [])),
+        ...templates.map((template) => toDiscussionModelOption(template, discussionT("groupName"))),
+      ];
+    },
+    [availableModels, discussionT, discussionTemplates, modelOptionPolicy?.nativeTools, selectedDiscussionTemplate],
   );
 
   return {
     modelOptions,
     refreshModelCatalog,
     refreshModelOption,
-    modelsLoading: modelsLoading || newConversationDefaultsPending || defaultModelResolving,
+    modelsLoading: modelsLoading || newConversationDefaultsPending || defaultModelResolving || discussion.discussionSnapshotLoading,
     modelsErrorMsg,
     sendShortcut,
     restoreDraftOnFailure,
@@ -865,8 +747,6 @@ export function useChatModelOptions({
     mcpMaxSelectedTools,
     selectedPlatformModelName,
     setSelectedPlatformModelName: selectPlatformModelName,
-    selectedDiscussionTemplate,
-    discussionBindings,
-    setDiscussionBinding,
+    ...discussion,
   };
 }

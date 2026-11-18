@@ -1,6 +1,8 @@
 import { authedRequest } from "@/shared/api/authed-client";
 import { pathParam } from "@/shared/api/http-client";
 import type {
+  DiscussionConversationSnapshot,
+  DiscussionSnapshotRequest,
   DiscussionTemplateDTO,
   DiscussionTemplatePayload,
 } from "@/shared/api/discussion-types";
@@ -66,4 +68,66 @@ export async function deleteAdminDiscussionTemplate(
     { method: "DELETE", accessToken },
     true,
   );
+}
+
+type SnapshotResponse = { data: DiscussionConversationSnapshot };
+
+function discussionSnapshotPath(conversationPublicID: string, templatePublicID: string): string {
+  return `/api/v1/conversations/${pathParam(conversationPublicID)}/discussion-snapshots/${pathParam(templatePublicID)}`;
+}
+
+export async function getDiscussionSnapshot(
+  accessToken: string,
+  conversationPublicID: string,
+  templatePublicID: string,
+  signal?: AbortSignal,
+): Promise<DiscussionConversationSnapshot> {
+  const data = await authedRequest<SnapshotResponse>(
+    discussionSnapshotPath(conversationPublicID, templatePublicID),
+    { accessToken, signal },
+    true,
+  );
+  return data.data;
+}
+
+async function mutateDiscussionSnapshot(
+  accessToken: string,
+  conversationPublicID: string,
+  templatePublicID: string,
+  action: "refresh" | "rollback" | "adopt",
+  payload: DiscussionSnapshotRequest,
+): Promise<DiscussionConversationSnapshot> {
+  const data = await authedRequest<SnapshotResponse>(
+    `${discussionSnapshotPath(conversationPublicID, templatePublicID)}/${action}`,
+    { method: "POST", accessToken, body: payload },
+    true,
+  );
+  return data.data;
+}
+
+export function refreshDiscussionSnapshot(
+  accessToken: string,
+  conversationPublicID: string,
+  templatePublicID: string,
+  payload: DiscussionSnapshotRequest,
+): Promise<DiscussionConversationSnapshot> {
+  return mutateDiscussionSnapshot(accessToken, conversationPublicID, templatePublicID, "refresh", payload);
+}
+
+export function rollbackDiscussionSnapshot(
+  accessToken: string,
+  conversationPublicID: string,
+  templatePublicID: string,
+  expectedPendingVersion: number,
+): Promise<DiscussionConversationSnapshot> {
+  return mutateDiscussionSnapshot(accessToken, conversationPublicID, templatePublicID, "rollback", { expectedPendingVersion });
+}
+
+export function adoptDiscussionSnapshot(
+  accessToken: string,
+  conversationPublicID: string,
+  templatePublicID: string,
+  expectedPendingVersion: number,
+): Promise<DiscussionConversationSnapshot> {
+  return mutateDiscussionSnapshot(accessToken, conversationPublicID, templatePublicID, "adopt", { expectedPendingVersion });
 }

@@ -7,11 +7,12 @@
 | 模板领域模型 | `backend/internal/domain/discussion/` |
 | 模板 CRUD | `backend/internal/transport/http/discussion/`、`backend/internal/application/discussion/` |
 | 讨论编排 | `backend/internal/application/conversation/service_discussion.go` |
-| 流事件传输 | `backend/internal/transport/http/conversation/handler_discussion.go` |
+| 会话级快照 | `backend/internal/application/conversation/service_discussion_snapshot.go`、`backend/internal/infra/persistence/postgres/conversation/repository_discussion_snapshot.go` |
+| 快照与流事件传输 | `backend/internal/transport/http/conversation/handler_discussion.go`、`handler_discussion_snapshot.go` |
 | 前端事件折叠 | `apps/web/features/chat/model/discussion-stream.ts` |
 | 前端面板 | `apps/web/features/chat/components/message/message-discussion.tsx` |
 | 后台编辑器 | `apps/web/features/admin/components/sections/discussions/` |
-| 对话时绑定条 | `apps/web/features/chat/components/sections/chat-discussion-config.tsx` |
+| 对话时绑定条 | `apps/web/features/chat/components/sections/chat-discussion-config.tsx`、`apps/web/features/chat/hooks/use-chat-discussion.ts` |
 
 ## 1. 概念
 
@@ -53,14 +54,15 @@
 
 `Service.StreamDiscussionMessage` 的顺序：
 
-1. `ResolvePlan` 解析模板与绑定，产出运行时的 `Rounds`（含每步绑定的模型、执行方式）与 `Summary`。
-2. 复用普通消息的建对逻辑，写入 user / assistant 两条消息，会话模型记为 `discussion:<publicID>`。
-3. 沿当前分支取本次提问之前的对话历史（`ListMessageAncestors`），以**真实 user/assistant 消息**的形式放进 prompt，与普通对话的多轮结构一致。之前的讨论只以「你的提问 + 最终总结」出现一次，各模型的逐轮发言（`discussion_json`）不进入历史。
-4. 逐轮执行：并行轮次共享同一份此前轮次 transcript，整轮完成后进入下一轮；串行轮次按模型顺序逐个执行，每次成功后立即把发言加入下一个模型的 transcript。
-5. 每轮的 messages = `system（该轮 prompt + 执行方式说明）` + 历史消息 + 当前 user（本次问题 + 当前模型可见的讨论记录）。该轮 prompt 取当前执行方式对应的 `parallelPrompt` / `serialPrompt`；当前执行方式未单独配置时回落到 `steps[*].prompt`。仍然为空则使用内置默认值：并行首轮「独立、具体回答」，并行后续轮「阅读已有讨论并补充纠正」，串行首轮「先独立回答，再回应本轮前序发言的分歧」，串行后续轮「阅读此前轮次及本轮前序发言并回应分歧」。串行上下文标题明确包含「本轮在你之前」，并行明确不包含同轮其他模型。
-6. 讨论结束后调用总结模型（同样带历史）；总结失败时用讨论记录拼出回退正文，而不是把整条消息判为失败。
-7. 历史按 `ContextMaxTurns` 限制条数，并在 `generateDiscussion` 里用 `fitGenerateInputToModelBudget` 按**当前模型**的上下文预算裁掉最老的轮次（保留 system 与本次问题），与普通对话同一套规则。
-8. 结束时把完整状态写入 `chat_messages.discussion_json`，并把汇总用量写入 assistant 消息。
+1. 优先读取会话级快照：有 pending 使用 pending，否则使用 active；只有首次使用才通过 `ResolvePlan` 解析实时模板。active 忽略请求中的新绑定，pending 允许修改绑定并校验版本。
+2. `FilterDisabledModels` 按占位符过滤本次执行，空轮次整体跳过但保留原编号；快照仍保存过滤前的完整计划。
+3. 复用普通消息的建对逻辑，写入 user / assistant 两条消息，会话模型记为 `discussion:<publicID>`。
+4. 沿当前分支取本次提问之前的对话历史（`ListMessageAncestors`），以**真实 user/assistant 消息**的形式放进 prompt，与普通对话的多轮结构一致。之前的讨论只以「你的提问 + 最终总结」出现一次，各模型的逐轮发言（`discussion_json`）不进入历史。
+5. 逐轮执行：并行轮次共享同一份此前轮次 transcript，整轮完成后进入下一轮；串行轮次按模型顺序逐个执行，每次成功后立即把发言加入下一个模型的 transcript。
+6. 每轮的 messages = `system（该轮 prompt + 执行方式说明）` + 历史消息 + 当前 user（本次问题 + 当前模型可见的讨论记录）。该轮 prompt 取当前执行方式对应的 `parallelPrompt` / `serialPrompt`；当前执行方式未单独配置时回落到 `steps[*].prompt`。仍然为空则使用内置默认值：并行首轮「独立、具体回答」，并行后续轮「阅读已有讨论并补充纠正」，串行首轮「先独立回答，再回应本轮前序发言的分歧」，串行后续轮「阅读此前轮次及本轮前序发言并回应分歧」。串行上下文标题明确包含「本轮在你之前」，并行明确不包含同轮其他模型。
+7. 讨论结束后调用总结模型（同样带历史）；总结失败时用讨论记录拼出回退正文，而不是把整条消息判为失败。
+8. 历史按 `ContextMaxTurns` 限制条数，并在 `generateDiscussion` 里用 `fitGenerateInputToModelBudget` 按**当前模型**的上下文预算裁掉最老的轮次（保留 system 与本次问题），与普通对话同一套规则。
+9. 结束时把完整状态写入 `chat_messages.discussion_json`，并把汇总用量写入 assistant 消息。只有所有轮次和总结均为 `completed` 才自动提交 pending 或写入首次 active；`completed_with_errors` / `stopped` / 提前错误均不提交。
 
 每次调用实际发送的提示词会被记录下来（`turn.prompt` / `state.summaryPrompt`），供前端调试模式展示；记录的是 `buildTextTaskGenerateInput` 归一化之后真正发往上游的消息。
 
@@ -89,10 +91,10 @@
 | `discussion_round_done` | `round`, `turns` | 用该轮结果整体替换该轮发言 |
 | `discussion_summary_start` | `participant`, `model`, `prompt`, `promptMessages` | 总结调用前切换为「总结中」并写入实际 Prompt 与结构化消息 |
 | `discussion_summary_delta` | `delta` | 追加到 assistant 正文，同时保持总结状态，实现总结流式 |
-| `discussion_done` | `state`（含 `summaryPrompt`、`summaryPromptMessages`） | 换成服务端最终状态 |
+| `discussion_done` | `state`、`snapshotCommitted`、`activeSnapshot`、`activeVersion`、`pendingVersion` | 换成服务端最终状态，并直接同步已提交的快照，无需额外查询 |
 | `delta`（收尾） | `delta`, `replace: true` | 用最终正文覆盖流式预览，避免重复 |
 
-讨论事件的负载与 `discussion_json` 使用同一套 JSON 形状（小写驼峰，由 `service_discussion_payload.go` 的 `discussion*Payload` 产出），不要直接把领域结构体塞进事件：Go 字段名是大驼峰，前端会读不到字段。
+讨论状态与快照负载使用同一套小写驼峰契约，由 `service_discussion_payload.go` 的 `discussion*Payload` 产出。领域结构保持协议无关，不携带 JSON 标签，也不要直接塞进事件或 HTTP 响应。
 
 所有事件同时写入 generation stream 缓存，因此切走会话再回来时，`resumeMessageGenerationStream` 能按 `afterSeq` 回放（见 `apps/web/features/chat/hooks/use-chat-data.ts`）。
 
@@ -137,10 +139,13 @@
 
 选择 `discussion:*` 模型后，输入区上方出现绑定条：
 
-- 总结模型独占一行（主色边框 + 「总结」徽标）。
-- 讨论模型横向铺满，最小宽度 13rem，排不开才换行。
-- 绑定按「会话 + 模板」存入 localStorage（`deeix:discussion-bindings:<conversation>:<template>`），新会话回退到模板默认模型。
-- 绑定优先级：本会话最近一次讨论实际使用的模型 > 本地保存的选择 > 模板默认模型。最近一次讨论的绑定是异步随消息列表到达的，因此即使到达晚于输入区初始化也会补上；用户手动改过模型后不再被覆盖。
+- 总结模型独占一行（主色边框 + 「总结」徽标），讨论模型带电源开关。关闭只影响本次执行，不产生该占位符的发言或用量；总结不可关闭，至少保留一个非空轮次。
+- 临时关闭偏好按「会话 + 模板」存入 localStorage（`deeix:discussion-disabled:<conversation>:<template>`），与绑定草稿同生命周期，不写入 active/pending。
+- 首次完整成功后，服务端在 `chat_conversation_discussion_snapshots` 按 `(conversation_id, template_public_id)` 保存 active 完整模板和绑定。后台修改或删除模板不影响 active；平台模型被删除时也不自动替换，调用会按原绑定失败。
+- 「刷新讨论配置」通过 `POST .../discussion-snapshots/{templateID}/refresh` 生成 pending：已有占位符保留绑定，新占位符使用最新模板默认值，移除的占位符丢弃。pending 阶段下拉可编辑，active 阶段只读。
+- 下一次发送携带 `disabledModels` 与 `expectedPendingVersion`。严格完整成功才原子提交 pending；失败、停止或部分失败保留 active 和 pending。`rollback` 清空 pending，部分成功后可用 `adopt` 手动采用。
+- 页面刷新只读取 `GET .../discussion-snapshots/{templateID}`，不会自动拉取后台改动。再次刷新需要内联二次确认；版本冲突返回 409，提示重新加载。
+- 新会话仍使用本地绑定草稿（`deeix:discussion-bindings:<conversation>:<template>`）；已有会话优先使用快照。后台模板删除后，前端用快照合成 `discussion:<templateID>` 选项，绑定条不会消失。
 
 ## 8. 已知边界
 

@@ -1220,6 +1220,25 @@
     "debugHidePrompt": "收起 Prompt",
     "debugPromptFor": "发送给 {model} 的完整 Prompt",
     "debugSummaryPrompt": "总结模型收到的完整 Prompt",
-    "debugPromptMissing": "该消息未记录 Prompt（旧版本生成）"
+    "debugPromptMissing": "该消息未记录 Prompt（旧版本生成）",
+    "enableModel": "启用此讨论模型",
+    "disableModel": "临时关闭此讨论模型",
+    "lastModelRequired": "至少保留一个讨论模型和一个非空轮次",
+    "activeBadge": "配置已固定",
+    "pendingBadge": "新配置待验证",
+    "refreshConfiguration": "刷新讨论配置",
+    "rollbackConfiguration": "撤回刷新",
+    "adoptConfiguration": "仍然采用新配置",
+    "refreshAgainConfirm": "再次刷新会丢弃当前待验证配置，请再次点击确认",
+    "confirmRefresh": "确认再次刷新",
+    "cancelRefresh": "取消",
+    "refreshReady": "新配置已就绪，下一次完整成功后生效",
+    "rollbackDone": "已撤回到原配置",
+    "adoptDone": "已采用新配置",
+    "pendingCommitted": "新配置已生效",
+    "pendingNotCommitted": "本次讨论未完整成功，新配置尚未生效",
+    "snapshotConflict": "配置已在其他标签页变化，请重新加载会话后重试",
+    "snapshotLoadFailed": "讨论配置加载失败",
+    "snapshotActionFailed": "讨论配置操作失败，当前生效配置未改变"
   }
 }

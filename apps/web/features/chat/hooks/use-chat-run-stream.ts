@@ -46,6 +46,7 @@ export function useChatRunStream({
   resetStreamBuffer,
   setStreamTextSnapshot,
   onConversationRunFinished,
+  onDiscussionStreamEvent,
 }: {
   updatePendingExchange: (
     exchangeKey: string,
@@ -61,6 +62,7 @@ export function useChatRunStream({
   resetStreamBuffer: (exchangeKey?: string) => void;
   setStreamTextSnapshot: (exchangeKey: string, content: string) => void;
   onConversationRunFinished?: (runID: string) => void;
+  onDiscussionStreamEvent?: (event: StreamMessageEvent) => void;
 }) {
   const t = useTranslations("chat.submit");
 
@@ -107,7 +109,12 @@ export function useChatRunStream({
       sourceMessagePublicID: string | null;
       branchReason: "default" | "retry" | "edit";
       assistantOnlyBranch: boolean;
-      discussion?: { templatePublicID: string; models: Record<string, string> };
+      discussion?: {
+        templatePublicID: string;
+        models: Record<string, string>;
+        disabledModels: string[];
+        expectedPendingVersion: number;
+      };
       signal: AbortSignal;
     }): Promise<SendMessageResult> => {
       let terminalStreamError: Extract<StreamMessageEvent, { type: "error" }> | null = null;
@@ -166,6 +173,7 @@ export function useChatRunStream({
           }));
         },
         onDiscussionEvent: (event) => {
+          onDiscussionStreamEvent?.(event);
           updatePendingExchange(exchangeKey, (current) => {
             const discussion = applyDiscussionEvent(current.assistantDiscussion, event);
             if (!discussion) {
@@ -289,6 +297,8 @@ export function useChatRunStream({
               content,
               templatePublicID: discussion.templatePublicID,
               models: discussion.models,
+              disabledModels: discussion.disabledModels,
+              expectedPendingVersion: discussion.expectedPendingVersion,
               clientRunID: commonStreamPayload.clientRunID,
               parentMessagePublicID: commonStreamPayload.parentMessagePublicID,
               sourceMessagePublicID: commonStreamPayload.sourceMessagePublicID,
@@ -364,6 +374,7 @@ export function useChatRunStream({
       flushStreamTextNow,
       flushUpstreamThinkNow,
       onConversationRunFinished,
+      onDiscussionStreamEvent,
       resetStreamBuffer,
       setStreamTextSnapshot,
       t,

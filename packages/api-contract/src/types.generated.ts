@@ -1527,6 +1527,10 @@ export interface DiscussionSendRequest {
   clientRunID?: string;
   content: string;
   contentType: "text" | "markdown";
+  /** @maxItems 12 */
+  disabledModels?: string[];
+  /** @min 0 */
+  expectedPendingVersion?: number;
   models?: Record<string, string>;
   /** @maxLength 32 */
   parentMessagePublicID?: string;

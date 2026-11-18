@@ -14,6 +14,14 @@ import (
 var (
 	// ErrConversationNotFound 会话不存在或无权限。
 	ErrConversationNotFound = apperr.New("conversation.not_found", "conversation not found")
+	// ErrDiscussionSnapshotConflict 多标签页或并发请求使用了过期的 pending 版本。
+	ErrDiscussionSnapshotConflict = apperr.NewMasked("discussion.snapshot_conflict", "discussion configuration changed; reload and retry", "discussion snapshot version conflict")
+	// ErrDiscussionPendingNotFound 当前没有可采用的待验证配置。
+	ErrDiscussionPendingNotFound = apperr.NewMasked("discussion.pending_not_found", "no pending discussion configuration", "discussion pending snapshot not found")
+	// ErrDiscussionNoEnabledModels 临时关闭后没有任何可执行轮次。
+	ErrDiscussionNoEnabledModels = apperr.NewMasked("discussion.no_enabled_models", "at least one discussion model must remain enabled", "discussion has no enabled models")
+	// ErrDiscussionSummaryModelLocked 总结节点必须保留。
+	ErrDiscussionSummaryModelLocked = apperr.NewMasked("discussion.summary_model_locked", "the summary model cannot be disabled", "discussion summary model cannot be disabled")
 	// ErrConversationEventNotFound 对话事件日志不存在。
 	ErrConversationEventNotFound = apperr.New("conversation_event.not_found", "conversation event not found")
 	// ErrToolCallNotFound 工具调用不存在或当前用户无权访问。

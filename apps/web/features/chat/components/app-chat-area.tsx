@@ -58,7 +58,7 @@ import { filterAvailableMCPToolIDs } from "@/features/chat/model/chat-mcp-tool-d
 import type { ChatAreaMessage, } from "@/features/chat/types/messages";
 import { useSettingsChatPreferences } from "@/features/settings";
 import { cn } from "@/lib/utils";
-import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation-types";
+import type { ConversationDTO, ConversationOptions, StreamMessageEvent } from "@/shared/api/conversation-types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { DeleteFilesOption } from "@/entities/file";
 import { hasMultipleImageAttachmentProcessors, normalizeImageAttachmentProcessorSelection } from "@/entities/mcp";
@@ -148,6 +148,11 @@ export function AppChatArea() {
   const touchByPublicID = useSidebarConversationField("touchByPublicID");
   const renameByPublicID = useSidebarConversationField("renameByPublicID");
   const upsertConversation = useSidebarConversationField("upsertConversation");
+  const discussionStreamEventHandlerRef = React.useRef<(event: StreamMessageEvent) => void>(() => {});
+  const forwardDiscussionStreamEvent = React.useCallback(
+    (event: StreamMessageEvent) => discussionStreamEventHandlerRef.current(event),
+    [],
+  );
   const {
     cancelResumedGeneration,
     conversationPublicID: messageDataConversationID,
@@ -165,6 +170,7 @@ export function AppChatArea() {
     activeGenerationRunsRef,
     activeGenerationRunsRevision,
     onConversationRunFinished: finishConversationRun,
+    onDiscussionStreamEvent: forwardDiscussionStreamEvent,
   });
   const { greetingTitle } = useChatViewerProfile();
   const activeConversation = React.useMemo(() => {
@@ -264,6 +270,20 @@ export function AppChatArea() {
     selectedDiscussionTemplate,
     discussionBindings,
     setDiscussionBinding,
+    discussionDisabledModels,
+    setDiscussionModelDisabled,
+    discussionSnapshot,
+    discussionSnapshotBusy,
+    discussionSnapshotError,
+    discussionSnapshotNotice,
+    discussionBindingsLocked,
+    canAdoptDiscussionPending,
+    discussionRefreshConfirmationPending,
+    refreshDiscussionConfiguration,
+    cancelDiscussionRefresh,
+    rollbackDiscussionConfiguration,
+    adoptDiscussionConfiguration,
+    onDiscussionStreamEvent,
   } = useChatModelOptions({
     conversationPublicID: conversationID,
     conversationModel: currentConversation?.model ?? null,
@@ -272,6 +292,7 @@ export function AppChatArea() {
     discussionSeedBindings,
     resetToken: newConversationRevision,
   });
+  discussionStreamEventHandlerRef.current = onDiscussionStreamEvent;
   const {
     conversationKey,
     draft,
@@ -289,6 +310,25 @@ export function AppChatArea() {
     () => modelOptions.find((item) => item.platformModelName === selectedPlatformModelName) ?? null,
     [modelOptions, selectedPlatformModelName],
   );
+  const discussionConfigurationProps = {
+    modelOptions,
+    bindings: discussionBindings,
+    onChange: setDiscussionBinding,
+    disabled: modelsLoading,
+    disabledModels: discussionDisabledModels,
+    onDisabledChange: setDiscussionModelDisabled,
+    bindingsLocked: discussionBindingsLocked,
+    pending: Boolean(discussionSnapshot?.pending),
+    snapshotBusy: discussionSnapshotBusy,
+    snapshotError: discussionSnapshotError,
+    snapshotNotice: discussionSnapshotNotice,
+    canAdopt: canAdoptDiscussionPending,
+    refreshConfirmationPending: discussionRefreshConfirmationPending,
+    onRefresh: conversationID ? refreshDiscussionConfiguration : undefined,
+    onCancelRefresh: cancelDiscussionRefresh,
+    onRollback: conversationID ? rollbackDiscussionConfiguration : undefined,
+    onAdopt: conversationID ? adoptDiscussionConfiguration : undefined,
+  };
   const modelOptionPolicyDisabled = modelOptionPolicy?.mode?.trim() === "disabled";
   const refreshModelCatalogForComposer = React.useCallback(async () => {
     await refreshModelCatalog();
@@ -481,6 +521,9 @@ export function AppChatArea() {
     modelOptions,
     discussionTemplate: selectedModel?.discussionTemplate ?? null,
     discussionBindings,
+    discussionDisabledModels,
+    discussionExpectedPendingVersion: discussionSnapshot?.pendingVersion ?? 0,
+    onDiscussionStreamEvent,
     selectedToolIDs,
     selectedSkills,
     selectedKnowledgeBaseIDs,
@@ -898,10 +941,7 @@ export function AppChatArea() {
             {selectedDiscussionTemplate ? (
               <ChatDiscussionConfig
                 template={selectedDiscussionTemplate}
-                modelOptions={modelOptions}
-                bindings={discussionBindings}
-                onChange={setDiscussionBinding}
-                disabled={modelsLoading}
+                {...discussionConfigurationProps}
               />
             ) : null}
             <ChatInput {...chatInputProps} />
@@ -1011,10 +1051,7 @@ export function AppChatArea() {
                   {selectedDiscussionTemplate ? (
                     <ChatDiscussionConfig
                       template={selectedDiscussionTemplate}
-                      modelOptions={modelOptions}
-                      bindings={discussionBindings}
-                      onChange={setDiscussionBinding}
-                      disabled={modelsLoading}
+                      {...discussionConfigurationProps}
                     />
                   ) : null}
                   <ChatInput {...chatInputProps} />

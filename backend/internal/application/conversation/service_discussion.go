@@ -34,18 +34,20 @@ const (
 
 // DiscussionSendInput 是讨论消息发送入参。
 type DiscussionSendInput struct {
-	UserID                uint
-	ConversationID        uint
-	RequestID             string
-	ContentType           string
-	Content               string
-	TemplatePublicID      string
-	ModelBindings         map[string]string
-	ParentMessagePublicID string
-	SourceMessagePublicID string
-	BranchReason          string
-	ClientRunID           string
-	OnEvent               func(eventType string, payload map[string]any) error
+	UserID                 uint
+	ConversationID         uint
+	RequestID              string
+	ContentType            string
+	Content                string
+	TemplatePublicID       string
+	ModelBindings          map[string]string
+	DisabledModels         []string
+	ExpectedPendingVersion int64
+	ParentMessagePublicID  string
+	SourceMessagePublicID  string
+	BranchReason           string
+	ClientRunID            string
+	OnEvent                func(eventType string, payload map[string]any) error
 }
 
 // StreamDiscussionMessage 创建一轮讨论消息，并按模板编排模型调用。
@@ -56,13 +58,25 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 	if s.routeResolver == nil || s.llmClient == nil {
 		return nil, ErrModelRouteNotConfigured
 	}
-	template, cfg, plan, err := s.discussionTemplates.ResolvePlan(ctx, input.TemplatePublicID, input.ModelBindings)
-	if err != nil {
-		return nil, err
-	}
 	conversation, err := s.repo.GetConversationByUser(ctx, input.ConversationID, input.UserID)
 	if err != nil {
 		return nil, ErrConversationNotFound
+	}
+	execution, err := s.resolveDiscussionExecution(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	template, cfg := execution.template, execution.config
+	fullPlan := execution.plan
+	plan, err := domaindiscussion.FilterDisabledModels(fullPlan, input.DisabledModels)
+	if errors.Is(err, domaindiscussion.ErrSummaryModelLocked) {
+		return nil, ErrDiscussionSummaryModelLocked
+	}
+	if errors.Is(err, domaindiscussion.ErrNoEnabledModels) {
+		return nil, ErrDiscussionNoEnabledModels
+	}
+	if err != nil {
+		return nil, err
 	}
 	startedAt := time.Now()
 	runID := normalizeRunID(input.ClientRunID)
@@ -169,7 +183,7 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 
 	finalText := ""
 	summaryTurn := domaindiscussion.Turn{
-		Round:       len(plan.Rounds) + 1,
+		Round:       domaindiscussion.SummaryRoundIndex(plan),
 		StepID:      "summary",
 		Participant: plan.Summary.Participant,
 		Model:       plan.Summary.Model,
@@ -196,8 +210,16 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 	if ctx.Err() != nil {
 		state.Status = "stopped"
 	}
-	if summaryTurn.Status == "error" && state.Status == "completed" {
-		state.Status = "completed_with_errors"
+	if state.Status == "completed" {
+		for _, turn := range state.Turns {
+			if turn.Status == "error" {
+				state.Status = "completed_with_errors"
+				break
+			}
+		}
+		if summaryTurn.Status == "error" {
+			state.Status = "completed_with_errors"
+		}
 	}
 	stateJSON, _ := json.Marshal(discussionStatePayloadOf(state))
 
@@ -244,11 +266,40 @@ func (s *Service) StreamDiscussionMessage(ctx context.Context, input DiscussionS
 	pair.assistant.ErrorMessage = errorMessage
 	_ = s.repo.UpdateMessageState(ctx, pair.user.ID, "success", "", "")
 
+	snapshotCommitted := false
+	var activeSnapshot *domaindiscussion.Snapshot
+	var activeVersion, pendingVersion int64
+	if execution.snapshot != nil {
+		activeVersion = execution.snapshot.ActiveVersion
+		pendingVersion = execution.snapshot.PendingVersion
+	}
+	if state.Status == "completed" && execution.snapshotRepo != nil {
+		committedSnapshot, committed, commitErr := execution.snapshotRepo.CommitDiscussionSnapshot(ctx, input.ConversationID, input.TemplatePublicID, domaindiscussion.Snapshot{
+			Template: *template,
+			Config:   cfg,
+			Plan:     fullPlan,
+		}, execution.usePending, input.ExpectedPendingVersion)
+		if commitErr != nil {
+			return nil, mapDiscussionSnapshotError(commitErr)
+		}
+		snapshotCommitted = committed
+		if committedSnapshot != nil {
+			activeSnapshot = committedSnapshot.Active
+			activeVersion = committedSnapshot.ActiveVersion
+			pendingVersion = committedSnapshot.PendingVersion
+		}
+	}
 	if finalText != "" {
 		// The summary already streamed as discussion_summary_delta; this replaces the preview.
 		emit("delta", map[string]any{"delta": finalText, "replace": true})
 	}
-	emit("discussion_done", map[string]any{"state": discussionStatePayloadOf(state)})
+	emit("discussion_done", map[string]any{
+		"state":             discussionStatePayloadOf(state),
+		"snapshotCommitted": snapshotCommitted,
+		"activeVersion":     activeVersion,
+		"pendingVersion":    pendingVersion,
+		"activeSnapshot":    discussionSnapshotContentPayloadOf(activeSnapshot),
+	})
 	return &SendMessageResult{
 		UserMessage:       *pair.user,
 		AssistantMessage:  *pair.assistant,
@@ -382,7 +433,7 @@ func (s *Service) runDiscussionSummary(
 	emit func(string, map[string]any),
 ) domaindiscussion.Turn {
 	turn := domaindiscussion.Turn{
-		Round:       len(plan.Rounds) + 1,
+		Round:       domaindiscussion.SummaryRoundIndex(plan),
 		StepID:      "summary",
 		Participant: plan.Summary.Participant,
 		Model:       plan.Summary.Model,
