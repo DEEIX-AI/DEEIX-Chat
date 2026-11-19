@@ -21,6 +21,8 @@ import { ChatArtifactWorkspace } from "@/features/chat/components/sections/chat-
 import { ChatUIBlockPanel } from "@/features/chat/components/sections/chat-ui-block-panel";
 import { ChatEmptyState } from "@/features/chat/components/sections/chat-empty";
 import { ChatInput } from "@/features/chat/components/sections/chat-input";
+import { ChatDiscussionConfig } from "@/features/chat/components/sections/chat-discussion-config";
+import { ChatLayoutControl } from "@/features/chat/components/sections/chat-layout-control";
 import { ChatScreenshotPreviewDialog } from "@/features/chat/components/sections/chat-screenshot-preview-dialog";
 import { TemporaryChatModeControl } from "@/features/chat/components/sections/chat-temporary-mode-control";
 import { useChatSession } from "@/features/chat/context/chat-session-context";
@@ -56,11 +58,11 @@ import { filterAvailableMCPToolIDs } from "@/features/chat/model/chat-mcp-tool-d
 import type { ChatAreaMessage, } from "@/features/chat/types/messages";
 import { useSettingsChatPreferences } from "@/features/settings";
 import { cn } from "@/lib/utils";
-import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation-types";
+import type { ConversationDTO, ConversationOptions, StreamMessageEvent } from "@/shared/api/conversation-types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { DeleteFilesOption } from "@/entities/file";
 import { hasMultipleImageAttachmentProcessors, normalizeImageAttachmentProcessorSelection } from "@/entities/mcp";
-import { resolveChatContentWidthClassName } from "@/entities/user-settings";
+import { CHAT_COMPOSER_WIDTH_CLASSNAME, resolveChatContentWidthClassName } from "@/entities/user-settings";
 
 const EMPTY_CONVERSATION_OPTIONS: ConversationOptions = {};
 const EMPTY_LIST: never[] = [];
@@ -146,6 +148,11 @@ export function AppChatArea() {
   const touchByPublicID = useSidebarConversationField("touchByPublicID");
   const renameByPublicID = useSidebarConversationField("renameByPublicID");
   const upsertConversation = useSidebarConversationField("upsertConversation");
+  const discussionStreamEventHandlerRef = React.useRef<(event: StreamMessageEvent) => void>(() => {});
+  const forwardDiscussionStreamEvent = React.useCallback(
+    (event: StreamMessageEvent) => discussionStreamEventHandlerRef.current(event),
+    [],
+  );
   const {
     cancelResumedGeneration,
     conversationPublicID: messageDataConversationID,
@@ -163,6 +170,7 @@ export function AppChatArea() {
     activeGenerationRunsRef,
     activeGenerationRunsRevision,
     onConversationRunFinished: finishConversationRun,
+    onDiscussionStreamEvent: forwardDiscussionStreamEvent,
   });
   const { greetingTitle } = useChatViewerProfile();
   const activeConversation = React.useMemo(() => {
@@ -212,6 +220,28 @@ export function AppChatArea() {
     [renameByPublicID, router, t, upsertConversation],
   );
 
+  const discussionSeedBindings = React.useMemo<Record<string, string> | null>(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const discussion = messages[index]?.discussion;
+      if (!discussion?.enabled) {
+        continue;
+      }
+      const bindings: Record<string, string> = {};
+      for (const round of discussion.rounds ?? []) {
+        for (const step of round.steps ?? []) {
+          if (step.participant && step.model && !bindings[step.participant]) {
+            bindings[step.participant] = step.model;
+          }
+        }
+      }
+      if (discussion.summary?.participant && discussion.summary.model) {
+        bindings[discussion.summary.participant] = discussion.summary.model;
+      }
+      return bindings;
+    }
+    return null;
+  }, [messages]);
+
   const {
     modelOptions,
     refreshModelCatalog,
@@ -223,6 +253,7 @@ export function AppChatArea() {
     preserveConversationDrafts,
     inputHeight,
     contentWidth,
+    contentAlign,
     markdownRender,
     showModelInfo,
     showLatency,
@@ -236,13 +267,33 @@ export function AppChatArea() {
     mcpMaxSelectedTools,
     selectedPlatformModelName,
     setSelectedPlatformModelName,
+    selectedDiscussionTemplate,
+    discussionBindings,
+    setDiscussionBinding,
+    discussionDisabledModels,
+    setDiscussionModelDisabled,
+    discussionSnapshot,
+    discussionSnapshotBusy,
+    discussionSnapshotError,
+    discussionSnapshotNotice,
+    discussionBindingsLocked,
+    canAdoptDiscussionPending,
+    discussionRefreshConfirmationPending,
+    refreshDiscussionConfiguration,
+    cancelDiscussionRefresh,
+    rollbackDiscussionConfiguration,
+    adoptDiscussionConfiguration,
+    useDefaultDiscussionModels,
+    onDiscussionStreamEvent,
   } = useChatModelOptions({
     conversationPublicID: conversationID,
     conversationModel: currentConversation?.model ?? null,
     newConversationDefaultModel: newConversationProject?.defaultModel ?? "",
     newConversationDefaultsPending,
+    discussionSeedBindings,
     resetToken: newConversationRevision,
   });
+  discussionStreamEventHandlerRef.current = onDiscussionStreamEvent;
   const {
     conversationKey,
     draft,
@@ -260,6 +311,26 @@ export function AppChatArea() {
     () => modelOptions.find((item) => item.platformModelName === selectedPlatformModelName) ?? null,
     [modelOptions, selectedPlatformModelName],
   );
+  const discussionConfigurationProps = {
+    modelOptions,
+    bindings: discussionBindings,
+    onChange: setDiscussionBinding,
+    disabled: modelsLoading,
+    disabledModels: discussionDisabledModels,
+    onDisabledChange: setDiscussionModelDisabled,
+    bindingsLocked: discussionBindingsLocked,
+    pending: Boolean(discussionSnapshot?.pending),
+    snapshotBusy: discussionSnapshotBusy,
+    snapshotError: discussionSnapshotError,
+    snapshotNotice: discussionSnapshotNotice,
+    canAdopt: canAdoptDiscussionPending,
+    refreshConfirmationPending: discussionRefreshConfirmationPending,
+    onRefresh: refreshDiscussionConfiguration,
+    onCancelRefresh: cancelDiscussionRefresh,
+    onRollback: conversationID ? rollbackDiscussionConfiguration : undefined,
+    onAdopt: conversationID ? adoptDiscussionConfiguration : undefined,
+    onUseDefaults: useDefaultDiscussionModels,
+  };
   const modelOptionPolicyDisabled = modelOptionPolicy?.mode?.trim() === "disabled";
   const refreshModelCatalogForComposer = React.useCallback(async () => {
     await refreshModelCatalog();
@@ -450,6 +521,11 @@ export function AppChatArea() {
     activeConversation: currentConversation,
     selectedPlatformModelName,
     modelOptions,
+    discussionTemplate: selectedModel?.discussionTemplate ?? null,
+    discussionBindings,
+    discussionDisabledModels,
+    discussionExpectedPendingVersion: discussionSnapshot?.pendingVersion ?? 0,
+    onDiscussionStreamEvent,
     selectedToolIDs,
     selectedSkills,
     selectedKnowledgeBaseIDs,
@@ -823,7 +899,8 @@ export function AppChatArea() {
     onEditQueuedMessage,
     onGuideQueuedMessage,
   };
-  const chatContentWidthClassName = resolveChatContentWidthClassName(contentWidth);
+  const chatContentWidthClassName = resolveChatContentWidthClassName(contentWidth, contentAlign);
+  const composerWidthClassName = CHAT_COMPOSER_WIDTH_CLASSNAME;
   const isConversationLoading = !temporaryMode && Boolean(conversationID) && loading && visibleMessageCount === 0 && displayMessages.length === 0;
   const isConversationLoadFailed = !temporaryMode && Boolean(conversationID) && !loading && errorMsg.trim().length > 0 && visibleMessageCount === 0;
   const shouldUseCenteredComposer =
@@ -846,7 +923,7 @@ export function AppChatArea() {
         />
       ) : null}
       {shouldUseCenteredComposer ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-x-visible overflow-y-hidden">
           <ChatEmptyState
             greetingTitle={activeRouteProject?.name || greetingTitle}
             badgeLabel={activeRouteProject ? t("projectMode") : undefined}
@@ -858,8 +935,17 @@ export function AppChatArea() {
                 strokeWidth={1.6}
               />
             ) : undefined}
-            contentWidthClassName={chatContentWidthClassName}
+            contentWidthClassName={composerWidthClassName}
           >
+            <div className="mb-2 flex justify-end">
+              <ChatLayoutControl showLabel />
+            </div>
+            {selectedDiscussionTemplate ? (
+              <ChatDiscussionConfig
+                template={selectedDiscussionTemplate}
+                {...discussionConfigurationProps}
+              />
+            ) : null}
             <ChatInput {...chatInputProps} />
           </ChatEmptyState>
         </div>
@@ -867,7 +953,7 @@ export function AppChatArea() {
         <div
           ref={workspaceRef}
           className={cn(
-            "relative grid min-h-0 flex-1 overflow-hidden",
+            "relative grid min-h-0 flex-1 overflow-x-visible overflow-y-hidden",
             artifactResizing
               ? "transition-none"
               : "transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
@@ -875,8 +961,8 @@ export function AppChatArea() {
           )}
           style={{ gridTemplateColumns: workspaceGridColumns }}
         >
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-w-0 flex-1 flex-col overflow-x-visible overflow-y-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-x-visible overflow-y-hidden">
               {isConversationLoading ? (
                 <ChatAreaSkeleton contentWidthClassName={chatContentWidthClassName} />
               ) : isConversationLoadFailed ? (
@@ -939,6 +1025,7 @@ export function AppChatArea() {
                   billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
                   splitRightInset={hasInlineArtifact}
                   contentWidthClassName={chatContentWidthClassName}
+                  contentAlign={contentAlign}
                   onScreenshotLatest={screenshot.captureLatestMessages}
                   onScreenshotSelect={screenshot.startSelectionScreenshot}
                   screenshot={{
@@ -959,7 +1046,16 @@ export function AppChatArea() {
 
             {!isConversationLoadFailed ? (
               <div className="relative z-10 shrink-0 px-3 pb-3 md:px-6">
-                <div className={cn("mx-auto w-full", chatContentWidthClassName)}>
+                <div className={cn("w-full", composerWidthClassName)}>
+                  <div className="mb-2 flex justify-end">
+                    <ChatLayoutControl showLabel />
+                  </div>
+                  {selectedDiscussionTemplate ? (
+                    <ChatDiscussionConfig
+                      template={selectedDiscussionTemplate}
+                      {...discussionConfigurationProps}
+                    />
+                  ) : null}
                   <ChatInput {...chatInputProps} />
                 </div>
               </div>

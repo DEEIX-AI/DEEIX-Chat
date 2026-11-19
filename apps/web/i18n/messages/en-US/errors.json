@@ -164,6 +164,12 @@
     "streamInterrupted": "The generation connection was interrupted. Retry this message.",
     "streamNotFound": "Generation stream not found."
   },
+  "discussion": {
+    "snapshotConflict": "The discussion configuration changed in another tab. Reload and retry.",
+    "pendingNotFound": "There is no pending discussion configuration to adopt.",
+    "noEnabledModels": "Keep at least one discussion model and one non-empty round.",
+    "summaryModelLocked": "The summary model cannot be disabled."
+  },
   "conversationShare": {
     "invalid": "Invalid conversation share.",
     "invalidId": "Invalid share ID.",

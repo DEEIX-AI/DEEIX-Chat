@@ -50,6 +50,8 @@ type ChatMessageUserProps = {
   // Enter saves and regenerates, as the composer does, honouring the same user setting.
   sendShortcut?: SendShortcut;
   screenshotMeta?: React.ReactNode;
+  /** Which edge the bubble hugs: the message column's alignment, so left-aligned chats stay left. */
+  align?: "start" | "end";
 };
 
 export function ChatMessageUser({
@@ -69,6 +71,7 @@ export function ChatMessageUser({
   showBranchNavigator = true,
   sendShortcut = "enter",
   screenshotMeta,
+  align = "end",
 }: ChatMessageUserProps) {
   const tCommon = useTranslations("common.actions");
   const tComposer = useTranslations("chat.composer");
@@ -297,7 +300,12 @@ export function ChatMessageUser({
   }
 
   return (
-    <div className="group/user-message flex min-w-0 max-w-full flex-col items-end gap-2">
+    <div
+      className={cn(
+        "group/user-message flex min-w-0 max-w-full flex-col gap-2",
+        align === "start" ? "items-start" : "items-end",
+      )}
+    >
       {item.attachments && item.attachments.length > 0 ? (
         <MessageAttachmentRow
           attachments={item.attachments}

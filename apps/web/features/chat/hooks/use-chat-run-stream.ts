@@ -7,6 +7,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { ChatSubmitTask } from "@/features/chat/model/chat-task";
 import { buildMediaImagePreviewMarkdown } from "@/features/chat/model/media-image-preview";
+import { applyDiscussionEvent } from "@/features/chat/model/discussion-stream";
 import { mergeProcessTraceSnapshot, toPendingProcessTrace } from "@/features/chat/model/message-submit";
 import { settleCompletedExchange } from "@/features/chat/model/message-submit-exchange";
 import {
@@ -17,6 +18,7 @@ import type { PendingAttachment, PendingExchange } from "@/features/chat/types/c
 import {
   type ConversationStreamOptions,
   streamMessage as streamConversationMessage,
+  streamDiscussionMessage,
   streamImageEdit,
   streamImageGeneration,
   streamVideoExtension,
@@ -44,6 +46,7 @@ export function useChatRunStream({
   resetStreamBuffer,
   setStreamTextSnapshot,
   onConversationRunFinished,
+  onDiscussionStreamEvent,
 }: {
   updatePendingExchange: (
     exchangeKey: string,
@@ -59,6 +62,7 @@ export function useChatRunStream({
   resetStreamBuffer: (exchangeKey?: string) => void;
   setStreamTextSnapshot: (exchangeKey: string, content: string) => void;
   onConversationRunFinished?: (runID: string) => void;
+  onDiscussionStreamEvent?: (event: StreamMessageEvent) => void;
 }) {
   const t = useTranslations("chat.submit");
 
@@ -83,6 +87,7 @@ export function useChatRunStream({
       sourceMessagePublicID,
       branchReason,
       assistantOnlyBranch,
+      discussion,
       signal,
     }: {
       token: string;
@@ -104,6 +109,12 @@ export function useChatRunStream({
       sourceMessagePublicID: string | null;
       branchReason: "default" | "retry" | "edit";
       assistantOnlyBranch: boolean;
+      discussion?: {
+        templatePublicID: string;
+        models: Record<string, string>;
+        disabledModels: string[];
+        expectedPendingVersion: number;
+      };
       signal: AbortSignal;
     }): Promise<SendMessageResult> => {
       let terminalStreamError: Extract<StreamMessageEvent, { type: "error" }> | null = null;
@@ -160,6 +171,27 @@ export function useChatRunStream({
               summary_preview: event.summary_preview,
             },
           }));
+        },
+        onDiscussionEvent: (event) => {
+          onDiscussionStreamEvent?.(event);
+          updatePendingExchange(exchangeKey, (current) => {
+            const discussion = applyDiscussionEvent(current.assistantDiscussion, event);
+            if (!discussion) {
+              return current;
+            }
+            return {
+              ...current,
+              assistantDiscussion: discussion,
+              assistantPending: false,
+              assistantStreaming: discussion.status === "running" || discussion.status === "summarizing",
+              assistantFileProc: false,
+              assistantActivityLabel: undefined,
+            };
+          });
+          if (event.type === "discussion_summary_delta") {
+            // The summary is the assistant message body; the final delta replaces this preview.
+            enqueueStreamText(exchangeKey, event.delta);
+          }
         },
         onProcessUpdate: (event) => {
           updatePendingExchange(exchangeKey, (current) => ({
@@ -253,6 +285,28 @@ export function useChatRunStream({
       };
       let completed: SendMessageResult;
       if (submitTask === "chat") {
+        if (platformModelName.startsWith("discussion:") && !discussion) {
+          throw new Error(t("discussionConfigureRequired"));
+        }
+        if (discussion) {
+          completed = await streamDiscussionMessage(
+            token,
+            conversationID,
+            {
+              contentType: "text",
+              content,
+              templatePublicID: discussion.templatePublicID,
+              models: discussion.models,
+              disabledModels: discussion.disabledModels,
+              expectedPendingVersion: discussion.expectedPendingVersion,
+              clientRunID: commonStreamPayload.clientRunID,
+              parentMessagePublicID: commonStreamPayload.parentMessagePublicID,
+              sourceMessagePublicID: commonStreamPayload.sourceMessagePublicID,
+              branchReason: commonStreamPayload.branchReason,
+            },
+            streamOptions,
+          );
+        } else {
         const chatPayload: SendMessageRequest = {
           ...commonStreamPayload,
           contentType: effectiveAttachments.length > 0 ? "mixed" : "text",
@@ -267,6 +321,7 @@ export function useChatRunStream({
           uiStates: uiStates && uiStates.length > 0 ? uiStates : undefined,
         };
         completed = await streamConversationMessage(token, conversationID, chatPayload, streamOptions);
+        }
       } else if (submitTask === "video_generation") {
         const mediaPayload: MediaVideoRequest = {
           ...commonStreamPayload,
@@ -319,6 +374,7 @@ export function useChatRunStream({
       flushStreamTextNow,
       flushUpstreamThinkNow,
       onConversationRunFinished,
+      onDiscussionStreamEvent,
       resetStreamBuffer,
       setStreamTextSnapshot,
       t,

@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
+import { useChatDiscussion } from "@/features/chat/hooks/use-chat-discussion";
 import {
   type ChatModelOption,
   MODEL_MODALITIES,
@@ -15,6 +16,8 @@ import { parseSendShortcut, type SendShortcut } from "@/features/settings";
 import { getBillingConfig } from "@/shared/api/billing";
 import { listConversationRuns } from "@/shared/api/conversation";
 import type { ConversationOptions } from "@/shared/api/conversation-types";
+import { listDiscussionTemplates } from "@/shared/api/discussion";
+import type { DiscussionTemplateDTO } from "@/shared/api/discussion-types";
 import { listPublicModels } from "@/shared/api/model";
 import type { PublicModelDTO } from "@/shared/api/model-types";
 import { getMCPPolicy, getModelOptionPolicy } from "@/shared/api/settings";
@@ -31,7 +34,7 @@ import {
   parseProtocolsJSON,
   resolveModelProviderIcon,
 } from "@/entities/model";
-import { type ChatContentWidth, parseChatContentWidth, useUserSettings } from "@/entities/user-settings";
+import { type ChatContentAlign, type ChatContentWidth, parseChatContentAlign, parseChatContentWidth, useUserSettings } from "@/entities/user-settings";
 import { resolveConversationDefaultModel } from "@/entities/conversation";
 import { isOneOf, isRecord, parseJSON } from "@/shared/lib/type-guards";
 
@@ -56,6 +59,10 @@ function parseJSONObject(raw: string): Record<string, unknown> | null {
 
 function resolveChatContentWidth(settings: Record<string, string>): ChatContentWidth {
   return parseChatContentWidth(settings["chat.content_width"]);
+}
+
+function resolveChatContentAlign(settings: Record<string, string>): ChatContentAlign {
+  return parseChatContentAlign(settings["chat.content_align"]);
 }
 
 function normalizeNativeToolPayload(value: unknown): Record<string, unknown> {
@@ -384,6 +391,37 @@ function toChatModelOption(
   };
 }
 
+// 讨论模板作为合成模型进入同一选择器；不占用平台模型路由，发送时走后端讨论编排。
+function toDiscussionModelOption(template: DiscussionTemplateDTO, groupName: string): ChatModelOption {
+  return {
+    platformModelName: `discussion:${template.publicID}`,
+    icon: template.icon,
+    vendor: "deeix",
+    vendorName: "DEEIX",
+    vendorIcon: "",
+    displayGroupID: null,
+    displayGroupName: groupName,
+    displayGroupIcon: "",
+    personalProviderName: null,
+    personalProviderIcon: "",
+    kinds: ["discussion"],
+    protocols: [],
+    defaultOptions: {},
+    optionControls: [],
+    lockedOptionPaths: [],
+    nativeToolKeys: [],
+    nativeTools: [],
+    pricing: null,
+    videoExtension: null,
+    reasoning: null,
+    controls: [],
+    inputModalities: ["text"],
+    outputModalities: ["text"],
+    contextWindow: null,
+    discussionTemplate: template,
+  };
+}
+
 // Older servers omit the fields; unknown values are dropped so the UI never shows an unsupported badge.
 function parseModalities(value: unknown): ModelModality[] {
   if (!Array.isArray(value)) {
@@ -397,17 +435,21 @@ export function useChatModelOptions({
   conversationModel,
   newConversationDefaultModel,
   newConversationDefaultsPending = false,
+  discussionSeedBindings = null,
   resetToken,
 }: {
   conversationPublicID: string | null;
   conversationModel?: string | null;
   newConversationDefaultModel?: string | null;
   newConversationDefaultsPending?: boolean;
+  discussionSeedBindings?: Record<string, string> | null;
   resetToken?: number;
 }) {
   const t = useTranslations("chat.models");
+  const discussionT = useTranslations("chat.discussion");
   const { settings: userSettings } = useUserSettings();
   const [availableModels, setAvailableModels] = React.useState<PublicModelDTO[]>([]);
+  const [discussionTemplates, setDiscussionTemplates] = React.useState<DiscussionTemplateDTO[]>([]);
   const [modelsLoading, setModelsLoading] = React.useState(true);
   const [defaultModelResolving, setDefaultModelResolving] = React.useState(false);
   const [modelsErrorMsg, setModelsErrorMsg] = React.useState("");
@@ -433,6 +475,7 @@ export function useChatModelOptions({
       ? userSettings["chat.input_height"]
       : "standard";
   const contentWidth: ChatContentWidth = resolveChatContentWidth(userSettings);
+  const contentAlign: ChatContentAlign = resolveChatContentAlign(userSettings);
   const markdownRender = userSettings["chat.markdown_render"] !== "false";
   const showModelInfo = userSettings["chat.show_model_info"] !== "false";
   const showLatency = userSettings["chat.show_latency"] !== "false";
@@ -444,6 +487,21 @@ export function useChatModelOptions({
     userSelectedModelRef.current = true;
     setSelectedPlatformModelName(platformModelName);
   }, []);
+  const refreshDiscussionTemplateList = React.useCallback(async () => {
+    const token = await resolveAccessToken();
+    if (!token) throw new Error("missing access token");
+    const templates = await listDiscussionTemplates(token);
+    setDiscussionTemplates(templates);
+    return templates;
+  }, []);
+  const discussion = useChatDiscussion({
+    conversationPublicID,
+    selectedPlatformModelName,
+    discussionTemplates,
+    discussionSeedBindings,
+    refreshDiscussionTemplates: refreshDiscussionTemplateList,
+  });
+  const selectedDiscussionTemplate = discussion.selectedDiscussionTemplate;
 
   const loadModelCatalog = React.useCallback((accessToken?: string): Promise<ModelCatalogRefreshResult> => {
     if (modelCatalogRequestRef.current) {
@@ -492,11 +550,16 @@ export function useChatModelOptions({
     if (!normalizedName) {
       return null;
     }
+    if (normalizedName.startsWith("discussion:")) {
+      return selectedDiscussionTemplate?.publicID === normalizedName.slice("discussion:".length)
+        ? toDiscussionModelOption(selectedDiscussionTemplate, discussionT("groupName"))
+        : null;
+    }
 
     const catalog = await refreshModelCatalog();
     const nextModel = catalog.models.find((item) => item.platformModelName === normalizedName);
     return nextModel ? toChatModelOption(nextModel, catalog.modelOptionPolicy?.nativeTools ?? []) : null;
-  }, [refreshModelCatalog]);
+  }, [discussionT, refreshModelCatalog, selectedDiscussionTemplate]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -510,15 +573,17 @@ export function useChatModelOptions({
           setModelsErrorMsg(t("signInRequired"));
           return;
         }
-        const [catalog, billingConfig, nextMCPPolicy] = await Promise.all([
+        const [catalog, billingConfig, nextMCPPolicy, templates] = await Promise.all([
           loadModelCatalog(token),
           getBillingConfig(token).catch((): null => null),
           getMCPPolicy(token).catch((): null => null),
+          listDiscussionTemplates(token).catch((): DiscussionTemplateDTO[] => []),
         ]);
         if (cancelled) {
           return;
         }
         applyModelCatalog(catalog);
+        setDiscussionTemplates(templates);
         setMCPMaxSelectedTools(resolveMCPMaxSelectedTools(nextMCPPolicy?.maxSelectedToolsPerMessage));
         setBillingCostAvailable((billingConfig?.config.mode ?? "self") !== "self");
         setBillingDisplayCurrency(normalizeBillingDisplayCurrency(billingConfig?.config.displayCurrency));
@@ -652,22 +717,31 @@ export function useChatModelOptions({
   }, [availableModels, conversationPublicID, newConversationDefaultModel, newConversationDefaultsPending, resetToken, userDefaultModel]);
 
   const modelOptions = React.useMemo<ChatModelOption[]>(
-    () =>
-      availableModels.map((model) => toChatModelOption(model, modelOptionPolicy?.nativeTools ?? [])),
-    [availableModels, modelOptionPolicy?.nativeTools],
+    () => {
+      const templates = [...discussionTemplates];
+      if (selectedDiscussionTemplate && !templates.some((item) => item.publicID === selectedDiscussionTemplate.publicID)) {
+        templates.push(selectedDiscussionTemplate);
+      }
+      return [
+        ...availableModels.map((model) => toChatModelOption(model, modelOptionPolicy?.nativeTools ?? [])),
+        ...templates.map((template) => toDiscussionModelOption(template, discussionT("groupName"))),
+      ];
+    },
+    [availableModels, discussionT, discussionTemplates, modelOptionPolicy?.nativeTools, selectedDiscussionTemplate],
   );
 
   return {
     modelOptions,
     refreshModelCatalog,
     refreshModelOption,
-    modelsLoading: modelsLoading || newConversationDefaultsPending || defaultModelResolving,
+    modelsLoading: modelsLoading || newConversationDefaultsPending || defaultModelResolving || discussion.discussionSnapshotLoading,
     modelsErrorMsg,
     sendShortcut,
     restoreDraftOnFailure,
     preserveConversationDrafts,
     inputHeight,
     contentWidth,
+    contentAlign,
     markdownRender,
     showModelInfo,
     showLatency,
@@ -681,5 +755,6 @@ export function useChatModelOptions({
     mcpMaxSelectedTools,
     selectedPlatformModelName,
     setSelectedPlatformModelName: selectPlatformModelName,
+    ...discussion,
   };
 }

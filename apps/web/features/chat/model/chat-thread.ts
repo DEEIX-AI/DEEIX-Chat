@@ -252,6 +252,7 @@ export function mapServerMessage(
       modality: source.modality === "image" ? "image" : "text",
     }));
     msg.processTrace = mapProcessTrace(item.processTrace);
+    msg.discussion = item.discussion;
     const status = item.status.trim().toLowerCase();
     const moderationBlocked = status === "blocked" || item.errorCode === "content_moderation.blocked";
     if (moderationBlocked) {

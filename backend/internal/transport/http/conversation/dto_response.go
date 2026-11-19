@@ -891,10 +891,12 @@ type MessageResponse struct {
 	BillingCost      *MessageBillingCostResponse      `json:"billingCost,omitempty"`
 	KnowledgeSources []MessageKnowledgeSourceResponse `json:"knowledgeSources,omitempty"`
 	ProcessTrace     *MessageProcessTraceResponse     `json:"processTrace,omitempty"`
-	Moderation       *MessageModerationResponse       `json:"moderation,omitempty"`
-	EditedAt         *time.Time                       `json:"editedAt" extensions:"x-nullable,!x-omitempty"`
-	CreatedAt        time.Time                        `json:"createdAt"`
-	UpdatedAt        time.Time                        `json:"updatedAt"`
+	// Discussion 是多模型讨论的完整记录；普通消息省略。
+	Discussion json.RawMessage            `json:"discussion,omitempty" swaggertype:"object"`
+	Moderation *MessageModerationResponse `json:"moderation,omitempty"`
+	EditedAt   *time.Time                 `json:"editedAt" extensions:"x-nullable,!x-omitempty"`
+	CreatedAt  time.Time                  `json:"createdAt"`
+	UpdatedAt  time.Time                  `json:"updatedAt"`
 }
 
 // MessageModerationResponse 向客户端暴露软审核状态。
@@ -1149,11 +1151,21 @@ func toMessageResponseWithRunAndFallback(m model.Message, run model.Run, fallbac
 		BillingCost:       toMessageBillingCostResponse(m),
 		KnowledgeSources:  toMessageKnowledgeSourceResponses(knowledgeSources),
 		ProcessTrace:      toMessageProcessTraceResponse(processTrace),
+		Discussion:        messageDiscussionJSON(m.DiscussionJSON),
 		Moderation:        toMessageModerationResponse(m, run),
 		EditedAt:          m.EditedAt,
 		CreatedAt:         m.CreatedAt,
 		UpdatedAt:         m.UpdatedAt,
 	}
+}
+
+// messageDiscussionJSON 返回可序列化的讨论记录；空或损坏时省略字段。
+func messageDiscussionJSON(raw string) json.RawMessage {
+	value := strings.TrimSpace(raw)
+	if value == "" || !json.Valid([]byte(value)) {
+		return nil
+	}
+	return json.RawMessage(value)
 }
 
 // messageErrorRequestID 只为失败的助手消息返回其生成请求的 requestId。

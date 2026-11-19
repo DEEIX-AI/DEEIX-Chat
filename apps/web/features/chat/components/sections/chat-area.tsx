@@ -146,6 +146,8 @@ type ChatAreaProps = {
   billingDisplayUsdToCnyRate?: number | null;
   splitRightInset?: boolean;
   contentWidthClassName?: string;
+  /** Message column alignment; a left-aligned chat also left-aligns the user bubble. */
+  contentAlign?: "center" | "left";
   onScreenshotLatest?: () => void;
   onScreenshotSelect?: () => void;
   screenshot?: {
@@ -311,6 +313,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   billingDisplayCurrency,
   billingDisplayUsdToCnyRate,
   contentWidthClassName,
+  userMessageAlign,
   screenshotMetaAlign,
   screenshotMetaModelName,
   screenshotMetaTimestamp,
@@ -352,6 +355,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   billingDisplayCurrency: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate: number | null;
   contentWidthClassName: string;
+  userMessageAlign: "start" | "end";
   screenshotMetaAlign: "start" | "end";
   screenshotMetaModelName: string;
   screenshotMetaTimestamp: string;
@@ -431,6 +435,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         readOnly={readOnly}
         sendShortcut={sendShortcut}
         screenshotMeta={screenshotMeta}
+        align={userMessageAlign}
       />
     );
   }
@@ -575,6 +580,7 @@ export function ChatArea({
   billingDisplayUsdToCnyRate = null,
   splitRightInset = false,
   contentWidthClassName = "max-w-[1080px]",
+  contentAlign = "center",
   onScreenshotLatest,
   onScreenshotSelect,
   screenshot,
@@ -663,26 +669,28 @@ export function ChatArea({
             onScreenshotLatest={onScreenshotLatest}
             onScreenshotSelect={onScreenshotSelect}
           />
-          {canOperateConversation ? (
-            <ConversationShareExportIconDropdown
-              label={shareExportLabel}
-              shareLabel={shareLabel}
-              exportLabel={t("labelMenu.exportJSON")}
-              active={shareActive}
-              onShare={onShare}
-              onExport={onExport}
-              screenshotLatestLabel={tScreenshot("captureLatest")}
-              screenshotSelectLabel={tScreenshot("captureSelect")}
-              onScreenshotLatest={onScreenshotLatest}
-              onScreenshotSelect={onScreenshotSelect}
-            />
-          ) : null}
+          <div className="flex items-center gap-1">
+            {canOperateConversation ? (
+              <ConversationShareExportIconDropdown
+                label={shareExportLabel}
+                shareLabel={shareLabel}
+                exportLabel={t("labelMenu.exportJSON")}
+                active={shareActive}
+                onShare={onShare}
+                onExport={onExport}
+                screenshotLatestLabel={tScreenshot("captureLatest")}
+                screenshotSelectLabel={tScreenshot("captureSelect")}
+                onScreenshotLatest={onScreenshotLatest}
+                onScreenshotSelect={onScreenshotSelect}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
 
       {selectionMode && screenshot ? (
         <div className={cn("px-3 pb-1 md:px-6")} data-screenshot-exclude="true">
-          <div className={cn("mx-auto w-full", contentWidthClassName)}>
+          <div className={cn("w-full", contentWidthClassName)}>
             <ChatScreenshotSelectionBar
               selectedCount={screenshot.selectedCount}
               totalCount={selectableMessagePublicIDs.length}
@@ -708,7 +716,7 @@ export function ChatArea({
             >
               <MessageScrollerContent
                 ref={messageContentRef}
-                className={cn("mx-auto w-full gap-0 pb-8 data-[screenshot-capturing=true]:pb-0", contentWidthClassName)}
+                className={cn("w-full gap-0 pb-8 data-[screenshot-capturing=true]:pb-0", contentWidthClassName)}
                 style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
               >
                 <ChatScreenshotBrandMark placement="top" />
@@ -767,7 +775,8 @@ export function ChatArea({
                       billingDisplayCurrency={billingDisplayCurrency}
                       billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
                       contentWidthClassName={contentWidthClassName}
-                      screenshotMetaAlign={item.role === "user" ? "end" : "start"}
+                      userMessageAlign={contentAlign === "left" ? "start" : "end"}
+                      screenshotMetaAlign={item.role === "user" ? (contentAlign === "left" ? "start" : "end") : "start"}
                       screenshotMetaModelName={item.role === "assistant" ? item.platformModelName?.trim() || "" : ""}
                       screenshotMetaTimestamp={screenshotTimestamp}
                     />
@@ -881,7 +890,7 @@ export function ChatAreaSkeleton({
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden px-3 pb-8 pt-2 md:px-6">
-        <div className={cn("mx-auto w-full space-y-6", contentWidthClassName)}>
+        <div className={cn("w-full space-y-6", contentWidthClassName)}>
           <ChatUserMessageSkeleton widthClassName="w-[min(26rem,70%)] max-sm:w-[88%]" />
 
           <ChatAssistantMessageSkeleton />

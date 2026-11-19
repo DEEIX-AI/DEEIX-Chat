@@ -3,6 +3,7 @@ import enAdminAnnouncements from "@/i18n/messages/en-US/admin-announcements.json
 import enAdminBilling from "@/i18n/messages/en-US/admin-billing.json";
 import enAdminContentModeration from "@/i18n/messages/en-US/admin-content-moderation.json";
 import enAdminConversation from "@/i18n/messages/en-US/admin-conversation.json";
+import enAdminDiscussions from "@/i18n/messages/en-US/admin-discussions.json";
 import enAdminFiles from "@/i18n/messages/en-US/admin-files.json";
 import enAdminGroups from "@/i18n/messages/en-US/admin-groups.json";
 import enAdminLogin from "@/i18n/messages/en-US/admin-login.json";
@@ -58,6 +59,7 @@ const ENGLISH_MESSAGES = {
   adminAnnouncements: enAdminAnnouncements,
   adminBilling: enAdminBilling,
   adminConversation: enAdminConversation,
+  adminDiscussions: enAdminDiscussions,
   adminFiles: enAdminFiles,
   adminGroups: enAdminGroups,
   adminLogin: enAdminLogin,
@@ -149,6 +151,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     adminAnnouncements,
     adminBilling,
     adminConversation,
+    adminDiscussions,
     adminFiles,
     adminGroups,
     adminLogin,
@@ -184,6 +187,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     import("@/i18n/messages/zh-CN/admin-announcements.json"),
     import("@/i18n/messages/zh-CN/admin-billing.json"),
     import("@/i18n/messages/zh-CN/admin-conversation.json"),
+    import("@/i18n/messages/zh-CN/admin-discussions.json"),
     import("@/i18n/messages/zh-CN/admin-files.json"),
     import("@/i18n/messages/zh-CN/admin-groups.json"),
     import("@/i18n/messages/zh-CN/admin-login.json"),
@@ -221,6 +225,7 @@ export async function loadLocaleMessages(locale: AppLocale): Promise<AppMessages
     adminAnnouncements: adminAnnouncements.default,
     adminBilling: adminBilling.default,
     adminConversation: adminConversation.default,
+    adminDiscussions: adminDiscussions.default,
     adminFiles: adminFiles.default,
     adminGroups: adminGroups.default,
     adminLogin: adminLogin.default,

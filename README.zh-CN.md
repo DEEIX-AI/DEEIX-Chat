@@ -148,7 +148,7 @@ flowchart TB
 └── Dockerfile                 # 前后端生产镜像
 ```
 
-`apps/web/` 和 `backend/` 是由 pnpm 与 Turborepo 管理的独立工作区。`packages/api-contract/` 通过生成的 Swagger 类型连接两者；修改 HTTP 契约时先更新 Go 传输层，再重新生成共享包。`packages/core/` 存放必须在各端保持一致的客户端逻辑，禁止引入任何 UI 或平台框架。平台边界与规则见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+`apps/web/` 和 `backend/` 是由 pnpm 与 Turborepo 管理的独立工作区。`packages/api-contract/` 通过生成的 Swagger 类型连接两者；修改 HTTP 契约时先更新 Go 传输层，再重新生成共享包。`packages/core/` 存放必须在各端保持一致的客户端逻辑，禁止引入任何 UI 或平台框架。平台边界与规则见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，多模型讨论模板与事件流见 [docs/DISCUSSIONS.md](docs/DISCUSSIONS.md)。
 
 ## 开发前置条件
 

@@ -17,6 +17,7 @@ export { AdminLogsPage } from "@/features/admin/components/sections/logs/admin-l
 export { AdminModelsPage } from "@/features/admin/components/sections/models/admin-models";
 export { AdminStatisticsPage } from "@/features/admin/components/sections/statistics/admin-statistics";
 export { AdminToolsPage } from "@/features/admin/components/sections/tools/admin-tools";
+export { AdminDiscussionsPage } from "@/features/admin/components/sections/discussions/admin-discussions";
 export { AdminUpstreamsPage } from "@/features/admin/components/sections/upstreams/admin-upstreams";
 export { AdminUserKeysPage } from "@/features/admin/components/sections/user-keys/admin-user-keys";
 export { AdminUsersPage } from "@/features/admin/components/sections/users/admin-users";

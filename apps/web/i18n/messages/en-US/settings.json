@@ -399,11 +399,13 @@
       "costDescription": "Controls whether total call cost appears below AI replies.",
       "processTraceTitle": "Show processing steps",
       "processTraceDescription": "Controls whether the processing steps for a reply, such as context planning, retrieval, and tool summaries, appear above AI replies.",
-      "widthTitle": "Chat area width",
+      "widthTitle": "Message width",
+      "widthHint": "Only the message column changes; the input box stays fixed.",
       "width": {
         "compact": "Compact",
         "standard": "Standard",
-        "wide": "Wide"
+        "wide": "Wide",
+        "full": "Full width"
       },
       "chatFont": "Chat font",
       "chatFontWeight": "Chat font weight",
@@ -418,7 +420,13 @@
         "medium": "Medium",
         "semibold": "Semibold",
         "bold": "Bold"
-      }
+      },
+      "alignTitle": "Message alignment",
+      "align": {
+        "center": "Center",
+        "left": "Left"
+      },
+      "layoutButton": "Layout"
     },
     "context": {
       "sectionTitle": "Context management",

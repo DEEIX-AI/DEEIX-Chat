@@ -81,6 +81,8 @@ type ChatMetaMessage = {
   reasoningTokens?: number;
   latencyMS?: number;
   billingCost?: ChatBillingCost;
+  // Discussion messages carry the template that produced them, so the badge shows its name.
+  discussion?: { templateName?: string; rounds?: readonly unknown[] };
 };
 
 export type AssistantReaction = "up" | "down" | null;
@@ -1055,6 +1057,7 @@ export function AssistantMessageMeta({
   showBranchNavigator?: boolean;
 }) {
   const t = useTranslations("chat.messages");
+  const discussionT = useTranslations("chat.discussion");
   const timeT = useTranslations("common.time");
   const isLive = Boolean(item.isPending || item.isStreaming);
   const timestamp = formatMessageTimestamp(
@@ -1106,7 +1109,18 @@ export function AssistantMessageMeta({
       <div className="flex min-w-0 max-w-full flex-col items-start gap-1.5 pt-0.5">
         {hasDetailBadges ? (
           <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
-            {showModelInfo ? <ModelBadge label={resolveModelOptionLabel(item.platformModelName ?? "")} /> : null}
+            {showModelInfo ? (
+              <ModelBadge
+                label={
+                  item.discussion?.templateName?.trim()
+                    ? discussionT("modelLabel", {
+                        name: item.discussion.templateName,
+                        rounds: item.discussion.rounds?.length ?? 0,
+                      })
+                    : resolveModelOptionLabel(item.platformModelName ?? "")
+                }
+              />
+            ) : null}
             {showTokenUsage ? (
               <TokenBadge
                 inputTokens={item.inputTokens}

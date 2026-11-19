@@ -137,6 +137,7 @@ export function settleCompletedExchange(
             readLiveUpstreamThinkTrace(clientRunID),
           )
         : toPendingProcessTrace(completed.assistantMessage.processTrace),
+    assistantDiscussion: completed.assistantMessage.discussion ?? current.assistantDiscussion,
     assistantStatus: assistantMessageStatus,
     assistantErrorCode: completed.assistantMessage.errorCode,
     assistantErrorMessage: completed.assistantMessage.errorMessage,

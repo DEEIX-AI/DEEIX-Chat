@@ -17,6 +17,7 @@ import { MessageKnowledgeSources } from "@/features/chat/components/message/mess
 import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
 import { AssistantMessageMeta } from "@/features/chat/components/message/message-meta";
 import { MessageAgentTrace, MessageProcessTrace } from "@/features/chat/components/message/message-process-trace";
+import { MessageDiscussion } from "@/features/chat/components/message/message-discussion";
 import { UpstreamExchangeDetails } from "@/features/chat/components/message/message-upstream-debug";
 import { useChatInlineVideoSource } from "@/features/chat/hooks/use-chat-inline-video-source";
 import { useChatMessageTraceDetail } from "@/features/chat/hooks/use-chat-message-trace-detail";
@@ -319,6 +320,10 @@ export function ChatMessageBot({
   const hasTraceBlocks = hasTraceEvents || Boolean(upstreamThink) || Boolean(toolTrace);
   const isImageGenerationLoading = item.contentType === "image" && item.isStreaming && !hasStreamdownContent;
   const isVideoGenerationLoading = item.contentType === "video" && item.isStreaming && !hasStreamdownContent;
+  // A discussion speaks round by round inside its panel, so an empty body is not an empty answer.
+  const discussionSpeaking = Boolean(
+    item.discussion?.enabled && (item.discussion.status === "running" || item.discussion.status === "summarizing"),
+  );
   const editableImageAttachments = React.useMemo(
     () => (item.attachments ?? []).filter(isEditableImageAttachment),
     [item.attachments],
@@ -425,6 +430,7 @@ export function ChatMessageBot({
         detailFailed={traceDetailFailed}
         onLoadDetail={loadTraceDetail}
       />
+      <MessageDiscussion discussion={item.discussion} />
 
       <div
         data-chat-assistant-content=""
@@ -435,7 +441,7 @@ export function ChatMessageBot({
           <AssistantImageGenerationSkeleton label={item.activityLabel} aspectRatio={item.imageAspectRatio} />
         ) : isVideoGenerationLoading && !item.inlineAlert ? (
           <AssistantVideoGenerationSkeleton label={item.activityLabel} />
-        ) : item.isStreaming && !hasStreamdownContent && !item.inlineAlert ? (
+        ) : item.isStreaming && !hasStreamdownContent && !item.inlineAlert && !discussionSpeaking ? (
           <AssistantMessageSkeleton fileProc={item.isFileProc} label={item.activityLabel} />
         ) : leadingImagePending ? (
           <AssistantImageGenerationSkeleton label={leadingImageAlt} aspectRatio={item.imageAspectRatio} />

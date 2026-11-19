@@ -5,11 +5,13 @@ import { useChatBranchState } from "@/features/chat/hooks/use-chat-branch-state"
 import { useChatSubmitStream } from "@/features/chat/hooks/use-chat-submit-stream";
 import type { ChatModelOption, PendingAttachment, PendingExchangeMap } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage } from "@/features/chat/types/messages";
+import type { DiscussionTemplateDTO } from "@/shared/api/discussion-types";
 import type {
   ConversationDTO,
   ConversationOptions,
   MessageDTO,
   MessageUIStateInput,
+  StreamMessageEvent,
 } from "@/shared/api/conversation-types";
 import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 
@@ -93,6 +95,11 @@ export function useChatRuntime({
   activeConversation,
   selectedPlatformModelName,
   modelOptions,
+  discussionTemplate,
+  discussionBindings,
+  discussionDisabledModels,
+  discussionExpectedPendingVersion,
+  onDiscussionStreamEvent,
   selectedToolIDs,
   selectedSkills,
   selectedKnowledgeBaseIDs,
@@ -131,6 +138,11 @@ export function useChatRuntime({
   activeConversation: ConversationDTO | null;
   selectedPlatformModelName: string;
   modelOptions: ChatModelOption[];
+  discussionTemplate?: DiscussionTemplateDTO | null;
+  discussionBindings?: Record<string, string>;
+  discussionDisabledModels?: string[];
+  discussionExpectedPendingVersion?: number;
+  onDiscussionStreamEvent?: (event: StreamMessageEvent) => void;
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
@@ -212,6 +224,11 @@ export function useChatRuntime({
     activeConversation,
     selectedPlatformModelName,
     modelOptions,
+    discussionTemplate,
+    discussionBindings,
+    discussionDisabledModels,
+    discussionExpectedPendingVersion,
+    onDiscussionStreamEvent,
     selectedToolIDs,
     selectedSkills,
     selectedKnowledgeBaseIDs,

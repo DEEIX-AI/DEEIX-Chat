@@ -1270,6 +1270,9 @@ func (r *Repo) UpdateAssistantMessageCompletion(
 	if update.ReasoningEffort != nil {
 		updates["reasoning_effort"] = *update.ReasoningEffort
 	}
+	if strings.TrimSpace(update.DiscussionJSON) != "" {
+		updates["discussion_json"] = update.DiscussionJSON
+	}
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&models.Message{}).
 		Where("id = ?", messageID).
@@ -3982,6 +3985,7 @@ func toMessageDomain(item models.Message) domainconversation.Message {
 		ErrorMessage:             item.ErrorMessage,
 		ModerationEventID:        item.ModerationEventID,
 		ModerationCategoriesJSON: item.ModerationCategoriesJSON,
+		DiscussionJSON:           item.DiscussionJSON,
 		KnowledgeSources:         parseMessageKnowledgeSources(item.KnowledgeSourcesJSON),
 		Attachments:              item.Attachments,
 		ParentPublicID:           item.ParentPublicID,
@@ -4035,6 +4039,7 @@ func toMessageModel(item *domainconversation.Message) models.Message {
 		ErrorMessage:             item.ErrorMessage,
 		ModerationEventID:        item.ModerationEventID,
 		ModerationCategoriesJSON: item.ModerationCategoriesJSON,
+		DiscussionJSON:           item.DiscussionJSON,
 		KnowledgeSourcesJSON:     marshalMessageKnowledgeSources(item.KnowledgeSources),
 		EditedAt:                 item.EditedAt,
 	}

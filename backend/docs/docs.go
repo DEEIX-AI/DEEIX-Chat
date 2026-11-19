@@ -12697,6 +12697,70 @@ const docTemplate = `{
                 ]
             }
         },
+        "/conversations/{id}/messages/discussion/stream": {
+            "post": {
+                "description": "按后台讨论模板编排多模型轮次，并流式返回讨论事件与最终总结",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/x-ndjson"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "流式发送多模型讨论消息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 public_id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "讨论参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/DiscussionSendRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "NDJSON stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
         "/conversations/{id}/messages/preview": {
             "get": {
                 "description": "返回当前用户会话最新分支最近 10 条用户或助手消息",
@@ -23122,6 +23186,67 @@ const docTemplate = `{
                 }
             }
         },
+        "DiscussionSendRequest": {
+            "type": "object",
+            "required": [
+                "content",
+                "contentType",
+                "templatePublicID"
+            ],
+            "properties": {
+                "branchReason": {
+                    "type": "string",
+                    "enum": [
+                        "default",
+                        "retry",
+                        "edit"
+                    ]
+                },
+                "clientRunID": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "content": {
+                    "type": "string"
+                },
+                "contentType": {
+                    "type": "string",
+                    "enum": [
+                        "text",
+                        "markdown"
+                    ]
+                },
+                "disabledModels": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "expectedPendingVersion": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "models": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "parentMessagePublicID": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "sourceMessagePublicID": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "templatePublicID": {
+                    "type": "string",
+                    "maxLength": 32
+                }
+            }
+        },
         "EmailBootstrapCompleteRequest": {
             "type": "object",
             "required": [
@@ -25933,6 +26058,10 @@ const docTemplate = `{
                 },
                 "createdAt": {
                     "type": "string"
+                },
+                "discussion": {
+                    "description": "Discussion 是多模型讨论的完整记录；普通消息省略。",
+                    "type": "object"
                 },
                 "editedAt": {
                     "type": "string",

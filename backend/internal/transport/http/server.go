@@ -23,6 +23,7 @@ import (
 	channelhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/channel"
 	contentmoderationhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/contentmoderation"
 	conversationhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/conversation"
+	discussionhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/discussion"
 	knowledgebasehttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/knowledgebase"
 	mcphttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/mcp"
 	memoryhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/memory"
@@ -60,6 +61,7 @@ type Modules struct {
 	Channel           *channelhttp.Module
 	Conversation      *conversationhttp.Module
 	MCP               *mcphttp.Module
+	Discussion        *discussionhttp.Module
 	Memory            *memoryhttp.Module
 	Billing           *billinghttp.Module
 	Admin             *adminhttp.Module
@@ -87,6 +89,7 @@ func (m Modules) hasAdminRoutes() bool {
 		m.Billing != nil ||
 		m.Channel != nil ||
 		m.MCP != nil ||
+		m.Discussion != nil ||
 		m.Settings != nil ||
 		m.Announcement != nil ||
 		m.PromptPreset != nil ||
@@ -225,6 +228,9 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	if modules.MCP != nil {
 		modules.MCP.RegisterRoutes(authRequired)
 	}
+	if modules.Discussion != nil {
+		modules.Discussion.RegisterRoutes(authRequired)
+	}
 	if modules.Billing != nil {
 		modules.Billing.RegisterRoutes(authRequired, gate)
 	}
@@ -275,6 +281,9 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		}
 		if modules.MCP != nil {
 			modules.MCP.RegisterAdminRoutes(adminGroup)
+		}
+		if modules.Discussion != nil {
+			modules.Discussion.RegisterAdminRoutes(adminGroup)
 		}
 		if modules.Settings != nil {
 			modules.Settings.RegisterAdminRoutes(adminGroup)

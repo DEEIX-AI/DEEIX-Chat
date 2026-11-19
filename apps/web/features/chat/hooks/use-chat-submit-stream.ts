@@ -15,8 +15,10 @@ import type {
   ConversationOptions,
   MessageDTO,
   MessageUIStateInput,
+  StreamMessageEvent,
 } from "@/shared/api/conversation-types";
 import type { SkillSummaryDTO } from "@/shared/api/skills-types";
+import type { DiscussionTemplateDTO } from "@/shared/api/discussion-types";
 
 export function useChatSubmitStream({
   conversationID,
@@ -24,6 +26,11 @@ export function useChatSubmitStream({
   activeConversation,
   selectedPlatformModelName,
   modelOptions,
+  discussionTemplate,
+  discussionBindings,
+  discussionDisabledModels,
+  discussionExpectedPendingVersion,
+  onDiscussionStreamEvent,
   selectedToolIDs,
   selectedSkills,
   selectedKnowledgeBaseIDs,
@@ -71,6 +78,11 @@ export function useChatSubmitStream({
   activeConversation: ConversationDTO | null;
   selectedPlatformModelName: string;
   modelOptions: ChatModelOption[];
+  discussionTemplate?: DiscussionTemplateDTO | null;
+  discussionBindings?: Record<string, string>;
+  discussionDisabledModels?: string[];
+  discussionExpectedPendingVersion?: number;
+  onDiscussionStreamEvent?: (event: StreamMessageEvent) => void;
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
   selectedKnowledgeBaseIDs: string[];
@@ -123,6 +135,11 @@ export function useChatSubmitStream({
     activeConversation,
     selectedPlatformModelName,
     modelOptions,
+    discussionTemplate,
+    discussionBindings,
+    discussionDisabledModels,
+    discussionExpectedPendingVersion,
+    onDiscussionStreamEvent,
     selectedToolIDs,
     selectedSkills,
     selectedKnowledgeBaseIDs,

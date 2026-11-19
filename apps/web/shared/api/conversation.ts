@@ -1,6 +1,7 @@
 import type { ConversationRuns } from "@deeix/api-contract";
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
 import type { PagePayload } from "@/shared/api/common-types";
+import type { DiscussionSendRequest } from "@/shared/api/discussion-types";
 import type {
   ActiveConversationRunEvent,
   ActiveConversationRunSnapshot,
@@ -26,6 +27,7 @@ import type {
   CreateConversationRequest,
   CreateConversationShareRequest,
   DeleteConversationData,
+  DiscussionStreamEvent,
   MediaImageRequest,
   MediaVideoExtensionRequest,
   MediaVideoRequest,
@@ -188,6 +190,14 @@ const STREAM_MESSAGE_EVENT_TYPES = [
   "moderation_checking",
   "moderation_blocked",
   "compact_done",
+  "discussion_start",
+  "discussion_turn_start",
+  "discussion_turn_delta",
+  "discussion_turn_done",
+  "discussion_round_done",
+  "discussion_summary_start",
+  "discussion_summary_delta",
+  "discussion_done",
   "error",
 ] as const satisfies readonly StreamMessageEvent["type"][];
 
@@ -319,6 +329,9 @@ function extractJSONDocuments(source: string): { documents: string[]; remainder:
 }
 
 function handleStreamEvent(event: ParsedStreamEvent, options: ConversationStreamOptions, responseStatus: number): SendMessageResult | null {
+  if (event.type === "unrecognized") {
+    return null;
+  }
   const seq = streamEventSeq(event);
   if (seq > 0) {
     options.onEventSeq?.(seq);
@@ -341,6 +354,20 @@ function handleStreamEvent(event: ParsedStreamEvent, options: ConversationStream
       kept_turns: event.kept_turns,
       summary_preview: event.summary_preview,
     });
+    return null;
+  }
+
+  if (
+    event.type === "discussion_start" ||
+    event.type === "discussion_turn_start" ||
+    event.type === "discussion_turn_delta" ||
+    event.type === "discussion_turn_done" ||
+    event.type === "discussion_round_done" ||
+    event.type === "discussion_summary_start" ||
+    event.type === "discussion_summary_delta" ||
+    event.type === "discussion_done"
+  ) {
+    options.onDiscussionEvent?.(event);
     return null;
   }
 
@@ -401,15 +428,16 @@ function handleStreamEvent(event: ParsedStreamEvent, options: ConversationStream
       options.onInterrupted?.(event);
       return event.data;
     }
+    throw new ApiError(
+      event.message || "stream failed",
+      event.status ?? responseStatus,
+      event.debug,
+      event.errorCode,
+      event.requestId,
+    );
   }
 
-  throw new ApiError(
-    event.message || "stream failed",
-    event.status ?? responseStatus,
-    event.debug,
-    event.errorCode,
-    event.requestId,
-  );
+  throw new ApiError("stream failed", responseStatus);
 }
 
 type ListConversationsOptions = {
@@ -1301,6 +1329,7 @@ export type ConversationStreamOptions = {
   onMediaStatus?: (event: Extract<StreamMessageEvent, { type: "media_status" }>) => void;
   onMediaImageDelta?: (event: Extract<StreamMessageEvent, { type: "media_image_delta" }>) => void;
   onCompactDone?: (event: CompactDoneEvent) => void;
+  onDiscussionEvent?: (event: DiscussionStreamEvent) => void;
   onProcessUpdate?: (event: Extract<StreamMessageEvent, { type: "process_update" }>) => void;
   onUpstreamThinkDelta?: (event: Extract<StreamMessageEvent, { type: "upstream_think_delta" }>) => void;
   onUsage?: (event: Extract<StreamMessageEvent, { type: "usage" }>) => void;
@@ -1450,6 +1479,15 @@ export async function streamMessage(
   options: ConversationStreamOptions = {},
 ): Promise<SendMessageResult> {
   return postConversationStream(accessToken, conversationPublicID, "/messages/stream", payload, options);
+}
+
+export async function streamDiscussionMessage(
+  accessToken: string,
+  conversationPublicID: string,
+  payload: DiscussionSendRequest,
+  options: ConversationStreamOptions = {},
+): Promise<SendMessageResult> {
+  return postConversationStream(accessToken, conversationPublicID, "/messages/discussion/stream", payload, options);
 }
 
 export async function streamTemporaryChatMessage(

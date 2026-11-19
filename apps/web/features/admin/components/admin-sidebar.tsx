@@ -31,6 +31,7 @@ const ADMIN_SECTION_LABEL_KEYS: Record<AdminSection, string> = {
   models: "sections.models",
   groups: "sections.groups",
   tools: "sections.toolSettings",
+  discussions: "sections.discussions",
   billing: "sections.billing",
   announcements: "sections.announcements",
   logs: "sections.logs",

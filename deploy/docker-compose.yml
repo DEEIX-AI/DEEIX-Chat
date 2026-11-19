@@ -16,6 +16,22 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - deeix-chat
+
+  # Optional built-in MCP server for DeepSeek Search & Fetch.
+  # Enable with: docker compose --profile deepseek-search up -d
+  # Then add http://deeix-chat-deepseek-search:8080/mcp in Admin -> Tools.
+  deepseek-search:
+    image: ${DEEIX_DEEPSEEK_SEARCH_IMAGE:-deeix-deepseek-search:latest}
+    container_name: deeix-chat-deepseek-search
+    profiles: ["deepseek-search"]
+    restart: unless-stopped
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      MCP_AUTH_TOKEN: ${DEEIX_DEEPSEEK_SEARCH_TOKEN:-}
+    networks:
+      - deeix-chat
+
 volumes:
   app_storage:
     name: deeix-chat-app-storage

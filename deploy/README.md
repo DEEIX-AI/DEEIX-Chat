@@ -28,6 +28,20 @@ cp config.sqlite.example.yaml config.yaml
 docker compose -f docker-compose.sqlite.yml up -d
 ```
 
+## Optional: DeepSeek Search MCP
+
+The compose files ship a small MCP server that wraps DeepSeek's Search & Fetch APIs.
+It is disabled by default; enable it with a profile and provide the API key:
+
+```bash
+DEEPSEEK_API_KEY=sk-... docker compose --profile deepseek-search up -d
+```
+
+Then add `http://deeix-chat-deepseek-search:8080/mcp` in **Admin → Tools → New MCP server**,
+sync its tools, and optionally set the per-call price to `750000` nanousd
+(DeepSeek charges $0.75 per 1,000 successful requests). See
+[`services/deepseek-search/README.md`](services/deepseek-search/README.md) for details.
+
 Every compose file mounts `./config.yaml` (relative to this directory) to `/app/config.yaml`.
 `deploy/config.yaml` is git-ignored and excluded from the image build context.
 

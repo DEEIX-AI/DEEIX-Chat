@@ -1,0 +1,257 @@
+package conversation
+
+import domaindiscussion "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/discussion"
+
+// Unexported transport payloads keep JSON tags out of domain and exported application types.
+type discussionPlaceholderPayload struct {
+	Key          string `json:"key"`
+	Label        string `json:"label"`
+	DefaultModel string `json:"defaultModel,omitempty"`
+	Required     bool   `json:"required,omitempty"`
+}
+
+type discussionStepPayload struct {
+	ID          string `json:"id"`
+	Participant string `json:"participant"`
+	Model       string `json:"model"`
+	Prompt      string `json:"prompt"`
+}
+
+type discussionRoundPayload struct {
+	Index    int                     `json:"index"`
+	Parallel bool                    `json:"parallel"`
+	Steps    []discussionStepPayload `json:"steps"`
+}
+
+type discussionSummaryPayload struct {
+	Participant string `json:"participant"`
+	Model       string `json:"model"`
+	Prompt      string `json:"prompt"`
+}
+
+type discussionPromptMessagePayload struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type discussionTurnPayload struct {
+	Round       int    `json:"round"`
+	StepID      string `json:"stepId"`
+	Participant string `json:"participant"`
+	Model       string `json:"model"`
+	Status      string `json:"status"`
+	Content     string `json:"content,omitempty"`
+	Error       string `json:"error,omitempty"`
+	// Prompt is the exact prompt sent to this model; it is debug output, not a summary.
+	Prompt           string                           `json:"prompt,omitempty"`
+	PromptMessages   []discussionPromptMessagePayload `json:"promptMessages,omitempty"`
+	InputTokens      int64                            `json:"inputTokens,omitempty"`
+	OutputTokens     int64                            `json:"outputTokens,omitempty"`
+	CacheReadTokens  int64                            `json:"cacheReadTokens,omitempty"`
+	CacheWriteTokens int64                            `json:"cacheWriteTokens,omitempty"`
+	ReasoningTokens  int64                            `json:"reasoningTokens,omitempty"`
+	LatencyMS        int64                            `json:"latencyMs,omitempty"`
+}
+
+type discussionStatePayload struct {
+	Enabled               bool                             `json:"enabled"`
+	Status                string                           `json:"status"`
+	TemplateID            string                           `json:"templateId"`
+	TemplateName          string                           `json:"templateName"`
+	Placeholders          []discussionPlaceholderPayload   `json:"placeholders"`
+	Rounds                []discussionRoundPayload         `json:"rounds"`
+	Summary               discussionSummaryPayload         `json:"summary"`
+	SummaryPrompt         string                           `json:"summaryPrompt,omitempty"`
+	SummaryPromptMessages []discussionPromptMessagePayload `json:"summaryPromptMessages,omitempty"`
+	Turns                 []discussionTurnPayload          `json:"turns"`
+	FinalContent          string                           `json:"finalContent,omitempty"`
+	Error                 string                           `json:"error,omitempty"`
+	CreatedAt             int64                            `json:"createdAt"`
+	UpdatedAt             int64                            `json:"updatedAt"`
+}
+
+func discussionPlaceholdersPayloadOf(items []domaindiscussion.Placeholder) []discussionPlaceholderPayload {
+	if len(items) == 0 {
+		return nil
+	}
+	payload := make([]discussionPlaceholderPayload, 0, len(items))
+	for _, item := range items {
+		payload = append(payload, discussionPlaceholderPayload{
+			Key:          item.Key,
+			Label:        item.Label,
+			DefaultModel: item.DefaultModel,
+			Required:     item.Required,
+		})
+	}
+	return payload
+}
+
+func discussionRoundsPayloadOf(rounds []domaindiscussion.RuntimeRound) []discussionRoundPayload {
+	if len(rounds) == 0 {
+		return nil
+	}
+	payload := make([]discussionRoundPayload, 0, len(rounds))
+	for _, round := range rounds {
+		roundPayload := discussionRoundPayload{
+			Index:    round.Index,
+			Parallel: round.IsParallel(),
+			Steps:    make([]discussionStepPayload, 0, len(round.Steps)),
+		}
+		for _, step := range round.Steps {
+			roundPayload.Steps = append(roundPayload.Steps, discussionStepPayload{
+				ID:          step.ID,
+				Participant: step.Participant,
+				Model:       step.Model,
+				Prompt:      step.Prompt,
+			})
+		}
+		payload = append(payload, roundPayload)
+	}
+	return payload
+}
+
+func discussionSummaryPayloadOf(summary domaindiscussion.RuntimeSummary) discussionSummaryPayload {
+	return discussionSummaryPayload{
+		Participant: summary.Participant,
+		Model:       summary.Model,
+		Prompt:      summary.Prompt,
+	}
+}
+
+func discussionPromptMessagesPayloadOf(messages []domaindiscussion.PromptMessage) []discussionPromptMessagePayload {
+	if len(messages) == 0 {
+		return nil
+	}
+	payload := make([]discussionPromptMessagePayload, 0, len(messages))
+	for _, message := range messages {
+		payload = append(payload, discussionPromptMessagePayload{Role: message.Role, Content: message.Content})
+	}
+	return payload
+}
+
+func discussionTurnPayloadOf(turn domaindiscussion.Turn) discussionTurnPayload {
+	return discussionTurnPayload{
+		Round:            turn.Round,
+		StepID:           turn.StepID,
+		Participant:      turn.Participant,
+		Model:            turn.Model,
+		Status:           turn.Status,
+		Content:          turn.Content,
+		Error:            turn.Error,
+		Prompt:           turn.Prompt,
+		PromptMessages:   discussionPromptMessagesPayloadOf(turn.PromptMessages),
+		InputTokens:      turn.InputTokens,
+		OutputTokens:     turn.OutputTokens,
+		CacheReadTokens:  turn.CacheReadTokens,
+		CacheWriteTokens: turn.CacheWriteTokens,
+		ReasoningTokens:  turn.ReasoningTokens,
+		LatencyMS:        turn.LatencyMS,
+	}
+}
+
+func discussionTurnsPayloadOf(turns []domaindiscussion.Turn) []discussionTurnPayload {
+	payload := make([]discussionTurnPayload, 0, len(turns))
+	for _, turn := range turns {
+		payload = append(payload, discussionTurnPayloadOf(turn))
+	}
+	return payload
+}
+
+func discussionStatePayloadOf(state domaindiscussion.State) discussionStatePayload {
+	return discussionStatePayload{
+		Enabled:               state.Enabled,
+		Status:                state.Status,
+		TemplateID:            state.TemplateID,
+		TemplateName:          state.TemplateName,
+		Placeholders:          discussionPlaceholdersPayloadOf(state.Placeholders),
+		Rounds:                discussionRoundsPayloadOf(state.Rounds),
+		Summary:               discussionSummaryPayloadOf(state.Summary),
+		SummaryPrompt:         state.SummaryPrompt,
+		SummaryPromptMessages: discussionPromptMessagesPayloadOf(state.SummaryPromptMessages),
+		Turns:                 discussionTurnsPayloadOf(state.Turns),
+		FinalContent:          state.FinalContent,
+		Error:                 state.Error,
+		CreatedAt:             state.CreatedAt,
+		UpdatedAt:             state.UpdatedAt,
+	}
+}
+
+func discussionTemplateConfigPayloadOf(config domaindiscussion.TemplateConfig) map[string]any {
+	rounds := make([]map[string]any, 0, len(config.Rounds))
+	for _, round := range config.Rounds {
+		steps := make([]map[string]any, 0, len(round.Steps))
+		for _, step := range round.Steps {
+			steps = append(steps, map[string]any{
+				"id":          step.ID,
+				"participant": step.Participant,
+				"prompt":      step.Prompt,
+			})
+		}
+		rounds = append(rounds, map[string]any{
+			"index":          round.Index,
+			"parallel":       round.IsParallel(),
+			"parallelPrompt": round.ParallelPrompt,
+			"serialPrompt":   round.SerialPrompt,
+			"steps":          steps,
+		})
+	}
+	return map[string]any{
+		"placeholders": discussionPlaceholdersPayloadOf(config.Placeholders),
+		"rounds":       rounds,
+		"summary": map[string]any{
+			"participant": config.Summary.Participant,
+			"prompt":      config.Summary.Prompt,
+		},
+	}
+}
+
+func discussionTemplatePayloadOf(template domaindiscussion.Template) map[string]any {
+	return map[string]any{
+		"id":          template.ID,
+		"publicID":    template.PublicID,
+		"name":        template.Name,
+		"description": template.Description,
+		"icon":        template.Icon,
+		"status":      template.Status,
+		"maxRounds":   template.MaxRounds,
+		"sortOrder":   template.SortOrder,
+		"createdAt":   template.CreatedAt,
+		"updatedAt":   template.UpdatedAt,
+	}
+}
+
+func discussionRuntimePlanPayloadOf(plan domaindiscussion.RuntimePlan) map[string]any {
+	return map[string]any{
+		"rounds":  discussionRoundsPayloadOf(plan.Rounds),
+		"summary": discussionSummaryPayloadOf(plan.Summary),
+	}
+}
+
+func discussionSnapshotContentPayloadOf(snapshot *domaindiscussion.Snapshot) any {
+	if snapshot == nil {
+		return nil
+	}
+	templatePayload := discussionTemplatePayloadOf(snapshot.Template)
+	templatePayload["config"] = discussionTemplateConfigPayloadOf(snapshot.Config)
+	return map[string]any{
+		"template": templatePayload,
+		"config":   discussionTemplateConfigPayloadOf(snapshot.Config),
+		"plan":     discussionRuntimePlanPayloadOf(snapshot.Plan),
+	}
+}
+
+// DiscussionSnapshotPayloadOf 是快照 HTTP 响应与完成事件共用的传输映射。
+func DiscussionSnapshotPayloadOf(snapshot *domaindiscussion.ConversationSnapshot) any {
+	if snapshot == nil {
+		return nil
+	}
+	return map[string]any{
+		"templatePublicID": snapshot.TemplatePublicID,
+		"active":           discussionSnapshotContentPayloadOf(snapshot.Active),
+		"activeVersion":    snapshot.ActiveVersion,
+		"pending":          discussionSnapshotContentPayloadOf(snapshot.Pending),
+		"pendingVersion":   snapshot.PendingVersion,
+		"pendingCreatedAt": snapshot.PendingCreatedAt,
+		"updatedAt":        snapshot.UpdatedAt,
+	}
+}

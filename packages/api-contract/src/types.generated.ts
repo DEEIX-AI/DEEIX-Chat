@@ -1521,6 +1521,25 @@ export interface DeleteUserResponseDoc {
   errorMsg: string;
 }
 
+export interface DiscussionSendRequest {
+  branchReason?: "default" | "retry" | "edit";
+  /** @maxLength 64 */
+  clientRunID?: string;
+  content: string;
+  contentType: "text" | "markdown";
+  /** @maxItems 12 */
+  disabledModels?: string[];
+  /** @min 0 */
+  expectedPendingVersion?: number;
+  models?: Record<string, string>;
+  /** @maxLength 32 */
+  parentMessagePublicID?: string;
+  /** @maxLength 32 */
+  sourceMessagePublicID?: string;
+  /** @maxLength 32 */
+  templatePublicID: string;
+}
+
 export interface EmailBootstrapCompleteRequest {
   code?: string;
   /** @maxLength 128 */
@@ -2400,6 +2419,8 @@ export interface MessageResponse {
   contentType: string;
   conversationID: number;
   createdAt: string;
+  /** Discussion 是多模型讨论的完整记录；普通消息省略。 */
+  discussion?: object;
   editedAt: string | null;
   errorCode: string;
   errorMessage: string;
@@ -10077,6 +10098,25 @@ export namespace Conversations {
     export type RequestBody = SendMessageRequest;
     export type RequestHeaders = {};
     export type ResponseBody = SendMessageResponseDoc;
+  }
+
+  /**
+   * @description 按后台讨论模板编排多模型轮次，并流式返回讨论事件与最终总结
+   * @tags chat
+   * @name MessagesDiscussionStreamCreate
+   * @summary 流式发送多模型讨论消息
+   * @request POST:/conversations/{id}/messages/discussion/stream
+   * @secure
+   */
+  export namespace MessagesDiscussionStreamCreate {
+    export type RequestParams = {
+      /** 会话 public_id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = DiscussionSendRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = string;
   }
 
   /**

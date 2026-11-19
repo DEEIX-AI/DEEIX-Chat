@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { ChatContentWidth } from "@/entities/user-settings";
+import type { ChatContentAlign, ChatContentWidth } from "@/entities/user-settings";
 import { useSettingsAppearancePersistence } from "@/features/settings/hooks/use-settings-appearance-persistence";
 import { useSettingsChat } from "@/features/settings/hooks/use-settings-chat";
 import { useSettingsPreferenceMemories } from "@/features/settings/hooks/use-settings-preference-memories";
@@ -418,6 +418,10 @@ export function SettingsChat() {
     handleEnum("chat.content_width")(value);
   }, [handleEnum]);
 
+  const handleContentAlignChange = React.useCallback((value: ChatContentAlign) => {
+    handleEnum("chat.content_align")(value);
+  }, [handleEnum]);
+
   return (
     <SettingsPage>
       <SettingsSection title={t("defaultModel.sectionTitle")}>
@@ -685,9 +689,11 @@ export function SettingsChat() {
           <div className="pt-4">
             <ChatDisplayAppearance
               contentWidth={settings.contentWidth}
+              contentAlign={settings.contentAlign}
               chatFont={chatFont}
               chatFontWeight={chatFontWeight}
               onContentWidthChange={handleContentWidthChange}
+              onContentAlignChange={handleContentAlignChange}
               onChatFontChange={handleChatFontChange}
               onChatFontWeightChange={handleChatFontWeightChange}
               disabled={loading}

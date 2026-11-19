@@ -12,7 +12,7 @@ import type {
   ChatFontWeightPreview,
 } from "@/features/settings/types/settings";
 import { cn } from "@/lib/utils";
-import { CHAT_CONTENT_WIDTH_OPTIONS, type ChatContentWidth, type ChatContentWidthOption } from "@/entities/user-settings";
+import { CHAT_CONTENT_ALIGN_OPTIONS, CHAT_CONTENT_WIDTH_OPTIONS, type ChatContentAlign, type ChatContentWidth, type ChatContentWidthOption } from "@/entities/user-settings";
 
 const CHAT_FONT_OPTIONS: ChatFontPreview[] = [
   { label: "Default", value: "default", fontFamily: "var(--font-sans)", sampleText: "Aa" },
@@ -130,17 +130,21 @@ function ChatFontWeightPreviewCard({
 
 export function ChatDisplayAppearance({
   contentWidth,
+  contentAlign,
   chatFont,
   chatFontWeight,
   onContentWidthChange,
+  onContentAlignChange,
   onChatFontChange,
   onChatFontWeightChange,
   disabled,
 }: {
   contentWidth: ChatContentWidth;
+  contentAlign: ChatContentAlign;
   chatFont: ChatFontOption;
   chatFontWeight: ChatFontWeightOption;
   onContentWidthChange: (value: ChatContentWidth) => void;
+  onContentAlignChange: (value: ChatContentAlign) => void;
   onChatFontChange: (value: ChatFontOption) => void;
   onChatFontWeightChange: (value: ChatFontWeightOption) => void;
   disabled?: boolean;
@@ -160,6 +164,29 @@ export function ChatDisplayAppearance({
               onSelect={onContentWidthChange}
               disabled={disabled}
             />
+          ))}
+        </div>
+      </Field>
+
+      <Field>
+        <FieldLabel>{t("alignTitle")}</FieldLabel>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:gap-3 xl:gap-4">
+          {CHAT_CONTENT_ALIGN_OPTIONS.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              disabled={disabled}
+              aria-pressed={contentAlign === item.value}
+              className={cn(
+                "flex h-12 items-center justify-center rounded-xl border text-sm transition-colors",
+                contentAlign === item.value
+                  ? "border-primary/60 bg-primary/5 text-primary"
+                  : "border-border/50 text-muted-foreground hover:border-primary/40",
+              )}
+              onClick={() => onContentAlignChange(item.value)}
+            >
+              {t(`align.${item.value}`)}
+            </button>
           ))}
         </div>
       </Field>
