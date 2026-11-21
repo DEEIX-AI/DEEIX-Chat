@@ -454,9 +454,28 @@ func TestInferKindsJSONRecognizesVideoGenerationModels(t *testing.T) {
 }
 
 func TestInferKindsJSONRecognizesXAIVideoExtensionModels(t *testing.T) {
-	for _, modelName := range []string{"grok-imagine-video", "grok-imagine-video-1.5-preview"} {
-		if got := inferKindsJSON(modelName); got != `["video_gen","video_extension"]` {
-			t.Fatalf("expected %s to infer video generation and extension kinds, got %s", modelName, got)
+	if got := inferKindsJSON("grok-imagine-video"); got != `["video_gen","video_extension"]` {
+		t.Fatalf("expected grok-imagine-video to infer video generation and extension kinds, got %s", got)
+	}
+	for _, modelName := range []string{"grok-imagine-video-1.5", "grok-imagine-video-1.5-lite"} {
+		if got := inferKindsJSON(modelName); got != `["video_gen"]` {
+			t.Fatalf("expected %s to infer video generation only, got %s", modelName, got)
+		}
+	}
+}
+
+func TestInferKindsJSONRecognizesCurrentGeminiAndAudioModels(t *testing.T) {
+	cases := map[string]string{
+		"gemini-omni-1.2-flash":       `["chat","image_gen","image_edit","video_gen"]`,
+		"gemini-omni-flash":           `["chat","image_gen","image_edit","video_gen"]`,
+		"gemini-nano-banana-2.1":      `["image_gen","image_edit"]`,
+		"gemini-3.1-flash-lite-image": `["image_gen","image_edit"]`,
+		"gpt-audio-1.5":               `["audio"]`,
+		"gemini-4-neon":               `["chat"]`,
+	}
+	for modelName, want := range cases {
+		if got := inferKindsJSON(modelName); got != want {
+			t.Errorf("%s: got %s, want %s", modelName, got, want)
 		}
 	}
 }

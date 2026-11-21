@@ -16,6 +16,7 @@ const REASONING_FORMATS = [
   "gemini_budget",
   "qwen",
   "toggle",
+  "toggle_effort",
 ] as const satisfies readonly AdminLLMModelReasoningFormat[];
 
 const REASONING_KEY = "reasoning";
@@ -66,6 +67,7 @@ export function reasoningNativeValue(
     case "gemini_level":
       return level;
     case "anthropic_effort":
+    case "toggle_effort":
       return level === "none" ? "disabled" : level;
     case "gemini_budget":
       return { budget: level === "none" ? 0 : (budgets?.[level] ?? 0) };

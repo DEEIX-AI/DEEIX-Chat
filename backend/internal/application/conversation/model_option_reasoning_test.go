@@ -45,6 +45,22 @@ func TestResolveChatModelOptionsTranslationTable(t *testing.T) {
 			want:         map[string]any{"reasoning_effort": "none"},
 		},
 		{
+			name:         "toggle effort none disables thinking",
+			protocol:     llm.AdapterOpenAIChatCompletions,
+			capabilities: explicitReasoning("toggle_effort", `["none","low","high","max"]`, "high", ""),
+			options:      map[string]any{"reasoning_effort": "none"},
+			wantLevel:    "none",
+			want:         map[string]any{"thinking": map[string]any{"type": "disabled"}},
+		},
+		{
+			name:         "toggle effort level enables thinking with effort",
+			protocol:     llm.AdapterOpenAIChatCompletions,
+			capabilities: explicitReasoning("toggle_effort", `["none","low","high","max"]`, "high", ""),
+			options:      map[string]any{"reasoning_effort": "max"},
+			wantLevel:    "max",
+			want:         map[string]any{"thinking": map[string]any{"type": "enabled"}, "reasoning_effort": "max"},
+		},
+		{
 			name:         "openai chat level",
 			protocol:     llm.AdapterOpenAIChatCompletions,
 			capabilities: explicitReasoning("openai", allLevels, "high", ""),
@@ -481,6 +497,7 @@ func TestReasoningOwnedOptionPathsAreOverriddenByTranslation(t *testing.T) {
 		{domainchannel.ReasoningFormatGeminiBudget, domainchannel.ReasoningProtocolGeminiGenerate},
 		{domainchannel.ReasoningFormatQwen, domainchannel.ReasoningProtocolOpenAIChat},
 		{domainchannel.ReasoningFormatToggle, domainchannel.ReasoningProtocolOpenAIChat},
+		{domainchannel.ReasoningFormatToggleEffort, domainchannel.ReasoningProtocolOpenAIChat},
 	}
 	for _, tc := range cases {
 		paths := domainchannel.ReasoningOwnedOptionPaths(tc.format, tc.protocol)

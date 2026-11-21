@@ -26459,7 +26459,8 @@
                         "gemini_level",
                         "gemini_budget",
                         "qwen",
-                        "toggle"
+                        "toggle",
+                        "toggle_effort"
                     ]
                 },
                 "levels": {
@@ -27351,7 +27352,8 @@
                         "gemini_level",
                         "gemini_budget",
                         "qwen",
-                        "toggle"
+                        "toggle",
+                        "toggle_effort"
                     ]
                 },
                 "levels": {

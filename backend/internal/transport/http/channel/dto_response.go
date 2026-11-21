@@ -861,7 +861,7 @@ type ModelCatalogResolveResponse struct {
 
 // ModelCatalogReasoningResponse 是自动识别的推理能力。
 type ModelCatalogReasoningResponse struct {
-	Format string `json:"format" enums:"openai,anthropic_effort,anthropic_budget,gemini_level,gemini_budget,qwen,toggle"`
+	Format string `json:"format" enums:"openai,anthropic_effort,anthropic_budget,gemini_level,gemini_budget,qwen,toggle,toggle_effort"`
 	// Levels 为可选规范档位，按由低到高排列。
 	Levels []string `json:"levels" enums:"none,minimal,low,medium,high,xhigh,max,ultra"`
 	// Default 为未显式选择时使用的档位。
@@ -873,7 +873,7 @@ type ModelCatalogReasoningResponse struct {
 // ModelReasoningTemplateResponse 是自定义推理强度的编辑模板：在 Levels 中勾选档位并指定默认档，
 // 预算类格式按 Budgets 写入对应档位的预算。
 type ModelReasoningTemplateResponse struct {
-	Format string `json:"format" enums:"openai,anthropic_effort,anthropic_budget,gemini_level,gemini_budget,qwen,toggle"`
+	Format string `json:"format" enums:"openai,anthropic_effort,anthropic_budget,gemini_level,gemini_budget,qwen,toggle,toggle_effort"`
 	// Levels 为该格式可声明的规范档位，按由低到高排列。
 	Levels []string `json:"levels" enums:"none,minimal,low,medium,high,xhigh,max,ultra"`
 	// Budgets 为各档位的建议预算（Token），仅预算类格式非 null。

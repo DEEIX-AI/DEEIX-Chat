@@ -558,24 +558,23 @@ func inferKindsJSON(platformModelName string) string {
 		return `["image_gen","image_edit"]`
 	case code == "dall-e-3", strings.HasPrefix(code, "imagen-"):
 		return `["image_gen"]`
-	case isXAIVideoGenerationModel(code):
+	case code == xaiVideoExtensionModel:
 		return `["video_gen","video_extension"]`
-	case code == "sora", code == "veo-2", strings.HasPrefix(code, "kling"), strings.HasPrefix(code, "veo-"):
+	case isXAIVideoGenerationModel(code):
 		return `["video_gen"]`
-	case strings.HasPrefix(code, "gpt-4o-audio"):
+	case code == "sora", strings.HasPrefix(code, "kling"), strings.HasPrefix(code, "veo-"):
+		return `["video_gen"]`
+	case strings.HasPrefix(code, "gpt-4o-audio"), strings.HasPrefix(code, "gpt-audio"):
 		return `["audio"]`
-	case strings.HasPrefix(code, "claude-3"), strings.HasPrefix(code, "claude-2"),
-		strings.HasPrefix(code, "gpt-4o"), strings.HasPrefix(code, "gpt-4-turbo"),
-		strings.HasPrefix(code, "gemini-1.5"), strings.HasPrefix(code, "gemini-2.5"),
-		code == "grok-3", code == "grok-2":
-		return `["chat"]`
 	default:
 		return `["chat"]`
 	}
 }
 
+// isGeminiOmniInteractionsModel 识别 gemini-omni-flash 及带版本号的 gemini-omni-1.2-flash 等 Omni Flash 模型。
 func isGeminiOmniInteractionsModel(code string) bool {
-	return strings.HasPrefix(strings.TrimSpace(strings.ToLower(code)), "gemini-omni-flash")
+	code = strings.TrimSpace(strings.ToLower(code))
+	return strings.HasPrefix(code, "gemini-omni-") && strings.Contains(code, "-flash")
 }
 
 func isGeminiImageGenerationModel(code string) bool {
@@ -583,6 +582,8 @@ func isGeminiImageGenerationModel(code string) bool {
 	case "nano-banana", "nano-banana-2", "nano-banana-pro",
 		"gemini-2.5-flash-image",
 		"gemini-3.1-flash-image",
+		"gemini-3.1-flash-lite-image",
+		"gemini-nano-banana-2.1",
 		"gemini-3-pro-image",
 		"gemini-3.1-flash-image-preview",
 		"gemini-3-pro-image-preview":
@@ -595,6 +596,9 @@ func isGeminiImageGenerationModel(code string) bool {
 func isXAIImageGenerationModel(code string) bool {
 	return strings.HasPrefix(strings.TrimSpace(strings.ToLower(code)), "grok-imagine-image")
 }
+
+// xaiVideoExtensionModel 是唯一支持视频续写的 xAI 模型；1.5 与 1.5-lite 不支持续写。
+const xaiVideoExtensionModel = "grok-imagine-video"
 
 func isXAIVideoGenerationModel(code string) bool {
 	return strings.HasPrefix(strings.TrimSpace(strings.ToLower(code)), "grok-imagine-video")

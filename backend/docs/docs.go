@@ -26466,7 +26466,8 @@ const docTemplate = `{
                         "gemini_level",
                         "gemini_budget",
                         "qwen",
-                        "toggle"
+                        "toggle",
+                        "toggle_effort"
                     ]
                 },
                 "levels": {
@@ -27358,7 +27359,8 @@ const docTemplate = `{
                         "gemini_level",
                         "gemini_budget",
                         "qwen",
-                        "toggle"
+                        "toggle",
+                        "toggle_effort"
                     ]
                 },
                 "levels": {

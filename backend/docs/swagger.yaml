@@ -5686,6 +5686,7 @@ definitions:
         - gemini_budget
         - qwen
         - toggle
+        - toggle_effort
         type: string
       levels:
         description: Levels 为可选规范档位，按由低到高排列。
@@ -6319,6 +6320,7 @@ definitions:
         - gemini_budget
         - qwen
         - toggle
+        - toggle_effort
         type: string
       levels:
         description: Levels 为该格式可声明的规范档位，按由低到高排列。

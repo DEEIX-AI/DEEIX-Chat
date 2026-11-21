@@ -2546,7 +2546,8 @@ export interface ModelCatalogReasoningResponse {
     | "gemini_level"
     | "gemini_budget"
     | "qwen"
-    | "toggle";
+    | "toggle"
+    | "toggle_effort";
   /** Levels 为可选规范档位，按由低到高排列。 */
   levels: (
     | "none"
@@ -2815,7 +2816,8 @@ export interface ModelReasoningTemplateResponse {
     | "gemini_level"
     | "gemini_budget"
     | "qwen"
-    | "toggle";
+    | "toggle"
+    | "toggle_effort";
   /** Levels 为该格式可声明的规范档位，按由低到高排列。 */
   levels: (
     | "none"
