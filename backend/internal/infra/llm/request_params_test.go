@@ -1030,6 +1030,45 @@ func TestBuildAnthropicRequestBodyAliasOverridesOfficialThinking(t *testing.T) {
 	}
 }
 
+func TestAnthropicModelRejectsBudgetThinking(t *testing.T) {
+	cases := map[string]bool{
+		"claude-opus-4-7":            true,
+		"claude-opus-4-8-20260901":   true,
+		"claude-sonnet-5":            true,
+		"claude-sonnet-5-5":          true,
+		"claude-fable-5-2":           true,
+		"claude-haiku-5.5":           true,
+		"anthropic/claude-opus-5":    true,
+		"claude-opus-4-6":            false,
+		"claude-sonnet-4-5":          false,
+		"claude-sonnet-4-20250514":   false,
+		"claude-haiku-4-5-20251001":  false,
+		"claude-3-7-sonnet-20250219": false,
+		"gpt-5":                      false,
+	}
+	for model, want := range cases {
+		if got := anthropicModelRejectsBudgetThinking(model); got != want {
+			t.Errorf("%s: got %v, want %v", model, got, want)
+		}
+	}
+}
+
+func TestBuildAnthropicRequestBodyConvertsBudgetThinkingToAdaptiveOnNewModels(t *testing.T) {
+	payload := mustBuildAnthropicRequestBody(t, "claude-opus-5-5", portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
+		Options: map[string]any{
+			"thinking": map[string]any{"type": "enabled", "budget_tokens": float64(4096), "display": "summarized"},
+		},
+	}, false)
+	thinking, ok := payload["thinking"].(map[string]any)
+	if !ok || thinking["type"] != "adaptive" || thinking["display"] != "summarized" {
+		t.Fatalf("expected adaptive thinking, got %#v", payload["thinking"])
+	}
+	if _, exists := thinking["budget_tokens"]; exists {
+		t.Fatalf("budget_tokens must be dropped, got %#v", thinking)
+	}
+}
+
 func TestBuildAnthropicRequestBodyStructuredOutputThinkingAndToolChoice(t *testing.T) {
 	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4-5", portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "return json"}},

@@ -386,7 +386,7 @@ func isKnownReasoningFormat(format string) bool {
 }
 
 // reasoningFormatAllowsLevel 返回格式可声明的档位：ultra 仅 openai 格式可用，anthropic_effort 没有 minimal，
-// gemini_level 只有 minimal..high，其余格式允许其余规范档位。
+// gemini_level 只有 minimal..xhigh，其余格式允许其余规范档位。
 func reasoningFormatAllowsLevel(format string, level string) bool {
 	if level == ReasoningLevelUltra {
 		return format == ReasoningFormatOpenAI
@@ -396,7 +396,7 @@ func reasoningFormatAllowsLevel(format string, level string) bool {
 		return level != ReasoningLevelMinimal
 	case ReasoningFormatGeminiLevel:
 		switch level {
-		case ReasoningLevelMinimal, ReasoningLevelLow, ReasoningLevelMedium, ReasoningLevelHigh:
+		case ReasoningLevelMinimal, ReasoningLevelLow, ReasoningLevelMedium, ReasoningLevelHigh, ReasoningLevelXHigh:
 			return true
 		}
 		return false

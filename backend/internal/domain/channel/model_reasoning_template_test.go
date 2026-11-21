@@ -23,7 +23,7 @@ func TestReasoningCustomizationTemplate(t *testing.T) {
 		t.Fatalf("gemini_budget with a positive minimum must not offer none: %#v", template)
 	}
 	template = ReasoningCustomizationTemplate([]string{ReasoningProtocolGeminiInteractions}, nil, nil, 0, 0)
-	if template == nil || template.Format != ReasoningFormatGeminiLevel || strings.Join(template.Levels, ",") != "minimal,low,medium,high" {
+	if template == nil || template.Format != ReasoningFormatGeminiLevel || strings.Join(template.Levels, ",") != "minimal,low,medium,high,xhigh" {
 		t.Fatalf("unexpected protocol template: %#v", template)
 	}
 	if ReasoningCustomizationTemplate(nil, nil, nil, 0, 0) != nil {

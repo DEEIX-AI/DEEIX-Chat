@@ -23,6 +23,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -141,6 +143,10 @@ func buildAnthropicRequestBody(model string, input portllm.GenerateInput, stream
 		payload["stop_sequences"] = stops
 	}
 	if thinking := anthropicThinkingFromOptions(input.Options, maxTokens); len(thinking) > 0 {
+		if anthropicModelRejectsBudgetThinking(model) && strings.TrimSpace(getString(thinking["type"])) == "enabled" {
+			thinking["type"] = "adaptive"
+			delete(thinking, "budget_tokens")
+		}
 		payload["thinking"] = thinking
 	}
 	if toolChoice := anthropicToolChoiceFromOptions(input.Options); len(toolChoice) > 0 {
@@ -286,6 +292,20 @@ func anthropicThinkingFromOptions(options map[string]any, maxTokens int) map[str
 		result["type"] = "enabled"
 	}
 	return result
+}
+
+var anthropicModelVersionPattern = regexp.MustCompile(`claude-[a-z]+-(\d+)(?:[-.](\d{1,2}))?(?:[^0-9]|$)`)
+
+// anthropicModelRejectsBudgetThinking 判断模型是否为 Claude 4.7 及以后：这些模型拒绝 type "enabled" + budget_tokens（返回 400），
+// 只接受 adaptive 思考，由 output_config.effort 控制深度。
+func anthropicModelRejectsBudgetThinking(model string) bool {
+	match := anthropicModelVersionPattern.FindStringSubmatch(strings.ToLower(model))
+	if match == nil {
+		return false
+	}
+	major, _ := strconv.Atoi(match[1])
+	minor, _ := strconv.Atoi(match[2])
+	return major > 4 || (major == 4 && minor >= 7)
 }
 
 func anthropicBaseThinkingFromOptions(options map[string]any, maxTokens int) map[string]any {
@@ -780,8 +800,8 @@ func applyAnthropicBetaHeaders(req *http.Request, payload map[string]any, option
 	for _, tool := range anthropicToolPayloads(payload["tools"]) {
 		switch strings.TrimSpace(getString(tool["type"])) {
 		case "advisor_20260301":
-			betas = appendUniqueStrings(betas, "advisor-2026-03-01")
-		case "mcp_toolset_20251119":
+			betas = appendUniqueStrings(betas, "advisor-tool-2026-03-01")
+		case "mcp_toolset":
 			betas = appendUniqueStrings(betas, "mcp-client-2025-11-20")
 		}
 	}
