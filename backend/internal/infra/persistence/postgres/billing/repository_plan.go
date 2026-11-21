@@ -194,19 +194,3 @@ func planHasReferences(tx *gorm.DB, planID uint) (bool, error) {
 	}
 	return false, nil
 }
-
-func toPriceDomain(item models.BillingPrice) domainbilling.Price {
-	return domainbilling.Price{
-		ID:               item.ID,
-		PlanID:           item.PlanID,
-		Code:             item.Code,
-		BillingInterval:  item.BillingInterval,
-		Currency:         item.Currency,
-		AmountCents:      item.AmountCents,
-		IsActive:         item.IsActive,
-		IsDefault:        item.IsDefault,
-		ExternalPriceRef: item.ExternalPriceRef,
-		CreatedAt:        item.CreatedAt,
-		UpdatedAt:        item.UpdatedAt,
-	}
-}
