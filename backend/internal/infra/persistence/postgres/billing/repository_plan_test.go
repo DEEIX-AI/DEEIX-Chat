@@ -3,18 +3,49 @@ package billing
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"strings"
 	"testing"
+	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
+var planTestModels = []any{
+	&models.BillingPlan{},
+	&models.BillingPrice{},
+	&models.Subscription{},
+	&models.PaymentOrder{},
+	&models.RedemptionCode{},
+	&models.Redemption{},
+}
+
+func TestPlanRepository(t *testing.T) {
+	cases := map[string]func(*testing.T, *gorm.DB){
+		"SaveCreatesInactivePlanAndPrices":        testSavePlanWithPricesCreatesInactivePlanAndPrices,
+		"SaveReusesLegacyRowsAndDeactivates":      testSavePlanWithPricesReusesLegacyRowsAndDeactivatesRemoved,
+		"DeleteRejectsReferencedPlanAndFreesCode": testDeletePlanRejectsReferencedPlanAndFreesCode,
+	}
+	drivers := map[string]func(*testing.T) *gorm.DB{
+		"sqlite":   openPlanSQLiteTestDB,
+		"postgres": openPlanPostgresTestDB,
+	}
+	for driver, open := range drivers {
+		for name, run := range cases {
+			t.Run(driver+"/"+name, func(t *testing.T) { run(t, open(t)) })
+		}
+	}
+}
+
 func openPlanSQLiteTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -24,14 +55,40 @@ func openPlanSQLiteTestDB(t *testing.T) *gorm.DB {
 	}
 	sqlDB.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	if err := db.AutoMigrate(
-		&models.BillingPlan{},
-		&models.BillingPrice{},
-		&models.Subscription{},
-		&models.PaymentOrder{},
-		&models.RedemptionCode{},
-		&models.Redemption{},
-	); err != nil {
+	if err := db.AutoMigrate(planTestModels...); err != nil {
+		t.Fatalf("migrate plan tables: %v", err)
+	}
+	return db
+}
+
+// openPlanPostgresTestDB 在独立 schema 中迁移，测试结束后整体删除，避免与共享库中的数据互相干扰。
+func openPlanPostgresTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	dsn := strings.TrimSpace(os.Getenv("DEEIX_TEST_DATABASE_DSN"))
+	if dsn == "" {
+		t.Skip("set DEEIX_TEST_DATABASE_DSN to run PostgreSQL plan repository tests")
+	}
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("resolve postgres db: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	schema := fmt.Sprintf("plan_test_%d", time.Now().UnixNano())
+	if err := db.Exec("CREATE SCHEMA " + schema).Error; err != nil {
+		t.Fatalf("create schema: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Exec("DROP SCHEMA " + schema + " CASCADE").Error
+		_ = sqlDB.Close()
+	})
+	if err := db.Exec("SET search_path TO " + schema).Error; err != nil {
+		t.Fatalf("set search_path: %v", err)
+	}
+	if err := db.AutoMigrate(planTestModels...); err != nil {
 		t.Fatalf("migrate plan tables: %v", err)
 	}
 	return db
@@ -50,8 +107,7 @@ func activePricesByInterval(t *testing.T, db *gorm.DB, planID uint) map[string]m
 	return result
 }
 
-func TestSavePlanWithPricesCreatesInactivePlanAndPrices(t *testing.T) {
-	db := openPlanSQLiteTestDB(t)
+func testSavePlanWithPricesCreatesInactivePlanAndPrices(t *testing.T, db *gorm.DB) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 
@@ -78,8 +134,7 @@ func TestSavePlanWithPricesCreatesInactivePlanAndPrices(t *testing.T) {
 	}
 }
 
-func TestSavePlanWithPricesReusesLegacyRowsAndDeactivatesRemoved(t *testing.T) {
-	db := openPlanSQLiteTestDB(t)
+func testSavePlanWithPricesReusesLegacyRowsAndDeactivatesRemoved(t *testing.T, db *gorm.DB) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 
@@ -122,8 +177,7 @@ func TestSavePlanWithPricesReusesLegacyRowsAndDeactivatesRemoved(t *testing.T) {
 	}
 }
 
-func TestDeletePlanRejectsReferencedPlanAndFreesCode(t *testing.T) {
-	db := openPlanSQLiteTestDB(t)
+func testDeletePlanRejectsReferencedPlanAndFreesCode(t *testing.T, db *gorm.DB) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 
