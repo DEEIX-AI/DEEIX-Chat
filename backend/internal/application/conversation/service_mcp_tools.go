@@ -150,10 +150,11 @@ func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint
 		result.schemas[modelName] = schema
 		result.mcpBindings[modelName] = mcpToolCallBinding{
 			Config: mcp.CallConfig{
-				BaseURL:   server.BaseURL,
-				AuthToken: token,
-				TimeoutMS: cfg.MCPToolTimeoutSeconds * 1000,
-				Headers:   headers,
+				BaseURL:     server.BaseURL,
+				AuthToken:   token,
+				TimeoutMS:   cfg.MCPToolTimeoutSeconds * 1000,
+				Headers:     headers,
+				InputSchema: schema,
 			},
 			ServerID:     server.ID,
 			ServerName:   server.Name,
