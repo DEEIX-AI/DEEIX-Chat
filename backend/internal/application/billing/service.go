@@ -320,17 +320,6 @@ type resolvedTieredPricingTier struct {
 	upToTokens *int64
 }
 
-// PlanUpdateInput 定义周期套餐保存入参。
-type PlanUpdateInput struct {
-	Name                string
-	Description         string
-	PeriodCreditNanousd int64
-	Currency            string
-	AmountCents         int64
-	BillingInterval     string
-	PermissionGroupID   *uint
-}
-
 // PaymentOrderInput 定义创建支付单入参。
 type PaymentOrderInput struct {
 	UserID               uint
@@ -527,6 +516,10 @@ func (s *Service) ListPlans(ctx context.Context) ([]BillingPlanView, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.buildPlanViews(ctx, plans)
+}
+
+func (s *Service) buildPlanViews(ctx context.Context, plans []domainbilling.Plan) ([]BillingPlanView, error) {
 	if len(plans) == 0 {
 		return []BillingPlanView{}, nil
 	}
@@ -1067,69 +1060,6 @@ func (s *Service) CompletePaymentOrder(ctx context.Context, orderNo string, exte
 		return nil, false, ErrPaymentOrderNotFound
 	}
 	return result, activated, err
-}
-
-// UpdatePlan 保存周期套餐与默认价格。
-func (s *Service) UpdatePlan(ctx context.Context, planID uint, input PlanUpdateInput) (*BillingPlanView, error) {
-	if planID == 0 {
-		return nil, ErrInvalidBillingPlan
-	}
-	current, err := s.repo.GetPlanByID(ctx, planID)
-	if err != nil {
-		return nil, mapPlanMutationError(err)
-	}
-	permissionGroupID, err := s.resolvePlanPermissionGroupID(ctx, input.PermissionGroupID)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.validatePermissionGroupID(ctx, permissionGroupID); err != nil {
-		return nil, err
-	}
-
-	plan := &domainbilling.Plan{
-		ID:                  current.ID,
-		Code:                current.Code,
-		Name:                textutil.FirstNonEmpty(input.Name, current.Name),
-		Description:         strings.TrimSpace(input.Description),
-		FeatureJSON:         current.FeatureJSON,
-		PeriodCreditNanousd: clampNonNegative(input.PeriodCreditNanousd),
-		SortOrder:           current.SortOrder,
-		IsActive:            true,
-		PermissionGroupID:   permissionGroupID,
-	}
-	price := &domainbilling.Price{
-		PlanID:          current.ID,
-		Code:            current.Code + "-default",
-		BillingInterval: domainbilling.NormalizeInterval(input.BillingInterval),
-		Currency:        "USD",
-		AmountCents:     clampNonNegative(input.AmountCents),
-		IsActive:        true,
-		IsDefault:       true,
-	}
-	if err := s.repo.UpdatePlanWithDefaultPrice(ctx, plan, price); err != nil {
-		return nil, mapPlanMutationError(err)
-	}
-	return &BillingPlanView{
-		ID:                  plan.ID,
-		Code:                plan.Code,
-		Name:                plan.Name,
-		Description:         plan.Description,
-		FeatureJSON:         plan.FeatureJSON,
-		PeriodCreditNanousd: plan.PeriodCreditNanousd,
-		SortOrder:           plan.SortOrder,
-		IsActive:            plan.IsActive,
-		PermissionGroupID:   plan.PermissionGroupID,
-		Prices: []BillingPriceView{
-			{
-				PlanID:          plan.ID,
-				Code:            price.Code,
-				BillingInterval: price.BillingInterval,
-				Currency:        price.Currency,
-				AmountCents:     price.AmountCents,
-				IsDefault:       true,
-			},
-		},
-	}, nil
 }
 
 func mapPlanMutationError(err error) error {

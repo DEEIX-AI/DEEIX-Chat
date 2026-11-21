@@ -152,9 +152,11 @@ func TestUpdatePlanRejectsUnknownPermissionGroup(t *testing.T) {
 	groupID := uint(99)
 	service.SetPermissionGroupLookup(permissionGroupLookupStub{})
 
-	_, err := service.UpdatePlan(context.Background(), 1, PlanUpdateInput{
+	_, err := service.UpdatePlan(context.Background(), 1, PlanSaveInput{
 		Name:              "Pro",
+		IsActive:          true,
 		PermissionGroupID: &groupID,
+		Prices:            monthlyPriceInput(2000),
 	})
 	if !errors.Is(err, ErrInvalidPermissionGroup) {
 		t.Fatalf("expected invalid permission group error, got %v", err)
@@ -172,8 +174,10 @@ func TestUpdatePlanDefaultsPermissionGroup(t *testing.T) {
 		defaultIDs: []uint{defaultGroupID},
 	})
 
-	view, err := service.UpdatePlan(context.Background(), 1, PlanUpdateInput{
-		Name: "Pro",
+	view, err := service.UpdatePlan(context.Background(), 1, PlanSaveInput{
+		Name:     "Pro",
+		IsActive: true,
+		Prices:   monthlyPriceInput(2000),
 	})
 	if err != nil {
 		t.Fatalf("UpdatePlan() error = %v", err)
@@ -193,8 +197,10 @@ func TestUpdatePlanRejectsMissingDefaultPermissionGroup(t *testing.T) {
 	service := NewService(repo)
 	service.SetPermissionGroupLookup(permissionGroupLookupStub{})
 
-	_, err := service.UpdatePlan(context.Background(), 1, PlanUpdateInput{
-		Name: "Pro",
+	_, err := service.UpdatePlan(context.Background(), 1, PlanSaveInput{
+		Name:     "Pro",
+		IsActive: true,
+		Prices:   monthlyPriceInput(2000),
 	})
 	if !errors.Is(err, ErrInvalidPermissionGroup) {
 		t.Fatalf("expected invalid permission group error, got %v", err)
@@ -239,7 +245,10 @@ type billingRepositoryStub struct {
 	periodEndAt                time.Time
 	periodCreditNanousd        int64
 	updatedPlan                *domainbilling.Plan
-	updatedPrice               *domainbilling.Price
+	savedPrices                []domainbilling.Price
+	saveErr                    error
+	deleteErr                  error
+	deletedPlanID              uint
 }
 
 func (r *billingRepositoryStub) GetBillingMode(context.Context) (string, error) {
@@ -269,8 +278,21 @@ func (r *billingRepositoryStub) GetModelPricing(_ context.Context, platformModel
 func (r *billingRepositoryStub) ListActivePlans(context.Context) ([]domainbilling.Plan, error) {
 	panic("not used")
 }
-func (r *billingRepositoryStub) ListActivePricesByPlanIDs(context.Context, []uint) ([]domainbilling.Price, error) {
-	panic("not used")
+func (r *billingRepositoryStub) ListActivePricesByPlanIDs(_ context.Context, planIDs []uint) ([]domainbilling.Price, error) {
+	allowed := make(map[uint]struct{}, len(planIDs))
+	for _, id := range planIDs {
+		allowed[id] = struct{}{}
+	}
+	results := make([]domainbilling.Price, 0, len(r.savedPrices))
+	for _, item := range r.savedPrices {
+		if _, ok := allowed[item.PlanID]; ok && item.IsActive {
+			results = append(results, item)
+		}
+	}
+	return results, nil
+}
+func (r *billingRepositoryStub) ListAllPlans(context.Context) ([]domainbilling.Plan, error) {
+	return r.plans, nil
 }
 func (r *billingRepositoryStub) GetPriceByID(_ context.Context, id uint) (*domainbilling.Price, error) {
 	for _, item := range r.prices {
@@ -307,9 +329,27 @@ func (r *billingRepositoryStub) ListPlansByIDs(_ context.Context, planIDs []uint
 func (r *billingRepositoryStub) GetActivePlanByCode(context.Context, string) (*domainbilling.Plan, error) {
 	panic("not used")
 }
-func (r *billingRepositoryStub) UpdatePlanWithDefaultPrice(_ context.Context, plan *domainbilling.Plan, price *domainbilling.Price) error {
+func (r *billingRepositoryStub) SavePlanWithPrices(_ context.Context, plan *domainbilling.Plan, prices []domainbilling.Price) error {
+	if r.saveErr != nil {
+		return r.saveErr
+	}
+	if plan.ID == 0 {
+		plan.ID = uint(len(r.plans) + 100)
+	}
 	r.updatedPlan = plan
-	r.updatedPrice = price
+	r.savedPrices = nil
+	for index, item := range prices {
+		item.ID = uint(index + 1)
+		item.PlanID = plan.ID
+		r.savedPrices = append(r.savedPrices, item)
+	}
+	return nil
+}
+func (r *billingRepositoryStub) DeletePlan(_ context.Context, planID uint) error {
+	if r.deleteErr != nil {
+		return r.deleteErr
+	}
+	r.deletedPlanID = planID
 	return nil
 }
 func (r *billingRepositoryStub) ListSubscriptionEntitlementsByUserIDs(_ context.Context, userIDs []uint, now time.Time) ([]domainbilling.Subscription, error) {

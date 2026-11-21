@@ -508,6 +508,22 @@ export interface BillingPlanDataResponse {
   plan: BillingPlanResponse;
 }
 
+export interface BillingPlanDeleteDataResponse {
+  deleted: boolean;
+}
+
+export interface BillingPlanDeleteResponseDoc {
+  data: BillingPlanDeleteDataResponse;
+  errorMsg: string;
+}
+
+export interface BillingPlanPriceRequest {
+  /** @min 0 */
+  amountUSD: number;
+  billingInterval: "month" | "year" | "lifetime";
+  isDefault: boolean;
+}
+
 export interface BillingPlanResponse {
   code: string;
   description: string;
@@ -4009,6 +4025,29 @@ export interface RunResponse {
   userID: number;
 }
 
+export interface SaveBillingPlanRequest {
+  /** @maxLength 32 */
+  code?: string;
+  /** @maxLength 255 */
+  description: string;
+  isActive: boolean;
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  name: string;
+  /** @min 0 */
+  periodCreditUSD: number;
+  permissionGroupID?: number | null;
+  /**
+   * @maxItems 3
+   * @minItems 1
+   */
+  prices: BillingPlanPriceRequest[];
+  /** @min 0 */
+  sortOrder: number;
+}
+
 export interface SecurityVerificationStartRequest {
   verificationMethod?: "none" | "two_factor" | "email";
 }
@@ -4584,24 +4623,6 @@ export interface UpdateBillingAccountBalanceRequest {
   balanceUSD: number;
   /** @maxLength 255 */
   description?: string;
-}
-
-export interface UpdateBillingPlanRequest {
-  /** @min 0 */
-  amountUSD: number;
-  billingInterval: "month" | "year" | "lifetime";
-  /** @maxLength 16 */
-  currency?: string;
-  /** @maxLength 255 */
-  description: string;
-  /**
-   * @minLength 1
-   * @maxLength 64
-   */
-  name: string;
-  /** @min 0 */
-  periodCreditUSD: number;
-  permissionGroupID?: number | null;
 }
 
 export interface UpdateConversationLabelsRequest {
@@ -5812,7 +5833,58 @@ export namespace Admin {
   }
 
   /**
-   * @description 更新周期套餐基础配置与默认价格
+   * @description 查询全部周期套餐（含已下架）及启用价格
+   * @tags admin-billing
+   * @name BillingPlansList
+   * @summary 管理员获取周期套餐
+   * @request GET:/admin/billing/plans
+   * @secure
+   */
+  export namespace BillingPlansList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = PlanListResponseDoc;
+  }
+
+  /**
+   * @description 新建周期套餐及各计费周期价格，套餐编码创建后不可修改
+   * @tags admin-billing
+   * @name BillingPlansCreate
+   * @summary 管理员新建周期套餐
+   * @request POST:/admin/billing/plans
+   * @secure
+   */
+  export namespace BillingPlansCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = SaveBillingPlanRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = BillingPlanResponseDoc;
+  }
+
+  /**
+   * @description 删除未被订阅、订单或兑换码引用的套餐；已被引用的套餐请改为下架
+   * @tags admin-billing
+   * @name BillingPlansDelete
+   * @summary 管理员删除周期套餐
+   * @request DELETE:/admin/billing/plans/{id}
+   * @secure
+   */
+  export namespace BillingPlansDelete {
+    export type RequestParams = {
+      /** 套餐ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = BillingPlanDeleteResponseDoc;
+  }
+
+  /**
+   * @description 更新周期套餐配置、上下架状态与各计费周期价格；移除的价格仅停用以保留历史引用
    * @tags admin-billing
    * @name BillingPlansPartialUpdate
    * @summary 管理员更新周期套餐
@@ -5825,7 +5897,7 @@ export namespace Admin {
       id: number;
     };
     export type RequestQuery = {};
-    export type RequestBody = UpdateBillingPlanRequest;
+    export type RequestBody = SaveBillingPlanRequest;
     export type RequestHeaders = {};
     export type ResponseBody = BillingPlanResponseDoc;
   }

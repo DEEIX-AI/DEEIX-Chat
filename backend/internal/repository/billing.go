@@ -15,7 +15,12 @@ type BillingRepository interface {
 	GetPlanByID(ctx context.Context, planID uint) (*domainbilling.Plan, error)
 	ListPlansByIDs(ctx context.Context, planIDs []uint) ([]domainbilling.Plan, error)
 	GetActivePlanByCode(ctx context.Context, code string) (*domainbilling.Plan, error)
-	UpdatePlanWithDefaultPrice(ctx context.Context, plan *domainbilling.Plan, price *domainbilling.Price) error
+	ListAllPlans(ctx context.Context) ([]domainbilling.Plan, error)
+	// SavePlanWithPrices 新建（plan.ID 为 0）或更新套餐，并按计费周期同步启用价格；
+	// 未出现在 prices 中的旧价格只停用不删除，以保留历史订阅与订单引用。
+	SavePlanWithPrices(ctx context.Context, plan *domainbilling.Plan, prices []domainbilling.Price) error
+	// DeletePlan 硬删除未被订阅、订单或兑换记录引用的套餐，存在引用时返回 ErrConflict。
+	DeletePlan(ctx context.Context, planID uint) error
 	ListSubscriptionEntitlementsByUserIDs(ctx context.Context, userIDs []uint, now time.Time) ([]domainbilling.Subscription, error)
 	ReplaceSubscription(ctx context.Context, item *domainbilling.Subscription) error
 	CreatePaymentOrder(ctx context.Context, item *domainbilling.PaymentOrder) (*domainbilling.PaymentOrder, error)

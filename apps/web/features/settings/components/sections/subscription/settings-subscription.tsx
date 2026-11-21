@@ -13,7 +13,7 @@ import {
   formatAccountBalance,
   isFreePlan,
   planRank,
-  resolveDefaultPrice,
+  resolveSubscribedPrice,
   resolvePlanActionKind,
 } from "@/features/settings/model/subscription-format";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
@@ -200,7 +200,8 @@ export function SettingsSubscription() {
     if (billingOverview?.plan) return billingOverview.plan;
     return billingPlans.find((plan) => viewer?.subscriptionPlanID === plan.id || viewer?.subscriptionTier === plan.code) ?? null;
   }, [billingOverview?.plan, billingPlans, viewer?.subscriptionPlanID, viewer?.subscriptionTier]);
-  const currentPrice = React.useMemo(() => resolveDefaultPrice(currentPlan), [currentPlan]);
+  const currentPriceID = subscriptionEntitlements.find((item) => item.isCurrent)?.priceID;
+  const currentPrice = React.useMemo(() => resolveSubscribedPrice(currentPlan, currentPriceID), [currentPlan, currentPriceID]);
   const protectedPaidPlanRank = React.useMemo(
     () => Math.max(
       currentPlan && !isFreePlan(currentPlan) ? planRank(currentPlan) : 0,

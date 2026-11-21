@@ -31,7 +31,12 @@ import {
   parsePrice,
   parseTieredPricingJSON,
   stringifyTieredPricing,
+  isFreePlanCode,
+  isPlanInterval,
+  PLAN_CODE_PATTERN,
+  PLAN_INTERVALS,
   type PlanFormState,
+  type PlanPriceFormRow,
   type PricingMode,
   type PricingFormState,
   type TieredPricingTierForm,
@@ -137,6 +142,7 @@ function pricingFormFromJSON(
 
 type PlanBillingDialogProps = {
   open: boolean;
+  mode: "create" | "edit";
   saving: boolean;
   planForm: PlanFormState | null;
   setPlanForm: React.Dispatch<React.SetStateAction<PlanFormState | null>>;
@@ -146,8 +152,15 @@ type PlanBillingDialogProps = {
   onSubmit: (event?: React.FormEvent<HTMLFormElement>) => void;
 };
 
+function planFormInvalid(form: PlanFormState | null, mode: "create" | "edit"): boolean {
+  if (!form?.name.trim() || form.prices.length === 0) return true;
+  if (mode === "create" && !PLAN_CODE_PATTERN.test(form.code.trim().toLowerCase())) return true;
+  return form.prices.some((item) => !Number.isFinite(Number(item.amount)) || Number(item.amount) < 0 || item.amount.trim() === "");
+}
+
 export function PlanBillingDialog({
   open,
+  mode,
   saving,
   planForm,
   setPlanForm,
@@ -158,12 +171,43 @@ export function PlanBillingDialog({
 }: PlanBillingDialogProps) {
   const t = useTranslations("adminBilling");
   const tActions = useTranslations("common.actions");
+  const freePlan = mode === "edit" && isFreePlanCode(planForm?.code);
+  const unusedIntervals = PLAN_INTERVALS.filter((interval) => !planForm?.prices.some((item) => item.billingInterval === interval));
+
+  function updatePrice(index: number, patch: Partial<PlanPriceFormRow>) {
+    if (!planForm) return;
+    setPlanForm({
+      ...planForm,
+      prices: planForm.prices.map((item, itemIndex) => {
+        if (itemIndex === index) return { ...item, ...patch };
+        return patch.isDefault ? { ...item, isDefault: false } : item;
+      }),
+    });
+  }
+
+  function addPrice() {
+    if (!planForm || unusedIntervals.length === 0) return;
+    setPlanForm({
+      ...planForm,
+      prices: [...planForm.prices, { billingInterval: unusedIntervals[0], amount: "0", isDefault: planForm.prices.length === 0 }],
+    });
+  }
+
+  function removePrice(index: number) {
+    if (!planForm || planForm.prices.length <= 1) return;
+    const prices = planForm.prices.filter((_, itemIndex) => itemIndex !== index);
+    if (!prices.some((item) => item.isDefault)) {
+      prices[0] = { ...prices[0], isDefault: true };
+    }
+    setPlanForm({ ...planForm, prices });
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[560px]">
-        <DialogHeightTransition contentClassName="max-h-[min(86vh,760px)]">
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[600px]">
+        <DialogHeightTransition contentClassName="max-h-[min(86vh,820px)]">
           <DialogHeader className="shrink-0 px-4 py-4">
-            <DialogTitle>{t("plans.dialogTitle")}</DialogTitle>
+            <DialogTitle>{mode === "create" ? t("plans.createTitle") : t("plans.dialogTitle")}</DialogTitle>
             <DialogDescription>{t("plans.dialogDescription")}</DialogDescription>
           </DialogHeader>
 
@@ -173,37 +217,103 @@ export function PlanBillingDialog({
                 <>
                   <div className="grid grid-cols-2 gap-5">
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t("plans.name")}</p>
-                      <Input value={planForm.name} onChange={(event) => setPlanForm({ ...planForm, name: event.target.value })} required />
+                      <p className="text-xs text-muted-foreground">{t("plans.code")}</p>
+                      <Input
+                        value={planForm.code}
+                        onChange={(event) => setPlanForm({ ...planForm, code: event.target.value })}
+                        disabled={mode === "edit"}
+                        placeholder="team"
+                        maxLength={32}
+                        required
+                      />
+                      <p className="text-[11px] leading-5 text-muted-foreground">
+                        {mode === "create" ? t("plans.codeDescription") : t("plans.codeLocked")}
+                      </p>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t("plans.price")}</p>
-                      <Input value={planForm.amount} type="number" min="0" step="0.01" onChange={(event) => setPlanForm({ ...planForm, amount: event.target.value })} />
+                      <p className="text-xs text-muted-foreground">{t("plans.name")}</p>
+                      <Input value={planForm.name} onChange={(event) => setPlanForm({ ...planForm, name: event.target.value })} maxLength={64} required />
                     </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{t("plans.description")}</p>
+                    <Input value={planForm.description} onChange={(event) => setPlanForm({ ...planForm, description: event.target.value })} maxLength={255} />
                   </div>
 
                   <div className="grid grid-cols-2 gap-5">
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t("plans.interval")}</p>
-                      <Select value={planForm.billingInterval} onValueChange={(value) => setPlanForm({ ...planForm, billingInterval: value })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="lifetime">{t("plans.intervals.lifetime")}</SelectItem>
-                          <SelectItem value="month">{t("plans.intervals.month")}</SelectItem>
-                          <SelectItem value="year">{t("plans.intervals.year")}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">{t("plans.periodCredit")}</p>
                       <Input value={planForm.periodCredit} type="number" min="0" step="0.01" onChange={(event) => setPlanForm({ ...planForm, periodCredit: event.target.value })} />
+                      <p className="text-[11px] leading-5 text-muted-foreground">{t("plans.periodCreditDescription")}</p>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t("plans.description")}</p>
-                      <Input value={planForm.description} onChange={(event) => setPlanForm({ ...planForm, description: event.target.value })} />
+                      <p className="text-xs text-muted-foreground">{t("plans.sortOrder")}</p>
+                      <Input value={planForm.sortOrder} type="number" min="0" step="1" onChange={(event) => setPlanForm({ ...planForm, sortOrder: event.target.value })} />
+                      <p className="text-[11px] leading-5 text-muted-foreground">{t("plans.sortOrderDescription")}</p>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">{t("plans.prices")}</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-xs"
+                        onClick={addPrice}
+                        disabled={unusedIntervals.length === 0}
+                      >
+                        <Plus className="size-3.5 stroke-1" />
+                        {t("plans.addPrice")}
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {planForm.prices.map((price, index) => (
+                        <div key={price.billingInterval} className="grid grid-cols-[120px_minmax(0,1fr)_auto_auto] items-center gap-3">
+                          <Select
+                            value={price.billingInterval}
+                            onValueChange={(value) => {
+                              if (isPlanInterval(value)) updatePrice(index, { billingInterval: value });
+                            }}
+                          >
+                            <SelectTrigger aria-label={t("plans.interval")}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PLAN_INTERVALS.filter((interval) => interval === price.billingInterval || unusedIntervals.includes(interval)).map((interval) => (
+                                <SelectItem key={interval} value={interval}>{t(`plans.intervals.${interval}`)}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            value={price.amount}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            aria-label={t("plans.price")}
+                            onChange={(event) => updatePrice(index, { amount: event.target.value })}
+                          />
+                          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Switch size="sm" checked={price.isDefault} onCheckedChange={(checked) => checked && updatePrice(index, { isDefault: true })} />
+                            {t("plans.defaultPrice")}
+                          </label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            className="h-7 w-7 text-muted-foreground shadow-none"
+                            onClick={() => removePrice(index)}
+                            disabled={planForm.prices.length <= 1}
+                            aria-label={t("plans.removePrice")}
+                          >
+                            <Trash2 className="size-3.5 stroke-1" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[11px] leading-5 text-muted-foreground">{t("plans.pricesDescription")}</p>
                   </div>
 
                   <div className="space-y-1">
@@ -225,6 +335,20 @@ export function PlanBillingDialog({
                     </Select>
                     <p className="text-[11px] leading-5 text-muted-foreground">{t("plans.permissionGroupDescription")}</p>
                   </div>
+
+                  <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2">
+                    <div className="space-y-0.5">
+                      <p className="text-sm">{t("plans.isActive")}</p>
+                      <p className="text-[11px] leading-5 text-muted-foreground">
+                        {freePlan ? t("plans.freePlanAlwaysActive") : t("plans.isActiveDescription")}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={planForm.isActive}
+                      disabled={freePlan}
+                      onCheckedChange={(checked) => setPlanForm({ ...planForm, isActive: checked })}
+                    />
+                  </div>
                 </>
               ) : null}
             </div>
@@ -233,7 +357,7 @@ export function PlanBillingDialog({
               <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
                 {tActions("cancel")}
               </Button>
-              <Button type="submit" disabled={saving || !planForm?.name.trim()}>
+              <Button type="submit" disabled={saving || planFormInvalid(planForm, mode)}>
                 {saving ? <SpinnerLabel>{tActions("saving")}</SpinnerLabel> : tActions("save")}
               </Button>
             </DialogFooter>

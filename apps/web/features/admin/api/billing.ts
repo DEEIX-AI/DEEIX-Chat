@@ -19,7 +19,7 @@ import type {
   CreateAdminRedemptionCodeRequest,
   UpdateAdminRedemptionCodeRequest,
   UpdateAdminBillingConfigRequest,
-  UpdateAdminBillingPlanRequest,
+  SaveAdminBillingPlanRequest,
   UpdateAdminBillingAccountBalanceRequest,
   UpsertAdminModelPricingRequest,
 } from "@/features/admin/api/billing-types";
@@ -41,14 +41,33 @@ export async function listAdminBillingPlans(accessToken: string): Promise<AdminB
   return authedRequest<AdminBillingPlanDTO[]>("/api/v1/admin/billing/plans", { accessToken }, true);
 }
 
+export async function createAdminBillingPlan(
+  accessToken: string,
+  payload: SaveAdminBillingPlanRequest,
+): Promise<AdminBillingPlanData> {
+  return authedRequest<AdminBillingPlanData>(
+    "/api/v1/admin/billing/plans",
+    { method: "POST", accessToken, body: payload },
+    true,
+  );
+}
+
 export async function updateAdminBillingPlan(
   accessToken: string,
   planID: number,
-  payload: UpdateAdminBillingPlanRequest,
+  payload: SaveAdminBillingPlanRequest,
 ): Promise<AdminBillingPlanData> {
   return authedRequest<AdminBillingPlanData>(
     `/api/v1/admin/billing/plans/${planID}`,
     { method: "PATCH", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function deleteAdminBillingPlan(accessToken: string, planID: number): Promise<void> {
+  await authedRequest<unknown>(
+    `/api/v1/admin/billing/plans/${planID}`,
+    { method: "DELETE", accessToken },
     true,
   );
 }

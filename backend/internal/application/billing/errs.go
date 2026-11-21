@@ -35,6 +35,12 @@ var (
 	ErrInvalidBillingPlan = apperr.New("billing.invalid_plan", "invalid billing plan")
 	// ErrBillingPlanNotFound 计费套餐不存在。
 	ErrBillingPlanNotFound = apperr.New("billing.plan_not_found", "billing plan not found")
+	// ErrBillingPlanCodeConflict 套餐编码已存在。
+	ErrBillingPlanCodeConflict = apperr.New("billing.plan_code_conflict", "billing plan code already exists")
+	// ErrBillingPlanInUse 套餐已被订阅、订单或兑换码引用，只能下架不能删除。
+	ErrBillingPlanInUse = apperr.New("billing.plan_in_use", "billing plan is in use")
+	// ErrBillingPlanProtected 默认免费套餐不可删除或下架。
+	ErrBillingPlanProtected = apperr.New("billing.plan_protected", "default free plan cannot be removed or deactivated")
 	// ErrInvalidPermissionGroup 非法权限组。
 	ErrInvalidPermissionGroup = apperr.New("billing.invalid_permission_group", "invalid permission group")
 	// ErrInvalidUsageStatisticsSubject 表示用量统计的用户与权限组筛选条件冲突。

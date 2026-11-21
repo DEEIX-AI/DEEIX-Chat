@@ -1,6 +1,8 @@
 import type {
+  AdminBillingInterval,
   AdminBillingPlanDTO,
   AdminModelPricingDTO,
+  SaveAdminBillingPlanRequest,
   UpsertAdminModelPricingRequest,
 } from "@/features/admin/api/billing-types";
 import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
@@ -44,14 +46,28 @@ export type PricingFormState = {
   isFree: boolean;
 };
 
+export const PLAN_INTERVALS = ["month", "year", "lifetime"] as const satisfies readonly AdminBillingInterval[];
+
+export const isPlanInterval = isOneOf(PLAN_INTERVALS);
+
+export type PlanPriceFormRow = {
+  billingInterval: AdminBillingInterval;
+  amount: string;
+  isDefault: boolean;
+};
+
 export type PlanFormState = {
+  code: string;
   name: string;
   description: string;
-  amount: string;
-  billingInterval: string;
   periodCredit: string;
   permissionGroupID: string;
+  sortOrder: string;
+  isActive: boolean;
+  prices: PlanPriceFormRow[];
 };
+
+export const PLAN_CODE_PATTERN = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 
 export type ModelPricingExportEntry = {
   currency: string;
@@ -255,21 +271,65 @@ export function createFormState(row: BillingModelPricingRow): PricingFormState {
   };
 }
 
-export function createPlanFormState(plan: AdminBillingPlanDTO, defaultPermissionGroupID?: number): PlanFormState {
-  const defaultPrice = plan.prices.find((item) => item.isDefault) || plan.prices[0];
+function normalizePlanInterval(value: string): AdminBillingInterval {
+  return isPlanInterval(value) ? value : "month";
+}
+
+export function isFreePlanCode(code: string | null | undefined): boolean {
+  return code?.trim() === "free";
+}
+
+export function createPlanFormState(
+  plan: AdminBillingPlanDTO | null,
+  defaultPermissionGroupID?: number,
+  nextSortOrder = 0,
+): PlanFormState {
   let permissionGroupID = "";
-  if (plan.permissionGroupID != null) {
+  if (plan?.permissionGroupID != null) {
     permissionGroupID = String(plan.permissionGroupID);
   } else if (defaultPermissionGroupID) {
     permissionGroupID = String(defaultPermissionGroupID);
   }
+  const prices: PlanPriceFormRow[] = (plan?.prices ?? []).map((item) => ({
+    billingInterval: normalizePlanInterval(item.billingInterval),
+    amount: String((item.amountCents ?? 0) / 100),
+    isDefault: item.isDefault,
+  }));
+  if (prices.length === 0) {
+    prices.push({ billingInterval: "month", amount: "0", isDefault: true });
+  } else if (!prices.some((item) => item.isDefault)) {
+    prices[0] = { ...prices[0], isDefault: true };
+  }
   return {
-    name: plan.name || "",
-    description: plan.description || "",
-    amount: String((defaultPrice?.amountCents ?? 0) / 100),
-    billingInterval: defaultPrice?.billingInterval || "month",
-    periodCredit: String(plan.periodCreditUSD ?? 0),
+    code: plan?.code ?? "",
+    name: plan?.name ?? "",
+    description: plan?.description ?? "",
+    periodCredit: String(plan?.periodCreditUSD ?? 0),
     permissionGroupID,
+    sortOrder: String(plan?.sortOrder ?? nextSortOrder),
+    isActive: plan?.isActive ?? true,
+    prices,
+  };
+}
+
+export function nextPlanSortOrder(plans: AdminBillingPlanDTO[]): number {
+  return plans.reduce((highest, plan) => Math.max(highest, plan.sortOrder || 0), 0) + 10;
+}
+
+export function buildPlanPayload(form: PlanFormState): SaveAdminBillingPlanRequest {
+  return {
+    code: form.code.trim().toLowerCase() || undefined,
+    name: form.name.trim(),
+    description: form.description.trim(),
+    periodCreditUSD: parsePrice(form.periodCredit),
+    sortOrder: Math.trunc(parsePrice(form.sortOrder)),
+    isActive: form.isActive,
+    permissionGroupID: Number(form.permissionGroupID) || undefined,
+    prices: form.prices.map((item) => ({
+      billingInterval: item.billingInterval,
+      amountUSD: parsePrice(item.amount),
+      isDefault: item.isDefault,
+    })),
   };
 }
 

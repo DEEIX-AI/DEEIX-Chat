@@ -8,7 +8,8 @@
     "exportPricing": "导出模型定价",
     "editPlan": "编辑周期套餐",
     "editPricing": "编辑模型基础价格",
-    "editRedemptionCode": "编辑兑换码"
+    "editRedemptionCode": "编辑兑换码",
+    "deletePlan": "删除周期套餐"
   },
   "billingConfig": {
     "title": "计费方式",
@@ -57,8 +58,8 @@
   },
   "plans": {
     "title": "订阅方案",
-    "dialogTitle": "周期套餐",
-    "dialogDescription": "配置周期套餐价格、用量额度与权限组。",
+    "dialogTitle": "编辑周期套餐",
+    "dialogDescription": "配置套餐价格、用量额度、权限组与上架状态。",
     "name": "名称",
     "description": "说明",
     "price": "价格",
@@ -76,7 +77,29 @@
       "lifetime": "永久",
       "month": "月",
       "year": "年"
-    }
+    },
+    "create": "新增套餐",
+    "createTitle": "新增周期套餐",
+    "code": "套餐编码",
+    "codeDescription": "小写字母、数字、- 或 _，最多 32 位，创建后不可修改。",
+    "codeLocked": "套餐编码创建后不可修改。",
+    "periodCreditDescription": "每个自然月重置的用量额度（美元）。",
+    "sortOrder": "排序",
+    "sortOrderDescription": "数值越小越靠前，也用于判断升级 / 降级。",
+    "prices": "价格",
+    "addPrice": "添加周期",
+    "removePrice": "移除价格",
+    "defaultPrice": "默认",
+    "pricesDescription": "每个周期最多一个价格；用户订阅时可选择周期，默认价格优先展示。年付按 12 个月计算，额度仍按月重置。",
+    "isActive": "上架",
+    "isActiveDescription": "下架后用户无法新订阅，已订阅用户在到期前不受影响。",
+    "freePlanAlwaysActive": "默认免费套餐始终上架。",
+    "tableStatus": "状态",
+    "statusActive": "已上架",
+    "statusInactive": "已下架",
+    "deleteTitle": "删除套餐「{name}」？",
+    "deleteDescription": "仅未被任何订阅、订单或兑换码使用的套餐可以删除，删除后不可恢复。已被使用的套餐请改为下架。",
+    "deleting": "删除中..."
   },
   "redemption": {
     "title": "兑换码",
@@ -376,7 +399,12 @@
     "redemptionDeleted": "已删除 {count} 个兑换码",
     "redemptionDeleteFailed": "删除兑换码失败",
     "redemptionDeletePartialFailed": "部分兑换码删除失败",
-    "redemptionDeleteSummary": "成功 {successCount} 个，未找到 {notFoundCount} 个，失败 {failedCount} 个。"
+    "redemptionDeleteSummary": "成功 {successCount} 个，未找到 {notFoundCount} 个，失败 {failedCount} 个。",
+    "planCreated": "套餐已创建",
+    "planActivated": "套餐已上架",
+    "planDeactivated": "套餐已下架",
+    "planDeleted": "套餐已删除",
+    "planDeleteFailed": "删除套餐失败"
   },
   "importErrors": {
     "invalidJSON": "文件内容不是合法 JSON",

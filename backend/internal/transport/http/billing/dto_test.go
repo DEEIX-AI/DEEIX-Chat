@@ -56,12 +56,14 @@ func TestRequiredZeroValueBillingFields(t *testing.T) {
 		},
 		{
 			name: "plan accepts explicit zero values",
-			value: UpdateBillingPlanRequest{
+			value: SaveBillingPlanRequest{
 				Name:            "Free",
 				Description:     &emptyString,
 				PeriodCreditUSD: &zeroFloat,
-				AmountUSD:       &zeroFloat,
-				BillingInterval: "month",
+				IsActive:        &falseValue,
+				Prices: []BillingPlanPriceRequest{
+					{BillingInterval: "lifetime", AmountUSD: &zeroFloat},
+				},
 			},
 		},
 		{
@@ -100,9 +102,18 @@ func TestRequiredBillingFieldsRejectMissingValues(t *testing.T) {
 		},
 		{
 			name: "plan values",
-			value: UpdateBillingPlanRequest{
+			value: SaveBillingPlanRequest{
+				Name: "Free",
+			},
+		},
+		{
+			name: "plan price amount",
+			value: SaveBillingPlanRequest{
 				Name:            "Free",
-				BillingInterval: "month",
+				Description:     new(string),
+				PeriodCreditUSD: new(float64),
+				IsActive:        new(bool),
+				Prices:          []BillingPlanPriceRequest{{BillingInterval: "month"}},
 			},
 		},
 		{
