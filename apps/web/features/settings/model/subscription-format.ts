@@ -22,6 +22,33 @@ export function resolveDefaultPrice(plan: BillingPlanDTO | null | undefined): Bi
   return prices.find((item) => item.isDefault) || prices[0] || null;
 }
 
+const PLAN_INTERVAL_ORDER = ["month", "year", "lifetime"];
+
+/** Billing intervals with a paid price across plans, in month → year → lifetime order; the free plan's lifetime price is not a choice. */
+export function listPlanIntervals(plans: BillingPlanDTO[]): string[] {
+  const offered = new Set(
+    plans.flatMap((plan) => (plan.prices ?? []).filter((price) => price.amountCents > 0).map((price) => price.billingInterval)),
+  );
+  return PLAN_INTERVAL_ORDER.filter((interval) => offered.has(interval));
+}
+
+/** Price for the chosen interval, falling back to the plan default when the plan does not offer it. */
+export function resolvePlanPriceForInterval(
+  plan: BillingPlanDTO | null | undefined,
+  interval: string | null,
+): BillingPlanPriceDTO | null {
+  const match = interval ? plan?.prices?.find((item) => item.billingInterval === interval) : undefined;
+  return match ?? resolveDefaultPrice(plan);
+}
+
+export function resolveSubscribedPrice(
+  plan: BillingPlanDTO | null | undefined,
+  priceID: number | null | undefined,
+): BillingPlanPriceDTO | null {
+  const match = priceID ? plan?.prices?.find((item) => item.id === priceID) : undefined;
+  return match ?? resolveDefaultPrice(plan);
+}
+
 export function formatPlanPrice(
   price: BillingPlanPriceDTO | null,
   intervalLabels: { lifetime: string; year: string; month: string },
@@ -243,9 +270,6 @@ export function planRank(plan: BillingPlanDTO | null | undefined): number {
   if (Number.isFinite(plan.sortOrder) && plan.sortOrder > 0) {
     return plan.sortOrder;
   }
-  if (plan.code === "ultra") return 40;
-  if (plan.code === "max") return 30;
-  if (plan.code === "pro") return 20;
   if (plan.code === "free") return 10;
   return plan.periodCreditUSD;
 }

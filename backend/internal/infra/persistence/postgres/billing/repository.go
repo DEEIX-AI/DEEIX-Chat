@@ -189,61 +189,6 @@ func (r *Repo) GetActivePlanByCode(ctx context.Context, code string) (*domainbil
 	return &result, nil
 }
 
-// UpdatePlanWithDefaultPrice 更新套餐与默认价格。
-func (r *Repo) UpdatePlanWithDefaultPrice(ctx context.Context, plan *domainbilling.Plan, price *domainbilling.Price) error {
-	if plan == nil || price == nil || plan.ID == 0 {
-		return repository.ErrInvalidInput
-	}
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		planUpdates := map[string]any{
-			"name":                  strings.TrimSpace(plan.Name),
-			"description":           strings.TrimSpace(plan.Description),
-			"period_credit_nanousd": clampNonNegative(plan.PeriodCreditNanousd),
-			"is_active":             true,
-			"permission_group_id":   plan.PermissionGroupID,
-		}
-		if err := tx.Model(&models.BillingPlan{}).
-			Where("id = ?", plan.ID).
-			Updates(planUpdates).Error; err != nil {
-			return dberror.Translate(err)
-		}
-
-		if err := tx.Model(&models.BillingPrice{}).
-			Where("plan_id = ? AND is_default = ?", plan.ID, true).
-			Update("is_default", false).Error; err != nil {
-			return dberror.Translate(err)
-		}
-
-		var record models.BillingPrice
-		err := tx.Where("plan_id = ? AND code = ?", plan.ID, strings.TrimSpace(price.Code)).
-			First(&record).Error
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return dberror.Translate(err)
-		}
-
-		updates := map[string]any{
-			"plan_id":            plan.ID,
-			"code":               strings.TrimSpace(price.Code),
-			"billing_interval":   domainbilling.NormalizeInterval(price.BillingInterval),
-			"currency":           normalizeCurrency(price.Currency),
-			"amount_cents":       clampNonNegative(price.AmountCents),
-			"is_active":          true,
-			"is_default":         true,
-			"external_price_ref": strings.TrimSpace(price.ExternalPriceRef),
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			record = models.BillingPrice{
-				PlanID: plan.ID,
-				Code:   strings.TrimSpace(price.Code),
-			}
-			if err := tx.Create(&record).Error; err != nil {
-				return dberror.Translate(err)
-			}
-		}
-		return dberror.Translate(tx.Model(&record).Updates(updates).Error)
-	})
-}
-
 // CountPlansWithPermissionGroup 统计绑定指定权限组的套餐数量。
 func (r *Repo) CountPlansWithPermissionGroup(ctx context.Context, groupID uint) (int64, error) {
 	var count int64
@@ -1369,6 +1314,24 @@ func (r *Repo) GetNativeToolPricingJSON(ctx context.Context) (string, error) {
 		return "", dberror.Translate(err)
 	}
 	return strings.TrimSpace(item.Value), nil
+}
+
+// GetUSDToCNYRate 查询平台 USD→CNY 汇率；未配置或无效时返回 0，由调用方回退默认值。
+func (r *Repo) GetUSDToCNYRate(ctx context.Context) (float64, error) {
+	var item models.SystemSetting
+	if err := r.db.WithContext(ctx).
+		Where("namespace = ? AND key = ?", "billing", "usd_to_cny_rate").
+		First(&item).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, nil
+		}
+		return 0, dberror.Translate(err)
+	}
+	rate, err := strconv.ParseFloat(strings.TrimSpace(item.Value), 64)
+	if err != nil {
+		return 0, nil
+	}
+	return rate, nil
 }
 
 // GetModelPricing 查询模型计费配置。

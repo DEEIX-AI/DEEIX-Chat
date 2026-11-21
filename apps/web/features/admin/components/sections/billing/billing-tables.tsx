@@ -1,11 +1,12 @@
 "use client";
 
-import { Clock, Layers, Pencil } from "lucide-react";
+import { Clock, Layers, Pencil, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -24,17 +25,26 @@ import {
   parseTieredPricingJSON,
   formatCreditUSD,
   formatUSD,
+  isFreePlanCode,
   normalizePricingMode,
 } from "@/features/admin/model/billing-settings";
+
+const PLAN_INTERVAL_ORDER: Record<string, number> = { month: 0, year: 1, lifetime: 2 };
 
 export function PeriodBillingTable({
   plans,
   loading,
+  disabled,
   onEdit,
+  onToggleActive,
+  onDelete,
 }: {
   plans: AdminBillingPlanDTO[];
   loading: boolean;
+  disabled: boolean;
   onEdit: (plan: AdminBillingPlanDTO) => void;
+  onToggleActive: (plan: AdminBillingPlanDTO, isActive: boolean) => void;
+  onDelete: (plan: AdminBillingPlanDTO) => void;
 }) {
   const t = useTranslations("adminBilling");
   const initialLoading = loading && plans.length === 0;
@@ -48,30 +58,42 @@ export function PeriodBillingTable({
           <TableHead>{t("plans.tableDescription")}</TableHead>
           <TableHead>{t("plans.tablePrice")}</TableHead>
           <TableHead>{t("plans.tableCredit")}</TableHead>
-          <TableHead stickyEnd className="w-[56px]" />
+          <TableHead>{t("plans.tableStatus")}</TableHead>
+          <TableHead stickyEnd className="w-[88px]" />
         </TableRow>
       </TableHeader>
       <TableBody>
-        {initialLoading ? <TableLoadingRow colSpan={5} /> : null}
-        {!loading && plans.length === 0 ? <TableEmptyRow colSpan={5}>{t("plans.empty")}</TableEmptyRow> : null}
+        {initialLoading ? <TableLoadingRow colSpan={6} /> : null}
+        {!loading && plans.length === 0 ? <TableEmptyRow colSpan={6}>{t("plans.empty")}</TableEmptyRow> : null}
         {showPlans
           ? plans.map((plan) => {
-              const defaultPrice = plan.prices.find((item) => item.isDefault) || plan.prices[0];
+              const freePlan = isFreePlanCode(plan.code);
+              const prices = [...plan.prices].sort(
+                (left, right) => (PLAN_INTERVAL_ORDER[left.billingInterval] ?? 9) - (PLAN_INTERVAL_ORDER[right.billingInterval] ?? 9),
+              );
               return (
-                <TableRow key={plan.id}>
+                <TableRow key={plan.id} className={cn(!plan.isActive && "text-muted-foreground")}>
                   <TableCell className="py-1.5">
                     <span className="font-medium text-foreground">{plan.name}</span>
+                    <span className="ml-2 font-mono text-xs text-muted-foreground">{plan.code}</span>
                   </TableCell>
-                  <TableCell className="max-w-[280px] py-1.5 text-muted-foreground">
+                  <TableCell className="max-w-[240px] py-1.5 text-muted-foreground">
                     <span className="block truncate" title={plan.description || "-"}>
                       {plan.description || "-"}
                     </span>
                   </TableCell>
                   <TableCell className="py-1.5">
-                    {defaultPrice ? (
-                      <span>
-                        {formatAmountCents(defaultPrice.amountCents, defaultPrice.currency)} / {t(`plans.intervals.${defaultPrice.billingInterval}`)}
-                      </span>
+                    {prices.length > 0 ? (
+                      <div className="flex flex-col gap-0.5">
+                        {prices.map((price) => (
+                          <span key={price.id} className="whitespace-nowrap tabular-nums">
+                            {formatAmountCents(price.amountCents, price.currency)} / {t(`plans.intervals.${price.billingInterval}`)}
+                            {price.isDefault && prices.length > 1 ? (
+                              <span className="ml-1 text-xs text-muted-foreground">({t("plans.defaultPrice")})</span>
+                            ) : null}
+                          </span>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
@@ -82,17 +104,41 @@ export function PeriodBillingTable({
                       <span className="ml-1 text-xs text-muted-foreground">{t("plans.perPeriod")}</span>
                     </span>
                   </TableCell>
-                  <TableCell stickyEnd className="w-[56px] py-1.5 text-right">
-                    <div className="flex h-7 items-center justify-end">
+                  <TableCell className="py-1.5">
+                    <Switch
+                      size="sm"
+                      checked={plan.isActive}
+                      disabled={disabled || freePlan}
+                      onCheckedChange={(checked) => onToggleActive(plan, checked)}
+                      aria-label={t("plans.isActive")}
+                    />
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {plan.isActive ? t("plans.statusActive") : t("plans.statusInactive")}
+                    </span>
+                  </TableCell>
+                  <TableCell stickyEnd className="w-[88px] py-1.5 text-right">
+                    <div className="flex h-7 items-center justify-end gap-0.5">
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon-xs"
                         className="h-7 w-7 text-muted-foreground shadow-none"
                         onClick={() => onEdit(plan)}
+                        disabled={disabled}
                         aria-label={t("actions.editPlan")}
                       >
                         <Pencil className="size-3.5 stroke-1" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="h-7 w-7 text-muted-foreground shadow-none hover:text-destructive"
+                        onClick={() => onDelete(plan)}
+                        disabled={disabled || freePlan}
+                        aria-label={t("actions.deletePlan")}
+                      >
+                        <Trash2 className="size-3.5 stroke-1" />
                       </Button>
                     </div>
                   </TableCell>

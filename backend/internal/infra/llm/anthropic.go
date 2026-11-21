@@ -23,6 +23,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -141,6 +143,10 @@ func buildAnthropicRequestBody(model string, input portllm.GenerateInput, stream
 		payload["stop_sequences"] = stops
 	}
 	if thinking := anthropicThinkingFromOptions(input.Options, maxTokens); len(thinking) > 0 {
+		if anthropicModelRejectsBudgetThinking(model) && strings.TrimSpace(getString(thinking["type"])) == "enabled" {
+			thinking["type"] = "adaptive"
+			delete(thinking, "budget_tokens")
+		}
 		payload["thinking"] = thinking
 	}
 	if toolChoice := anthropicToolChoiceFromOptions(input.Options); len(toolChoice) > 0 {
@@ -286,6 +292,20 @@ func anthropicThinkingFromOptions(options map[string]any, maxTokens int) map[str
 		result["type"] = "enabled"
 	}
 	return result
+}
+
+var anthropicModelVersionPattern = regexp.MustCompile(`claude-[a-z]+-(\d+)(?:[-.](\d{1,2}))?(?:[^0-9]|$)`)
+
+// anthropicModelRejectsBudgetThinking 判断模型是否为 Claude 4.7 及以后：这些模型拒绝 type "enabled" + budget_tokens（返回 400），
+// 只接受 adaptive 思考，由 output_config.effort 控制深度。
+func anthropicModelRejectsBudgetThinking(model string) bool {
+	match := anthropicModelVersionPattern.FindStringSubmatch(strings.ToLower(model))
+	if match == nil {
+		return false
+	}
+	major, _ := strconv.Atoi(match[1])
+	minor, _ := strconv.Atoi(match[2])
+	return major > 4 || (major == 4 && minor >= 7)
 }
 
 func anthropicBaseThinkingFromOptions(options map[string]any, maxTokens int) map[string]any {
@@ -780,8 +800,8 @@ func applyAnthropicBetaHeaders(req *http.Request, payload map[string]any, option
 	for _, tool := range anthropicToolPayloads(payload["tools"]) {
 		switch strings.TrimSpace(getString(tool["type"])) {
 		case "advisor_20260301":
-			betas = appendUniqueStrings(betas, "advisor-2026-03-01")
-		case "mcp_toolset_20251119":
+			betas = appendUniqueStrings(betas, "advisor-tool-2026-03-01")
+		case "mcp_toolset":
 			betas = appendUniqueStrings(betas, "mcp-client-2025-11-20")
 		}
 	}
@@ -903,7 +923,39 @@ func parseAnthropicResponse(body []byte, classifier anthropicToolClassifier) (*p
 		ServerSideToolUsage: parseAnthropicServerSideToolUsage(parsed),
 		RawJSON:             string(body),
 	}
+	attributeDeepSeekServerToolUsage(result)
 	return result, nil
+}
+
+// deepSeekServerToolUsageKeys 把 DeepSeek Anthropic 兼容接口沿用的用量字段映射回 DeepSeek 自己的工具名，
+// 避免按 Anthropic web_search / web_fetch 的价格计费；DeepSeek 的服务端工具只按 token 计费。
+var deepSeekServerToolUsageKeys = map[string]string{
+	"web_search": "deepseek_web_search",
+	"web_fetch":  "deepseek_read_url",
+}
+
+func attributeDeepSeekServerToolUsage(result *portllm.GenerateOutput) {
+	if result == nil || len(result.ServerSideToolUsage) == 0 {
+		return
+	}
+	deepSeek := false
+	for _, call := range result.ServerToolCalls {
+		if strings.HasPrefix(strings.TrimSpace(call.ToolName), "deepseek_") {
+			deepSeek = true
+			break
+		}
+	}
+	if !deepSeek {
+		return
+	}
+	usage := make(map[string]int64, len(result.ServerSideToolUsage))
+	for key, count := range result.ServerSideToolUsage {
+		if mapped, ok := deepSeekServerToolUsageKeys[key]; ok {
+			key = mapped
+		}
+		usage[key] += count
+	}
+	result.ServerSideToolUsage = usage
 }
 
 // extractAnthropicText 从 content 数组中提取所有 text block 的文字。
@@ -1132,6 +1184,7 @@ func (c *Client) generateAnthropicStream(
 		return nil, portllm.MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
 	}
 	compactAnthropicStreamToolCalls(result)
+	attributeDeepSeekServerToolUsage(result)
 	return result, nil
 }
 

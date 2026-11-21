@@ -861,9 +861,157 @@
                 ]
             }
         },
+        "/admin/billing/plans": {
+            "get": {
+                "description": "查询全部周期套餐（含已下架）及启用价格",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-billing"
+                ],
+                "summary": "管理员获取周期套餐",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PlanListResponseDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "新建周期套餐及各计费周期价格，套餐编码创建后不可修改",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-billing"
+                ],
+                "summary": "管理员新建周期套餐",
+                "parameters": [
+                    {
+                        "description": "套餐配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/SaveBillingPlanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/BillingPlanResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
         "/admin/billing/plans/{id}": {
+            "delete": {
+                "description": "删除未被订阅、订单或兑换码引用的套餐；已被引用的套餐请改为下架",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-billing"
+                ],
+                "summary": "管理员删除周期套餐",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "套餐ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/BillingPlanDeleteResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            },
             "patch": {
-                "description": "更新周期套餐基础配置与默认价格",
+                "description": "更新周期套餐配置、上下架状态与各计费周期价格；移除的价格仅停用以保留历史引用",
                 "consumes": [
                     "application/json"
                 ],
@@ -888,7 +1036,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/UpdateBillingPlanRequest"
+                            "$ref": "#/definitions/SaveBillingPlanRequest"
                         }
                     }
                 ],
@@ -20007,6 +20155,57 @@
                 }
             }
         },
+        "BillingPlanDeleteDataResponse": {
+            "type": "object",
+            "required": [
+                "deleted"
+            ],
+            "properties": {
+                "deleted": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "BillingPlanDeleteResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/BillingPlanDeleteDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "BillingPlanPriceRequest": {
+            "type": "object",
+            "required": [
+                "amountUSD",
+                "billingInterval",
+                "isDefault"
+            ],
+            "properties": {
+                "amountUSD": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "billingInterval": {
+                    "type": "string",
+                    "enum": [
+                        "month",
+                        "year",
+                        "lifetime"
+                    ]
+                },
+                "isDefault": {
+                    "type": "boolean"
+                }
+            }
+        },
         "BillingPlanResponse": {
             "type": "object",
             "required": [
@@ -26260,7 +26459,8 @@
                         "gemini_level",
                         "gemini_budget",
                         "qwen",
-                        "toggle"
+                        "toggle",
+                        "toggle_effort"
                     ]
                 },
                 "levels": {
@@ -27152,7 +27352,8 @@
                         "gemini_level",
                         "gemini_budget",
                         "qwen",
-                        "toggle"
+                        "toggle",
+                        "toggle_effort"
                     ]
                 },
                 "levels": {
@@ -30838,6 +31039,55 @@
                 }
             }
         },
+        "SaveBillingPlanRequest": {
+            "type": "object",
+            "required": [
+                "description",
+                "isActive",
+                "name",
+                "periodCreditUSD",
+                "prices",
+                "sortOrder"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 1
+                },
+                "periodCreditUSD": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "permissionGroupID": {
+                    "type": "integer",
+                    "x-nullable": true
+                },
+                "prices": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/BillingPlanPriceRequest"
+                    }
+                },
+                "sortOrder": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            }
+        },
         "SecurityVerificationStartRequest": {
             "type": "object",
             "properties": {
@@ -32503,51 +32753,6 @@
                 "description": {
                     "type": "string",
                     "maxLength": 255
-                }
-            }
-        },
-        "UpdateBillingPlanRequest": {
-            "type": "object",
-            "required": [
-                "amountUSD",
-                "billingInterval",
-                "description",
-                "name",
-                "periodCreditUSD"
-            ],
-            "properties": {
-                "amountUSD": {
-                    "type": "number",
-                    "minimum": 0
-                },
-                "billingInterval": {
-                    "type": "string",
-                    "enum": [
-                        "month",
-                        "year",
-                        "lifetime"
-                    ]
-                },
-                "currency": {
-                    "type": "string",
-                    "maxLength": 16
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 64,
-                    "minLength": 1
-                },
-                "periodCreditUSD": {
-                    "type": "number",
-                    "minimum": 0
-                },
-                "permissionGroupID": {
-                    "type": "integer",
-                    "x-nullable": true
                 }
             }
         },

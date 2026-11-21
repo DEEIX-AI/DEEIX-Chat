@@ -357,6 +357,31 @@ func TestParseAnthropicResponseCapturesServerSideToolUsage(t *testing.T) {
 	}
 }
 
+func TestParseAnthropicResponseAttributesDeepSeekServerToolUsage(t *testing.T) {
+	output, err := parseAnthropicResponse([]byte(`{
+		"id": "msg_1",
+		"content": [
+			{"type":"server_tool_use","id":"srvtoolu_1","name":"deepseek_web_search","input":{"action":"search"}},
+			{"type":"text","text":"done"}
+		],
+		"usage": {
+			"input_tokens": 10,
+			"output_tokens": 5,
+			"server_tool_use": {"web_search_requests": 2, "web_fetch_requests": 1, "tool_search": 2}
+		}
+	}`), anthropicToolClassifier{})
+	if err != nil {
+		t.Fatalf("parse anthropic response: %v", err)
+	}
+	usage := output.ServerSideToolUsage
+	if usage["web_search"] != 0 || usage["web_fetch"] != 0 {
+		t.Fatalf("DeepSeek usage must not be billed as Anthropic tools, got %#v", usage)
+	}
+	if usage["deepseek_web_search"] != 2 || usage["deepseek_read_url"] != 1 {
+		t.Fatalf("expected DeepSeek tool usage, got %#v", usage)
+	}
+}
+
 func TestParseGoogleGenerateContentUsage(t *testing.T) {
 	payload := mustDecodeObject(t, `{
 		"usageMetadata": {

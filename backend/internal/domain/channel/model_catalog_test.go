@@ -1,6 +1,9 @@
 package channel
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestModelCatalogMatchOrder(t *testing.T) {
 	effort := []ReasoningCatalogOption{{Type: ReasoningCatalogOptionEffort, Values: []string{"low", "high"}}}
@@ -78,6 +81,47 @@ func TestResolveReasoningCapabilityCatalogPrecedence(t *testing.T) {
 	explicit := `{"reasoning":{"format":"bogus"}}`
 	if capability, source := ResolveReasoningCapability(ReasoningProtocolOpenAIChat, explicit, catalog); capability != nil || source != ReasoningSourceExplicit {
 		t.Fatalf("expected invalid explicit declaration to block the catalog, got %#v (%s)", capability, source)
+	}
+}
+
+func TestCatalogReasoningCapabilityChineseProviderFormats(t *testing.T) {
+	deepseek := &ModelCatalogEntry{Provider: "deepseek", ModelID: "deepseek-flash", Reasoning: true, Options: []ReasoningCatalogOption{
+		{Type: ReasoningCatalogOptionToggle}, {Type: ReasoningCatalogOptionEffort, Values: []string{"low", "high", "max"}},
+	}}
+	capability, _ := CatalogReasoningCapability(deepseek, ReasoningProtocolOpenAIChat, "deepseek")
+	if capability == nil || capability.Format != ReasoningFormatToggleEffort || !reflect.DeepEqual(capability.Levels, []string{"none", "low", "high", "max"}) {
+		t.Fatalf("expected DeepSeek toggle_effort with none, got %#v", capability)
+	}
+	if capability, _ := CatalogReasoningCapability(deepseek, ReasoningProtocolAnthropic, "deepseek"); capability == nil || capability.Format != ReasoningFormatAnthropicEffort {
+		t.Fatalf("expected anthropic_effort on Messages API, got %#v", capability)
+	}
+
+	claude := &ModelCatalogEntry{Provider: "anthropic", ModelID: "claude-sonnet-5", Reasoning: true, Options: deepseek.Options}
+	if capability, _ := CatalogReasoningCapability(claude, ReasoningProtocolOpenRouterChat, "anthropic"); capability == nil || capability.Format != ReasoningFormatOpenAI {
+		t.Fatalf("toggle_effort must stay DeepSeek-only, got %#v", capability)
+	}
+
+	doubao := &ModelCatalogEntry{Provider: "volcengine", ModelID: "doubao-seed-2-1-pro-260628", Reasoning: true, Options: []ReasoningCatalogOption{
+		{Type: ReasoningCatalogOptionEffort, Values: []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"}},
+	}}
+	if capability, _ := CatalogReasoningCapability(doubao, ReasoningProtocolOpenAIChat, "bytedance"); capability == nil || capability.Format != ReasoningFormatOpenAI || capability.Levels[0] != "none" {
+		t.Fatalf("expected Ark effort with none via reasoning_effort, got %#v", capability)
+	}
+
+	zero := 0
+	qwenMax := &ModelCatalogEntry{Provider: "alibaba-cn", ModelID: "qwen3.8-max", Reasoning: true, Options: []ReasoningCatalogOption{
+		{Type: ReasoningCatalogOptionToggle},
+		{Type: ReasoningCatalogOptionEffort, Values: []string{"low", "medium", "xhigh"}},
+		{Type: ReasoningCatalogOptionBudget, Min: &zero},
+	}}
+	if capability, _ := CatalogReasoningCapability(qwenMax, ReasoningProtocolOpenAIChat, "alibaba"); capability == nil || capability.Format != ReasoningFormatQwen {
+		t.Fatalf("expected Qwen hybrid model to use enable_thinking budgets, got %#v", capability)
+	}
+	qwenOmni := &ModelCatalogEntry{Provider: "alibaba-cn", ModelID: "qwen3.8-omni-flash", Reasoning: true, Options: []ReasoningCatalogOption{
+		{Type: ReasoningCatalogOptionEffort, Values: []string{"none", "low", "medium", "xhigh"}},
+	}}
+	if capability, _ := CatalogReasoningCapability(qwenOmni, ReasoningProtocolOpenAIChat, "alibaba"); capability == nil || capability.Format != ReasoningFormatOpenAI {
+		t.Fatalf("expected Qwen Omni to use reasoning_effort, got %#v", capability)
 	}
 }
 

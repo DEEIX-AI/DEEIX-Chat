@@ -8,7 +8,8 @@
     "exportPricing": "Export",
     "editPlan": "Edit plan",
     "editPricing": "Edit pricing",
-    "editRedemptionCode": "Edit redemption code"
+    "editRedemptionCode": "Edit redemption code",
+    "deletePlan": "Delete plan"
   },
   "billingConfig": {
     "title": "Billing mode",
@@ -19,7 +20,7 @@
     "displayCurrency": "Display currency",
     "displayCurrencyDescription": "Controls user-facing cost display globally. Accounting, deductions, and API fields remain recorded in USD / nanousd.",
     "usdToCnyRate": "USD -> CNY rate",
-    "usdToCnyRateDescription": "Platform-level CNY conversion rate used for cost display and CNY payment amounts.",
+    "usdToCnyRateDescription": "Platform-level CNY conversion rate used for cost display, CNY payment amounts, and default prices of CNY-priced tools such as Bailian and Volcengine Ark.",
     "displayCurrencies": {
       "usd": "US Dollar ($)",
       "cny": "Chinese Yuan (¥)"
@@ -57,8 +58,8 @@
   },
   "plans": {
     "title": "Plans",
-    "dialogTitle": "Subscription plan",
-    "dialogDescription": "Configure plan price, usage credit, and permission group.",
+    "dialogTitle": "Edit subscription plan",
+    "dialogDescription": "Configure plan prices, usage credit, permission group, and availability.",
     "name": "Name",
     "description": "Description",
     "price": "Price",
@@ -76,7 +77,29 @@
       "lifetime": "Lifetime",
       "month": "Month",
       "year": "Year"
-    }
+    },
+    "create": "New plan",
+    "createTitle": "New subscription plan",
+    "code": "Plan code",
+    "codeDescription": "Lowercase letters, digits, - or _, up to 32 characters. Cannot be changed later.",
+    "codeLocked": "Plan code cannot be changed after creation.",
+    "periodCreditDescription": "Usage credit in USD, reset every calendar month.",
+    "sortOrder": "Sort order",
+    "sortOrderDescription": "Lower values come first and rank higher plans for upgrades.",
+    "prices": "Prices",
+    "addPrice": "Add interval",
+    "removePrice": "Remove price",
+    "defaultPrice": "Default",
+    "pricesDescription": "One price per interval. Subscribers can choose the interval; the default price is shown first. Yearly covers 12 months and credit still resets monthly.",
+    "isActive": "Available",
+    "isActiveDescription": "Unavailable plans cannot be newly subscribed. Existing subscribers keep access until expiry.",
+    "freePlanAlwaysActive": "The default free plan is always available.",
+    "tableStatus": "Status",
+    "statusActive": "Available",
+    "statusInactive": "Unavailable",
+    "deleteTitle": "Delete plan \"{name}\"?",
+    "deleteDescription": "Only plans never used by a subscription, order, or redemption code can be deleted. This cannot be undone. Deactivate plans that are in use instead.",
+    "deleting": "Deleting..."
   },
   "redemption": {
     "title": "Redemption codes",
@@ -376,7 +399,12 @@
     "redemptionDeleted": "Deleted {count} redemption codes",
     "redemptionDeleteFailed": "Failed to delete redemption code",
     "redemptionDeletePartialFailed": "Some redemption codes were not deleted",
-    "redemptionDeleteSummary": "Deleted {successCount}, not found {notFoundCount}, failed {failedCount}."
+    "redemptionDeleteSummary": "Deleted {successCount}, not found {notFoundCount}, failed {failedCount}.",
+    "planCreated": "Plan created",
+    "planActivated": "Plan is now available",
+    "planDeactivated": "Plan is now unavailable",
+    "planDeleted": "Plan deleted",
+    "planDeleteFailed": "Failed to delete plan"
   },
   "importErrors": {
     "invalidJSON": "File content is not valid JSON",

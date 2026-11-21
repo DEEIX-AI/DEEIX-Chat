@@ -279,6 +279,14 @@ func applyReasoningEffortTranslation(
 			thinkingType = "disabled"
 		}
 		options["thinking"] = map[string]any{"type": thinkingType}
+	case domainchannel.ReasoningFormatToggleEffort:
+		deleteModelOptionPathPruned(options, "reasoning.effort")
+		if level == domainchannel.ReasoningLevelNone {
+			options["thinking"] = map[string]any{"type": "disabled"}
+			return options
+		}
+		options["thinking"] = map[string]any{"type": "enabled"}
+		options[reasoningEffortOptionKey] = level
 	}
 	return options
 }

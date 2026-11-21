@@ -725,64 +725,169 @@ func (h *Handler) GetBillingOverview(c *gin.Context) {
 	response.Success(c, BillingOverviewDataResponse{Overview: toBillingOverviewResponse(overview)})
 }
 
+// ListAdminPlans godoc
+// @Summary 管理员获取周期套餐
+// @Description 查询全部周期套餐（含已下架）及启用价格
+// @Tags admin-billing
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} PlanListResponseDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/billing/plans [get]
+func (h *Handler) ListAdminPlans(c *gin.Context) {
+	items, err := h.service.ListAdminPlans(c.Request.Context())
+	if err != nil {
+		response.InternalError(c, err)
+		return
+	}
+	response.Success(c, toPlanListResponse(items))
+}
+
+// CreatePlan godoc
+// @Summary 管理员新建周期套餐
+// @Description 新建周期套餐及各计费周期价格，套餐编码创建后不可修改
+// @Tags admin-billing
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body SaveBillingPlanRequest true "套餐配置"
+// @Success 200 {object} BillingPlanResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/billing/plans [post]
+func (h *Handler) CreatePlan(c *gin.Context) {
+	var req SaveBillingPlanRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+	item, err := h.service.CreatePlan(c.Request.Context(), planSaveInputFromRequest(req))
+	if err != nil {
+		writePlanMutationError(c, err)
+		return
+	}
+	h.recordPlanAudit(c, "create_billing_plan", item.ID, req)
+	response.Success(c, BillingPlanDataResponse{Plan: toPlanListResponse([]appbilling.BillingPlanView{*item})[0]})
+}
+
 // UpdatePlan godoc
 // @Summary 管理员更新周期套餐
-// @Description 更新周期套餐基础配置与默认价格
+// @Description 更新周期套餐配置、上下架状态与各计费周期价格；移除的价格仅停用以保留历史引用
 // @Tags admin-billing
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "套餐ID"
-// @Param body body UpdateBillingPlanRequest true "套餐配置"
+// @Param body body SaveBillingPlanRequest true "套餐配置"
 // @Success 200 {object} BillingPlanResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/plans/{id} [patch]
 func (h *Handler) UpdatePlan(c *gin.Context) {
-	planID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
-	if err != nil || planID == 0 {
-		response.ErrorFrom(c, http.StatusBadRequest, errInvalidPlanID)
+	planID, ok := parsePlanID(c)
+	if !ok {
 		return
 	}
-
-	var req UpdateBillingPlanRequest
+	var req SaveBillingPlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.InvalidRequestBody(c, err)
 		return
 	}
-
-	item, err := h.service.UpdatePlan(c.Request.Context(), uint(planID), planUpdateInputFromRequest(req))
+	item, err := h.service.UpdatePlan(c.Request.Context(), planID, planSaveInputFromRequest(req))
 	if err != nil {
-		if errors.Is(err, appbilling.ErrInvalidPermissionGroup) || errors.Is(err, appbilling.ErrInvalidBillingPlan) {
-			response.ErrorFrom(c, http.StatusBadRequest, err)
-			return
-		}
-		if errors.Is(err, appbilling.ErrBillingPlanNotFound) {
-			response.ErrorFrom(c, http.StatusNotFound, err)
-			return
-		}
-		response.InternalError(c, err)
+		writePlanMutationError(c, err)
 		return
 	}
+	h.recordPlanAudit(c, "update_billing_plan", item.ID, req)
+	response.Success(c, BillingPlanDataResponse{Plan: toPlanListResponse([]appbilling.BillingPlanView{*item})[0]})
+}
 
-	userID := middleware.MustUserID(c)
+// DeletePlan godoc
+// @Summary 管理员删除周期套餐
+// @Description 删除未被订阅、订单或兑换码引用的套餐；已被引用的套餐请改为下架
+// @Tags admin-billing
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "套餐ID"
+// @Success 200 {object} BillingPlanDeleteResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/billing/plans/{id} [delete]
+func (h *Handler) DeletePlan(c *gin.Context) {
+	planID, ok := parsePlanID(c)
+	if !ok {
+		return
+	}
+	if err := h.service.DeletePlan(c.Request.Context(), planID); err != nil {
+		writePlanMutationError(c, err)
+		return
+	}
 	h.recordAudit(
 		c,
-		userID,
-		"update_billing_plan",
+		middleware.MustUserID(c),
+		"delete_billing_plan",
 		"billing_plan",
-		strconv.FormatUint(planID, 10),
+		strconv.FormatUint(uint64(planID), 10),
+		map[string]any{"plan_id": planID, "deleted": true},
+	)
+	response.Success(c, BillingPlanDeleteDataResponse{Deleted: true})
+}
+
+func parsePlanID(c *gin.Context) (uint, bool) {
+	planID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
+	if err != nil || planID == 0 {
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidPlanID)
+		return 0, false
+	}
+	return uint(planID), true
+}
+
+func writePlanMutationError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, appbilling.ErrInvalidPermissionGroup),
+		errors.Is(err, appbilling.ErrInvalidBillingPlan),
+		errors.Is(err, appbilling.ErrBillingPlanProtected):
+		response.ErrorFrom(c, http.StatusBadRequest, err)
+	case errors.Is(err, appbilling.ErrBillingPlanNotFound):
+		response.ErrorFrom(c, http.StatusNotFound, err)
+	case errors.Is(err, appbilling.ErrBillingPlanCodeConflict),
+		errors.Is(err, appbilling.ErrBillingPlanInUse):
+		response.ErrorFrom(c, http.StatusConflict, err)
+	default:
+		response.InternalError(c, err)
+	}
+}
+
+func (h *Handler) recordPlanAudit(c *gin.Context, action string, planID uint, req SaveBillingPlanRequest) {
+	prices := make([]map[string]any, 0, len(req.Prices))
+	for _, item := range req.Prices {
+		prices = append(prices, map[string]any{
+			"billing_interval": item.BillingInterval,
+			"amount_usd":       *item.AmountUSD,
+			"is_default":       item.IsDefault,
+		})
+	}
+	h.recordAudit(
+		c,
+		middleware.MustUserID(c),
+		action,
+		"billing_plan",
+		strconv.FormatUint(uint64(planID), 10),
 		map[string]any{
 			"plan_id":           planID,
 			"name":              req.Name,
 			"period_credit_usd": *req.PeriodCreditUSD,
-			"amount_usd":        *req.AmountUSD,
-			"billing_interval":  req.BillingInterval,
+			"sort_order":        req.SortOrder,
+			"is_active":         *req.IsActive,
+			"prices":            prices,
 		},
 	)
-
-	response.Success(c, BillingPlanDataResponse{Plan: toPlanListResponse([]appbilling.BillingPlanView{*item})[0]})
 }
 
 // Subscribe godoc

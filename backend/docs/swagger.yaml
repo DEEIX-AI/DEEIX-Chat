@@ -1245,6 +1245,41 @@ definitions:
     required:
     - plan
     type: object
+  BillingPlanDeleteDataResponse:
+    properties:
+      deleted:
+        type: boolean
+    required:
+    - deleted
+    type: object
+  BillingPlanDeleteResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/BillingPlanDeleteDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  BillingPlanPriceRequest:
+    properties:
+      amountUSD:
+        minimum: 0
+        type: number
+      billingInterval:
+        enum:
+        - month
+        - year
+        - lifetime
+        type: string
+      isDefault:
+        type: boolean
+    required:
+    - amountUSD
+    - billingInterval
+    - isDefault
+    type: object
   BillingPlanResponse:
     properties:
       code:
@@ -5651,6 +5686,7 @@ definitions:
         - gemini_budget
         - qwen
         - toggle
+        - toggle_effort
         type: string
       levels:
         description: Levels 为可选规范档位，按由低到高排列。
@@ -6284,6 +6320,7 @@ definitions:
         - gemini_budget
         - qwen
         - toggle
+        - toggle_effort
         type: string
       levels:
         description: Levels 为该格式可声明的规范档位，按由低到高排列。
@@ -8919,6 +8956,43 @@ definitions:
     - upstreamModelName
     - userID
     type: object
+  SaveBillingPlanRequest:
+    properties:
+      code:
+        maxLength: 32
+        type: string
+      description:
+        maxLength: 255
+        type: string
+      isActive:
+        type: boolean
+      name:
+        maxLength: 64
+        minLength: 1
+        type: string
+      periodCreditUSD:
+        minimum: 0
+        type: number
+      permissionGroupID:
+        type: integer
+        x-nullable: true
+      prices:
+        items:
+          $ref: '#/definitions/BillingPlanPriceRequest'
+        maxItems: 3
+        minItems: 1
+        type: array
+      sortOrder:
+        minimum: 0
+        type: integer
+    required:
+    - description
+    - isActive
+    - name
+    - periodCreditUSD
+    - prices
+    - sortOrder
+    type: object
   SecurityVerificationStartRequest:
     properties:
       verificationMethod:
@@ -10089,40 +10163,6 @@ definitions:
         type: string
     required:
     - balanceUSD
-    type: object
-  UpdateBillingPlanRequest:
-    properties:
-      amountUSD:
-        minimum: 0
-        type: number
-      billingInterval:
-        enum:
-        - month
-        - year
-        - lifetime
-        type: string
-      currency:
-        maxLength: 16
-        type: string
-      description:
-        maxLength: 255
-        type: string
-      name:
-        maxLength: 64
-        minLength: 1
-        type: string
-      periodCreditUSD:
-        minimum: 0
-        type: number
-      permissionGroupID:
-        type: integer
-        x-nullable: true
-    required:
-    - amountUSD
-    - billingInterval
-    - description
-    - name
-    - periodCreditUSD
     type: object
   UpdateConversationLabelsRequest:
     properties:
@@ -12636,11 +12676,105 @@ paths:
       summary: 管理员获取 OpenRouter 官方模型目录
       tags:
       - admin-billing
+  /admin/billing/plans:
+    get:
+      consumes:
+      - application/json
+      description: 查询全部周期套餐（含已下架）及启用价格
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PlanListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员获取周期套餐
+      tags:
+      - admin-billing
+    post:
+      consumes:
+      - application/json
+      description: 新建周期套餐及各计费周期价格，套餐编码创建后不可修改
+      parameters:
+      - description: 套餐配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SaveBillingPlanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/BillingPlanResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员新建周期套餐
+      tags:
+      - admin-billing
   /admin/billing/plans/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除未被订阅、订单或兑换码引用的套餐；已被引用的套餐请改为下架
+      parameters:
+      - description: 套餐ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/BillingPlanDeleteResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/BillingErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员删除周期套餐
+      tags:
+      - admin-billing
     patch:
       consumes:
       - application/json
-      description: 更新周期套餐基础配置与默认价格
+      description: 更新周期套餐配置、上下架状态与各计费周期价格；移除的价格仅停用以保留历史引用
       parameters:
       - description: 套餐ID
         in: path
@@ -12652,7 +12786,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/UpdateBillingPlanRequest'
+          $ref: '#/definitions/SaveBillingPlanRequest'
       produces:
       - application/json
       responses:

@@ -632,6 +632,12 @@
       "features": {
         "monthlyCredit": "{credit} 月额度",
         "freeModelsNotIncluded": "免费模型不计入额度"
+      },
+      "intervalSwitch": "计费周期",
+      "intervalOptions": {
+        "month": "月付",
+        "year": "年付",
+        "lifetime": "永久"
       }
     },
     "payment": {

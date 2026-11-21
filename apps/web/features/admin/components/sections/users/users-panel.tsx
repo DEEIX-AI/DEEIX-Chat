@@ -63,7 +63,6 @@ import {
   USER_ROLE_OPTIONS,
   USER_SORT_OPTIONS,
   USER_STATUS_OPTIONS,
-  USER_TIER_OPTIONS,
   isUserSortValue,
 } from "@/features/admin/types/users";
 import { isAdminUserRole, isAdminUserStatus } from "@/features/admin/model/admin-unions";
@@ -518,6 +517,7 @@ export function UsersPanel({
     onSetUsers,
     onSetTotal,
   });
+  const assignablePlans = React.useMemo(() => billingPlans.filter((plan) => plan.isActive), [billingPlans]);
   const stableEditDialogTarget = useDialogSnapshot(editDialogTarget);
   const stableResetPasswordDraft = useDialogSnapshot(resetDialogTarget ? resetPasswordDraft : null) ?? "";
   const virtualRows = useVirtualTableRows(filteredItems, {
@@ -608,10 +608,6 @@ export function UsersPanel({
                     options: [
                       { label: t("table.allSubscriptions"), value: "" },
                       ...billingPlans.map((item) => ({ label: item.name || item.code, value: item.code })),
-                      ...USER_TIER_OPTIONS.filter((tier) => !billingPlans.some((plan) => plan.code === tier)).map((item) => ({
-                        label: item,
-                        value: item,
-                      })),
                     ],
                   },
                 ]
@@ -901,7 +897,7 @@ export function UsersPanel({
           createPayload={createPayload}
           setCreatePayload={setCreatePayload}
           billingMode={billingMode}
-          billingPlans={billingPlans}
+          billingPlans={assignablePlans}
           createAvatarSource={createAvatarSource}
           onOpenCreateAvatarDialog={handleOpenCreateAvatarDialog}
           onCreateSubmit={onCreateUser}
@@ -940,7 +936,7 @@ export function UsersPanel({
           setEditPayload={setEditPayload}
           billingMode={billingMode}
           billingDisplay={billingDisplay}
-          billingPlans={billingPlans}
+          billingPlans={assignablePlans}
           statusChanged={editStatusChanged}
           timeZoneOptions={timeZoneOptions}
           roleOptions={roleOptions}

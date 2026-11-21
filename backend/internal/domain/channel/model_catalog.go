@@ -371,15 +371,29 @@ func normalizeModelCatalogKey(value string) string {
 }
 
 // CatalogReasoningCapability 把目录条目转换为指定协议上的推理能力；失败时返回 nil 与原因。
-// 优先使用 effort，其次 budget_tokens，最后 toggle；结果必须通过显式声明的同一套校验。
+// OpenAI 兼容聊天协议上，千问优先 budget_tokens，DeepSeek 同时声明开关与强度时用开关加强度；
+// 其余情况优先使用 effort，其次 budget_tokens，最后 toggle。结果必须通过显式声明的同一套校验。
 func CatalogReasoningCapability(entry *ModelCatalogEntry, protocolKey string, vendor string) (*ReasoningCapability, string) {
 	if entry == nil || !entry.Reasoning || len(entry.Options) == 0 {
 		return nil, ReasoningCatalogReasonNotReasoning
 	}
 	qwen := reasoningCatalogIsQwen(entry, vendor)
 	var payload map[string]any
-	if option := entry.option(ReasoningCatalogOptionEffort); option != nil {
-		payload = catalogEffortPayload(option.Values, protocolKey)
+	// 百炼的千问混合思考模型以 enable_thinking / thinking_budget 控制思考，目录同时给出强度时仍优先走预算。
+	if qwen && isReasoningOpenAICompatibleChat(protocolKey) {
+		if option := entry.option(ReasoningCatalogOptionBudget); option != nil {
+			payload = catalogBudgetPayload(*option, protocolKey, qwen)
+		}
+	}
+	if payload == nil && reasoningCatalogIsDeepSeek(entry, vendor) && isReasoningOpenAICompatibleChat(protocolKey) && entry.option(ReasoningCatalogOptionToggle) != nil {
+		if option := entry.option(ReasoningCatalogOptionEffort); option != nil {
+			payload = catalogToggleEffortPayload(option.Values)
+		}
+	}
+	if payload == nil {
+		if option := entry.option(ReasoningCatalogOptionEffort); option != nil {
+			payload = catalogEffortPayload(option.Values, protocolKey)
+		}
 	}
 	if payload == nil {
 		if option := entry.option(ReasoningCatalogOptionBudget); option != nil {
@@ -475,6 +489,22 @@ func (e *ModelCatalogEntry) option(optionType string) *ReasoningCatalogOption {
 
 // reasoningCatalogIsQwen 判断条目是否属于通义千问系列。平台厂商已知时以厂商为准：阿里云托管的其他厂商模型
 // （如 alibaba-cn 下的 kimi）不应按 enable_thinking 下发。厂商未知时才按 canonical 前缀、provider 或模型 id 推测。
+// reasoningCatalogIsDeepSeek 判断条目是否为 DeepSeek 模型：思考开关用 thinking.type、强度用 reasoning_effort。
+// 平台厂商已知时以厂商为准，未知时按 canonical 前缀或 provider 推测。
+func reasoningCatalogIsDeepSeek(entry *ModelCatalogEntry, vendor string) bool {
+	switch normalizeModelCatalogKey(vendor) {
+	case "deepseek":
+		return true
+	case "", "unknown":
+	default:
+		return false
+	}
+	if canonical := normalizeModelCatalogKey(entry.CanonicalID); canonical != "" {
+		return strings.HasPrefix(canonical, "deepseek/")
+	}
+	return normalizeModelCatalogKey(entry.Provider) == "deepseek"
+}
+
 func reasoningCatalogIsQwen(entry *ModelCatalogEntry, vendor string) bool {
 	switch normalizeModelCatalogKey(vendor) {
 	case "alibaba", "qwen":
@@ -529,6 +559,34 @@ func catalogEffortPayload(values []string, protocolKey string) map[string]any {
 	sortReasoningLevels(levels)
 	return map[string]any{
 		"format":  format,
+		"levels":  reasoningLevelsPayload(levels),
+		"default": catalogReasoningDefault(levels),
+	}
+}
+
+// catalogToggleEffortPayload 为同时声明开关与强度的 OpenAI 兼容模型生成开关加强度能力：强度档位前补 none，
+// 由 thinking.type 关闭思考。强度本身已含 none 时交由 openai 格式直接下发 reasoning_effort。
+func catalogToggleEffortPayload(values []string) map[string]any {
+	levels := []string{ReasoningLevelNone}
+	for _, value := range values {
+		level, ok := NormalizeReasoningLevel(value)
+		if !ok {
+			continue
+		}
+		if level == ReasoningLevelNone {
+			return nil
+		}
+		if reasoningFormatAllowsLevel(ReasoningFormatToggleEffort, level) {
+			levels = append(levels, level)
+		}
+	}
+	levels = uniqueModelCatalogKeys(levels...)
+	if len(levels) < 2 {
+		return nil
+	}
+	sortReasoningLevels(levels)
+	return map[string]any{
+		"format":  ReasoningFormatToggleEffort,
 		"levels":  reasoningLevelsPayload(levels),
 		"default": catalogReasoningDefault(levels),
 	}

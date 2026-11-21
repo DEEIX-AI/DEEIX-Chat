@@ -80,6 +80,50 @@ func TestClientCallToolUsesStreamableHTTPJSONRPC(t *testing.T) {
 	}
 }
 
+func TestClientSendsNegotiatedProtocolVersionAfterInitialize(t *testing.T) {
+	const negotiated = "2025-03-26"
+	headers := map[string]string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID     any    `json:"id"`
+			Method string `json:"method"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		headers[req.Method] = r.Header.Get("MCP-Protocol-Version")
+		w.Header().Set("Content-Type", "application/json")
+		switch req.Method {
+		case "initialize":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result":  map[string]any{"protocolVersion": negotiated, "capabilities": map[string]any{}},
+			})
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/list":
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": map[string]any{"tools": []any{}}})
+		default:
+			t.Fatalf("unexpected method %s", req.Method)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(security.NewStrictOutboundPolicy(true))
+	if _, err := client.ListTools(context.Background(), CallConfig{BaseURL: server.URL}); err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	if headers["initialize"] != "" {
+		t.Fatalf("initialize must not carry MCP-Protocol-Version, got %q", headers["initialize"])
+	}
+	for _, method := range []string{"notifications/initialized", "tools/list"} {
+		if headers[method] != negotiated {
+			t.Fatalf("%s MCP-Protocol-Version = %q, want %q", method, headers[method], negotiated)
+		}
+	}
+}
+
 func TestClientCallToolRejectsInvalidArgumentsJSON(t *testing.T) {
 	client := NewClient(security.OutboundPolicy{})
 	_, err := client.CallTool(context.Background(), CallConfig{BaseURL: "http://127.0.0.1/mcp"}, CallInput{

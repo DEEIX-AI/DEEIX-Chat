@@ -107,15 +107,23 @@ type RedeemCodeRequest struct {
 	Code string `json:"code" binding:"required,min=3,max=64"`
 }
 
-// UpdateBillingPlanRequest 保存周期套餐。
-type UpdateBillingPlanRequest struct {
-	Name              string   `json:"name" binding:"required,min=1,max=64"`
-	Description       *string  `json:"description" binding:"required,max=255"`
-	PeriodCreditUSD   *float64 `json:"periodCreditUSD" binding:"required,gte=0"`
-	Currency          string   `json:"currency,omitempty" binding:"omitempty,max=16"`
-	AmountUSD         *float64 `json:"amountUSD" binding:"required,gte=0"`
-	BillingInterval   string   `json:"billingInterval" binding:"required,oneof=month year lifetime"`
-	PermissionGroupID *uint    `json:"permissionGroupID,omitempty" extensions:"x-nullable"`
+// BillingPlanPriceRequest 套餐单个计费周期价格。
+type BillingPlanPriceRequest struct {
+	BillingInterval string   `json:"billingInterval" binding:"required,oneof=month year lifetime" enums:"month,year,lifetime"`
+	AmountUSD       *float64 `json:"amountUSD" binding:"required,gte=0"`
+	IsDefault       bool     `json:"isDefault"`
+}
+
+// SaveBillingPlanRequest 新建或保存周期套餐；code 仅在新建时生效。
+type SaveBillingPlanRequest struct {
+	Code              string                    `json:"code,omitempty" binding:"omitempty,max=32"`
+	Name              string                    `json:"name" binding:"required,min=1,max=64"`
+	Description       *string                   `json:"description" binding:"required,max=255"`
+	PeriodCreditUSD   *float64                  `json:"periodCreditUSD" binding:"required,gte=0"`
+	SortOrder         int                       `json:"sortOrder" binding:"gte=0"`
+	IsActive          *bool                     `json:"isActive" binding:"required"`
+	PermissionGroupID *uint                     `json:"permissionGroupID,omitempty" extensions:"x-nullable"`
+	Prices            []BillingPlanPriceRequest `json:"prices" binding:"required,min=1,max=3,dive"`
 }
 
 type nullableIntRequest struct {
@@ -431,6 +439,11 @@ type RedemptionCodeCreateDataResponse struct {
 	Results []RedemptionCodeResponse `json:"results"`
 }
 
+// BillingPlanDeleteDataResponse 套餐删除响应。
+type BillingPlanDeleteDataResponse struct {
+	Deleted bool `json:"deleted"`
+}
+
 // RedemptionCodeDeleteDataResponse 后台兑换码删除响应。
 type RedemptionCodeDeleteDataResponse struct {
 	Deleted bool `json:"deleted"`
@@ -662,6 +675,12 @@ type BillingConfigResponseDoc struct {
 type BillingPlanResponseDoc struct {
 	ErrorMsg string                  `json:"errorMsg"`
 	Data     BillingPlanDataResponse `json:"data"`
+}
+
+// BillingPlanDeleteResponseDoc 套餐删除响应文档。
+type BillingPlanDeleteResponseDoc struct {
+	ErrorMsg string                        `json:"errorMsg"`
+	Data     BillingPlanDeleteDataResponse `json:"data"`
 }
 
 // RedemptionCodeListResponseDoc 后台兑换码列表响应文档。
@@ -1186,15 +1205,24 @@ func modelPricingInputFromRequest(req UpsertModelPricingRequest) appbilling.Mode
 	}
 }
 
-func planUpdateInputFromRequest(req UpdateBillingPlanRequest) appbilling.PlanUpdateInput {
-	return appbilling.PlanUpdateInput{
+func planSaveInputFromRequest(req SaveBillingPlanRequest) appbilling.PlanSaveInput {
+	prices := make([]appbilling.PlanPriceInput, 0, len(req.Prices))
+	for _, item := range req.Prices {
+		prices = append(prices, appbilling.PlanPriceInput{
+			BillingInterval: item.BillingInterval,
+			AmountCents:     usdToCents(*item.AmountUSD),
+			IsDefault:       item.IsDefault,
+		})
+	}
+	return appbilling.PlanSaveInput{
+		Code:                req.Code,
 		Name:                req.Name,
 		Description:         *req.Description,
 		PeriodCreditNanousd: usdToNanousd(*req.PeriodCreditUSD),
-		Currency:            req.Currency,
-		AmountCents:         usdToCents(*req.AmountUSD),
-		BillingInterval:     req.BillingInterval,
+		SortOrder:           req.SortOrder,
+		IsActive:            *req.IsActive,
 		PermissionGroupID:   req.PermissionGroupID,
+		Prices:              prices,
 	}
 }
 

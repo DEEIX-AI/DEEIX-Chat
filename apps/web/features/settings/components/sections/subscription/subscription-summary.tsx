@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import type { UserDTO } from "@/shared/api/auth-types";
 import type { BillingOverviewData, BillingSubscriptionEntitlementDTO } from "@/shared/api/billing-types";
@@ -20,13 +21,14 @@ import {
   formatShortDate,
   isCurrentBillingPlan,
   planRank,
-  resolveDefaultPrice,
+  listPlanIntervals,
   resolveEPayTypeLabel,
   resolvePaymentProviderLabel,
   resolvePlanActionKind,
   resolvePlanActionLabel,
   resolvePlanButtonVariant,
   resolvePlanFeatures,
+  resolvePlanPriceForInterval,
 } from "@/features/settings/model/subscription-format";
 import type { BillingDisplayOptions } from "@/entities/billing";
 
@@ -270,6 +272,13 @@ export function SubscriptionSummary({
   onConfirmPayment,
 }: SubscriptionSummaryProps) {
   const t = useTranslations("settings.subscriptionPage");
+  const planIntervals = React.useMemo(() => listPlanIntervals(billingPlans), [billingPlans]);
+  const [chosenInterval, setChosenInterval] = React.useState<string | null>(null);
+  const planInterval = chosenInterval && planIntervals.includes(chosenInterval)
+    ? chosenInterval
+    : currentPrice && planIntervals.includes(currentPrice.billingInterval)
+      ? currentPrice.billingInterval
+      : planIntervals[0] ?? null;
   const selectedPlanActionKind = selectedPlan
     ? resolvePlanActionKind(
       selectedPlan,
@@ -421,9 +430,21 @@ export function SubscriptionSummary({
             <DialogTitle>{t("plans.title")}</DialogTitle>
           </DialogHeader>
 
+          {planIntervals.length > 1 && planInterval ? (
+            <Tabs value={planInterval} onValueChange={setChosenInterval} className="items-center">
+              <TabsList aria-label={t("plans.intervalSwitch")}>
+                {planIntervals.map((interval) => (
+                  <TabsTrigger key={interval} value={interval}>
+                    {t(`plans.intervalOptions.${interval}`)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          ) : null}
+
           <div className="space-y-2 xl:hidden">
             {billingPlans.map((plan) => {
-              const price = resolveDefaultPrice(plan);
+              const price = resolvePlanPriceForInterval(plan, planInterval);
               const isCurrent = isCurrentBillingPlan(plan, currentPlan, viewer);
               const actionKind = resolvePlanActionKind(plan, price, isCurrent, currentPlan, protectedPaidPlanRank);
               const actionLabel = resolvePlanActionLabel(actionKind, planActionLabels);
@@ -465,7 +486,7 @@ export function SubscriptionSummary({
 
           <div className="hidden gap-4 pt-4 xl:grid xl:grid-cols-4">
             {billingPlans.map((plan) => {
-              const price = resolveDefaultPrice(plan);
+              const price = resolvePlanPriceForInterval(plan, planInterval);
               const isCurrent = isCurrentBillingPlan(plan, currentPlan, viewer);
               const actionKind = resolvePlanActionKind(plan, price, isCurrent, currentPlan, protectedPaidPlanRank);
               const actionLabel = resolvePlanActionLabel(actionKind, planActionLabels);

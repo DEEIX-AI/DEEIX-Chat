@@ -43,8 +43,10 @@ func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup, gate middlewar
 	adminGroup.GET("/billing/official-pricing/openrouter", m.Handler.GetOpenRouterOfficialPricing)
 
 	gating := adminGroup.Group("", gate.Require("billingGating"))
-	gating.GET("/billing/plans", m.Handler.ListPlans)
+	gating.GET("/billing/plans", m.Handler.ListAdminPlans)
+	gating.POST("/billing/plans", m.Handler.CreatePlan)
 	gating.PATCH("/billing/plans/:id", m.Handler.UpdatePlan)
+	gating.DELETE("/billing/plans/:id", m.Handler.DeletePlan)
 	gating.PATCH("/billing/accounts/:user_id/balance", m.Handler.UpdateBillingAccountBalance)
 	gating.GET("/billing/redemption-codes", m.Handler.ListRedemptionCodes)
 	gating.POST("/billing/redemption-codes", m.Handler.CreateRedemptionCodes)

@@ -37,7 +37,17 @@ func TestResolveModelCapsToleratesSeparatorsWithoutMixingVersions(t *testing.T) 
 		}
 	}
 
-	for _, modelName := range []string{"anthropic/claude-sonnet-4.5", "anthropic/claude_sonnet_4_6", "openai/gpt-sol-5.6", "openai/gpt-luna-5.6"} {
+	for _, modelName := range []string{"anthropic/claude-sonnet-4.5", "anthropic/claude_sonnet_4_5_20250929"} {
+		resolved := ResolveModelCapsWithFallback(modelName, defaultContextWindow)
+		if resolved.Source != ModelCapsSourceCatalog || resolved.ContextWindow != 200_000 || resolved.MaxOutputTokens != 64_000 {
+			t.Fatalf("expected Sonnet 4.5 limits for %q, got %#v", modelName, resolved)
+		}
+	}
+	if resolved := ResolveModelCapsWithFallback("anthropic/claude_sonnet_4_6", defaultContextWindow); resolved.ContextWindow != 1_000_000 {
+		t.Fatalf("expected Sonnet 4.6 to keep its own version rule, got %#v", resolved)
+	}
+
+	for _, modelName := range []string{"anthropic/claude-sonnet-4.4", "openai/gpt-sol-5.6", "openai/gpt-luna-5.6"} {
 		resolved := ResolveModelCapsWithFallback(modelName, defaultContextWindow)
 		if resolved.Source != ModelCapsSourceFallback {
 			t.Fatalf("expected version-specific model %q to use fallback without an exact catalog rule, got %#v", modelName, resolved)
@@ -123,7 +133,7 @@ func TestModelCapsFromCapabilitiesOverridesNameInference(t *testing.T) {
 
 func TestInvalidCapabilitiesKeepCatalogResolution(t *testing.T) {
 	resolved := ResolveModelCapsFromCapabilitiesWithFallback("google/gemini-2.5-pro", `{"contextWindow":0}`, defaultContextWindow)
-	if resolved.Source != ModelCapsSourceCatalog || resolved.ContextWindow != 1_000_000 {
+	if resolved.Source != ModelCapsSourceCatalog || resolved.ContextWindow != 1_048_576 {
 		t.Fatalf("unexpected resolution: %#v", resolved)
 	}
 }
@@ -174,5 +184,27 @@ func TestResolveDisplayContextWindow(t *testing.T) {
 				t.Fatalf("ResolveDisplayContextWindow() = %d, want %d", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestResolveModelCapsCurrentModelFamilies(t *testing.T) {
+	cases := map[string]ModelCaps{
+		"claude-opus-5-5":             {1_000_000, 128_000},
+		"anthropic/claude-haiku-5-5":  {1_000_000, 128_000},
+		"claude-opus-4-7":             {1_000_000, 128_000},
+		"claude-haiku-4-5-20251001":   {200_000, 64_000},
+		"gemini-4-neon":               {1_048_576, 65_536},
+		"google/gemini-3.8-flash":     {1_048_576, 65_536},
+		"gemini-2.5-flash":            {1_048_576, 65_536},
+		"gemini-3.1-flash-image":      {131_072, 32_768},
+		"gemini-3.1-flash-lite-image": {65_536, 4_096},
+		"gemini-nano-banana-2.1":      {131_072, 32_768},
+		"gemini-2.5-flash-image":      {65_536, 32_768},
+	}
+	for modelName, want := range cases {
+		resolved := ResolveModelCapsWithFallback(modelName, defaultContextWindow)
+		if resolved.Source != ModelCapsSourceCatalog || resolved.ModelCaps != want {
+			t.Errorf("%s: got %#v, want %#v", modelName, resolved, want)
+		}
 	}
 }

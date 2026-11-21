@@ -1210,8 +1210,9 @@ func parseGeminiServerSideToolUsage(parsed map[string]any) map[string]int64 {
 	result := make(map[string]int64)
 	for _, rawCandidate := range asSlice(parsed["candidates"]) {
 		candidate := asMap(rawCandidate)
-		if hasGeminiSearchGroundingMetadata(asMap(candidate["groundingMetadata"])) {
-			result["google_search"] = 1
+		// Gemini 3 及以上按搜索查询数计费，一次回答可能发起多次查询；拿不到查询列表时至少计 1 次。
+		if grounding := asMap(candidate["groundingMetadata"]); hasGeminiSearchGroundingMetadata(grounding) {
+			result["google_search"] += max(int64(len(asSlice(grounding["webSearchQueries"]))), 1)
 		}
 		if len(asSlice(asMap(candidate["urlContextMetadata"])["urlMetadata"])) > 0 {
 			result["url_context"] = 1

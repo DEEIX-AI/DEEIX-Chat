@@ -10,7 +10,6 @@ export const USER_STATUS_OPTIONS: AdminUserStatus[] = [
 ];
 
 export const USER_ROLE_OPTIONS: AdminUserRole[] = ["user", "admin", "superadmin"];
-export const USER_TIER_OPTIONS = ["free", "pro", "max", "ultra"] as const;
 
 export const USER_SORT_OPTIONS = [
   { labelKey: "sort.idDesc", value: "id_desc" },

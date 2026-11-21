@@ -3,6 +3,7 @@ package nativetool
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -11,21 +12,32 @@ const (
 	priceUSD0025Nanousd  int64 = 25_000_000
 	priceUSD0005Nanousd  int64 = 5_000_000
 	priceUSD00025Nanousd int64 = 2_500_000
+	priceUSD0014Nanousd  int64 = 14_000_000
+
+	priceCNY0004Micros    int64 = 4_000
+	priceCNY0006Micros    int64 = 6_000
+	priceCNY002Micros     int64 = 20_000
+	priceCNY0073392Micros int64 = 73_392
 )
+
+// DefaultUSDToCNYRate 与 billing.usd_to_cny_rate 的默认值一致，用于未注入平台汇率时折算人民币定价工具。
+const DefaultUSDToCNYRate = 7.2
 
 // Definition 描述后端已适配、可由管理员开启的厂商官方原生工具。
 type Definition struct {
-	Protocol         string
-	Provider         string
-	Type             string
-	Key              string
-	Label            string
-	Description      string
-	Payload          map[string]any
-	DefaultEnabled   bool
-	Billable         bool
-	BillingUnit      string
-	PriceNanousd     int64
+	Protocol       string
+	Provider       string
+	Type           string
+	Key            string
+	Label          string
+	Description    string
+	Payload        map[string]any
+	DefaultEnabled bool
+	Billable       bool
+	BillingUnit    string
+	PriceNanousd   int64
+	// PriceCNYMicros 非零表示厂商按人民币定价（单位：百万分之一元/次），PriceNanousd 由平台汇率折算得出。
+	PriceCNYMicros   int64
 	PriceLabel       string
 	RiskLevel        string
 	UsageAliases     []string
@@ -72,7 +84,7 @@ var definitions = []Definition{
 		DefaultEnabled: true,
 		Billable:       true,
 		BillingUnit:    "call",
-		PriceNanousd:   priceUSD0025Nanousd,
+		PriceNanousd:   priceUSD001Nanousd,
 		UsageAliases:   []string{"web_search"},
 	},
 	{
@@ -81,7 +93,7 @@ var definitions = []Definition{
 		Type:           "web_search_preview",
 		Key:            "openai.web_search_preview",
 		Label:          "Web Search Preview",
-		Description:    "OpenAI hosted web search preview tool.",
+		Description:    "Legacy OpenAI web search preview tool; prefer Web Search.",
 		Payload:        map[string]any{"type": "web_search_preview"},
 		DefaultEnabled: true,
 		Billable:       true,
@@ -100,7 +112,7 @@ var definitions = []Definition{
 		DefaultEnabled: true,
 		Billable:       true,
 		BillingUnit:    "call",
-		PriceNanousd:   priceUSD0025Nanousd,
+		PriceNanousd:   priceUSD001Nanousd,
 		UsageAliases:   []string{"web_search"},
 	},
 	{
@@ -109,7 +121,7 @@ var definitions = []Definition{
 		Type:           "web_search_preview",
 		Key:            "openai.web_search_preview",
 		Label:          "Web Search Preview",
-		Description:    "OpenAI hosted web search preview tool.",
+		Description:    "Legacy OpenAI web search preview tool; prefer Web Search.",
 		Payload:        map[string]any{"type": "web_search_preview"},
 		DefaultEnabled: true,
 		Billable:       true,
@@ -186,6 +198,20 @@ var definitions = []Definition{
 	{
 		Protocol:       "anthropic_messages",
 		Provider:       "Anthropic",
+		Type:           "web_search_20260318",
+		Key:            "anthropic.web_search_20260318",
+		Label:          "Web Search",
+		Description:    "Anthropic hosted web search tool.",
+		Payload:        map[string]any{"type": "web_search_20260318", "name": "web_search", "allowed_callers": []string{"direct"}},
+		DefaultEnabled: true,
+		Billable:       true,
+		BillingUnit:    "search",
+		PriceNanousd:   priceUSD001Nanousd,
+		UsageAliases:   []string{"web_search"},
+	},
+	{
+		Protocol:       "anthropic_messages",
+		Provider:       "Anthropic",
 		Type:           "web_fetch_20250910",
 		Key:            "anthropic.web_fetch_20250910",
 		Label:          "Web Fetch",
@@ -203,6 +229,30 @@ var definitions = []Definition{
 		Label:          "Web Fetch",
 		Description:    "Anthropic hosted web fetch tool.",
 		Payload:        map[string]any{"type": "web_fetch_20260209", "name": "web_fetch", "allowed_callers": []string{"direct"}},
+		DefaultEnabled: true,
+		PriceLabel:     "included",
+		UsageAliases:   []string{"web_fetch"},
+	},
+	{
+		Protocol:       "anthropic_messages",
+		Provider:       "Anthropic",
+		Type:           "web_fetch_20260309",
+		Key:            "anthropic.web_fetch_20260309",
+		Label:          "Web Fetch",
+		Description:    "Anthropic hosted web fetch tool.",
+		Payload:        map[string]any{"type": "web_fetch_20260309", "name": "web_fetch", "allowed_callers": []string{"direct"}},
+		DefaultEnabled: true,
+		PriceLabel:     "included",
+		UsageAliases:   []string{"web_fetch"},
+	},
+	{
+		Protocol:       "anthropic_messages",
+		Provider:       "Anthropic",
+		Type:           "web_fetch_20260318",
+		Key:            "anthropic.web_fetch_20260318",
+		Label:          "Web Fetch",
+		Description:    "Anthropic hosted web fetch tool.",
+		Payload:        map[string]any{"type": "web_fetch_20260318", "name": "web_fetch", "allowed_callers": []string{"direct"}},
 		DefaultEnabled: true,
 		PriceLabel:     "included",
 		UsageAliases:   []string{"web_fetch"},
@@ -228,6 +278,19 @@ var definitions = []Definition{
 		Label:          "Code Execution",
 		Description:    "Anthropic hosted code execution tool.",
 		Payload:        map[string]any{"type": "code_execution_20260120", "name": "code_execution"},
+		DefaultEnabled: true,
+		PriceLabel:     "notMetered",
+		RiskLevel:      "high",
+		UsageAliases:   []string{"code_execution"},
+	},
+	{
+		Protocol:       "anthropic_messages",
+		Provider:       "Anthropic",
+		Type:           "code_execution_20260521",
+		Key:            "anthropic.code_execution_20260521",
+		Label:          "Code Execution",
+		Description:    "Anthropic hosted code execution tool.",
+		Payload:        map[string]any{"type": "code_execution_20260521", "name": "code_execution"},
 		DefaultEnabled: true,
 		PriceLabel:     "notMetered",
 		RiskLevel:      "high",
@@ -321,7 +384,9 @@ var definitions = []Definition{
 		Description:      "Google hosted search grounding tool.",
 		Payload:          map[string]any{"google_search": map[string]any{}},
 		DefaultEnabled:   true,
-		PriceLabel:       "notMetered",
+		Billable:         true,
+		BillingUnit:      "search",
+		PriceNanousd:     priceUSD0014Nanousd,
 		UsageAliases:     []string{"google_search"},
 		rawTypeFieldKeys: []string{"google_search", "googleSearch"},
 	},
@@ -334,7 +399,9 @@ var definitions = []Definition{
 		Description:      "Google hosted search grounding tool.",
 		Payload:          map[string]any{"google_search": map[string]any{}},
 		DefaultEnabled:   true,
-		PriceLabel:       "notMetered",
+		Billable:         true,
+		BillingUnit:      "search",
+		PriceNanousd:     priceUSD0014Nanousd,
 		UsageAliases:     []string{"google_search"},
 		rawTypeFieldKeys: []string{"google_search", "googleSearch"},
 	},
@@ -374,7 +441,9 @@ var definitions = []Definition{
 		Description:    "Google hosted search grounding tool.",
 		Payload:        map[string]any{"type": "google_search"},
 		DefaultEnabled: true,
-		PriceLabel:     "notMetered",
+		Billable:       true,
+		BillingUnit:    "search",
+		PriceNanousd:   priceUSD0014Nanousd,
 		UsageAliases:   []string{"google_search"},
 	},
 	{
@@ -402,20 +471,208 @@ var definitions = []Definition{
 		PriceLabel:     "notMetered",
 		UsageAliases:   []string{"url_context"},
 	},
+	{
+		Protocol:       "openai_chat_completions",
+		Provider:       "DeepSeek",
+		Type:           "deepseek_web_search",
+		Key:            "deepseek.web_search",
+		Label:          "Web Search",
+		Description:    "DeepSeek hosted web and image search (deepseek-flash). Billed as model tokens only.",
+		Payload:        map[string]any{"type": "deepseek_web_search"},
+		DefaultEnabled: true,
+		PriceLabel:     "included",
+		UsageAliases:   []string{"deepseek_web_search"},
+	},
+	{
+		Protocol:       "openai_chat_completions",
+		Provider:       "DeepSeek",
+		Type:           "deepseek_read_url",
+		Key:            "deepseek.read_url",
+		Label:          "Read URL",
+		Description:    "DeepSeek hosted URL reading (deepseek-flash). Billed as model tokens only.",
+		Payload:        map[string]any{"type": "deepseek_read_url"},
+		DefaultEnabled: true,
+		PriceLabel:     "included",
+		UsageAliases:   []string{"deepseek_read_url"},
+	},
+	{
+		Protocol:       "openai_responses",
+		Provider:       "DeepSeek",
+		Type:           "deepseek_web_search",
+		Key:            "deepseek.web_search",
+		Label:          "Web Search",
+		Description:    "DeepSeek hosted web and image search (deepseek-flash). Billed as model tokens only.",
+		Payload:        map[string]any{"type": "deepseek_web_search"},
+		DefaultEnabled: true,
+		PriceLabel:     "included",
+		UsageAliases:   []string{"deepseek_web_search"},
+	},
+	{
+		Protocol:       "openai_responses",
+		Provider:       "DeepSeek",
+		Type:           "deepseek_read_url",
+		Key:            "deepseek.read_url",
+		Label:          "Read URL",
+		Description:    "DeepSeek hosted URL reading (deepseek-flash). Billed as model tokens only.",
+		Payload:        map[string]any{"type": "deepseek_read_url"},
+		DefaultEnabled: true,
+		PriceLabel:     "included",
+		UsageAliases:   []string{"deepseek_read_url"},
+	},
+	{
+		Protocol:       "anthropic_messages",
+		Provider:       "DeepSeek",
+		Type:           "deepseek_web_search",
+		Key:            "deepseek.web_search",
+		Label:          "Web Search",
+		Description:    "DeepSeek hosted web and image search (deepseek-flash). Billed as model tokens only.",
+		Payload:        map[string]any{"type": "deepseek_web_search", "name": "deepseek_web_search"},
+		DefaultEnabled: true,
+		PriceLabel:     "included",
+		UsageAliases:   []string{"deepseek_web_search"},
+	},
+	{
+		Protocol:       "anthropic_messages",
+		Provider:       "DeepSeek",
+		Type:           "deepseek_read_url",
+		Key:            "deepseek.read_url",
+		Label:          "Read URL",
+		Description:    "DeepSeek hosted URL reading (deepseek-flash). Billed as model tokens only.",
+		Payload:        map[string]any{"type": "deepseek_read_url", "name": "deepseek_read_url"},
+		DefaultEnabled: true,
+		PriceLabel:     "included",
+		UsageAliases:   []string{"deepseek_read_url"},
+	},
+	{
+		Protocol:       "openai_responses",
+		Provider:       "Bailian",
+		Type:           "web_search",
+		Key:            "bailian.web_search",
+		Label:          "Web Search",
+		Description:    "Alibaba Cloud Model Studio built-in web search (China mainland and global regions): CNY 4 per 1,000 calls plus model tokens.",
+		Payload:        map[string]any{"type": "web_search"},
+		DefaultEnabled: true,
+		Billable:       true,
+		BillingUnit:    "call",
+		PriceCNYMicros: priceCNY0004Micros,
+		UsageAliases:   []string{"bailian_web_search"},
+	},
+	{
+		Protocol:       "anthropic_messages",
+		Provider:       "Bailian",
+		Type:           "web_search_20250305",
+		Key:            "bailian.web_search",
+		Label:          "Web Search",
+		Description:    "Alibaba Cloud Model Studio built-in web search (China mainland and global regions): CNY 4 per 1,000 calls plus model tokens.",
+		Payload:        map[string]any{"type": "web_search_20250305", "name": "web_search"},
+		DefaultEnabled: true,
+		Billable:       true,
+		BillingUnit:    "call",
+		PriceCNYMicros: priceCNY0004Micros,
+		UsageAliases:   []string{"bailian_web_search"},
+	},
+	{
+		Protocol:       "openai_responses",
+		Provider:       "Bailian",
+		Type:           "web_search",
+		Key:            "bailian.web_search_intl",
+		Label:          "Web Search (Singapore)",
+		Description:    "Alibaba Cloud Model Studio built-in web search (Singapore region): CNY 73.39 per 1,000 calls plus model tokens.",
+		Payload:        map[string]any{"type": "web_search"},
+		DefaultEnabled: true,
+		Billable:       true,
+		BillingUnit:    "call",
+		PriceCNYMicros: priceCNY0073392Micros,
+		UsageAliases:   []string{"bailian_web_search_intl"},
+	},
+	{
+		Protocol:       "anthropic_messages",
+		Provider:       "Bailian",
+		Type:           "web_search_20250305",
+		Key:            "bailian.web_search_intl",
+		Label:          "Web Search (Singapore)",
+		Description:    "Alibaba Cloud Model Studio built-in web search (Singapore region): CNY 73.39 per 1,000 calls plus model tokens.",
+		Payload:        map[string]any{"type": "web_search_20250305", "name": "web_search"},
+		DefaultEnabled: true,
+		Billable:       true,
+		BillingUnit:    "call",
+		PriceCNYMicros: priceCNY0073392Micros,
+		UsageAliases:   []string{"bailian_web_search_intl"},
+	},
+	{
+		Protocol:       "openai_responses",
+		Provider:       "Volcengine Ark",
+		Type:           "web_search",
+		Key:            "ark.web_search",
+		Label:          "Web Search",
+		Description:    "Volcengine Ark web content plugin (search engine source): CNY 4 per 1,000 calls after the monthly free quota, plus model tokens.",
+		Payload:        map[string]any{"type": "web_search"},
+		DefaultEnabled: true,
+		Billable:       true,
+		BillingUnit:    "call",
+		PriceCNYMicros: priceCNY0004Micros,
+		UsageAliases:   []string{"ark_web_search"},
+	},
+	{
+		Protocol:       "openai_responses",
+		Provider:       "Volcengine Ark",
+		Type:           "web_search",
+		Key:            "ark.web_search_content_source",
+		Label:          "Web Search with Content Sources",
+		Description:    "Volcengine Ark web content plugin with Toutiao, Douyin and Moji sources: CNY 6 per 1,000 calls for each source that returns results.",
+		Payload:        map[string]any{"type": "web_search", "sources": []any{"toutiao", "douyin", "moji"}},
+		DefaultEnabled: true,
+		Billable:       true,
+		BillingUnit:    "call",
+		PriceCNYMicros: priceCNY0006Micros,
+		UsageAliases:   []string{"ark_web_search_content_source"},
+	},
+	{
+		Protocol:       "openai_responses",
+		Provider:       "Volcengine Ark",
+		Type:           "web_search",
+		Key:            "ark.doubao_search",
+		Label:          "Doubao Search",
+		Description:    "Volcengine Ark Doubao Search Custom edition: CNY 0.02 per call plus model tokens.",
+		Payload:        map[string]any{"type": "web_search", "sources": []any{"doubao"}},
+		DefaultEnabled: true,
+		Billable:       true,
+		BillingUnit:    "call",
+		PriceCNYMicros: priceCNY002Micros,
+		UsageAliases:   []string{"ark_doubao_search"},
+	},
+	{
+		Protocol:       "anthropic_messages",
+		Provider:       "Volcengine Ark",
+		Type:           "web_search_20250305",
+		Key:            "ark.doubao_search",
+		Label:          "Doubao Search",
+		Description:    "Volcengine Ark Doubao Search Custom edition: CNY 0.02 per call plus model tokens.",
+		Payload:        map[string]any{"type": "web_search_20250305", "name": "web_search"},
+		DefaultEnabled: true,
+		Billable:       true,
+		BillingUnit:    "call",
+		PriceCNYMicros: priceCNY002Micros,
+		UsageAliases:   []string{"ark_doubao_search"},
+	},
 }
 
 var usagePricesByKey = map[string]UsagePrice{
-	"openai.web_search":                         {Provider: "openai", ServiceName: "OpenAI Web search", NanousdPerCall: priceUSD0025Nanousd},
+	"openai.web_search":                         {Provider: "openai", ServiceName: "OpenAI Web search", NanousdPerCall: priceUSD001Nanousd},
 	"openai.web_search_preview":                 {Provider: "openai", ServiceName: "OpenAI Web search preview", NanousdPerCall: priceUSD0025Nanousd},
 	"openai.shell":                              {Provider: "openai", ServiceName: "OpenAI Shell"},
 	"openai.image_generation":                   {Provider: "openai", ServiceName: "OpenAI Image Generation"},
 	"openai.code_interpreter":                   {Provider: "openai", ServiceName: "OpenAI Code Interpreter"},
 	"anthropic.web_search_20250305":             {Provider: "anthropic", ServiceName: "Anthropic Web search", NanousdPerCall: priceUSD001Nanousd},
 	"anthropic.web_search_20260209":             {Provider: "anthropic", ServiceName: "Anthropic Web search", NanousdPerCall: priceUSD001Nanousd},
+	"anthropic.web_search_20260318":             {Provider: "anthropic", ServiceName: "Anthropic Web search", NanousdPerCall: priceUSD001Nanousd},
 	"anthropic.web_fetch_20250910":              {Provider: "anthropic", ServiceName: "Anthropic Web Fetch"},
 	"anthropic.web_fetch_20260209":              {Provider: "anthropic", ServiceName: "Anthropic Web Fetch"},
+	"anthropic.web_fetch_20260309":              {Provider: "anthropic", ServiceName: "Anthropic Web Fetch"},
+	"anthropic.web_fetch_20260318":              {Provider: "anthropic", ServiceName: "Anthropic Web Fetch"},
 	"anthropic.code_execution_20250825":         {Provider: "anthropic", ServiceName: "Anthropic Code Execution"},
 	"anthropic.code_execution_20260120":         {Provider: "anthropic", ServiceName: "Anthropic Code Execution"},
+	"anthropic.code_execution_20260521":         {Provider: "anthropic", ServiceName: "Anthropic Code Execution"},
 	"anthropic.advisor_20260301":                {Provider: "anthropic", ServiceName: "Anthropic Advisor"},
 	"anthropic.tool_search_tool_regex_20251119": {Provider: "anthropic", ServiceName: "Anthropic Tool Search"},
 	"anthropic.tool_search_tool_bm25_20251119":  {Provider: "anthropic", ServiceName: "Anthropic Tool Search"},
@@ -424,9 +681,23 @@ var usagePricesByKey = map[string]UsagePrice{
 	"xai.code_interpreter":                      {Provider: "xai", ServiceName: "xAI Code Execution", NanousdPerCall: priceUSD0005Nanousd},
 	"xai.attachment_search":                     {Provider: "xai", ServiceName: "xAI File Attachments Search", NanousdPerCall: priceUSD001Nanousd},
 	"xai.collections_search":                    {Provider: "xai", ServiceName: "xAI Collections Search / RAG", NanousdPerCall: priceUSD00025Nanousd},
-	"google.google_search":                      {Provider: "google", ServiceName: "Google Search grounding"},
+	"google.google_search":                      {Provider: "google", ServiceName: "Google Search grounding", NanousdPerCall: priceUSD0014Nanousd},
 	"google.code_execution":                     {Provider: "google", ServiceName: "Google Code Execution"},
 	"google.url_context":                        {Provider: "google", ServiceName: "Google URL Context"},
+	"bailian.web_search":                        {Provider: "bailian", ServiceName: "Bailian Web Search"},
+	"bailian.web_search_intl":                   {Provider: "bailian", ServiceName: "Bailian Web Search (Singapore)"},
+	"ark.web_search":                            {Provider: "ark", ServiceName: "Ark Web Search"},
+	"ark.web_search_content_source":             {Provider: "ark", ServiceName: "Ark Web Search Content Sources"},
+	"ark.doubao_search":                         {Provider: "ark", ServiceName: "Ark Doubao Search"},
+}
+
+// vendorUsagePricingKeys 是 LLM 适配层按上游厂商改写后的工具用量名，与协议无关。
+var vendorUsagePricingKeys = map[string]string{
+	"bailian_web_search":            "bailian.web_search",
+	"bailian_web_search_intl":       "bailian.web_search_intl",
+	"ark_web_search":                "ark.web_search",
+	"ark_web_search_content_source": "ark.web_search_content_source",
+	"ark_doubao_search":             "ark.doubao_search",
 }
 
 // Definitions 返回全部官方原生工具定义。
@@ -900,6 +1171,9 @@ func UsagePriceByKeyWithOverrides(key string, overrides map[string]PricingOverri
 
 // UsagePriceForToolWithOverrides 返回指定协议下实际 toolName 对应的按次价格。
 func UsagePriceForToolWithOverrides(protocol string, toolName string, definitions []Definition, overrides map[string]PricingOverride) (UsagePrice, bool) {
+	if key, ok := vendorUsagePricingKeys[strings.TrimSpace(toolName)]; ok {
+		return vendorUsagePrice(key, definitions, overrides)
+	}
 	if key, ok := UsagePricingKey(protocol, toolName); ok {
 		return UsagePriceByKeyWithOverrides(key, overrides)
 	}
@@ -908,6 +1182,43 @@ func UsagePriceForToolWithOverrides(protocol string, toolName string, definition
 		return UsagePrice{}, false
 	}
 	return usagePriceFromDefinitionWithOverrides(definition, overrides)
+}
+
+// vendorUsagePrice 返回按厂商改写后的工具价格：默认价取自目录定义（已按平台汇率折算），与协议无关。
+func vendorUsagePrice(key string, definitions []Definition, overrides map[string]PricingOverride) (UsagePrice, bool) {
+	price := usagePricesByKey[key]
+	for _, definition := range definitions {
+		if strings.TrimSpace(definition.Key) == key {
+			price.NanousdPerCall = definition.PriceNanousd
+			break
+		}
+	}
+	if override, ok := overrides[key]; ok {
+		price.NanousdPerCall = override.PriceNanousd
+	}
+	if price.NanousdPerCall <= 0 {
+		return UsagePrice{}, false
+	}
+	return price, true
+}
+
+// ApplyCNYRate 按平台 USD→CNY 汇率重新折算人民币定价工具的默认价格。
+func ApplyCNYRate(items []Definition, usdToCNYRate float64) []Definition {
+	result := make([]Definition, 0, len(items))
+	for _, definition := range items {
+		if definition.PriceCNYMicros > 0 {
+			definition.PriceNanousd = cnyMicrosToNanousd(definition.PriceCNYMicros, usdToCNYRate)
+		}
+		result = append(result, definition)
+	}
+	return result
+}
+
+func cnyMicrosToNanousd(micros int64, usdToCNYRate float64) int64 {
+	if usdToCNYRate <= 0 || math.IsNaN(usdToCNYRate) || math.IsInf(usdToCNYRate, 0) {
+		usdToCNYRate = DefaultUSDToCNYRate
+	}
+	return int64(math.Round(float64(micros) * 1000 / usdToCNYRate))
 }
 
 // FindUsageDefinition 按协议和上游返回的工具名解析目录定义。
@@ -989,6 +1300,12 @@ func nativeToolServiceName(definition Definition) string {
 
 func normalizePricingOverrides(overrides map[string]PricingOverride, definitions []Definition) (map[string]PricingOverride, error) {
 	defaults := PricingOverridesFromDefinitions(PricingDefinitionsFromDefinitions(definitions))
+	cnyPricedKeys := make(map[string]struct{})
+	for _, definition := range definitions {
+		if definition.PriceCNYMicros > 0 {
+			cnyPricedKeys[strings.TrimSpace(definition.Key)] = struct{}{}
+		}
+	}
 	result := make(map[string]PricingOverride, len(overrides))
 	for key, override := range overrides {
 		key = strings.TrimSpace(key)
@@ -1005,6 +1322,10 @@ func normalizePricingOverrides(overrides map[string]PricingOverride, definitions
 		}
 		override.PriceLabel = ""
 		override.Billable = override.PriceNanousd > 0
+		// 人民币定价工具的价格等于当前汇率折算值时不保存覆盖，使其继续跟随平台汇率。
+		if _, cny := cnyPricedKeys[key]; cny && override.PriceNanousd == defaultOverride.PriceNanousd {
+			continue
+		}
 		if len([]rune(override.Unit)) > 32 {
 			return nil, fmt.Errorf("native tool pricing %s unit length must be <= 32", key)
 		}
@@ -1038,6 +1359,9 @@ func inferToolTypeFromRawKeys(protocol string, raw map[string]any) string {
 }
 
 func cloneDefinition(definition Definition) Definition {
+	if definition.PriceCNYMicros > 0 && definition.PriceNanousd == 0 {
+		definition.PriceNanousd = cnyMicrosToNanousd(definition.PriceCNYMicros, DefaultUSDToCNYRate)
+	}
 	definition.Payload = cloneMap(definition.Payload)
 	definition.UsageAliases = append([]string(nil), definition.UsageAliases...)
 	definition.rawTypeFieldKeys = append([]string(nil), definition.rawTypeFieldKeys...)

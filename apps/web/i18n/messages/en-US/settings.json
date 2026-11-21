@@ -632,6 +632,12 @@
       "features": {
         "monthlyCredit": "{credit} monthly credit",
         "freeModelsNotIncluded": "Free models do not count toward the credit."
+      },
+      "intervalSwitch": "Billing interval",
+      "intervalOptions": {
+        "month": "Monthly",
+        "year": "Yearly",
+        "lifetime": "Lifetime"
       }
     },
     "payment": {

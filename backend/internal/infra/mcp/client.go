@@ -26,6 +26,12 @@ const (
 	defaultConnectTimeout   = 10 * time.Second
 )
 
+// session 记录 initialize 协商出的会话；协议要求后续请求都携带协商版本的 MCP-Protocol-Version 头。
+type session struct {
+	id              string
+	protocolVersion string
+}
+
 // Client 封装 MCP Streamable HTTP JSON-RPC 客户端。
 type Client struct {
 	httpClients *outboundhttp.Pool
@@ -63,7 +69,7 @@ func (c *Client) ListTools(ctx context.Context, cfg CallConfig) ([]Tool, error) 
 	if err != nil {
 		return nil, err
 	}
-	result, err := c.rpc(ctx, cfg, session, "tools/list", map[string]any{}, false)
+	result, _, err := c.rpcWithSession(ctx, cfg, session, "tools/list", map[string]any{}, false)
 	if err != nil {
 		return nil, err
 	}
@@ -99,14 +105,14 @@ func (c *Client) CallTool(ctx context.Context, cfg CallConfig, input CallInput) 
 			"request_id":      strings.TrimSpace(input.RequestID),
 		},
 	}
-	result, err := c.rpc(ctx, cfg, session, "tools/call", params, false)
+	result, _, err := c.rpcWithSession(ctx, cfg, session, "tools/call", params, false)
 	if err != nil {
 		return "", err
 	}
 	return normalizeToolCallResult(result)
 }
 
-func (c *Client) initialize(ctx context.Context, cfg CallConfig) (string, error) {
+func (c *Client) initialize(ctx context.Context, cfg CallConfig) (session, error) {
 	params := map[string]any{
 		"protocolVersion": protocolVersion,
 		"capabilities":    map[string]any{},
@@ -115,33 +121,37 @@ func (c *Client) initialize(ctx context.Context, cfg CallConfig) (string, error)
 			"version": "0.1.0",
 		},
 	}
-	_, sessionID, err := c.rpcWithSession(ctx, cfg, "", "initialize", params, false)
+	result, current, err := c.rpcWithSession(ctx, cfg, session{}, "initialize", params, false)
 	if err != nil {
-		return "", err
+		return session{}, err
 	}
-	_, _, err = c.rpcWithSession(ctx, cfg, sessionID, "notifications/initialized", nil, true)
-	if err != nil {
-		return "", err
+	var initialized struct {
+		ProtocolVersion string `json:"protocolVersion"`
 	}
-	return sessionID, nil
-}
-
-func (c *Client) rpc(ctx context.Context, cfg CallConfig, sessionID string, method string, params any, notification bool) (json.RawMessage, error) {
-	result, _, err := c.rpcWithSession(ctx, cfg, sessionID, method, params, notification)
-	return result, err
+	if err = json.Unmarshal(result, &initialized); err != nil {
+		return session{}, err
+	}
+	current.protocolVersion = strings.TrimSpace(initialized.ProtocolVersion)
+	if current.protocolVersion == "" {
+		current.protocolVersion = protocolVersion
+	}
+	if _, _, err = c.rpcWithSession(ctx, cfg, current, "notifications/initialized", nil, true); err != nil {
+		return session{}, err
+	}
+	return current, nil
 }
 
 func (c *Client) rpcWithSession(
 	ctx context.Context,
 	cfg CallConfig,
-	sessionID string,
+	current session,
 	method string,
 	params any,
 	notification bool,
-) (json.RawMessage, string, error) {
+) (json.RawMessage, session, error) {
 	endpoint, err := buildEndpointURL(cfg)
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
 	payload := map[string]any{
 		"jsonrpc": "2.0",
@@ -155,7 +165,7 @@ func (c *Client) rpcWithSession(
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
 
 	requestCtx, cancel := context.WithTimeout(ctx, time.Duration(resolveRequestTimeoutMS(cfg.TimeoutMS))*time.Millisecond)
@@ -163,15 +173,18 @@ func (c *Client) rpcWithSession(
 
 	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, endpoint, bytes.NewReader(raw))
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	if token := strings.TrimSpace(cfg.AuthToken); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	if value := strings.TrimSpace(sessionID); value != "" {
+	if value := strings.TrimSpace(current.id); value != "" {
 		req.Header.Set("Mcp-Session-Id", value)
+	}
+	if value := strings.TrimSpace(current.protocolVersion); value != "" {
+		req.Header.Set("MCP-Protocol-Version", value)
 	}
 	for key, value := range cfg.Headers {
 		headerKey := strings.TrimSpace(key)
@@ -183,28 +196,28 @@ func (c *Client) rpcWithSession(
 
 	resp, err := c.httpClients.Do(req, cfg.BaseURL, "")
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
 	if nextSessionID := strings.TrimSpace(resp.Header.Get("Mcp-Session-Id")); nextSessionID != "" {
-		sessionID = nextSessionID
+		current.id = nextSessionID
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, sessionID, fmt.Errorf("mcp request failed: status=%d", resp.StatusCode)
+		return nil, current, fmt.Errorf("mcp request failed: status=%d", resp.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8*1024*1024))
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
 	if notification {
-		return nil, sessionID, nil
+		return nil, current, nil
 	}
 	result, err := parseRPCResponse(resp.Header.Get("Content-Type"), body)
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
-	return result, sessionID, nil
+	return result, current, nil
 }
 
 func resolveRequestTimeoutMS(timeoutMS int) int {

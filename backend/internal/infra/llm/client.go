@@ -650,7 +650,9 @@ func (c *Client) Generate(ctx context.Context, route portllm.RouteConfig, input 
 	if err != nil {
 		return nil, err
 	}
-	return adapter.Generate(ctx, route, input)
+	output, err := adapter.Generate(ctx, route, input)
+	attributeVendorServerToolUsage(route, output)
+	return output, err
 }
 
 // GenerateStream 调用上游适配器并实时回传增量文本。
@@ -664,7 +666,9 @@ func (c *Client) GenerateStream(
 	if err != nil {
 		return nil, err
 	}
-	return adapter.GenerateStream(ctx, route, input, onEvent)
+	output, err := adapter.GenerateStream(ctx, route, input, onEvent)
+	attributeVendorServerToolUsage(route, output)
+	return output, err
 }
 
 // ListModels 调用上游 models 目录接口。

@@ -30,6 +30,9 @@ const (
 	ReasoningFormatGeminiBudget    = "gemini_budget"
 	ReasoningFormatQwen            = "qwen"
 	ReasoningFormatToggle          = "toggle"
+	// ReasoningFormatToggleEffort 是 DeepSeek 等 OpenAI 兼容接口的思考开关加强度：none 发 thinking.type=disabled，
+	// 其余档位发 thinking.type=enabled 与 reasoning_effort。
+	ReasoningFormatToggleEffort = "toggle_effort"
 )
 
 // 推理能力关心的请求协议键，与模型参数策略使用的协议键保持一致。
@@ -159,7 +162,7 @@ func ReasoningFormatSupportsProtocol(format string, protocolKey string) bool {
 		return protocolKey == ReasoningProtocolGeminiGenerate || protocolKey == ReasoningProtocolGeminiInteractions
 	case ReasoningFormatGeminiBudget:
 		return protocolKey == ReasoningProtocolGeminiGenerate
-	case ReasoningFormatQwen, ReasoningFormatToggle:
+	case ReasoningFormatQwen, ReasoningFormatToggle, ReasoningFormatToggleEffort:
 		return protocolKey == ReasoningProtocolOpenAIChat || protocolKey == ReasoningProtocolOpenRouterChat
 	}
 	return false
@@ -172,7 +175,7 @@ func ReasoningNativeLevelPath(format string, protocolKey string) string {
 		return ""
 	}
 	switch format {
-	case ReasoningFormatOpenAI, ReasoningFormatAnthropicEffort, ReasoningFormatGeminiLevel:
+	case ReasoningFormatOpenAI, ReasoningFormatAnthropicEffort, ReasoningFormatGeminiLevel, ReasoningFormatToggleEffort:
 		return legacyReasoningControlPath(protocolKey)
 	}
 	return ""
@@ -232,6 +235,8 @@ func ReasoningOwnedOptionPaths(format string, protocolKey string) []string {
 		return []string{"enable_thinking", "thinking_budget"}
 	case ReasoningFormatToggle:
 		return []string{"thinking.type", "thinking.budget_tokens", "thinking.display"}
+	case ReasoningFormatToggleEffort:
+		return []string{"thinking.type", "thinking.budget_tokens", "reasoning_effort", "reasoning.effort"}
 	}
 	return nil
 }
@@ -379,14 +384,15 @@ func parseReasoningCapability(raw any) (*ReasoningCapability, error) {
 func isKnownReasoningFormat(format string) bool {
 	switch format {
 	case ReasoningFormatOpenAI, ReasoningFormatAnthropicEffort, ReasoningFormatAnthropicBudget,
-		ReasoningFormatGeminiLevel, ReasoningFormatGeminiBudget, ReasoningFormatQwen, ReasoningFormatToggle:
+		ReasoningFormatGeminiLevel, ReasoningFormatGeminiBudget, ReasoningFormatQwen, ReasoningFormatToggle,
+		ReasoningFormatToggleEffort:
 		return true
 	}
 	return false
 }
 
 // reasoningFormatAllowsLevel 返回格式可声明的档位：ultra 仅 openai 格式可用，anthropic_effort 没有 minimal，
-// gemini_level 只有 minimal..high，其余格式允许其余规范档位。
+// gemini_level 只有 minimal..xhigh，其余格式允许其余规范档位。
 func reasoningFormatAllowsLevel(format string, level string) bool {
 	if level == ReasoningLevelUltra {
 		return format == ReasoningFormatOpenAI
@@ -396,7 +402,7 @@ func reasoningFormatAllowsLevel(format string, level string) bool {
 		return level != ReasoningLevelMinimal
 	case ReasoningFormatGeminiLevel:
 		switch level {
-		case ReasoningLevelMinimal, ReasoningLevelLow, ReasoningLevelMedium, ReasoningLevelHigh:
+		case ReasoningLevelMinimal, ReasoningLevelLow, ReasoningLevelMedium, ReasoningLevelHigh, ReasoningLevelXHigh:
 			return true
 		}
 		return false

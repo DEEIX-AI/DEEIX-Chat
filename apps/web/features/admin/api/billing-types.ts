@@ -23,7 +23,7 @@ import type {
   RedemptionCodeDeleteDataResponse,
   RedemptionCodeResponse,
   UpdateBillingAccountBalanceRequest,
-  UpdateBillingPlanRequest,
+  SaveBillingPlanRequest,
   UpsertModelPricingRequest,
 } from "@deeix/api-contract";
 import type { PagePayload } from "@/shared/api/common-types";
@@ -48,8 +48,9 @@ export type AdminOfficialPricingCatalogData = Omit<OpenRouterOfficialPricingData
   items: AdminOfficialPricingCatalogItemDTO[];
 };
 
-export type UpdateAdminBillingPlanRequest = Omit<UpdateBillingPlanRequest, "billingInterval" | "permissionGroupID"> & {
-  billingInterval: "month" | "year" | "lifetime" | string;
+export type AdminBillingInterval = "month" | "year" | "lifetime";
+
+export type SaveAdminBillingPlanRequest = Omit<SaveBillingPlanRequest, "permissionGroupID"> & {
   permissionGroupID?: number | null;
 };
 

@@ -1119,7 +1119,18 @@
     "claudeCodeExecution": "Claude native code execution",
     "claudeAdvisor": "Claude native advisor tool (Beta)",
     "claudeToolSearchRegex": "Claude native tool search (Regex)",
-    "claudeToolSearchBm25": "Claude native tool search (BM25)"
+    "claudeToolSearchBm25": "Claude native tool search (BM25)",
+    "anthropic__web_search_20260318": "Use Anthropic hosted web search for realtime information.",
+    "anthropic__web_fetch_20260309": "Use Anthropic hosted web fetch to read specific web pages.",
+    "anthropic__web_fetch_20260318": "Use Anthropic hosted web fetch to read specific web pages.",
+    "anthropic__code_execution_20260521": "Use Anthropic hosted code execution.",
+    "deepseek__web_search": "Use DeepSeek hosted web and image search (deepseek-flash). Billed as tokens only.",
+    "deepseek__read_url": "Use DeepSeek hosted URL reading (deepseek-flash). Billed as tokens only.",
+    "bailian__web_search": "Alibaba Cloud Model Studio built-in web search (China mainland and global regions): CNY 4 per 1,000 calls plus model tokens.",
+    "bailian__web_search_intl": "Alibaba Cloud Model Studio built-in web search (Singapore region): CNY 73.39 per 1,000 calls plus model tokens.",
+    "ark__web_search": "Volcengine Ark web content plugin (search engine source): CNY 4 per 1,000 calls after the monthly free quota, plus model tokens.",
+    "ark__web_search_content_source": "Volcengine Ark web content plugin with Toutiao, Douyin and Moji sources: CNY 6 per 1,000 calls for each source that returns results.",
+    "ark__doubao_search": "Volcengine Ark Doubao Search Custom edition: CNY 0.02 per call plus model tokens."
   },
   "nativeToolLabels": {
     "openai__web_search": "Web search",
@@ -1151,7 +1162,18 @@
     "codeExecution": "Code execution",
     "advisor": "Advisor",
     "toolSearchRegex": "Tool search (Regex)",
-    "toolSearchBm25": "Tool search (BM25)"
+    "toolSearchBm25": "Tool search (BM25)",
+    "anthropic__web_search_20260318": "Web search",
+    "anthropic__web_fetch_20260309": "Web fetch",
+    "anthropic__web_fetch_20260318": "Web fetch",
+    "anthropic__code_execution_20260521": "Code execution",
+    "deepseek__web_search": "Web search",
+    "deepseek__read_url": "Read URL",
+    "bailian__web_search": "Web search",
+    "bailian__web_search_intl": "Web search (Singapore)",
+    "ark__web_search": "Web search",
+    "ark__web_search_content_source": "Web search with content sources",
+    "ark__doubao_search": "Doubao Search"
   },
   "reasoningEffort": {
     "title": "Reasoning effort",

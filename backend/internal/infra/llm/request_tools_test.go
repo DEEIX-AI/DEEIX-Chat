@@ -466,7 +466,7 @@ func TestApplyAnthropicBetaHeadersForNativeTools(t *testing.T) {
 			{"type": "web_fetch_20260209"},
 			{"type": "code_execution_20260120"},
 			{"type": "advisor_20260301"},
-			{"type": "mcp_toolset_20251119"},
+			{"type": "mcp_toolset"},
 		},
 	}, nil)
 
@@ -474,7 +474,7 @@ func TestApplyAnthropicBetaHeadersForNativeTools(t *testing.T) {
 	if strings.Contains(header, "web-fetch") || strings.Contains(header, "code-execution") {
 		t.Fatalf("expected GA native tools to avoid beta headers, got %q", header)
 	}
-	if !strings.Contains(header, "advisor-2026-03-01") {
+	if !strings.Contains(header, "advisor-tool-2026-03-01") {
 		t.Fatalf("expected advisor beta header, got %q", header)
 	}
 	if !strings.Contains(header, "mcp-client-2025-11-20") {

@@ -51,16 +51,18 @@ type modelCapsRule struct {
 // 精确型号优先于通用型号；动态目录（例如 OpenRouter）只作为管理端建议，
 // 不在请求链路上改变运行时能力。
 var modelCapsCatalog = []modelCapsRule{
-	{patterns: []string{"claude-sonnet-3.7", "claude-3.7"}, caps: ModelCaps{200_000, 16_000}},
-	{patterns: []string{"claude-sonnet-3.5", "claude-haiku-3.5", "claude-3.5"}, caps: ModelCaps{200_000, 8_192}},
+	{patterns: []string{"claude-opus-4.5", "claude-sonnet-4.5", "claude-haiku-4.5"}, caps: ModelCaps{200_000, 64_000}},
+	{patterns: []string{"claude-opus-4.6", "claude-opus-4.7", "claude-opus-4.8", "claude-sonnet-4.6"}, caps: ModelCaps{1_000_000, 128_000}},
+	{patterns: []string{"claude-opus-5", "claude-sonnet-5", "claude-haiku-5", "claude-fable-5", "claude-mythos-5"}, caps: ModelCaps{1_000_000, 128_000}},
 	{patterns: []string{"gpt-4.1"}, caps: ModelCaps{1_047_576, 32_768}},
-	{patterns: []string{"gpt-4.5"}, caps: ModelCaps{128_000, 16_384}},
 	{patterns: []string{"gpt-4o"}, caps: ModelCaps{128_000, 16_384}},
-	{patterns: []string{"o1", "o3", "o4"}, caps: ModelCaps{200_000, 100_000}},
+	{patterns: []string{"o3", "o4"}, caps: ModelCaps{200_000, 100_000}},
 	{patterns: []string{"gpt-3.5"}, caps: ModelCaps{16_385, 4_096}},
-	{patterns: []string{"gemini-2.0", "gemini-2.5"}, caps: ModelCaps{1_000_000, 8_192}},
-	{patterns: []string{"gemini-1.5"}, caps: ModelCaps{1_000_000, 8_192}},
-	{patterns: []string{"grok-3"}, caps: ModelCaps{131_072, 16_384}},
+	// 图片模型的窗口与同代文本模型不同，须排在 gemini-x 通用规则之前。
+	{patterns: []string{"gemini-3.1-flash-lite-image"}, caps: ModelCaps{65_536, 4_096}},
+	{patterns: []string{"gemini-3.1-flash-image", "gemini-nano-banana-2.1"}, caps: ModelCaps{131_072, 32_768}},
+	{patterns: []string{"gemini-2.5-flash-image"}, caps: ModelCaps{65_536, 32_768}},
+	{patterns: []string{"gemini-2.5", "gemini-3", "gemini-4"}, caps: ModelCaps{1_048_576, 65_536}},
 }
 
 // NormalizeCatalogContextWindow 把目录声明的上下文窗口收敛到平台允许的覆盖范围，超出范围返回 0（视为未知）。
