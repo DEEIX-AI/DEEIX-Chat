@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 	"time"
@@ -90,15 +91,13 @@ func (c *Client) modernRequest(ctx context.Context, cfg CallConfig, call rpcCall
 	if err != nil {
 		return nil, err
 	}
-	params := make(map[string]any, len(call.Params)+1)
-	for key, value := range call.Params {
-		params[key] = value
+	params := maps.Clone(call.Params)
+	if params == nil {
+		params = map[string]any{}
 	}
 	meta := map[string]any{}
 	if existing, ok := params["_meta"].(map[string]any); ok {
-		for key, value := range existing {
-			meta[key] = value
-		}
+		maps.Copy(meta, existing)
 	}
 	meta[metaProtocolVersion] = modernProtocolVersion
 	meta[metaClientInfo] = clientInfo
