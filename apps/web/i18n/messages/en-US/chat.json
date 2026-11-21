@@ -1119,7 +1119,13 @@
     "claudeCodeExecution": "Claude native code execution",
     "claudeAdvisor": "Claude native advisor tool (Beta)",
     "claudeToolSearchRegex": "Claude native tool search (Regex)",
-    "claudeToolSearchBm25": "Claude native tool search (BM25)"
+    "claudeToolSearchBm25": "Claude native tool search (BM25)",
+    "anthropic__web_search_20260318": "Use Anthropic hosted web search for realtime information.",
+    "anthropic__web_fetch_20260309": "Use Anthropic hosted web fetch to read specific web pages.",
+    "anthropic__web_fetch_20260318": "Use Anthropic hosted web fetch to read specific web pages.",
+    "anthropic__code_execution_20260521": "Use Anthropic hosted code execution.",
+    "deepseek__web_search": "Use DeepSeek hosted web and image search (deepseek-flash). Billed as tokens only.",
+    "deepseek__read_url": "Use DeepSeek hosted URL reading (deepseek-flash). Billed as tokens only."
   },
   "nativeToolLabels": {
     "openai__web_search": "Web search",
@@ -1151,7 +1157,13 @@
     "codeExecution": "Code execution",
     "advisor": "Advisor",
     "toolSearchRegex": "Tool search (Regex)",
-    "toolSearchBm25": "Tool search (BM25)"
+    "toolSearchBm25": "Tool search (BM25)",
+    "anthropic__web_search_20260318": "Web search",
+    "anthropic__web_fetch_20260309": "Web fetch",
+    "anthropic__web_fetch_20260318": "Web fetch",
+    "anthropic__code_execution_20260521": "Code execution",
+    "deepseek__web_search": "Web search",
+    "deepseek__read_url": "Read URL"
   },
   "reasoningEffort": {
     "title": "Reasoning effort",

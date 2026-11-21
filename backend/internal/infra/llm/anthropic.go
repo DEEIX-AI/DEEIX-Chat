@@ -923,7 +923,39 @@ func parseAnthropicResponse(body []byte, classifier anthropicToolClassifier) (*p
 		ServerSideToolUsage: parseAnthropicServerSideToolUsage(parsed),
 		RawJSON:             string(body),
 	}
+	attributeDeepSeekServerToolUsage(result)
 	return result, nil
+}
+
+// deepSeekServerToolUsageKeys 把 DeepSeek Anthropic 兼容接口沿用的用量字段映射回 DeepSeek 自己的工具名，
+// 避免按 Anthropic web_search / web_fetch 的价格计费；DeepSeek 的服务端工具只按 token 计费。
+var deepSeekServerToolUsageKeys = map[string]string{
+	"web_search": "deepseek_web_search",
+	"web_fetch":  "deepseek_read_url",
+}
+
+func attributeDeepSeekServerToolUsage(result *portllm.GenerateOutput) {
+	if result == nil || len(result.ServerSideToolUsage) == 0 {
+		return
+	}
+	deepSeek := false
+	for _, call := range result.ServerToolCalls {
+		if strings.HasPrefix(strings.TrimSpace(call.ToolName), "deepseek_") {
+			deepSeek = true
+			break
+		}
+	}
+	if !deepSeek {
+		return
+	}
+	usage := make(map[string]int64, len(result.ServerSideToolUsage))
+	for key, count := range result.ServerSideToolUsage {
+		if mapped, ok := deepSeekServerToolUsageKeys[key]; ok {
+			key = mapped
+		}
+		usage[key] += count
+	}
+	result.ServerSideToolUsage = usage
 }
 
 // extractAnthropicText 从 content 数组中提取所有 text block 的文字。
@@ -1152,6 +1184,7 @@ func (c *Client) generateAnthropicStream(
 		return nil, portllm.MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
 	}
 	compactAnthropicStreamToolCalls(result)
+	attributeDeepSeekServerToolUsage(result)
 	return result, nil
 }
 

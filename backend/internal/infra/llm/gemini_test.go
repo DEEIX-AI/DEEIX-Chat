@@ -213,6 +213,24 @@ func TestBuildGeminiImageGenerationRequestBodyPreservesGoogleImageSearchOptions(
 	}
 }
 
+func TestParseGeminiResponseCountsEachGoogleSearchQuery(t *testing.T) {
+	output, err := parseGeminiResponse([]byte(`{
+		"candidates": [{
+			"content": {"parts": [{"text": "answer"}]},
+			"groundingMetadata": {
+				"webSearchQueries": ["first query", "second query", "third query"],
+				"groundingChunks": [{"web": {"uri": "https://example.com"}}]
+			}
+		}]
+	}`))
+	if err != nil {
+		t.Fatalf("parse Gemini response: %v", err)
+	}
+	if output.ServerSideToolUsage["google_search"] != 3 {
+		t.Fatalf("expected one google_search usage per query, got %#v", output.ServerSideToolUsage)
+	}
+}
+
 func TestParseGeminiResponseCapturesGoogleSearchUsage(t *testing.T) {
 	output, err := parseGeminiResponse([]byte(`{
 		"candidates": [{

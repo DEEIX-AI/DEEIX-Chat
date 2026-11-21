@@ -164,6 +164,43 @@ func TestPricingOverridesApplyToDisplayAndUsagePricing(t *testing.T) {
 	}
 }
 
+func TestOfficialNativeToolPrices(t *testing.T) {
+	cases := []struct {
+		protocol string
+		tool     string
+		want     int64
+	}{
+		{"openai_responses", "web_search", 10_000_000},
+		{"openai_chat_completions", "web_search", 10_000_000},
+		{"openai_responses", "web_search_preview", 25_000_000},
+		{"anthropic_messages", "web_search", 10_000_000},
+		{"gemini_generate_content", "google_search", 14_000_000},
+		{"gemini_interactions", "google_search", 14_000_000},
+	}
+	for _, tc := range cases {
+		price, ok := UsagePriceForToolWithOverrides(tc.protocol, tc.tool, Definitions(), nil)
+		if !ok || price.NanousdPerCall != tc.want {
+			t.Errorf("%s %s: price = %d (ok=%v), want %d", tc.protocol, tc.tool, price.NanousdPerCall, ok, tc.want)
+		}
+	}
+	for _, protocol := range []string{"openai_chat_completions", "openai_responses", "anthropic_messages"} {
+		for _, tool := range []string{"deepseek_web_search", "deepseek_read_url"} {
+			if _, ok := Find(protocol, tool); !ok {
+				t.Errorf("missing DeepSeek tool %s on %s", tool, protocol)
+			}
+			if price, billed := UsagePriceForToolWithOverrides(protocol, tool, Definitions(), nil); billed {
+				t.Errorf("DeepSeek %s on %s must only bill tokens, got %#v", tool, protocol, price)
+			}
+		}
+	}
+	for _, toolType := range []string{"web_search_20260318", "web_fetch_20260309", "web_fetch_20260318", "code_execution_20260521"} {
+		definition, ok := Find("anthropic_messages", toolType)
+		if !ok || definition.Key != "anthropic."+toolType {
+			t.Errorf("missing Anthropic tool %s: %#v", toolType, definition)
+		}
+	}
+}
+
 func TestPricingDefinitionsMatchOfficialNativeToolKeys(t *testing.T) {
 	officialKeys := make(map[string]struct{})
 	for _, definition := range Definitions() {
