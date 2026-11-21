@@ -453,11 +453,24 @@ func (s *Service) NormalizeNativeToolPricingJSON(ctx context.Context, overrides 
 	return value, nil
 }
 
+// nativeToolDefinitions 返回平台原生工具目录，人民币定价工具按平台 USD→CNY 汇率折算默认价。
 func (s *Service) nativeToolDefinitions(ctx context.Context) ([]nativetool.Definition, error) {
-	if s == nil || s.nativeToolCatalog == nil {
+	if s == nil {
 		return nativetool.Definitions(), nil
 	}
-	return s.nativeToolCatalog.ListNativeToolDefinitions(ctx)
+	definitions := nativetool.Definitions()
+	if s.nativeToolCatalog != nil {
+		items, err := s.nativeToolCatalog.ListNativeToolDefinitions(ctx)
+		if err != nil {
+			return nil, err
+		}
+		definitions = items
+	}
+	rate, err := s.repo.GetUSDToCNYRate(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nativetool.ApplyCNYRate(definitions, resolveUSDToCNYRate(rate)), nil
 }
 
 func nativeToolPricingViews(items []nativetool.PricingDefinition) []NativeToolPricingView {

@@ -231,6 +231,7 @@ type billingRepositoryStub struct {
 	prepaidNanousd             int64
 	nativeToolBillingEnabled   bool
 	nativeToolPricingJSON      string
+	usdToCNYRate               float64
 	requestedPlatformModelName string
 	replacedSubscription       *domainbilling.Subscription
 	reservationRequest         *domainbilling.UsageBalanceReservationRequest
@@ -261,6 +262,10 @@ func (r *billingRepositoryStub) GetBillingPrepaidAmountNanousd(context.Context) 
 
 func (r *billingRepositoryStub) GetNativeToolBillingEnabled(context.Context) (bool, error) {
 	return r.nativeToolBillingEnabled, nil
+}
+
+func (r *billingRepositoryStub) GetUSDToCNYRate(context.Context) (float64, error) {
+	return r.usdToCNYRate, nil
 }
 
 func (r *billingRepositoryStub) GetNativeToolPricingJSON(context.Context) (string, error) {

@@ -1125,7 +1125,12 @@
     "anthropic__web_fetch_20260318": "使用 Anthropic 托管网页抓取读取指定网页内容。",
     "anthropic__code_execution_20260521": "使用 Anthropic 托管代码执行工具运行代码。",
     "deepseek__web_search": "使用 DeepSeek 托管的网页与图片搜索（deepseek-flash），只按 token 计费。",
-    "deepseek__read_url": "使用 DeepSeek 托管的链接读取（deepseek-flash），只按 token 计费。"
+    "deepseek__read_url": "使用 DeepSeek 托管的链接读取（deepseek-flash），只按 token 计费。",
+    "bailian__web_search": "百炼内置联网搜索（中国内地及全球部署地域）：每千次 4 元，另按模型 token 计费。",
+    "bailian__web_search_intl": "百炼内置联网搜索（新加坡地域）：每千次 73.39 元，另按模型 token 计费。",
+    "ark__web_search": "火山方舟联网内容插件（全网搜索源）：每月免费额度用完后每千次 4 元，另按模型 token 计费。",
+    "ark__web_search_content_source": "火山方舟联网内容插件附加头条、抖音、墨迹内容源：每个返回结果的内容源每千次 6 元。",
+    "ark__doubao_search": "火山方舟豆包搜索 Custom 版：每次 0.02 元，另按模型 token 计费。"
   },
   "nativeToolLabels": {
     "openai__web_search": "网页搜索",
@@ -1163,7 +1168,12 @@
     "anthropic__web_fetch_20260318": "网页抓取",
     "anthropic__code_execution_20260521": "代码执行",
     "deepseek__web_search": "网页搜索",
-    "deepseek__read_url": "读取链接"
+    "deepseek__read_url": "读取链接",
+    "bailian__web_search": "联网搜索",
+    "bailian__web_search_intl": "联网搜索（新加坡）",
+    "ark__web_search": "联网搜索",
+    "ark__web_search_content_source": "联网搜索（附加内容源）",
+    "ark__doubao_search": "豆包搜索"
   },
   "reasoningEffort": {
     "title": "思考强度",

@@ -319,3 +319,74 @@ func TestPricingOverridesUseDefaults(t *testing.T) {
 		t.Fatal("expected customized Google search price to differ from defaults")
 	}
 }
+
+func TestVendorSearchUsagePricing(t *testing.T) {
+	definitions := Definitions()
+	cases := map[string]int64{
+		"bailian_web_search":            555_556,
+		"bailian_web_search_intl":       10_193_333,
+		"ark_web_search":                555_556,
+		"ark_web_search_content_source": 833_333,
+		"ark_doubao_search":             2_777_778,
+	}
+	for _, protocol := range []string{"openai_responses", "openai_chat_completions", "anthropic_messages"} {
+		for toolName, want := range cases {
+			price, ok := UsagePriceForToolWithOverrides(protocol, toolName, definitions, nil)
+			if !ok || price.NanousdPerCall != want {
+				t.Errorf("%s %s price = %#v %v, want %d", protocol, toolName, price, ok, want)
+			}
+		}
+	}
+	overrides := map[string]PricingOverride{"ark.doubao_search": {PriceNanousd: 1_000_000, Unit: "call", Billable: true}}
+	if price, ok := UsagePriceForToolWithOverrides("openai_responses", "ark_doubao_search", definitions, overrides); !ok || price.NanousdPerCall != 1_000_000 || price.Provider != "ark" {
+		t.Fatalf("override price = %#v %v", price, ok)
+	}
+	if price, _ := UsagePriceForToolWithOverrides("openai_responses", "web_search", definitions, nil); price.Provider != "openai" {
+		t.Fatalf("plain web_search must still price as OpenAI, got %#v", price)
+	}
+	if definition, ok := Find("openai_responses", "web_search"); !ok || definition.Key != "openai.web_search" {
+		t.Fatalf("Find must keep resolving web_search to OpenAI, got %#v", definition)
+	}
+	seen := map[string]bool{}
+	for _, item := range PricingDefinitions() {
+		seen[item.ToolKey] = item.Billable
+	}
+	for _, key := range []string{"bailian.web_search", "bailian.web_search_intl", "ark.web_search", "ark.web_search_content_source", "ark.doubao_search"} {
+		if !seen[key] {
+			t.Errorf("pricing catalog must list billable %s", key)
+		}
+	}
+}
+
+func TestApplyCNYRateConvertsVendorPrices(t *testing.T) {
+	definitions := ApplyCNYRate(Definitions(), 8)
+	price, ok := UsagePriceForToolWithOverrides("openai_responses", "ark_doubao_search", definitions, nil)
+	if !ok || price.NanousdPerCall != 2_500_000 {
+		t.Fatalf("CNY 0.02 at 8 CNY/USD = %#v %v, want 2500000", price, ok)
+	}
+	if price, _ := UsagePriceForToolWithOverrides("openai_responses", "web_search", definitions, nil); price.NanousdPerCall != priceUSD001Nanousd {
+		t.Fatalf("USD-priced tools must not change with the CNY rate, got %#v", price)
+	}
+	if got := ApplyCNYRate(Definitions(), 0); got[0].PriceNanousd != Definitions()[0].PriceNanousd {
+		t.Fatal("invalid rate must keep USD prices")
+	}
+
+	overrides := map[string]PricingOverride{
+		"ark.doubao_search": {PriceNanousd: 2_500_000},
+		"ark.web_search":    {PriceNanousd: 1_000_000},
+	}
+	raw, err := PricingOverridesJSONForDefinitions(overrides, definitions)
+	if err != nil {
+		t.Fatalf("normalize overrides: %v", err)
+	}
+	parsed, err := ParsePricingOverridesJSONForDefinitions(raw, definitions)
+	if err != nil {
+		t.Fatalf("parse overrides: %v", err)
+	}
+	if _, kept := parsed["ark.doubao_search"]; kept {
+		t.Fatal("a CNY tool saved at its converted default must not be pinned, so it keeps following the rate")
+	}
+	if parsed["ark.web_search"].PriceNanousd != 1_000_000 {
+		t.Fatalf("a real CNY tool override must be kept, got %#v", parsed)
+	}
+}

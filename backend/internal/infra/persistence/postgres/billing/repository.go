@@ -1316,6 +1316,24 @@ func (r *Repo) GetNativeToolPricingJSON(ctx context.Context) (string, error) {
 	return strings.TrimSpace(item.Value), nil
 }
 
+// GetUSDToCNYRate 查询平台 USD→CNY 汇率；未配置或无效时返回 0，由调用方回退默认值。
+func (r *Repo) GetUSDToCNYRate(ctx context.Context) (float64, error) {
+	var item models.SystemSetting
+	if err := r.db.WithContext(ctx).
+		Where("namespace = ? AND key = ?", "billing", "usd_to_cny_rate").
+		First(&item).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, nil
+		}
+		return 0, dberror.Translate(err)
+	}
+	rate, err := strconv.ParseFloat(strings.TrimSpace(item.Value), 64)
+	if err != nil {
+		return 0, nil
+	}
+	return rate, nil
+}
+
 // GetModelPricing 查询模型计费配置。
 func (r *Repo) GetModelPricing(ctx context.Context, platformModelName string) (*domainbilling.ModelPricing, error) {
 	var item models.ModelPricing

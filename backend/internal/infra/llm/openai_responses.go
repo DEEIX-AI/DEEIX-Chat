@@ -1121,15 +1121,12 @@ func collectResponseCitationURLs(raw any, result *[]string) {
 
 func parseServerSideToolUsage(parsed map[string]any) map[string]int64 {
 	usage := asMap(parsed["usage"])
-	if len(usage) == 0 {
-		return nil
-	}
-	raw := asMap(usage["server_side_tool_usage"])
-	if len(raw) == 0 {
-		raw = asMap(usage["tool_usage"])
-	}
-	if len(raw) == 0 {
-		raw = asMap(usage["server_side_tool_usage_details"])
+	var raw map[string]any
+	// 百炼 Qwen3.8 在 usage.x_tools、Qwen4 在响应顶层 tool_usage 返回 {num_requests} / {count} 形式的工具次数。
+	for _, candidate := range []any{usage["server_side_tool_usage"], usage["tool_usage"], usage["server_side_tool_usage_details"], usage["x_tools"], parsed["tool_usage"]} {
+		if raw = asMap(candidate); len(raw) > 0 {
+			break
+		}
 	}
 	if len(raw) == 0 {
 		return nil
@@ -1137,7 +1134,7 @@ func parseServerSideToolUsage(parsed map[string]any) map[string]int64 {
 	result := make(map[string]int64, len(raw))
 	for key, value := range raw {
 		if normalized := normalizeServerSideToolUsageKey(key); normalized != "" {
-			result[normalized] = toInt64(value)
+			result[normalized] = serverToolUsageCount(value)
 		}
 	}
 	return result

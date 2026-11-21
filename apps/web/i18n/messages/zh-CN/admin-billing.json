@@ -20,7 +20,7 @@
     "displayCurrency": "费用展示币种",
     "displayCurrencyDescription": "统一控制用户端费用展示。账务、扣费和接口字段仍按 USD / 纳美元记录。",
     "usdToCnyRate": "USD -> CNY 汇率",
-    "usdToCnyRateDescription": "平台级人民币换算汇率，供费用展示和人民币支付金额计算使用。",
+    "usdToCnyRateDescription": "平台级人民币换算汇率，供费用展示、人民币支付金额计算，以及百炼、火山方舟等人民币定价工具的默认价格折算使用。",
     "displayCurrencies": {
       "usd": "美元（$）",
       "cny": "人民币（¥）"

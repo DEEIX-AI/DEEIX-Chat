@@ -105,7 +105,7 @@ var settingSpecs = []settingSpec{
 		Validate: boolValue()},
 	{Namespace: "billing", Key: "native_tool_pricing_json", ValueType: "json", Default: nativetool.DefaultPricingJSON(), Description: "官方原生工具计费覆盖 JSON，按 toolKey 配置 priceNanousd、unit、priceLabel、billable",
 		Validate: validateNativeToolPricingJSON},
-	{Namespace: "billing", Key: "usd_to_cny_rate", ValueType: "string", Default: "7.2", Description: "易支付美元兑人民币汇率",
+	{Namespace: "billing", Key: "usd_to_cny_rate", ValueType: "string", Default: "7.2", Description: "美元兑人民币汇率（易支付收款与人民币定价原生工具折算）",
 		Validate: floatRange(0.000001, 1000)},
 	{Namespace: "billing", Key: "display_currency", ValueType: "string", Default: "USD", Description: "用户端费用展示币种：USD 或 CNY",
 		Validate: oneOf("USD", "CNY")},

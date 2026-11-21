@@ -20,7 +20,7 @@
     "displayCurrency": "Display currency",
     "displayCurrencyDescription": "Controls user-facing cost display globally. Accounting, deductions, and API fields remain recorded in USD / nanousd.",
     "usdToCnyRate": "USD -> CNY rate",
-    "usdToCnyRateDescription": "Platform-level CNY conversion rate used for cost display and CNY payment amounts.",
+    "usdToCnyRateDescription": "Platform-level CNY conversion rate used for cost display, CNY payment amounts, and default prices of CNY-priced tools such as Bailian and Volcengine Ark.",
     "displayCurrencies": {
       "usd": "US Dollar ($)",
       "cny": "Chinese Yuan (¥)"
