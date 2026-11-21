@@ -9,6 +9,8 @@ type CallConfig struct {
 	AuthToken string
 	TimeoutMS int
 	Headers   map[string]string
+	// InputSchema 是被调用工具的 inputSchema，用于把 x-mcp-header 标注的参数镜像为 Mcp-Param-* 请求头。
+	InputSchema json.RawMessage
 }
 
 // CallInput 定义 MCP 工具调用入参。

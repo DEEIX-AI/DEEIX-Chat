@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,15 +22,25 @@ import (
 )
 
 const (
-	protocolVersion         = "2025-06-18"
+	// legacyProtocolVersion 是回退到 initialize 握手时请求的最新握手版本，服务端可协商为更早的版本。
+	legacyProtocolVersion   = "2025-11-25"
 	defaultRequestTimeoutMS = 10000
 	defaultConnectTimeout   = 10 * time.Second
+	maxToolListPages        = 100
 )
+
+// session 记录 initialize 协商出的会话；协议要求后续请求都携带协商版本的 MCP-Protocol-Version 头。
+type session struct {
+	id              string
+	protocolVersion string
+}
 
 // Client 封装 MCP Streamable HTTP JSON-RPC 客户端。
 type Client struct {
 	httpClients *outboundhttp.Pool
 	nextID      atomic.Int64
+	// eras 按服务地址缓存协议世代判定，规范要求按 origin 缓存，避免每次请求都先试探再回退。
+	eras sync.Map
 }
 
 // 数据契约定义在 ports/mcp，此处保留同名引用供实现使用。
@@ -57,23 +68,44 @@ func newMCPHTTPClient(policy security.OutboundPolicy, redirectPolicy security.Ou
 	return outboundhttp.ManagedClient{Client: client, CloseIdleConnections: transport.CloseIdleConnections}, nil
 }
 
-// ListTools 读取 MCP 服务暴露的工具列表。
+// ListTools 读取 MCP 服务暴露的全部工具（跟随 nextCursor 分页）；x-mcp-header 标注不合法的工具按规范排除。
 func (c *Client) ListTools(ctx context.Context, cfg CallConfig) ([]Tool, error) {
-	session, err := c.initialize(ctx, cfg)
+	result, current, err := c.call(ctx, cfg, rpcCall{Method: "tools/list", Params: map[string]any{}})
 	if err != nil {
 		return nil, err
 	}
-	result, err := c.rpc(ctx, cfg, session, "tools/list", map[string]any{}, false)
-	if err != nil {
-		return nil, err
+	tools := make([]Tool, 0)
+	for page := 1; ; page++ {
+		var payload struct {
+			Tools      []Tool `json:"tools"`
+			NextCursor string `json:"nextCursor"`
+		}
+		if err = json.Unmarshal(result, &payload); err != nil {
+			return nil, err
+		}
+		for _, tool := range payload.Tools {
+			if _, headerErr := parseHeaderParams(tool.InputSchema); headerErr != nil {
+				continue
+			}
+			tools = append(tools, tool)
+		}
+		cursor := strings.TrimSpace(payload.NextCursor)
+		if cursor == "" {
+			return tools, nil
+		}
+		if page >= maxToolListPages {
+			return nil, fmt.Errorf("mcp tools/list exceeded %d pages", maxToolListPages)
+		}
+		params := map[string]any{"cursor": cursor}
+		if current.protocolVersion != "" {
+			result, current, err = c.rpcWithSession(ctx, cfg, current, "tools/list", params, false)
+		} else {
+			result, current, err = c.call(ctx, cfg, rpcCall{Method: "tools/list", Params: params})
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
-	var payload struct {
-		Tools []Tool `json:"tools"`
-	}
-	if err = json.Unmarshal(result, &payload); err != nil {
-		return nil, err
-	}
-	return payload.Tools, nil
 }
 
 // CallTool 执行远端 MCP 工具。
@@ -86,9 +118,9 @@ func (c *Client) CallTool(ctx context.Context, cfg CallConfig, input CallInput) 
 	if err != nil {
 		return "", err
 	}
-	session, err := c.initialize(ctx, cfg)
+	headerParams, err := parseHeaderParams(cfg.InputSchema)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("mcp tool %s has an invalid input schema: %w", toolName, err)
 	}
 	params := map[string]any{
 		"name":      toolName,
@@ -99,49 +131,55 @@ func (c *Client) CallTool(ctx context.Context, cfg CallConfig, input CallInput) 
 			"request_id":      strings.TrimSpace(input.RequestID),
 		},
 	}
-	result, err := c.rpc(ctx, cfg, session, "tools/call", params, false)
+	result, _, err := c.call(ctx, cfg, rpcCall{
+		Method:       "tools/call",
+		Name:         toolName,
+		Params:       params,
+		ParamHeaders: buildParamHeaders(headerParams, args),
+	})
 	if err != nil {
 		return "", err
 	}
 	return normalizeToolCallResult(result)
 }
 
-func (c *Client) initialize(ctx context.Context, cfg CallConfig) (string, error) {
+func (c *Client) initialize(ctx context.Context, cfg CallConfig) (session, error) {
 	params := map[string]any{
-		"protocolVersion": protocolVersion,
+		"protocolVersion": legacyProtocolVersion,
 		"capabilities":    map[string]any{},
-		"clientInfo": map[string]any{
-			"name":    "deeix-chat",
-			"version": "0.1.0",
-		},
+		"clientInfo":      clientInfo,
 	}
-	_, sessionID, err := c.rpcWithSession(ctx, cfg, "", "initialize", params, false)
+	result, current, err := c.rpcWithSession(ctx, cfg, session{}, "initialize", params, false)
 	if err != nil {
-		return "", err
+		return session{}, err
 	}
-	_, _, err = c.rpcWithSession(ctx, cfg, sessionID, "notifications/initialized", nil, true)
-	if err != nil {
-		return "", err
+	var initialized struct {
+		ProtocolVersion string `json:"protocolVersion"`
 	}
-	return sessionID, nil
-}
-
-func (c *Client) rpc(ctx context.Context, cfg CallConfig, sessionID string, method string, params any, notification bool) (json.RawMessage, error) {
-	result, _, err := c.rpcWithSession(ctx, cfg, sessionID, method, params, notification)
-	return result, err
+	if err = json.Unmarshal(result, &initialized); err != nil {
+		return session{}, err
+	}
+	current.protocolVersion = strings.TrimSpace(initialized.ProtocolVersion)
+	if current.protocolVersion == "" {
+		current.protocolVersion = legacyProtocolVersion
+	}
+	if _, _, err = c.rpcWithSession(ctx, cfg, current, "notifications/initialized", nil, true); err != nil {
+		return session{}, err
+	}
+	return current, nil
 }
 
 func (c *Client) rpcWithSession(
 	ctx context.Context,
 	cfg CallConfig,
-	sessionID string,
+	current session,
 	method string,
 	params any,
 	notification bool,
-) (json.RawMessage, string, error) {
+) (json.RawMessage, session, error) {
 	endpoint, err := buildEndpointURL(cfg)
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
 	payload := map[string]any{
 		"jsonrpc": "2.0",
@@ -155,7 +193,7 @@ func (c *Client) rpcWithSession(
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
 
 	requestCtx, cancel := context.WithTimeout(ctx, time.Duration(resolveRequestTimeoutMS(cfg.TimeoutMS))*time.Millisecond)
@@ -163,15 +201,18 @@ func (c *Client) rpcWithSession(
 
 	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, endpoint, bytes.NewReader(raw))
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	if token := strings.TrimSpace(cfg.AuthToken); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	if value := strings.TrimSpace(sessionID); value != "" {
+	if value := strings.TrimSpace(current.id); value != "" {
 		req.Header.Set("Mcp-Session-Id", value)
+	}
+	if value := strings.TrimSpace(current.protocolVersion); value != "" {
+		req.Header.Set("MCP-Protocol-Version", value)
 	}
 	for key, value := range cfg.Headers {
 		headerKey := strings.TrimSpace(key)
@@ -183,28 +224,28 @@ func (c *Client) rpcWithSession(
 
 	resp, err := c.httpClients.Do(req, cfg.BaseURL, "")
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
 	if nextSessionID := strings.TrimSpace(resp.Header.Get("Mcp-Session-Id")); nextSessionID != "" {
-		sessionID = nextSessionID
+		current.id = nextSessionID
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, sessionID, fmt.Errorf("mcp request failed: status=%d", resp.StatusCode)
+		return nil, current, fmt.Errorf("mcp request failed: status=%d", resp.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8*1024*1024))
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
 	if notification {
-		return nil, sessionID, nil
+		return nil, current, nil
 	}
 	result, err := parseRPCResponse(resp.Header.Get("Content-Type"), body)
 	if err != nil {
-		return nil, sessionID, err
+		return nil, current, err
 	}
-	return result, sessionID, nil
+	return result, current, nil
 }
 
 func resolveRequestTimeoutMS(timeoutMS int) int {
@@ -258,9 +299,38 @@ func parseRPCResponse(contentType string, body []byte) (json.RawMessage, error) 
 	return response.Result, nil
 }
 
+// extractSSEDataPayload 返回 SSE 流中携带 JSON-RPC 响应（含 result 或 error）的事件数据；服务端可能先推送
+// 与请求相关的通知（如 notifications/progress），不能把首个事件当作响应。没有响应事件时返回首个事件。
 func extractSSEDataPayload(payload string) string {
+	events := sseEventPayloads(payload)
+	for _, event := range events {
+		var probe map[string]json.RawMessage
+		if json.Unmarshal([]byte(event), &probe) != nil {
+			continue
+		}
+		if _, ok := probe["result"]; ok {
+			return event
+		}
+		if _, ok := probe["error"]; ok {
+			return event
+		}
+	}
+	if len(events) > 0 {
+		return events[0]
+	}
+	return ""
+}
+
+func sseEventPayloads(payload string) []string {
 	reader := bufio.NewReader(strings.NewReader(payload))
+	events := make([]string, 0, 2)
 	dataLines := make([]string, 0, 4)
+	flush := func() {
+		if len(dataLines) > 0 {
+			events = append(events, strings.TrimSpace(strings.Join(dataLines, "\n")))
+			dataLines = dataLines[:0]
+		}
+	}
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil && len(line) == 0 {
@@ -268,19 +338,15 @@ func extractSSEDataPayload(payload string) string {
 		}
 		line = strings.TrimRight(line, "\r\n")
 		if line == "" {
-			if len(dataLines) > 0 {
-				break
-			}
+			flush()
 			continue
 		}
-		if !strings.HasPrefix(line, "data:") {
-			continue
+		if strings.HasPrefix(line, "data:") {
+			dataLines = append(dataLines, strings.TrimPrefix(strings.TrimPrefix(line, "data:"), " "))
 		}
-		data := strings.TrimPrefix(line, "data:")
-		data = strings.TrimPrefix(data, " ")
-		dataLines = append(dataLines, data)
 	}
-	return strings.TrimSpace(strings.Join(dataLines, "\n"))
+	flush()
+	return events
 }
 
 type rpcResponse struct {
@@ -291,8 +357,19 @@ type rpcResponse struct {
 }
 
 type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
+}
+
+func (e rpcError) supportedVersions() []string {
+	var data struct {
+		Supported []string `json:"supported"`
+	}
+	if err := json.Unmarshal(e.Data, &data); err != nil {
+		return nil
+	}
+	return data.Supported
 }
 
 type toolCallResult struct {
